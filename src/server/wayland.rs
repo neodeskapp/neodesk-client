@@ -163,6 +163,10 @@ pub(super) async fn update_uinput_resolution() {
     // runs on current-thread runtimes (session init and the hotplug worker). The layout baseline
     // is computed in the SAME task: a failed lookup is not cached, so asking for the rects
     // afterwards would rerun the whole socket probe synchronously.
+    //
+    // The generation read before the rect is computed labels the range for the DRM cursor
+    // calibration; the raw DRM union below is no compositor layout and is labelled with none.
+    let gen = scrap::wayland::display::wayland_snapshot_generation();
     let (rect, layout) = match hbb_common::tokio::task::spawn_blocking(|| {
         scrap::wayland::display::clear_wayland_displays_cache();
         match scrap::wayland::display::get_desktop_rect_for_uinput() {
@@ -185,6 +189,7 @@ pub(super) async fn update_uinput_resolution() {
             return;
         }
     };
+    let gen = super::display_service::input_map_label(gen, !layout.is_empty());
     // Re-snapshot the baseline on every call: this runs at session init and after every hotplug, and
     // the baseline is what the client's coordinates are measured against.
     let snapshot_layout = || {
@@ -193,12 +198,15 @@ pub(super) async fn update_uinput_resolution() {
     // Reprogram the device only when the range actually changes. A display stuck in a rebuild loop
     // calls this about once a second, and reapplying an identical range is an IPC roundtrip plus a
     // uinput device reconfiguration under a user who may be at the console.
+    let _apply = super::display_service::UINPUT_APPLY.lock().await;
     if super::display_service::wayland_uinput_rect() == Some(rect) {
+        super::display_service::note_input_map_ready(gen);
         snapshot_layout();
         return;
     }
     let (minx, maxx, miny, maxy) = rect;
     log::info!("update mouse resolution: ({minx}, {maxx}), ({miny}, {maxy})");
+    super::display_service::note_input_map_unknown();
     match timeout(
         3_000,
         input_service::update_mouse_resolution(minx, maxx, miny, maxy),
@@ -209,6 +217,7 @@ pub(super) async fn update_uinput_resolution() {
         // next call instead of being remembered as applied.
         Ok(Ok(())) => {
             super::display_service::set_wayland_uinput_rect(rect);
+            super::display_service::note_input_map_adopted(gen);
             snapshot_layout();
         }
         Ok(Err(err)) => log::error!("Failed to update mouse resolution: {}", err),
@@ -260,6 +269,10 @@ pub(super) async fn check_init() -> ResultType<()> {
             if crate::input_service::wayland_use_uinput() {
                 // The cached layout may predate compositor changes made while no session
                 // was active, https://github.com/rustdesk/rustdesk/issues/15601
+                // Read before the rect: an apply that races a layout move is recorded under the
+                // older generation, which only streams built before the move measure under.
+                #[cfg(feature = "drm")]
+                let gen = scrap::wayland::display::wayland_snapshot_generation();
                 scrap::wayland::display::clear_wayland_displays_cache();
                 if let Some((minx, maxx, miny, maxy)) =
                     scrap::wayland::display::get_desktop_rect_for_uinput()
@@ -271,6 +284,12 @@ pub(super) async fn check_init() -> ResultType<()> {
                         miny,
                         maxy
                     );
+                    // A display that falls back to PipeWire in a DRM session runs this apply
+                    // too: record it for the calibration the way the DRM paths do.
+                    #[cfg(feature = "drm")]
+                    let _apply = super::display_service::UINPUT_APPLY.lock().await;
+                    #[cfg(feature = "drm")]
+                    super::display_service::note_input_map_unknown();
                     // Bound the IPC wait like the periodic refresh does, so a hung
                     // response can't stall session init.
                     match timeout(
@@ -283,6 +302,8 @@ pub(super) async fn check_init() -> ResultType<()> {
                             super::display_service::set_wayland_uinput_rect((
                                 minx, maxx, miny, maxy,
                             ));
+                            #[cfg(feature = "drm")]
+                            super::display_service::note_input_map_adopted(gen);
                             // Snapshot the per-display layout the client's coordinates
                             // will be based on, so the mouse path can correct them if
                             // the compositor moves a monitor mid-session.
