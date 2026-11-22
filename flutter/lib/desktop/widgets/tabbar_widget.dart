@@ -593,12 +593,19 @@ class _DesktopTabState extends State<DesktopTab>
   bool isHideSingleItem() {
     return state.value.tabs.length == 1 &&
         (controller.tabType == DesktopTabType.main ||
-            controller.tabType == DesktopTabType.install);
+            controller.tabType == DesktopTabType.install ||
+            controller.tabType == DesktopTabType.cm);
   }
 
   /// The start of the title bar: the server's logo and name when the
   /// branding has them, the wordmark while only Home is open, else the mark.
   Widget _brand() {
+    if (tabType == DesktopTabType.cm) {
+      return BdTitleBrand(title: bind.mainGetAppNameSync());
+    }
+    if (tabType == DesktopTabType.install) {
+      return BdTitleBrand(title: tr('bd-install-title'));
+    }
     if (tabType != DesktopTabType.main && tabType != DesktopTabType.install) {
       return const BdLogoMark(size: 18);
     }
@@ -979,7 +986,8 @@ class _ListView extends StatelessWidget {
   /// - hide single item when only has one item (home) on [DesktopTabPage].
   bool isHideSingleItem() {
     return state.value.tabs.length == 1 &&
-            controller.tabType == DesktopTabType.main ||
+            (controller.tabType == DesktopTabType.main ||
+                controller.tabType == DesktopTabType.cm) ||
         controller.tabType == DesktopTabType.install;
   }
 
