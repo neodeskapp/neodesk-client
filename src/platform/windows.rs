@@ -1862,7 +1862,7 @@ fn remove_own_user_uri_schemes() {
     }
 }
 
-/// Register `betterdesk://` and legacy `rustdesk://` for the current user.
+/// Register `neodesk://` and legacy `rustdesk://` for the current user.
 /// HKCU overrides HKCR, so a portable or already-installed client can open
 /// browser links without a new elevated install.
 pub fn ensure_user_uri_schemes() {
@@ -4924,7 +4924,7 @@ mod tests {
     #[test]
     fn install_app_names_enforce_ascii_command_safety() {
         assert!(validate_install_app_name("RustDesk-Admin1").is_ok());
-        assert!(validate_install_app_name("BetterDesk Client").is_ok());
+        assert!(validate_install_app_name("NeoDesk Client").is_ok());
         for app_name in ["", "RustDesk_Admin", "RustDesk&whoami", "RustDesk应用"] {
             assert!(
                 validate_install_app_name(app_name).is_err(),

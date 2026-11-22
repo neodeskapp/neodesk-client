@@ -284,7 +284,7 @@ impl Client {
         } else {
             if other_server == PUBLIC_SERVER {
                 bail!(
-                    "Public RustDesk servers are disabled in BetterDesk. Configure your BetterDesk server in Network settings."
+                    "Public RustDesk servers are disabled in NeoDesk. Configure your NeoDesk server in Network settings."
                 );
             } else {
                 (check_port(other_server, RENDEZVOUS_PORT), Vec::new(), true)
@@ -1811,9 +1811,9 @@ impl LoginConfigHandler {
             let server = server_key.next().unwrap_or_default();
             let args = server_key.next().unwrap_or_default();
             let (key, server) = if server == PUBLIC_SERVER {
-                // BetterDesk: ignore @public; keep peer id and use configured Network server only.
+                // NeoDesk: ignore @public; keep peer id and use configured Network server only.
                 log::error!(
-                    "Public RustDesk servers are disabled in BetterDesk. Configure your BetterDesk server in Network settings."
+                    "Public RustDesk servers are disabled in NeoDesk. Configure your NeoDesk server in Network settings."
                 );
                 ("".to_owned(), "".to_owned())
             } else {

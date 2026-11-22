@@ -1357,7 +1357,7 @@ pub fn update_from_dmg_as_root(dmg_path: &str, expected_version: &str) -> Result
     // so we spawn a script that waits, kills processes, copies, and restarts.
     let daemon_label = format!("com.unitronix.{}_service", hbb_common::config::EXE_NAME);
     let agent_label = format!("com.unitronix.{}_server", hbb_common::config::EXE_NAME);
-    let script_path = format!("{}/betterdesk_update.sh", tmp_dir);
+    let script_path = format!("{}/neodesk_update.sh", tmp_dir);
     let script = format!(
         r#"#!/bin/sh
 rollback_done=0

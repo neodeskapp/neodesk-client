@@ -1,12 +1,12 @@
 //! Add a computer and quick support, the client half.
 //!
 //! An invite reaches the client as the name of the downloaded file
-//! (Windows), as a `betterdesk://join|support/...` link, as
+//! (Windows), as a `neodesk://join|support/...` link, as
 //! `--join <link or code>` on the command line, or typed into the first
 //! start screen. A join code makes this client a member of the server for
 //! good (see [`join`]). A support code starts quick support mode: one
 //! session, incoming only, nothing installed, with its own config folder and
-//! its own IPC names, so an installed BetterDesk on the same computer is left
+//! its own IPC names, so an installed NeoDesk on the same computer is left
 //! alone (see [`support`]).
 //!
 //! The UI reads [`state_json`] and calls [`redeem_join`], [`redeem_support`],
@@ -42,13 +42,13 @@ pub use link::{Console, Invite, Kind};
 
 /// Inherited by the processes a quick support process starts (connection
 /// manager and the like), so they run in the same mode.
-const QUICK_SUPPORT_ENV: &str = "BETTERDESK_QUICK_SUPPORT";
+const QUICK_SUPPORT_ENV: &str = "NEODESK_QUICK_SUPPORT";
 /// Names the config folder and the windows of quick support mode.
-const QUICK_SUPPORT_APP_NAME: &str = "BetterDesk Quick Support";
+const QUICK_SUPPORT_APP_NAME: &str = "NeoDesk Quick Support";
 /// Set once a quick support config folder has an ID of its own.
-const OPTION_OWN_ID: &str = "betterdesk-quick-support-id";
+const OPTION_OWN_ID: &str = "neodesk-quick-support-id";
 /// Config option with the console a join came from; a bare code goes there.
-const OPTION_CONSOLE: &str = "betterdesk-console";
+const OPTION_CONSOLE: &str = "neodesk-console";
 /// How long after the last input event a supporter counts as using the computer.
 const INPUT_ACTIVE_FOR_MS: i64 = 2_000;
 /// The chat lines the state keeps.
@@ -166,7 +166,7 @@ pub fn is_quick_support() -> bool {
 }
 
 /// The IPC path a quick support process uses instead of `path`: the same
-/// name under `betterdesk-qs` instead of `betterdesk`.
+/// name under `neodesk-qs` instead of `neodesk`.
 pub fn namespaced_ipc_path(path: &str) -> String {
     path.replacen(config::EXE_NAME, &format!("{}-qs", config::EXE_NAME), 1)
 }
@@ -248,7 +248,7 @@ fn enter_quick_support_mode() {
 }
 
 /// Gives the quick support config an ID of its own. The ID a client derives
-/// from the machine is the one an installed BetterDesk on this computer has.
+/// from the machine is the one an installed NeoDesk on this computer has.
 fn use_own_id() {
     use hbb_common::rand::Rng;
     if Config::get_option(OPTION_OWN_ID) == "Y" {
@@ -270,7 +270,7 @@ pub fn is_setup_file(exe: &str) -> bool {
         && link::parse_file_name(exe).map_or(false, |invite| invite.kind == Some(Kind::Join))
 }
 
-/// The `betterdesk://join/...` link of the setup file's invite, which the
+/// The `neodesk://join/...` link of the setup file's invite, which the
 /// installer hands to the installed client when it starts it.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub fn pending_join_deep_link() -> Option<String> {
@@ -459,7 +459,7 @@ pub fn store_device_token(payload: &str) {
         log::warn!("Ignored a device token for another device or without server");
         return;
     };
-    crate::hbbs_http::betterdesk::record_enrollment_answer(
+    crate::hbbs_http::neodesk::record_enrollment_answer(
         handed.status,
         Some(&handed.token),
         &handed.device_id,

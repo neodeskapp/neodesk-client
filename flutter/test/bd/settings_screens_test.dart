@@ -176,7 +176,7 @@ void main() {
 
   for (final state in ['default', 'options', 'installing']) {
     forBothThemes('install $state', (tester, b) async {
-      final path = TextEditingController(text: r'C:\Program Files\BetterDesk');
+      final path = TextEditingController(text: r'C:\Program Files\NeoDesk');
       addTearDown(path.dispose);
       await pumpScreen(
         tester,

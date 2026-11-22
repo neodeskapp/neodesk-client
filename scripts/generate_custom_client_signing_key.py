@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generate BetterDesk NaCl/Ed25519 keys for signed custom.txt (Client Generator).
+"""Generate NeoDesk NaCl/Ed25519 keys for signed custom.txt (Client Generator).
 
 Writes:
-  res/betterdesk/custom-client-signing.pub
-  res/betterdesk/custom-client-signing.seed  (private — keep secret)
+  res/neodesk/custom-client-signing.pub
+  res/neodesk/custom-client-signing.seed  (private — keep secret)
 
 Requires: pip install pynacl
 """
@@ -21,7 +21,7 @@ def main() -> int:
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=Path(__file__).resolve().parents[1] / "res" / "betterdesk",
+        default=Path(__file__).resolve().parents[1] / "res" / "neodesk",
     )
     args = parser.parse_args()
 

@@ -378,7 +378,7 @@ class AboutView extends StatelessWidget {
     required this.onUpstream,
     required this.onCheckUpdates,
     this.updateResult,
-    this.sourceLabel = 'github.com/neodeskapp/betterdesk-client',
+    this.sourceLabel = 'github.com/neodeskapp/neodesk-client',
   });
 
   final AboutFacts facts;

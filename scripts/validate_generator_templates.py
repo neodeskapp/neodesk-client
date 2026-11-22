@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate an extracted BetterDesk Generator template package."""
+"""Validate an extracted NeoDesk Generator template package."""
 
 from __future__ import annotations
 

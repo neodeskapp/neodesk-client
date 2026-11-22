@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Checks local prerequisites for building the BetterDesk / RustDesk Flutter desktop client on Windows x64.
+  Checks local prerequisites for building the NeoDesk / RustDesk Flutter desktop client on Windows x64.
 
 .DESCRIPTION
   Read-only verification against CI versions (Flutter 3.24.5, Rust 1.75, vcpkg commit, LLVM).

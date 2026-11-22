@@ -1,4 +1,4 @@
-# Mechanizmy łączności klienta (BetterDesk / RustDesk)
+# Mechanizmy łączności klienta (NeoDesk / RustDesk)
 
 Dokument opisuje, **jak klient się łączy**: do jakich hostów, w jakiej kolejności, kiedy ruch idzie P2P / LAN / relay, oraz gdzie to znaleźć w kodzie.
 
@@ -35,7 +35,7 @@ flowchart LR
   host -.->|"heartbeat / sync"| api
 ```
 
-Domyślny publiczny rendezvous **jest wyłączony** w oficjalnym kliencie BetterDesk  
+Domyślny publiczny rendezvous **jest wyłączony** w oficjalnym kliencie NeoDesk  
 (`RENDEZVOUS_SERVERS` jest puste w [`libs/hbb_common/src/config.rs`](../libs/hbb_common/src/config.rs)).  
 Bez `custom-rendezvous-server` / `custom.txt` / deploy string klient **nie** łączy się z `*.rustdesk.com`.  
 Szczegóły: [OFFICIAL_CLIENT.md](OFFICIAL_CLIENT.md).
@@ -52,24 +52,24 @@ Stałe w [`libs/hbb_common/src/config.rs`](../libs/hbb_common/src/config.rs):
 | Relay | `hbbr` | **21117** (`RELAY_PORT`) | Proxy ruchu, gdy P2P się nie uda |
 | WebSocket rendezvous | ten sam hbbs | **21118** (`WS_RENDEZVOUS_PORT`) | Transport WS do hbbs |
 | WebSocket relay | ten sam hbbr | **21119** (`WS_RELAY_PORT`) | Transport WS do hbbr |
-| API | Pro / admin | zwykle **21114** (BetterDesk Go) | Heartbeat, sync, deploy — **nie** media sesji |
+| API | Pro / admin | zwykle **21114** (NeoDesk Go) | Heartbeat, sync, deploy — **nie** media sesji |
 | Direct listener | lokalny klient | **21118** (`RENDEZVOUS_PORT + 2`) | Wejście TCP po IP (bez hbbs) |
 | LAN discovery | lokalny klient | **21119** (`RENDEZVOUS_PORT + 3`) | UDP broadcast `PeerDiscovery` |
 
 Uwaga: porty **21118** i **21119** służą w dwóch kontekstach (WS do serwerów vs lokalny direct/LAN). Rozróżnia je to, **czy** połączenie idzie do hosta peera, czy do skonfigurowanego serwera z mapowaniem WS (`libs/hbb_common/src/websocket.rs`).
 
-Klucz weryfikacji peerów: opcja `key` (BetterDesk `id_ed25519.pub`). Brak publicznego `RS_PUB_KEY` jako fallbacku.
+Klucz weryfikacji peerów: opcja `key` (NeoDesk `id_ed25519.pub`). Brak publicznego `RS_PUB_KEY` jako fallbacku.
 
 ---
 
-## 3. Publiczne vs self-hosted (BetterDesk)
+## 3. Publiczne vs self-hosted (NeoDesk)
 
-| Aspekt | Bez konfiguracji (BetterDesk) | Po wpisaniu serwera |
+| Aspekt | Bez konfiguracji (NeoDesk) | Po wpisaniu serwera |
 |--------|------------------------------|---------------------|
 | Rendezvous | **brak** (fail-closed) | opcja `custom-rendezvous-server` |
 | Relay | — | `relay-server` lub host+1 |
 | API | **brak** (nie `admin.rustdesk.com`) | `api-server` albo wyliczenie `host:21114` |
-| Sync / heartbeat HTTP | wyłączony (pusty API) | aktywny wobec BetterDesk API |
+| Sync / heartbeat HTTP | wyłączony (pusty API) | aktywny wobec NeoDesk API |
 | UDP / IPv6 punch (domyślnie) | — | jak dla non-public (`N` gdy nie `*.rustdesk.com`) |
 
 `using_public_server()` ([`src/common.rs`](../src/common.rs)) nadal oznacza „brak custom rendezvous”, ale **nie** powoduje ruchu do rustdesk.com.
@@ -98,7 +98,7 @@ Bez portu dopisywany jest `:21116`.
 2. `custom-rendezvous-server` → pojedynczy  
 3. `PROD_RENDEZVOUS_SERVER` → pojedynczy  
 4. jeśli `Config2.serial > SERIAL`: opcja `rendezvous-servers` (lista CSV, hosty z `.`)  
-5. wbudowane `RENDEZVOUS_SERVERS` — **puste** w BetterDesk (brak publicznego fallbacku)
+5. wbudowane `RENDEZVOUS_SERVERS` — **puste** w NeoDesk (brak publicznego fallbacku)
 
 Serwer może wypchnąć nową listę komunikatem `ConfigUpdate` / `ConfigureUpdate` (`rendezvous_servers` + `serial`). Host-side mediator wtedy restartuje się ([`src/rendezvous_mediator.rs`](../src/rendezvous_mediator.rs)).
 
@@ -117,7 +117,7 @@ Kontroler łączący się do relay używa `check_port(..., RELAY_PORT)` → **21
 1. licencja Windows (`lic.api`), jeśli obecna  
 2. jawna opcja `api-server`  
 3. z custom rendezvous: host z portem **−2** (21114) jako `http://…`  
-4. domyślnie **pusty string** (BetterDesk nie używa `admin.rustdesk.com`)
+4. domyślnie **pusty string** (NeoDesk nie używa `admin.rustdesk.com`)
 
 ---
 

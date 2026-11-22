@@ -1,16 +1,16 @@
 [Unit]
-Description=BetterDesk Client
+Description=NeoDesk Client
 Requires=network.target
 After=systemd-user-sessions.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/betterdesk --service
+ExecStart=/usr/bin/neodesk --service
 # kill --tray and --server both
-ExecStop=/usr/bin/pkill -f "betterdesk --"
+ExecStop=/usr/bin/pkill -f "neodesk --"
 # below two lines do not work, have to use above one line
-#ExecStop=/usr/bin/pkill -f "betterdesk --tray"
-#ExecStop=/usr/bin/pkill -f "betterdesk --server"
+#ExecStop=/usr/bin/pkill -f "neodesk --tray"
+#ExecStop=/usr/bin/pkill -f "neodesk --server"
 PIDFile=/run/rustdesk.pid
 KillMode=mixed
 TimeoutStopSec=30

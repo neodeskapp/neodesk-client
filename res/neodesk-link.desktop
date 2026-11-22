@@ -1,11 +1,11 @@
 [Desktop Entry]
-Name=BetterDesk Client
+Name=NeoDesk Client
 NoDisplay=true
-MimeType=x-scheme-handler/betterdesk;
-TryExec=betterdesk
-Exec=betterdesk %u
+MimeType=x-scheme-handler/neodesk;
+TryExec=neodesk
+Exec=neodesk %u
 Icon=rustdesk
 Terminal=false
 Type=Application
 StartupNotify=false
-StartupWMClass=betterdesk
+StartupWMClass=neodesk

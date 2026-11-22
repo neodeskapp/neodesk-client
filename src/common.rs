@@ -956,8 +956,8 @@ pub fn get_sysinfo() -> serde_json::Value {
         "os": os,
         "hostname": hostname,
         "app_name": get_app_name(),
-        "client_product": hbb_common::config::BETTERDESK_CLIENT_PRODUCT,
-        "client": hbb_common::config::BETTERDESK_CLIENT_PRODUCT,
+        "client_product": hbb_common::config::NEODESK_CLIENT_PRODUCT,
+        "client": hbb_common::config::NEODESK_CLIENT_PRODUCT,
         "license": hbb_common::config::LICENSE_SPDX,
         "upstream_project": hbb_common::config::UPSTREAM_PROJECT_NAME,
         "upstream_repo": hbb_common::config::UPSTREAM_REPO_URL,
@@ -967,7 +967,7 @@ pub fn get_sysinfo() -> serde_json::Value {
     if !domain.is_empty() {
         out["domain"] = json!(domain);
     }
-    crate::hbbs_http::betterdesk::merge_device_identity(&mut out);
+    crate::hbbs_http::neodesk::merge_device_identity(&mut out);
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         let username = crate::platform::get_active_username();
@@ -1017,12 +1017,12 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
 }
 
 pub fn check_software_update() {
-    // BetterDesk: temporarily disable client update checks (no rustdesk.com / no auto-update).
+    // NeoDesk: temporarily disable client update checks (no rustdesk.com / no auto-update).
     *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
 }
 
 /// Validate a GitHub HTTPS release-tag URL used by signed update metadata (#15914).
-/// BetterDesk keeps auto-check disabled; helpers remain for verified offline/manual update paths.
+/// NeoDesk keeps auto-check disabled; helpers remain for verified offline/manual update paths.
 pub(crate) fn release_id_from_update_url(update_url: &str) -> ResultType<String> {
     let url = url::Url::parse(update_url)?;
     if url.scheme() != "https" || url.host_str() != Some("github.com") {
@@ -1055,8 +1055,8 @@ pub(crate) fn release_id_from_update_url(update_url: &str) -> ResultType<String>
     let release_id = match segments.as_slice() {
         ["rustdesk", "rustdesk", "releases", "tag", release_id] => *release_id,
         ["rustdesk", "rustdesk", "releases", "tag", release_id, ""] => *release_id,
-        ["neodeskapp", "betterdesk-client", "releases", "tag", release_id] => *release_id,
-        ["neodeskapp", "betterdesk-client", "releases", "tag", release_id, ""] => *release_id,
+        ["neodeskapp", "neodesk-client", "releases", "tag", release_id] => *release_id,
+        ["neodeskapp", "neodesk-client", "releases", "tag", release_id, ""] => *release_id,
         _ => bail!(
             "Update URL is not a known release tag URL: {}",
             update_url
@@ -1108,7 +1108,7 @@ fn clear_software_update_url() {
     *update_url = String::new();
 }
 
-// Official BetterDesk builds do not call rustdesk.com for updates.
+// Official NeoDesk builds do not call rustdesk.com for updates.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
     *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
@@ -1121,7 +1121,7 @@ pub fn get_app_name() -> String {
     hbb_common::config::APP_NAME.read().unwrap().clone()
 }
 
-/// Executable / process stem (`betterdesk`), not the display name.
+/// Executable / process stem (`neodesk`), not the display name.
 #[inline]
 pub fn get_exe_name() -> String {
     hbb_common::config::EXE_NAME.to_owned()
@@ -1137,7 +1137,7 @@ pub fn get_uri_prefix() -> String {
     format!("{}://", hbb_common::config::URI_SCHEME)
 }
 
-/// Byte length of a supported link prefix (`betterdesk://` or legacy `rustdesk://`).
+/// Byte length of a supported link prefix (`neodesk://` or legacy `rustdesk://`).
 /// The scheme is compared case-insensitively.
 pub fn uni_link_prefix_len(arg: &str) -> Option<usize> {
     let bytes = arg.as_bytes();
@@ -1222,20 +1222,20 @@ fn get_api_server_(api: String, custom: String) -> String {
         if !s0.is_empty() {
         return api_server_of_id_server(&s0);
     }
-    // BetterDesk: never fall back to public admin.rustdesk.com
+    // NeoDesk: never fall back to public admin.rustdesk.com
     "".to_owned()
 }
 
-/// The API port of a BetterDesk server, the same whatever the ID server's port.
-pub const BETTERDESK_API_PORT: i32 = 21121;
+/// The API port of a NeoDesk server, the same whatever the ID server's port.
+pub const NEODESK_API_PORT: i32 = 21121;
 
 /// The API next to the ID server `id_server` (host or host:port) when no API
-/// server is set: plain http on [`BETTERDESK_API_PORT`].
+/// server is set: plain http on [`NEODESK_API_PORT`].
 pub fn api_server_of_id_server(id_server: &str) -> String {
     let host = hbb_common::socket_client::split_host_port(id_server)
         .map(|(host, _)| host)
         .unwrap_or_else(|| id_server.to_owned());
-    format!("http://{host}:{BETTERDESK_API_PORT}")
+    format!("http://{host}:{NEODESK_API_PORT}")
 }
 
 #[inline]
@@ -1554,7 +1554,7 @@ where
 }
 
 #[cfg(not(target_os = "ios"))]
-fn betterdesk_api_url(url: &str) -> bool {
+fn neodesk_api_url(url: &str) -> bool {
     let api = get_api_server(
         Config::get_option("api-server"),
         Config::get_option("custom-rendezvous-server"),
@@ -1585,13 +1585,13 @@ fn betterdesk_api_url(url: &str) -> bool {
 }
 
 #[cfg(not(target_os = "ios"))]
-async fn secure_betterdesk_post(
+async fn secure_neodesk_post(
     url: &str,
     body: &str,
     header: &str,
 ) -> ResultType<(String, String)> {
     if body.trim().is_empty()
-        || body.contains("\"betterdesk_envelope\"")
+        || body.contains("\"neodesk_envelope\"")
         || url.ends_with("/api/telemetry/key")
         || url.ends_with("/api/heartbeat")
         || url.ends_with("/api/sysinfo")
@@ -1603,19 +1603,19 @@ async fn secure_betterdesk_post(
     if !payload.is_object() {
         return Ok((body.to_owned(), header.to_owned()));
     }
-    let (key_id, public_key) = crate::hbbs_http::betterdesk::fetch_telemetry_server_key().await?;
+    let (key_id, public_key) = crate::hbbs_http::neodesk::fetch_telemetry_server_key().await?;
     let envelope =
         crate::telemetry::seal_payload(&payload, &key_id, &public_key, &Config::get_id())
-            .map_err(|err| anyhow!("BetterDesk request encryption failed: {err}"))?;
-    let secure_body = json!({"betterdesk_envelope": envelope}).to_string();
+            .map_err(|err| anyhow!("NeoDesk request encryption failed: {err}"))?;
+    let secure_body = json!({"neodesk_envelope": envelope}).to_string();
     let secure_header = if header.is_empty() {
         format!(
-            "X-BetterDesk-Envelope: 1\nX-BetterDesk-Device: {}",
+            "X-NeoDesk-Envelope: 1\nX-NeoDesk-Device: {}",
             Config::get_id()
         )
     } else {
         format!(
-            "{header}\nX-BetterDesk-Envelope: 1\nX-BetterDesk-Device: {}",
+            "{header}\nX-NeoDesk-Envelope: 1\nX-NeoDesk-Device: {}",
             Config::get_id()
         )
     };
@@ -1623,24 +1623,24 @@ async fn secure_betterdesk_post(
 }
 
 #[cfg(not(target_os = "ios"))]
-fn unwrap_betterdesk_response(body: String) -> ResultType<String> {
+fn unwrap_neodesk_response(body: String) -> ResultType<String> {
     let Ok(value) = serde_json::from_str::<Value>(&body) else {
         return Ok(body);
     };
-    let Some(envelope) = value.get("betterdesk_envelope") else {
+    let Some(envelope) = value.get("neodesk_envelope") else {
         return Ok(body);
     };
     let response = crate::telemetry::open_response(envelope)
-        .map_err(|err| anyhow!("BetterDesk response decryption failed: {err}"))?;
+        .map_err(|err| anyhow!("NeoDesk response decryption failed: {err}"))?;
     if response
-        .get("__betterdesk_http")
+        .get("__neodesk_http")
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
         let encoded = response
             .get("body")
             .and_then(Value::as_str)
-            .ok_or_else(|| anyhow!("BetterDesk secure response body missing"))?;
+            .ok_or_else(|| anyhow!("NeoDesk secure response body missing"))?;
         let bytes = base64::engine::general_purpose::STANDARD.decode(encoded)?;
         return Ok(String::from_utf8_lossy(&bytes).to_string());
     }
@@ -1655,8 +1655,8 @@ fn unwrap_betterdesk_response(body: String) -> ResultType<String> {
 /// - If fallback also fails, returns the original HTTP result (text or error).
 pub async fn post_request(url: String, body: String, header: &str) -> ResultType<String> {
     #[cfg(not(target_os = "ios"))]
-    if betterdesk_api_url(&url) {
-        let (body, header) = secure_betterdesk_post(&url, &body, header).await?;
+    if neodesk_api_url(&url) {
+        let (body, header) = secure_neodesk_post(&url, &body, header).await?;
         let response = with_tcp_proxy_fallback(
             &url,
             "POST",
@@ -1664,7 +1664,7 @@ pub async fn post_request(url: String, body: String, header: &str) -> ResultType
             post_request_via_tcp_proxy(&url, &body, &header),
         )
         .await?;
-        return unwrap_betterdesk_response(response);
+        return unwrap_neodesk_response(response);
     }
     with_tcp_proxy_fallback(
         &url,
@@ -1971,25 +1971,25 @@ pub async fn http_request_sync(
     header: String,
 ) -> ResultType<String> {
     #[cfg(not(target_os = "ios"))]
-    if betterdesk_api_url(&url) {
+    if neodesk_api_url(&url) {
         let payload = body
             .as_deref()
             .and_then(|value| serde_json::from_str::<Value>(value).ok())
             .filter(|value| value.is_object())
             .unwrap_or_else(|| json!({}));
         let (key_id, public_key) =
-            crate::hbbs_http::betterdesk::fetch_telemetry_server_key().await?;
+            crate::hbbs_http::neodesk::fetch_telemetry_server_key().await?;
         let envelope =
             crate::telemetry::seal_payload(&payload, &key_id, &public_key, &Config::get_id())
-                .map_err(|err| anyhow!("BetterDesk request encryption failed: {err}"))?;
-        let secure_body = json!({"betterdesk_envelope": envelope}).to_string();
+                .map_err(|err| anyhow!("NeoDesk request encryption failed: {err}"))?;
+        let secure_body = json!({"neodesk_envelope": envelope}).to_string();
         let mut headers: Map<String, Value> = if header.trim().is_empty() {
             Map::new()
         } else {
             serde_json::from_str(&header)?
         };
-        headers.insert("X-BetterDesk-Envelope".to_owned(), json!("1"));
-        headers.insert("X-BetterDesk-Device".to_owned(), json!(Config::get_id()));
+        headers.insert("X-NeoDesk-Envelope".to_owned(), json!("1"));
+        headers.insert("X-NeoDesk-Device".to_owned(), json!(Config::get_id()));
         let secure_header = serde_json::to_string(&headers)?;
         let response = with_tcp_proxy_fallback(
             &url,
@@ -1998,7 +1998,7 @@ pub async fn http_request_sync(
             http_request_via_tcp_proxy(&url, &method, Some(&secure_body), &secure_header),
         )
         .await?;
-        return unwrap_betterdesk_http_response(response);
+        return unwrap_neodesk_http_response(response);
     }
     with_tcp_proxy_fallback(
         &url,
@@ -2010,20 +2010,20 @@ pub async fn http_request_sync(
 }
 
 #[cfg(not(target_os = "ios"))]
-fn unwrap_betterdesk_http_response(response: String) -> ResultType<String> {
+fn unwrap_neodesk_http_response(response: String) -> ResultType<String> {
     let mut outer: Value = serde_json::from_str(&response)?;
     let body = outer
         .get("body")
         .and_then(Value::as_str)
         .unwrap_or_default();
     let envelope: Value = serde_json::from_str(body)?;
-    let Some(envelope) = envelope.get("betterdesk_envelope") else {
+    let Some(envelope) = envelope.get("neodesk_envelope") else {
         return Ok(response);
     };
     let decrypted = crate::telemetry::open_response(envelope)
-        .map_err(|err| anyhow!("BetterDesk response decryption failed: {err}"))?;
+        .map_err(|err| anyhow!("NeoDesk response decryption failed: {err}"))?;
     if decrypted
-        .get("__betterdesk_http")
+        .get("__neodesk_http")
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
@@ -2038,7 +2038,7 @@ fn unwrap_betterdesk_http_response(response: String) -> ResultType<String> {
         let encoded = decrypted
             .get("body")
             .and_then(Value::as_str)
-            .ok_or_else(|| anyhow!("BetterDesk secure response body missing"))?;
+            .ok_or_else(|| anyhow!("NeoDesk secure response body missing"))?;
         outer["body"] = json!(String::from_utf8_lossy(
             &base64::engine::general_purpose::STANDARD.decode(encoded)?
         ));
@@ -2204,7 +2204,7 @@ pub async fn get_key(sync: bool) -> String {
         options.remove("key").unwrap_or_default()
     };
     if key.is_empty() {
-        // BetterDesk: never fall back to public RS_PUB_KEY; require Network / custom.txt / deploy key
+        // NeoDesk: never fall back to public RS_PUB_KEY; require Network / custom.txt / deploy key
         return key;
     }
     key
@@ -2467,8 +2467,8 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
     ThrottledInterval::new(i)
 }
 
-const EMBEDDED_SUPPORT_CONFIG_B64: Option<&str> = option_env!("BETTERDESK_SUPPORT_CONFIG_B64");
-const GENERIC_SUPPORT_BUILD: Option<&str> = option_env!("BETTERDESK_GENERIC_SUPPORT");
+const EMBEDDED_SUPPORT_CONFIG_B64: Option<&str> = option_env!("NEODESK_SUPPORT_CONFIG_B64");
+const GENERIC_SUPPORT_BUILD: Option<&str> = option_env!("NEODESK_GENERIC_SUPPORT");
 
 /// Returns true for the GitHub-built generic Support Agent. It is permanently
 /// incoming-only, but receives its server endpoints during first-run pairing.
@@ -2493,7 +2493,7 @@ pub fn load_embedded_support_client() -> bool {
     read_custom_client(config);
     if !config::is_permanent_incoming_only() {
         log::error!(
-            "Embedded BetterDesk Support config was rejected: \
+            "Embedded NeoDesk Support config was rejected: \
              the binary did not enter permanent incoming-only mode"
         );
     }
@@ -2506,7 +2506,7 @@ pub fn load_custom_client() {
     }
     if is_generic_support_client() {
         apply_custom_client_map(
-            br#"{"app-name":"BetterDesk Support Agent","conn-type":"incoming","disable-settings":"N","override-settings":{"hide-server-settings":"N","hide-help-cards":"N"}}"#,
+            br#"{"app-name":"NeoDesk Support Agent","conn-type":"incoming","disable-settings":"N","override-settings":{"hide-server-settings":"N","hide-help-cards":"N"}}"#,
         );
         return;
     }
@@ -2624,13 +2624,13 @@ pub fn read_custom_client(config: &str) {
         log::error!("Failed to decode custom client config");
         return;
     };
-    // Prefer BetterDesk OEM pubkey (res/betterdesk/custom-client-signing.pub).
+    // Prefer NeoDesk OEM pubkey (res/neodesk/custom-client-signing.pub).
     // Generate with scripts/generate_custom_client_signing_key.py for the panel Generator.
-    const BETTERDESK_KEY: &str =
-        include_str!("../res/betterdesk/custom-client-signing.pub");
-    let key = BETTERDESK_KEY.trim();
+    const NEODESK_KEY: &str =
+        include_str!("../res/neodesk/custom-client-signing.pub");
+    let key = NEODESK_KEY.trim();
     if key.is_empty() {
-        log::error!("BetterDesk custom-client signing public key is empty; use plain JSON custom.txt or generate keys");
+        log::error!("NeoDesk custom-client signing public key is empty; use plain JSON custom.txt or generate keys");
         return;
     }
     let Some(pk) = get_rs_pk(key) else {
@@ -3129,7 +3129,7 @@ mod tests {
     use hbb_common::rendezvous_proto::control_permissions::Permission;
 
     #[test]
-    fn an_id_server_without_api_server_uses_the_betterdesk_api_port() {
+    fn an_id_server_without_api_server_uses_the_neodesk_api_port() {
         for (id_server, api) in [
             ("desk.example.com", "http://desk.example.com:21121"),
             ("desk.example.com:21116", "http://desk.example.com:21121"),
@@ -3209,7 +3209,7 @@ mod tests {
         );
         assert_eq!(
             release_id_from_update_url(
-                "https://github.com/neodeskapp/betterdesk-client/releases/tag/v1.4.6"
+                "https://github.com/neodeskapp/neodesk-client/releases/tag/v1.4.6"
             )
             .unwrap(),
             "v1.4.6"
@@ -3575,7 +3575,7 @@ mod tests {
     }
 
     const ENVELOPE_HEADER: &str =
-        "Authorization: Bearer token\nX-BetterDesk-Envelope: 1\nX-BetterDesk-Device: 123456789";
+        "Authorization: Bearer token\nX-NeoDesk-Envelope: 1\nX-NeoDesk-Device: 123456789";
 
     #[test]
     fn test_parse_simple_header_keeps_every_line() {
@@ -3590,8 +3590,8 @@ mod tests {
             vec![
                 ("Content-Type", "application/json"),
                 ("Authorization", "Bearer token"),
-                ("X-BetterDesk-Envelope", "1"),
-                ("X-BetterDesk-Device", "123456789"),
+                ("X-NeoDesk-Envelope", "1"),
+                ("X-NeoDesk-Device", "123456789"),
             ]
         );
     }
@@ -3638,8 +3638,8 @@ mod tests {
         let request = server.await.unwrap();
         for line in [
             "\r\nauthorization: bearer token\r\n",
-            "\r\nx-betterdesk-envelope: 1\r\n",
-            "\r\nx-betterdesk-device: 123456789\r\n",
+            "\r\nx-neodesk-envelope: 1\r\n",
+            "\r\nx-neodesk-device: 123456789\r\n",
         ] {
             assert!(request.contains(line), "{line:?} missing in {request:?}");
         }
@@ -3691,12 +3691,12 @@ mod tests {
 
     #[test]
     fn test_uni_link_accepts_legacy_rustdesk_scheme() {
-        assert!(is_supported_uni_link("betterdesk://123456789"));
+        assert!(is_supported_uni_link("neodesk://123456789"));
         assert!(is_supported_uni_link("rustdesk://123456789"));
         assert!(is_supported_uni_link("RustDesk://123456789/r"));
         assert!(!is_supported_uni_link("https://example.com"));
         assert!(!is_supported_uni_link("rustdesk:123"));
-        assert!(is_empty_uni_link("betterdesk://"));
+        assert!(is_empty_uni_link("neodesk://"));
         assert!(is_empty_uni_link("rustdesk:///"));
         assert!(!is_empty_uni_link("rustdesk://123"));
     }

@@ -347,7 +347,7 @@ class _BdTitleBarTextState extends State<BdTitleBarText> {
 }
 
 /// The brand at the start of the title bar: the server's logo and name
-/// when the branding has them, otherwise the BetterDesk mark (and wordmark
+/// when the branding has them, otherwise the NeoDesk mark (and wordmark
 /// when [wordmark]).
 class BdTitleBrand extends StatelessWidget {
   const BdTitleBrand({

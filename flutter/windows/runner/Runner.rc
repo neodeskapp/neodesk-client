@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "UNITRONIX" "\0"
-            VALUE "FileDescription", "BetterDesk Client" "\0"
+            VALUE "FileDescription", "NeoDesk Client" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "betterdesk" "\0"
+            VALUE "InternalName", "neodesk" "\0"
             VALUE "LegalCopyright", "Copyright © UNITRONIX. All rights reserved." "\0"
-            VALUE "OriginalFilename", "betterdesk.exe" "\0"
-            VALUE "ProductName", "BetterDesk Client" "\0"
+            VALUE "OriginalFilename", "neodesk.exe" "\0"
+            VALUE "ProductName", "NeoDesk Client" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

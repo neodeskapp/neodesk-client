@@ -29,10 +29,10 @@ _cargo_target_env = os.environ.get('CARGO_TARGET_DIR', '')
 _repo_target = os.path.join(REPO_ROOT, 'target')
 if (not _cargo_target_env
         or 'cursor-sandbox-cache' in _cargo_target_env.replace('\\', '/').lower()
-        or os.environ.get('BETTERDESK_FORCE_LOCAL_CARGO_TARGET') == '1'):
+        or os.environ.get('NEODESK_FORCE_LOCAL_CARGO_TARGET') == '1'):
     os.environ['CARGO_TARGET_DIR'] = _repo_target
 _cargo_target = os.environ['CARGO_TARGET_DIR']
-hbb_name = 'betterdesk' + ('.exe' if windows else '')
+hbb_name = 'neodesk' + ('.exe' if windows else '')
 exe_path = os.path.join(_cargo_target, 'release', hbb_name)
 if windows:
     win_arch = 'arm64' if platform.machine().lower() in ('arm64', 'aarch64') else 'x64'
@@ -366,7 +366,7 @@ def generate_control_file(version):
     control_file_path = "../res/DEBIAN/control"
     system2('/bin/rm -rf %s' % control_file_path)
 
-    content = """Package: betterdesk
+    content = """Package: neodesk
 Section: net
 Priority: optional
 Version: %s
@@ -666,7 +666,7 @@ def measured_glibc_floor():
     # object is higher -- and it moves whenever either base does.
     paths = [p for p in glob.glob('tmpdeb/usr/lib/rustdesk/libdrmtap.so.0.*')
              + glob.glob('tmpdeb/usr/share/rustdesk/lib/librustdesk.so')
-             + glob.glob('tmpdeb/usr/share/rustdesk/betterdesk')
+             + glob.glob('tmpdeb/usr/share/rustdesk/neodesk')
              if os.path.isfile(p) and not os.path.islink(p)]
     minor = max((_max_glibc_minor(p) for p in paths), default=0)
     if not minor:
@@ -690,9 +690,9 @@ def retarget_control_to_drm_variant():
         lines = f.readlines()
     out = []
     for line in lines:
-        if line.startswith('Package: betterdesk'):
+        if line.startswith('Package: neodesk'):
             out.append(f'Package: {DRM_PACKAGE_NAME}\n')
-            out.append('Conflicts: betterdesk\nConflicts: rustdesk\nReplaces: betterdesk\nReplaces: rustdesk\nProvides: betterdesk\nProvides: rustdesk\n')
+            out.append('Conflicts: neodesk\nConflicts: rustdesk\nReplaces: neodesk\nReplaces: rustdesk\nProvides: neodesk\nProvides: rustdesk\n')
         elif line.startswith('Depends:'):
             # 2.4.101 is where drmModeGetFB2 landed; below it libdrmtap loads and can never capture.
             out.append(line.rstrip('\n') + ', libdrm2 (>= 2.4.101), libegl1, libgles2, '
@@ -700,7 +700,7 @@ def retarget_control_to_drm_variant():
         else:
             out.append(line)
     body = ''.join(out)
-    # Fail loudly rather than silently shipping a package that says `betterdesk`: a stock control file
+    # Fail loudly rather than silently shipping a package that says `neodesk`: a stock control file
     # that stopped matching either anchor would otherwise produce a variant deb wearing the stock name.
     if f'Package: {DRM_PACKAGE_NAME}\n' not in body or 'libegl1' not in body:
         raise Exception(f'could not retarget {path} to the drm variant; upstream control layout changed')
@@ -731,9 +731,9 @@ def build_flutter_deb(version, features):
     system2(
         'cp ../res/scalable.svg tmpdeb/usr/share/icons/hicolor/scalable/apps/rustdesk.svg')
     system2(
-        'cp ../res/betterdesk.desktop tmpdeb/usr/share/applications/betterdesk.desktop')
+        'cp ../res/neodesk.desktop tmpdeb/usr/share/applications/neodesk.desktop')
     system2(
-        'cp ../res/betterdesk-link.desktop tmpdeb/usr/share/applications/betterdesk-link.desktop')
+        'cp ../res/neodesk-link.desktop tmpdeb/usr/share/applications/neodesk-link.desktop')
     system2(
         'cp ../res/rustdesk-link.desktop tmpdeb/usr/share/applications/rustdesk-link.desktop')
     system2(
@@ -756,14 +756,14 @@ def build_flutter_deb(version, features):
         retarget_control_to_drm_variant()
     system2('cp -a ../res/DEBIAN/* tmpdeb/DEBIAN/')
     md5_file_folder("tmpdeb/")
-    system2('dpkg-deb -b tmpdeb betterdesk.deb;')
+    system2('dpkg-deb -b tmpdeb neodesk.deb;')
 
     system2('/bin/rm -rf tmpdeb/')
     system2('/bin/rm -rf ../res/DEBIAN/control')
-    os.rename('betterdesk.deb', '../betterdesk-%s.deb' % version)
+    os.rename('neodesk.deb', '../neodesk-%s.deb' % version)
     if ships_so:
         # Named apart from the stock package so installing the consent-free variant is a deliberate act.
-        os.rename('../betterdesk-%s.deb' % version, f'../{DRM_PACKAGE_NAME}-{version}.deb')
+        os.rename('../neodesk-%s.deb' % version, f'../{DRM_PACKAGE_NAME}-{version}.deb')
     os.chdir("..")
 
 
@@ -801,7 +801,7 @@ def assert_staged_binary_is_drm():
     is how CI packages) reaches the other, where nothing had rebuilt the binary at all.
     """
     binaries = [p for p in glob.glob('tmpdeb/usr/share/rustdesk/lib/librustdesk.so')
-                + glob.glob('tmpdeb/usr/share/rustdesk/betterdesk') if os.path.isfile(p)]
+                + glob.glob('tmpdeb/usr/share/rustdesk/neodesk') if os.path.isfile(p)]
     if not any(_carries_drmtap_marker(p) for p in binaries):
         raise Exception(
             f'--drm was requested but the staged bundle does not look like a drm build (no '
@@ -841,9 +841,9 @@ def build_deb_from_folder(version, binary_folder, want_drm=False):
     system2(
         'cp ../res/scalable.svg tmpdeb/usr/share/icons/hicolor/scalable/apps/rustdesk.svg')
     system2(
-        'cp ../res/betterdesk.desktop tmpdeb/usr/share/applications/betterdesk.desktop')
+        'cp ../res/neodesk.desktop tmpdeb/usr/share/applications/neodesk.desktop')
     system2(
-        'cp ../res/betterdesk-link.desktop tmpdeb/usr/share/applications/betterdesk-link.desktop')
+        'cp ../res/neodesk-link.desktop tmpdeb/usr/share/applications/neodesk-link.desktop')
     system2(
         'cp ../res/rustdesk-link.desktop tmpdeb/usr/share/applications/rustdesk-link.desktop')
     system2(
@@ -897,13 +897,13 @@ def build_deb_from_folder(version, binary_folder, want_drm=False):
         retarget_control_to_drm_variant()
     system2('cp -a ../res/DEBIAN/* tmpdeb/DEBIAN/')
     md5_file_folder("tmpdeb/")
-    system2('dpkg-deb -b tmpdeb betterdesk.deb;')
+    system2('dpkg-deb -b tmpdeb neodesk.deb;')
 
     system2('/bin/rm -rf tmpdeb/')
     system2('/bin/rm -rf ../res/DEBIAN/control')
-    os.rename('betterdesk.deb', '../betterdesk-%s.deb' % version)
+    os.rename('neodesk.deb', '../neodesk-%s.deb' % version)
     if want_drm:
-        os.rename('../betterdesk-%s.deb' % version, f'../{DRM_PACKAGE_NAME}-{version}.deb')
+        os.rename('../neodesk-%s.deb' % version, f'../{DRM_PACKAGE_NAME}-{version}.deb')
     os.chdir("..")
 
 
@@ -922,11 +922,11 @@ def build_flutter_dmg(version, features):
     mac_arch = 'arm64' if platform.machine().lower() in ('arm64', 'aarch64') else 'x86_64'
     system2(
         f'FLUTTER_XCODE_ARCHS={mac_arch} FLUTTER_XCODE_ONLY_ACTIVE_ARCH=YES flutter build macos --release')
-    system2('cp -rf ../target/release/service "./build/macos/Build/Products/Release/BetterDesk Client.app/Contents/MacOS/"')
+    system2('cp -rf ../target/release/service "./build/macos/Build/Products/Release/NeoDesk Client.app/Contents/MacOS/"')
     '''
     system2(
-        "create-dmg --volname \"BetterDesk Client Installer\" --window-pos 200 120 --window-size 800 400 --icon-size 100 --app-drop-link 600 185 --icon \"BetterDesk Client.app\" 200 190 --hide-extension \"BetterDesk Client.app\" betterdesk.dmg \"./build/macos/Build/Products/Release/BetterDesk Client.app\"")
-    os.rename("betterdesk.dmg", f"../betterdesk-{version}.dmg")
+        "create-dmg --volname \"NeoDesk Client Installer\" --window-pos 200 120 --window-size 800 400 --icon-size 100 --app-drop-link 600 185 --icon \"NeoDesk Client.app\" 200 190 --hide-extension \"NeoDesk Client.app\" neodesk.dmg \"./build/macos/Build/Products/Release/NeoDesk Client.app\"")
+    os.rename("neodesk.dmg", f"../neodesk-{version}.dmg")
     '''
     os.chdir("..")
 
@@ -963,19 +963,19 @@ def build_flutter_windows(version, features, skip_portable_pack):
     os.chdir('libs/portable')
     system2('pip3 install -r requirements.txt')
     system2(
-        f'python3 ./generate.py -f ../../{flutter_build_dir_2} -o . -e ../../{flutter_build_dir_2}/betterdesk.exe')
+        f'python3 ./generate.py -f ../../{flutter_build_dir_2} -o . -e ../../{flutter_build_dir_2}/neodesk.exe')
     os.chdir('../..')
-    if os.path.exists('./betterdesk_portable.exe'):
+    if os.path.exists('./neodesk_portable.exe'):
         os.replace('./target/release/rustdesk-portable-packer.exe',
-                   './betterdesk_portable.exe')
+                   './neodesk_portable.exe')
     else:
         os.rename('./target/release/rustdesk-portable-packer.exe',
-                  './betterdesk_portable.exe')
+                  './neodesk_portable.exe')
     print(
-        f'output location: {os.path.abspath(os.curdir)}/betterdesk_portable.exe')
-    os.rename('./betterdesk_portable.exe', f'./betterdesk-{version}-install.exe')
+        f'output location: {os.path.abspath(os.curdir)}/neodesk_portable.exe')
+    os.rename('./neodesk_portable.exe', f'./neodesk-{version}-install.exe')
     print(
-        f'output location: {os.path.abspath(os.curdir)}/betterdesk-{version}-install.exe')
+        f'output location: {os.path.abspath(os.curdir)}/neodesk-{version}-install.exe')
 
 
 def main():
@@ -1026,23 +1026,23 @@ def main():
             return
         system2('cargo build --locked --release --features ' + features)
         # system2('upx.exe target/release/rustdesk.exe')
-        system2('mv target/release/rustdesk.exe target/release/betterdesk.exe')
+        system2('mv target/release/rustdesk.exe target/release/neodesk.exe')
         pa = os.environ.get('P')
         if pa:
             # https://certera.com/kb/tutorial-guide-for-safenet-authentication-client-for-code-signing/
             system2(
                 f'signtool sign /a /v /p {pa} /debug /f .\\cert.pfx /t http://timestamp.digicert.com  '
-                'target\\release\\betterdesk.exe')
+                'target\\release\\neodesk.exe')
         else:
             print('Not signed')
         os.makedirs(res_dir, exist_ok=True)
         system2(
-            f'cp -rf target/release/betterdesk.exe {res_dir}')
+            f'cp -rf target/release/neodesk.exe {res_dir}')
         os.chdir('libs/portable')
         system2('pip3 install -r requirements.txt')
         system2(
-            f'python3 ./generate.py -f ../../{res_dir} -o . -e ../../{res_dir}/betterdesk-{version}-win7-install.exe')
-        system2(f'mv ../../{res_dir}/betterdesk-{version}-win7-install.exe ../..')
+            f'python3 ./generate.py -f ../../{res_dir} -o . -e ../../{res_dir}/neodesk-{version}-win7-install.exe')
+        system2(f'mv ../../{res_dir}/neodesk-{version}-win7-install.exe ../..')
     elif os.path.isfile('/usr/bin/pacman'):
         # pacman -S -needed base-devel
         system2("sed -i 's/pkgver=.*/pkgver=%s/g' res/PKGBUILD" % version)
@@ -1054,7 +1054,7 @@ def main():
             system2('strip target/release/rustdesk')
             system2('ln -s res/pacman_install && ln -s res/PKGBUILD')
             system2('HBB=`pwd` makepkg -f')
-        system2('mv betterdesk-%s-0-x86_64.pkg.tar.zst betterdesk-%s-manjaro-arch.pkg.tar.zst' % (
+        system2('mv neodesk-%s-0-x86_64.pkg.tar.zst neodesk-%s-manjaro-arch.pkg.tar.zst' % (
             version, version))
         # pacman -U ./rustdesk.pkg.tar.zst
     elif os.path.isfile('/usr/bin/yum'):
@@ -1064,7 +1064,7 @@ def main():
             "sed -i 's/Version:    .*/Version:    %s/g' res/rpm.spec" % version)
         system2('HBB=`pwd` rpmbuild -ba res/rpm.spec')
         system2(
-            'mv $HOME/rpmbuild/RPMS/x86_64/betterdesk-%s-0.x86_64.rpm ./betterdesk-%s-fedora28-centos8.rpm' % (
+            'mv $HOME/rpmbuild/RPMS/x86_64/neodesk-%s-0.x86_64.rpm ./neodesk-%s-fedora28-centos8.rpm' % (
                 version, version))
         # yum localinstall rustdesk.rpm
     elif os.path.isfile('/usr/bin/zypper'):
@@ -1074,7 +1074,7 @@ def main():
             "sed -i 's/Version:    .*/Version:    %s/g' res/rpm-suse.spec" % version)
         system2('HBB=`pwd` rpmbuild -ba res/rpm-suse.spec')
         system2(
-            'mv $HOME/rpmbuild/RPMS/x86_64/betterdesk-%s-0.x86_64.rpm ./betterdesk-%s-suse.rpm' % (
+            'mv $HOME/rpmbuild/RPMS/x86_64/neodesk-%s-0.x86_64.rpm ./neodesk-%s-suse.rpm' % (
                 version, version))
         # yum localinstall rustdesk.rpm
     else:
@@ -1090,9 +1090,9 @@ def main():
             system2('cargo --locked bundle --release --features ' + features)
             if osx:
                 system2(
-                    'strip "target/release/bundle/osx/BetterDesk Client.app/Contents/MacOS/BetterDesk Client"')
+                    'strip "target/release/bundle/osx/NeoDesk Client.app/Contents/MacOS/NeoDesk Client"')
                 system2(
-                    'cp libsciter.dylib "target/release/bundle/osx/BetterDesk Client.app/Contents/MacOS/"')
+                    'cp libsciter.dylib "target/release/bundle/osx/NeoDesk Client.app/Contents/MacOS/"')
                 # https://github.com/sindresorhus/create-dmg
                 system2('/bin/rm -rf *.dmg')
                 pa = os.environ.get('P')
@@ -1104,13 +1104,13 @@ def main():
     #rcodesign sign --p12-file ~/.p12/rustdesk-developer-id.p12 --p12-password-file ~/.p12/.cert-pass --code-signature-flags runtime ./target/release/bundle/osx/RustDesk.app/Contents/MacOS/libsciter.dylib
     #rcodesign sign --p12-file ~/.p12/rustdesk-developer-id.p12 --p12-password-file ~/.p12/.cert-pass --code-signature-flags runtime ./target/release/bundle/osx/RustDesk.app
     # goto "Keychain Access" -> "My Certificates" for below id which starts with "Developer ID Application:"
-    codesign -s "Developer ID Application: {0}" --force --options runtime  "./target/release/bundle/osx/BetterDesk Client.app/Contents/MacOS/"*
-    codesign -s "Developer ID Application: {0}" --force --options runtime  "./target/release/bundle/osx/BetterDesk Client.app"
+    codesign -s "Developer ID Application: {0}" --force --options runtime  "./target/release/bundle/osx/NeoDesk Client.app/Contents/MacOS/"*
+    codesign -s "Developer ID Application: {0}" --force --options runtime  "./target/release/bundle/osx/NeoDesk Client.app"
     '''.format(pa))
                 system2(
-                    'create-dmg "BetterDesk Client %s.dmg" "target/release/bundle/osx/BetterDesk Client.app"' % version)
-                os.rename('BetterDesk Client %s.dmg' %
-                          version, 'betterdesk-%s.dmg' % version)
+                    'create-dmg "NeoDesk Client %s.dmg" "target/release/bundle/osx/NeoDesk Client.app"' % version)
+                os.rename('NeoDesk Client %s.dmg' %
+                          version, 'neodesk-%s.dmg' % version)
                 if pa:
                     system2('''
     # https://pyoxidizer.readthedocs.io/en/apple-codesign-0.14.0/apple_codesign.html
@@ -1142,19 +1142,19 @@ def main():
                 system2(
                     'cp res/scalable.svg tmpdeb/usr/share/icons/hicolor/scalable/apps/rustdesk.svg')
                 system2(
-                    'cp res/betterdesk.desktop tmpdeb/usr/share/applications/betterdesk.desktop')
+                    'cp res/neodesk.desktop tmpdeb/usr/share/applications/neodesk.desktop')
                 system2(
-                    'cp res/betterdesk-link.desktop tmpdeb/usr/share/applications/betterdesk-link.desktop')
+                    'cp res/neodesk-link.desktop tmpdeb/usr/share/applications/neodesk-link.desktop')
                 system2(
                     'cp res/rustdesk-link.desktop tmpdeb/usr/share/applications/rustdesk-link.desktop')
                 os.system('cp -a DEBIAN/* tmpdeb/DEBIAN/')
                 system2('strip tmpdeb/usr/bin/rustdesk')
                 system2('mkdir -p tmpdeb/usr/share/rustdesk')
-                system2('mv tmpdeb/usr/bin/rustdesk tmpdeb/usr/share/rustdesk/betterdesk')
+                system2('mv tmpdeb/usr/bin/rustdesk tmpdeb/usr/share/rustdesk/neodesk')
                 system2('cp libsciter-gtk.so tmpdeb/usr/share/rustdesk/')
                 md5_file_folder("tmpdeb/")
-                system2('dpkg-deb -b tmpdeb betterdesk.deb; /bin/rm -rf tmpdeb/')
-                os.rename('betterdesk.deb', 'betterdesk-%s.deb' % version)
+                system2('dpkg-deb -b tmpdeb neodesk.deb; /bin/rm -rf tmpdeb/')
+                os.rename('neodesk.deb', 'neodesk-%s.deb' % version)
 
 
 def md5_file(fn):

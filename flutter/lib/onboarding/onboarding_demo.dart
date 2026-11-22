@@ -4,9 +4,9 @@ import 'onboarding_service.dart';
 
 /// A walk through the onboarding screens with made-up data, for looking at
 /// them in a debug or profile build:
-///   BETTERDESK_DEMO_ONBOARDING=first-start   join flow (code 7KQ4-M2XD joins,
+///   NEODESK_DEMO_ONBOARDING=first-start   join flow (code 7KQ4-M2XD joins,
 ///                                            ABCD-EFGH fails as used)
-///   BETTERDESK_DEMO_ONBOARDING=quick-support consent, waiting, the session
+///   NEODESK_DEMO_ONBOARDING=quick-support consent, waiting, the session
 ///                                            bar after 3 s, chat
 /// Release builds ignore the variable (see main.dart).
 class DemoOnboardingService extends FakeOnboardingService {
@@ -24,7 +24,7 @@ class DemoOnboardingService extends FakeOnboardingService {
             supporterName: 'Mara Jensen',
             companyPhone: '+49 30 5550 1420',
             accentHex: '#3aa35c',
-            fileName: 'BetterDesk-QuickSupport-help.fernhill.example-R8TW3NPA',
+            fileName: 'NeoDesk-QuickSupport-help.fernhill.example-R8TW3NPA',
           ),
           true,
         );

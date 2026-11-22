@@ -1,4 +1,4 @@
-// Shared setup for the BetterDesk widget tests and screenshots.
+// Shared setup for the NeoDesk widget tests and screenshots.
 //
 // - Loads the fonts pubspec.yaml declares (Plex, Funnel Display, the icon
 //   fonts) so text and icons render as in the app.

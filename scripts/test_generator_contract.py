@@ -12,7 +12,7 @@ from pack_generator_templates import PLATFORMS, validate_manifest, pack_one
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="betterdesk-generator-contract-") as value:
+    with tempfile.TemporaryDirectory(prefix="neodesk-generator-contract-") as value:
         root = Path(value)
         dist = root / "dist"
         out = root / "generator-templates"
@@ -20,10 +20,10 @@ def main() -> int:
         for platform, arch, folder in PLATFORMS:
             source = dist / folder
             if platform == "macos":
-                binary = source / "BetterDesk.app" / "Contents" / "MacOS" / "betterdesk"
+                binary = source / "NeoDesk.app" / "Contents" / "MacOS" / "neodesk"
                 binary.parent.mkdir(parents=True)
             else:
-                binary = source / ("betterdesk.exe" if platform == "windows" else "betterdesk")
+                binary = source / ("neodesk.exe" if platform == "windows" else "neodesk")
                 source.mkdir(parents=True)
             binary.write_bytes(b"B" * (100 * 1024))
             destination = out / folder
@@ -31,7 +31,7 @@ def main() -> int:
 
         manifest = {
             "schema_version": 2,
-            "product": "betterdesk-desktop",
+            "product": "neodesk-desktop",
             "sku": "generator-templates",
             "version": "test",
             "required_platforms": [f"{platform}-{arch}" for platform, arch, _ in PLATFORMS],

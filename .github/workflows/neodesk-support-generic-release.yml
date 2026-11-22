@@ -1,4 +1,4 @@
-name: BetterDesk Support Agent generic release
+name: NeoDesk Support Agent generic release
 
 on:
   workflow_dispatch:
@@ -72,33 +72,33 @@ jobs:
       - name: Download macOS Intel
         uses: actions/download-artifact@v4
         with:
-          name: betterdesk-unsigned-macos-x86_64
+          name: neodesk-unsigned-macos-x86_64
           path: raw/macos-x86_64
 
       - name: Download macOS ARM64
         uses: actions/download-artifact@v4
         with:
-          name: betterdesk-unsigned-macos-aarch64
+          name: neodesk-unsigned-macos-aarch64
           path: raw/macos-aarch64
 
       - name: Download Linux x64 package
         uses: actions/download-artifact@v4
         with:
-          pattern: betterdesk-*-x86_64.deb
+          pattern: neodesk-*-x86_64.deb
           path: raw/linux-x86_64
           merge-multiple: true
 
       - name: Download Linux ARM64 package
         uses: actions/download-artifact@v4
         with:
-          pattern: betterdesk-*-aarch64.deb
+          pattern: neodesk-*-aarch64.deb
           path: raw/linux-aarch64
           merge-multiple: true
 
       - name: Download Windows installers (EXE + MSI)
         uses: actions/download-artifact@v4
         with:
-          pattern: betterdesk-windows-installers-*
+          pattern: neodesk-windows-installers-*
           path: raw/windows-installers
           merge-multiple: true
 
@@ -113,17 +113,17 @@ jobs:
             local source="raw/windows-${arch}"
             test -d "$source"
             ! find "$source" \( -iname custom.txt -o -name .custom-txt-here \) -print -quit | grep -q .
-            (cd "$source" && zip -qr "../../out/betterdesk-support-generic-windows-${arch}.zip" .)
+            (cd "$source" && zip -qr "../../out/neodesk-support-generic-windows-${arch}.zip" .)
 
             # Prefer built EXE/MSI from SignOutput (same generic-support binary).
             local exe msi
-            exe="$(find raw/windows-installers -type f -name "betterdesk-*-${arch}.exe" | head -n1 || true)"
-            msi="$(find raw/windows-installers -type f -name "betterdesk-*-${arch}.msi" | head -n1 || true)"
+            exe="$(find raw/windows-installers -type f -name "neodesk-*-${arch}.exe" | head -n1 || true)"
+            msi="$(find raw/windows-installers -type f -name "neodesk-*-${arch}.msi" | head -n1 || true)"
             if [ -n "$exe" ]; then
-              cp "$exe" "out/betterdesk-support-generic-windows-${arch}.exe"
+              cp "$exe" "out/neodesk-support-generic-windows-${arch}.exe"
             fi
             if [ -n "$msi" ]; then
-              cp "$msi" "out/betterdesk-support-generic-windows-${arch}.msi"
+              cp "$msi" "out/neodesk-support-generic-windows-${arch}.msi"
             else
               echo "::warning::No MSI found for windows-${arch} — zip/portable only for this arch"
             fi
@@ -138,7 +138,7 @@ jobs:
             mkdir -p "stage/macos-${arch}"
             tar -xzf "$archive" -C "stage/macos-${arch}"
             ! find "stage/macos-${arch}" \( -iname custom.txt -o -name .custom-txt-here \) -print -quit | grep -q .
-            tar -C stage -czf "out/betterdesk-support-generic-macos-${arch}.tar.gz" "macos-${arch}"
+            tar -C stage -czf "out/neodesk-support-generic-macos-${arch}.tar.gz" "macos-${arch}"
           }
 
           package_linux() {
@@ -149,7 +149,7 @@ jobs:
             mkdir -p "stage/linux-${arch}/root"
             dpkg-deb -x "$deb" "stage/linux-${arch}/root"
             ! find "stage/linux-${arch}" \( -iname custom.txt -o -name .custom-txt-here \) -print -quit | grep -q .
-            tar -C "stage/linux-${arch}" -czf "out/betterdesk-support-generic-linux-${arch}.tar.gz" root
+            tar -C "stage/linux-${arch}" -czf "out/neodesk-support-generic-linux-${arch}.tar.gz" root
           }
 
           package_windows x86_64
@@ -167,7 +167,7 @@ jobs:
           for item in sorted(Path("out").iterdir()):
               if item.is_file():
                   name = item.name
-                  parts = name.removeprefix("betterdesk-support-generic-")
+                  parts = name.removeprefix("neodesk-support-generic-")
                   match = re.match(
                       r"^(windows|linux|macos)-([a-z0-9_]+)\.(zip|tar\.gz|msi|exe)$",
                       parts,
@@ -191,7 +191,7 @@ jobs:
                   })
           manifest = {
               "schema_version": 1,
-              "sku": "betterdesk-support",
+              "sku": "neodesk-support",
               "generic": True,
               "source_commit": "${{ github.sha }}",
               "external_config": False,
@@ -204,7 +204,7 @@ jobs:
           PY
 
           python3 -m pip install --disable-pip-version-check PyNaCl
-          BETTERDESK_SUPPORT_RELEASE_SIGNING_SEED="${{ secrets.BETTERDESK_SUPPORT_RELEASE_SIGNING_SEED }}" \
+          NEODESK_SUPPORT_RELEASE_SIGNING_SEED="${{ secrets.NEODESK_SUPPORT_RELEASE_SIGNING_SEED }}" \
             python3 scripts/sign_release_manifest.py out/manifest.json out/manifest.sig
 
           ! find out \( -iname custom.txt -o -name .custom-txt-here \) -print -quit | grep -q .
@@ -212,7 +212,7 @@ jobs:
       - name: Upload generic release bundle
         uses: actions/upload-artifact@v4
         with:
-          name: betterdesk-support-generic-${{ github.sha }}
+          name: neodesk-support-generic-${{ github.sha }}
           path: out
 
   release:
@@ -232,7 +232,7 @@ jobs:
       - name: Download generic release bundle
         uses: actions/download-artifact@v4
         with:
-          name: betterdesk-support-generic-${{ github.sha }}
+          name: neodesk-support-generic-${{ github.sha }}
           path: out
 
       - name: Publish GitHub Release
@@ -245,14 +245,14 @@ jobs:
           if [[ "$tag" != support-v* ]]; then
             tag="support-v0.0.${GITHUB_RUN_NUMBER}"
           fi
-          title="BetterDesk Support Agent $tag"
+          title="NeoDesk Support Agent $tag"
 
           {
             echo "### Notes"
             echo
             echo "- Windows: portable **ZIP**, self-extracting **EXE**, and installed **MSI** when the build produced them."
             echo "- Server URL is entered on first run (QR pairing) — nothing is baked into these artifacts."
-            echo "- Panel path: **BetterDesk Agents → Import latest release** (requires a signed \`support-v*\` release)."
+            echo "- Panel path: **NeoDesk Agents → Import latest release** (requires a signed \`support-v*\` release)."
             echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } > support-extra.md
 

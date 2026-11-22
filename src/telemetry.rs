@@ -1,4 +1,4 @@
-//! BetterDesk device telemetry and heartbeat-delivered command support.
+//! NeoDesk device telemetry and heartbeat-delivered command support.
 //!
 //! Collection is deliberately best-effort: unsupported or restricted host
 //! APIs become compact status codes instead of preventing the main heartbeat.
@@ -32,11 +32,11 @@ const MAX_DIRECTORY_ROWS: usize = 500;
 const MAX_COMMAND_OUTPUT: usize = 16 * 1024;
 const MAX_FILE_READ: usize = 1024 * 1024;
 const HARDWARE_COLLECTION_INTERVAL: Duration = Duration::from_secs(3600);
-const TELEMETRY_SEQUENCE: &str = "betterdesk-telemetry-sequence";
-const TELEMETRY_RESPONSE_SEQUENCE: &str = "betterdesk-telemetry-response-sequence";
-const RESPONSE_PUBLIC_KEY: &str = "betterdesk-telemetry-response-public-key";
-const RESPONSE_SECRET_KEY: &str = "betterdesk-telemetry-response-secret-key";
-const TELEMETRY_SERVER_KEY_ID: &str = "betterdesk-telemetry-server-key-id";
+const TELEMETRY_SEQUENCE: &str = "neodesk-telemetry-sequence";
+const TELEMETRY_RESPONSE_SEQUENCE: &str = "neodesk-telemetry-response-sequence";
+const RESPONSE_PUBLIC_KEY: &str = "neodesk-telemetry-response-public-key";
+const RESPONSE_SECRET_KEY: &str = "neodesk-telemetry-response-secret-key";
+const TELEMETRY_SERVER_KEY_ID: &str = "neodesk-telemetry-server-key-id";
 const CONNECTION_MODE_NORMAL: &str = "normal";
 const CONNECTION_MODE_INCOMING_ONLY: &str = "incoming-only";
 const CONNECTION_MODE_COMMAND_ID_MAX: usize = 128;
@@ -314,9 +314,9 @@ pub fn open_response(envelope: &Value) -> Result<Value, String> {
     );
     let server_key = STANDARD
         .decode(Config::get_option(keys::OPTION_KEY))
-        .map_err(|_| "invalid BetterDesk server key".to_owned())?;
+        .map_err(|_| "invalid NeoDesk server key".to_owned())?;
     let server_key = sign::PublicKey::from_slice(&server_key)
-        .ok_or_else(|| "invalid BetterDesk server key size".to_owned())?;
+        .ok_or_else(|| "invalid NeoDesk server key size".to_owned())?;
     let signed = STANDARD
         .decode(signature)
         .map_err(|_| "invalid response signature".to_owned())?;
@@ -994,7 +994,7 @@ pub fn process_commands(commands: &[Value]) -> Vec<Value> {
         }));
     }
     if !results.is_empty() {
-        log::debug!("BetterDesk telemetry commands completed: {}", results.len());
+        log::debug!("NeoDesk telemetry commands completed: {}", results.len());
     }
     results
 }

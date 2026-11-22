@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate RustDesk-style download tables for BetterDesk GitHub Releases.
+"""Generate RustDesk-style download tables for NeoDesk GitHub Releases.
 
 Scans a directory of release assets and emits Markdown with clear product
 labels (Full Client vs Incoming-only Support Agent) and per-arch download links.
@@ -37,18 +37,18 @@ def _link(label: str, repo: str, tag: str, name: str | None) -> str:
 
 def _classify_desktop(name: str) -> tuple[str, str, str] | None:
     """Return (platform, arch, kind) for full desktop assets."""
-    # betterdesk-1.5.0-windows-x86_64.exe / .msi (older releases: betterdesk-1.5.0-x86_64.exe).
-    # The version starts with a digit, so betterdesk-template-x86_64.msi is not taken for the MSI.
-    m = re.match(r"^betterdesk-\d[^-]*-(?:windows-)?(x86_64|aarch64)\.(exe|msi)$", name)
+    # neodesk-1.5.0-windows-x86_64.exe / .msi (older releases: neodesk-1.5.0-x86_64.exe).
+    # The version starts with a digit, so neodesk-template-x86_64.msi is not taken for the MSI.
+    m = re.match(r"^neodesk-\d[^-]*-(?:windows-)?(x86_64|aarch64)\.(exe|msi)$", name)
     if m:
         return "windows", m.group(1), m.group(2)
-    # betterdesk-1.5.0-windows-x86_64.tar.gz
-    m = re.match(r"^betterdesk-[^-]+-windows-(x86_64|aarch64)\.tar\.gz$", name)
+    # neodesk-1.5.0-windows-x86_64.tar.gz
+    m = re.match(r"^neodesk-[^-]+-windows-(x86_64|aarch64)\.tar\.gz$", name)
     if m:
         return "windows", m.group(1), "portable"
-    # betterdesk-1.5.0-linux-x86_64.deb / .rpm / -suse.rpm / -portable.tar.gz
+    # neodesk-1.5.0-linux-x86_64.deb / .rpm / -suse.rpm / -portable.tar.gz
     m = re.match(
-        r"^betterdesk-[^-]+-linux-(x86_64|aarch64)(?:-(suse))?(\.deb|\.rpm|-portable\.tar\.gz)$",
+        r"^neodesk-[^-]+-linux-(x86_64|aarch64)(?:-(suse))?(\.deb|\.rpm|-portable\.tar\.gz)$",
         name,
     )
     if m:
@@ -63,8 +63,8 @@ def _classify_desktop(name: str) -> tuple[str, str, str] | None:
             return "linux", arch, "rpm"
         if ext == "-portable.tar.gz":
             return "linux", arch, "portable"
-    # betterdesk-1.5.0-macos-x86_64.dmg / -portable.zip (older releases: .tar.gz)
-    m = re.match(r"^betterdesk-[^-]+-macos-(x86_64|aarch64)(\.dmg|-portable\.zip|\.tar\.gz)$", name)
+    # neodesk-1.5.0-macos-x86_64.dmg / -portable.zip (older releases: .tar.gz)
+    m = re.match(r"^neodesk-[^-]+-macos-(x86_64|aarch64)(\.dmg|-portable\.zip|\.tar\.gz)$", name)
     if m:
         kind = "dmg" if m.group(2) == ".dmg" else "portable"
         return "macos", m.group(1), kind
@@ -74,7 +74,7 @@ def _classify_desktop(name: str) -> tuple[str, str, str] | None:
 def _classify_support(name: str) -> tuple[str, str, str] | None:
     """Return (platform, arch, kind) for Support Agent assets."""
     m = re.match(
-        r"^betterdesk-support-generic-(windows|linux|macos)-(x86_64|aarch64)\.(zip|tar\.gz|msi|exe)$",
+        r"^neodesk-support-generic-(windows|linux|macos)-(x86_64|aarch64)\.(zip|tar\.gz|msi|exe)$",
         name,
     )
     if not m:
@@ -134,19 +134,19 @@ def render_table(
     tag: str,
 ) -> str:
     if product == "desktop":
-        title = "### Full Client (BetterDesk Desktop)"
+        title = "### Full Client (NeoDesk Desktop)"
         blurb = (
-            "**Type:** full remote-desktop client (`product_sku=betterdesk-desktop`). "
+            "**Type:** full remote-desktop client (`product_sku=neodesk-desktop`). "
             "Can connect outbound and accept inbound. Configure the server in "
-            "**Settings → Network** (or via a deploy string from the BetterDesk panel)."
+            "**Settings → Network** (or via a deploy string from the NeoDesk panel)."
         )
     else:
         title = "### Incoming-only Support Agent"
         blurb = (
-            "**Type:** incoming-only Support Agent (`product_sku=betterdesk-support`). "
+            "**Type:** incoming-only Support Agent (`product_sku=neodesk-support`). "
             "Accepts remote support only — does **not** start outbound sessions to other devices. "
-            "On first run enter your BetterDesk server URL and pair with a QR code. "
-            "Import into the panel via **BetterDesk Agents → Import latest release**."
+            "On first run enter your NeoDesk server URL and pair with a QR code. "
+            "Import into the panel via **NeoDesk Agents → Import latest release**."
         )
 
     lines = [
@@ -184,14 +184,14 @@ def render_notes(
     if product == "desktop":
         parts.extend(
             [
-                "Official **BetterDesk Client** build — full desktop remote client.",
+                "Official **NeoDesk Client** build — full desktop remote client.",
                 "",
             ]
         )
     else:
         parts.extend(
             [
-                "Official **BetterDesk Support Agent** build — generic incoming-only agents.",
+                "Official **NeoDesk Support Agent** build — generic incoming-only agents.",
                 "",
             ]
         )
@@ -211,7 +211,7 @@ def render_notes(
         if product == "desktop":
             if name.startswith("generator-templates") or name.endswith("generator-manifest.json"):
                 other.append(f"- [{name}]({_url(repo, tag, name)}) — clean Generator templates")
-            elif name == "betterdesk-desktop-manifest.json":
+            elif name == "neodesk-desktop-manifest.json":
                 other.append(f"- [{name}]({_url(repo, tag, name)}) — desktop release manifest")
             elif name == "SHA256SUMS":
                 other.append(f"- [{name}]({_url(repo, tag, name)}) — checksums of every file in this release")
@@ -240,7 +240,7 @@ def render_notes(
             [
                 "### Also available: Full Client",
                 "",
-                "Full BetterDesk desktop clients (EXE / MSI / DEB / DMG) are published as "
+                "Full NeoDesk desktop clients (EXE / MSI / DEB / DMG) are published as "
                 f"`desktop/*` releases — see [Releases](https://github.com/{repo}/releases).",
                 "",
             ]
@@ -257,7 +257,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--product", choices=("desktop", "support"), required=True)
     parser.add_argument("--asset-dir", type=Path, required=True)
-    parser.add_argument("--repo", default="neodeskapp/betterdesk-client")
+    parser.add_argument("--repo", default="neodeskapp/neodesk-client")
     parser.add_argument("--tag", required=True)
     parser.add_argument("--release-name", required=True)
     parser.add_argument("--commit", default="")

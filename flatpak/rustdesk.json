@@ -1,11 +1,11 @@
 {
-  "id": "com.unitronix.betterdesk",
+  "id": "com.unitronix.neodesk",
   "runtime": "org.freedesktop.Platform",
   "runtime-version": "24.08",
   "sdk": "org.freedesktop.Sdk",
-  "command": "betterdesk",
+  "command": "neodesk",
   "cleanup": ["/include", "/lib/pkgconfig", "/share/gtk-doc"],
-  "rename-desktop-file": "betterdesk.desktop",
+  "rename-desktop-file": "neodesk.desktop",
   "rename-icon": "rustdesk",
   "modules": [
     "shared-modules/libappindicator/libappindicator-gtk3-12.10.json",
@@ -22,18 +22,18 @@
       ]
     },
     {
-      "name": "betterdesk",
+      "name": "neodesk",
       "buildsystem": "simple",
       "build-commands": [
-        "bsdtar -Oxf betterdesk.deb data.tar.xz | bsdtar -xf -",
+        "bsdtar -Oxf neodesk.deb data.tar.xz | bsdtar -xf -",
         "cp -r usr/* /app/",
-        "mkdir -p /app/bin /app/share/metainfo && ln -s /app/share/rustdesk/betterdesk /app/bin/betterdesk && ln -s /app/share/rustdesk/betterdesk /app/bin/rustdesk",
-        "install -Dm644 com.rustdesk.RustDesk.metainfo.xml /app/share/metainfo/com.unitronix.betterdesk.metainfo.xml"
+        "mkdir -p /app/bin /app/share/metainfo && ln -s /app/share/rustdesk/neodesk /app/bin/neodesk && ln -s /app/share/rustdesk/neodesk /app/bin/rustdesk",
+        "install -Dm644 com.rustdesk.RustDesk.metainfo.xml /app/share/metainfo/com.unitronix.neodesk.metainfo.xml"
       ],
       "sources": [
         {
           "type": "file",
-          "path": "betterdesk.deb"
+          "path": "neodesk.deb"
         },
         {
           "type": "file",

@@ -2,10 +2,10 @@
 Name=RustDesk
 NoDisplay=true
 MimeType=x-scheme-handler/rustdesk;
-TryExec=betterdesk
-Exec=betterdesk %u
+TryExec=neodesk
+Exec=neodesk %u
 Icon=rustdesk
 Terminal=false
 Type=Application
 StartupNotify=false
-StartupWMClass=betterdesk
+StartupWMClass=neodesk

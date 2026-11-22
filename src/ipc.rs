@@ -647,7 +647,7 @@ pub async fn start(postfix: &str) -> ResultType<()> {
 
 /// Config name under which a client that joined or paired with a server
 /// hands the device token to the server process, which keeps it.
-pub const IPC_JOINED_DEVICE_TOKEN: &str = "betterdesk-joined-device-token";
+pub const IPC_JOINED_DEVICE_TOKEN: &str = "neodesk-joined-device-token";
 
 /// The IPC path of `postfix` for this process. A quick support process uses
 /// names of its own, so it never reaches an installed client's server,

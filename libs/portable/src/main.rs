@@ -20,7 +20,7 @@ const META_LINE_PREFIX_TIMESTAMP: &str = "timestamp = ";
 const META_LINE_PREFIX_FILE: &str = "file = ";
 const APP_PREFIX: &str = "rustdesk";
 #[cfg(windows)]
-const VERIFIED_UPDATE_FILE_PREFIX: &str = "betterdesk-verified-";
+const VERIFIED_UPDATE_FILE_PREFIX: &str = "neodesk-verified-";
 const APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
@@ -390,8 +390,8 @@ mod meta_tests {
 
     #[test]
     fn the_broker_carries_the_clients_name() {
-        assert_eq!(runtime_broker_exe("betterdesk.exe"), "RuntimeBroker_betterdesk.exe");
-        assert_eq!(runtime_broker_exe("bin/BetterDesk.exe"), "RuntimeBroker_betterdesk.exe");
+        assert_eq!(runtime_broker_exe("neodesk.exe"), "RuntimeBroker_neodesk.exe");
+        assert_eq!(runtime_broker_exe("bin/NeoDesk.exe"), "RuntimeBroker_neodesk.exe");
         assert_eq!(runtime_broker_exe(""), "RuntimeBroker_rustdesk.exe");
     }
 

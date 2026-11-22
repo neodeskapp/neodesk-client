@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Pack BetterDesk desktop build trees into Generator templates.
+"""Pack NeoDesk desktop build trees into Generator templates.
 
-Produces a directory (or tar.gz) the BetterDesk console can download and
+Produces a directory (or tar.gz) the NeoDesk console can download and
 patch with a signed custom.txt for Support Agent (incoming-only) builds.
 
 Expected layout under --dist-root (per platform/arch):
-  windows-x86_64/          # Release folder with betterdesk.exe (no custom.txt)
+  windows-x86_64/          # Release folder with neodesk.exe (no custom.txt)
   windows-aarch64/
   linux-x86_64/            # extracted app tree or portable dir
   linux-aarch64/
-  macos-x86_64/            # BetterDesk.app or Contents tree
+  macos-x86_64/            # NeoDesk.app or Contents tree
   macos-aarch64/
   msi-template/            # optional prebuilt MSI templates from CI
 
@@ -75,14 +75,14 @@ def _validate_source(src: Path, platform: str) -> str:
             macos = app / "Contents" / "MacOS"
             if not macos.is_dir():
                 continue
-            binary = _relative_file(macos, ("BetterDesk Client", "betterdesk", "rustdesk"))
+            binary = _relative_file(macos, ("NeoDesk Client", "neodesk", "rustdesk"))
             if binary:
                 return (macos / binary).relative_to(src).as_posix()
         raise ValueError(f"{src}: missing valid macOS .app bundle and desktop binary")
 
-    binary = _relative_file(src, ("betterdesk.exe", "rustdesk.exe", "betterdesk", "rustdesk"))
+    binary = _relative_file(src, ("neodesk.exe", "rustdesk.exe", "neodesk", "rustdesk"))
     if not binary:
-        raise ValueError(f"{src}: missing BetterDesk desktop binary")
+        raise ValueError(f"{src}: missing NeoDesk desktop binary")
     return binary
 
 
@@ -157,13 +157,13 @@ def pack_one(src: Path, out_dir: Path, platform: str, arch: str) -> dict:
         if app is not None:
             target = app / "Contents" / "MacOS"
             target.mkdir(parents=True, exist_ok=True)
-            (target / ".custom-txt-here").write_text("place custom.txt beside betterdesk binary\n")
+            (target / ".custom-txt-here").write_text("place custom.txt beside neodesk binary\n")
             inject = str(Path("Contents") / "MacOS" / "custom.txt")
         else:
             (out_dir / ".custom-txt-here").write_text("place custom.txt in this directory\n")
             inject = "custom.txt"
     else:
-        (out_dir / ".custom-txt-here").write_text("place custom.txt beside betterdesk binary\n")
+        (out_dir / ".custom-txt-here").write_text("place custom.txt beside neodesk binary\n")
         inject = "custom.txt"
 
     archive_name = f"{platform}-{arch}.tar.gz"
@@ -233,7 +233,7 @@ def main() -> int:
 
     manifest = {
         "schema_version": 2,
-        "product": "betterdesk-desktop",
+        "product": "neodesk-desktop",
         "sku": "generator-templates",
         "version": args.version,
         "required_platforms": list(PLATFORM_KEYS),

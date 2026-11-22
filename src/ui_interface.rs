@@ -605,7 +605,7 @@ pub fn is_installed_lower_version() -> bool {
     return false;
     #[cfg(windows)]
     {
-        // BetterDesk: never show the stock "lower version / update" install card.
+        // NeoDesk: never show the stock "lower version / update" install card.
         if crate::is_custom_client() {
             return false;
         }

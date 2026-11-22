@@ -21,15 +21,15 @@ class HttpService {
     var useFlutterHttp = (isWeb || kIsWeb);
     if (!useFlutterHttp) {
       final apiServer = await bind.mainGetApiServer();
-      final isBetterDeskApi = apiServer.isNotEmpty &&
+      final isNeoDeskApi = apiServer.isNotEmpty &&
           url.toString().startsWith(apiServer) &&
           url.path.contains('/api/');
       final enableFlutterHttpOnRust =
           mainGetLocalBoolOptionSync(kOptionEnableFlutterHttpOnRust);
       // Use flutter http if:
       // Not `enableFlutterHttpOnRust`, no proxy is set, and this is not a
-      // BetterDesk API request requiring the native secure envelope.
-      useFlutterHttp = !isBetterDeskApi &&
+      // NeoDesk API request requiring the native secure envelope.
+      useFlutterHttp = !isNeoDeskApi &&
           !(enableFlutterHttpOnRust || await bind.mainGetProxyStatus());
     }
 

@@ -317,11 +317,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Connect BetterDesk Support',
+          Text('Connect NeoDesk Support',
               style: theme.textTheme.titleSmall),
           const SizedBox(height: 6),
           const Text(
-            'Enter the public BetterDesk address. The server will provide the remaining configuration after activation.',
+            'Enter the public NeoDesk address. The server will provide the remaining configuration after activation.',
             style: TextStyle(fontSize: 11),
           ),
           const SizedBox(height: 8),
@@ -329,7 +329,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
             controller: _genericServerController,
             keyboardType: TextInputType.url,
             decoration: const InputDecoration(
-              labelText: 'BetterDesk server',
+              labelText: 'NeoDesk server',
               hintText: 'https://support.example.com',
               isDense: true,
             ),
@@ -368,7 +368,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       return const SizedBox.shrink();
     }
     final payload = jsonEncode({
-      'type': 'betterdesk-agent-pairing',
+      'type': 'neodesk-agent-pairing',
       'version': 1,
       'server': server,
       'device_id': deviceId,
@@ -382,7 +382,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       ),
       child: Column(
         children: [
-          const Text('Activate this agent from the BetterDesk panel',
+          const Text('Activate this agent from the NeoDesk panel',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),

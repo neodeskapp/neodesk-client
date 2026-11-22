@@ -1,4 +1,4 @@
-# API klienta desktop (BetterDesk / RustDesk)
+# API klienta desktop (NeoDesk / RustDesk)
 
 Dokument opisuje **warstwy API, którymi posługuje się klient desktop** (Windows / Linux): outbound HTTP do Pro/API, Flutter↔Rust FFI oraz IPC między procesami.
 
@@ -47,7 +47,7 @@ flowchart TB
 - Rendezvous (hbbs) to **protobuf**, nie REST — nie mylić z `/api/*`.
 - Publiczny cloud (`*.rustdesk.com`) **wyłącza** background heartbeat / sysinfo / audit sync (`is_public`).
 - `flutter/lib/generated_bridge.dart` jest **generowany** — nie edytować ręcznie.
-- Mobile / web: ten sam stack częściowo istnieje, ale aktywny zakres BetterDesk to desktop Win/Linux.
+- Mobile / web: ten sam stack częściowo istnieje, ale aktywny zakres NeoDesk to desktop Win/Linux.
 
 ---
 
@@ -86,7 +86,7 @@ Flutter bind.mainSetOption(key, val)
 1. Licencja Windows (`lic.api` w nazwie exe), jeśli obecna  
 2. Opcja `api-server`  
 3. Z `custom-rendezvous-server`: host z portem **−2** (21114) jako `http://…`  
-4. Domyślnie **pusty string** (BetterDesk nie używa `admin.rustdesk.com`)
+4. Domyślnie **pusty string** (NeoDesk nie używa `admin.rustdesk.com`)
 
 `is_public(url)` — host `rustdesk.com` lub `*.rustdesk.com`. Gdy `true`, sync w `hbbs_http::sync` **nie** woła heartbeat/sysinfo; audit też jest gated.
 
@@ -119,30 +119,30 @@ Auth konta / AB: zwykle `Authorization: Bearer {access_token}` z `LocalConfig`.
 | `/api/record` | `record_upload.rs` | upload nagrań | Pro |
 | `/api/devices/deploy` | [`ui_interface.rs`](../src/ui_interface.rs) | token deploy | wdrożenie urządzenia |
 | `/api/devices/cli` | [`core_main.rs`](../src/core_main.rs) | CLI deploy | helper |
-| `/api/devices/register` | [`betterdesk.rs`](../src/hbbs_http/betterdesk.rs) | jak heartbeat gating | enrollment + `product_sku` / `conn_mode` / `tags` |
+| `/api/devices/register` | [`neodesk.rs`](../src/hbbs_http/neodesk.rs) | jak heartbeat gating | enrollment + `product_sku` / `conn_mode` / `tags` |
 | `/api/audit/{type}` | [`common.rs`](../src/common.rs) `get_audit_server` | tylko nie-public | audit POST |
-| `/api/branding` | [`betterdesk.rs`](../src/hbbs_http/betterdesk.rs) | publiczne (GET), bez loginu | Client Branding sync → LocalConfig `branding-*` (oba SKU) |
+| `/api/branding` | [`neodesk.rs`](../src/hbbs_http/neodesk.rs) | publiczne (GET), bez loginu | Client Branding sync → LocalConfig `branding-*` (oba SKU) |
 
 ### 4.3.1. Dualizm SKU — pola tożsamości (kontrakt panelu)
 
-Źródło: [`betterdesk::device_identity_fields`](../src/hbbs_http/betterdesk.rs) / `merge_device_identity`. Wysyłane w **register**, **sysinfo** i **heartbeat**.
+Źródło: [`neodesk::device_identity_fields`](../src/hbbs_http/neodesk.rs) / `merge_device_identity`. Wysyłane w **register**, **sysinfo** i **heartbeat**.
 
 | Pole | Wartości | Znaczenie |
 |------|----------|-----------|
-| `device_type` / `client` / `client_product` | `betterdesk-desktop` | Legacy marker (nie używać do rozróżnienia Support) |
-| `product_sku` | `betterdesk-desktop` \| `betterdesk-support` | SKU Generatora; Support gdy bake-in `conn-type: incoming` |
+| `device_type` / `client` / `client_product` | `neodesk-desktop` | Legacy marker (nie używać do rozróżnienia Support) |
+| `product_sku` | `neodesk-desktop` \| `neodesk-support` | SKU Generatora; Support gdy bake-in `conn-type: incoming` |
 | `conn_mode` | `normal` \| `incoming-only` | Effective mode; bake-in Support Agent pochodzi z `HARD_SETTINGS` |
 | `app_name` | string | Nazwa z bake-in / APP_NAME |
-| `tags` (register) | `betterdesk-desktop`, `betterdesk-desktop,incoming-only` albo `betterdesk-support,incoming-only` | Kompatybilne tagi enrollment |
+| `tags` (register) | `neodesk-desktop`, `neodesk-desktop,incoming-only` albo `neodesk-support,incoming-only` | Kompatybilne tagi enrollment |
 | `enrollment_status` | opcjonalnie | Lokalny status enroll |
 | `branding_revision` / `branding_source` | opcjonalnie | Sync brandingu do device details |
 
 Klient z capability `connection-mode.remote-control` wysyła dodatkowo
 `effective_conn_mode`, `policy_revision`, `policy_status`, `last_command_id`
 i ewentualnie `policy_error`. Pełny klient przełączony zdalnie na incoming-only
-zachowuje `product_sku=betterdesk-desktop` i otrzymuje tag
-`betterdesk-desktop,incoming-only`; tylko bake-in Support Agent ma
-`product_sku=betterdesk-support`.
+zachowuje `product_sku=neodesk-desktop` i otrzymuje tag
+`neodesk-desktop,incoming-only`; tylko bake-in Support Agent ma
+`product_sku=neodesk-support`.
 
 **Panel:** zapisz te pola przy heartbeat/sysinfo/register i pokaż w szczegółach
 urządzenia. Permanentny Support Agent nie może być „przełączony” na full przez
@@ -166,7 +166,7 @@ Operator panelu może umieścić w zaszyfrowanej odpowiedzi heartbeat pole
 }
 ```
 
-Komenda jest akceptowana wyłącznie wewnątrz `betterdesk_envelope` dostarczonego
+Komenda jest akceptowana wyłącznie wewnątrz `neodesk_envelope` dostarczonego
 przez HTTPS. Klient sprawdza podpis serwera względem bake-in `key`, urządzenie
 docelowe, tryb, czas ważności oraz trwałą monotoniczną rewizję. Plaintext
 `strategy` nie może zmieniać trybu.
@@ -420,7 +420,7 @@ Preferuj **additive** zmiany; nie refaktoruj istniejących helperów bez potrzeb
 | API URL, `is_public`, `POSTFIX_SERVICE` | `src/common.rs` |
 | Dispatch procesów | `src/core_main.rs` |
 | Heartbeat / sysinfo / strategy | `src/hbbs_http/sync.rs` |
-| BetterDesk branding / enrollment / SKU identity | `src/hbbs_http/betterdesk.rs` |
+| NeoDesk branding / enrollment / SKU identity | `src/hbbs_http/neodesk.rs` |
 | OIDC | `src/hbbs_http/account.rs` |
 | HTTP client Rust | `src/hbbs_http/http_client.rs` |
 | Opcje, porty, ipc_path | `libs/hbb_common/src/config.rs` |
@@ -462,7 +462,7 @@ Nie. Tylko zarządzanie / konto / audit / deploy. Media: patrz CONNECTIVITY.
 - Reguły agentów / layout: [AGENTS.md](../AGENTS.md)  
 - Opcje: `libs/hbb_common/src/config.rs` (`keys::OPTION_*`)
 
-## BetterDesk device telemetry
+## NeoDesk device telemetry
 
 Desktop builds add `telemetry_schema: 1` to the existing heartbeat. The
 heartbeat carries compact resource metrics and client identity/capabilities.
@@ -478,9 +478,9 @@ are not delayed by this interval.
 
 Background enrollment, sysinfo, heartbeat, and telemetry do not require an
 account `access_token`; they authenticate the device through its configured
-BetterDesk server identity and telemetry envelope. Account-only endpoints such
+NeoDesk server identity and telemetry envelope. Account-only endpoints such
 as `/api/ab` and group synchronization are not called during anonymous startup.
-The BetterDesk custom client enables its server-managed capabilities from the
+The NeoDesk custom client enables its server-managed capabilities from the
 client identity rather than waiting for an account session.
 
 Activity collection is opt-in through the local
@@ -488,8 +488,8 @@ Activity collection is opt-in through the local
 only. It does not collect URLs, document contents, keystrokes, screenshots, or
 clipboard data.
 
-When the BetterDesk API exposes `/api/telemetry/key`, the client verifies its
+When the NeoDesk API exposes `/api/telemetry/key`, the client verifies its
 signature against the existing configured server `key`, then protects the
-BetterDesk heartbeat and response with a versioned NaCl envelope. The device
+NeoDesk heartbeat and response with a versioned NaCl envelope. The device
 Ed25519 key signs the request. Plain HTTP without the verified key fails closed
 for the extended payload; production deployments should use HTTPS/WSS.

@@ -1,4 +1,4 @@
-// The BetterDesk theme: the one place in lib/ where colour values live.
+// The NeoDesk theme: the one place in lib/ where colour values live.
 //
 // Every other file reads colours from [BdColors] (context.bd, or bdColors
 // where no BuildContext is at hand). tool/check_colours.py fails the build

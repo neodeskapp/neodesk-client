@@ -1,5 +1,5 @@
 {
-  "app-name": "BetterDesk Client",
+  "app-name": "NeoDesk Client",
   "remote-connection-mode": "Y",
   "default-settings": {
     "custom-rendezvous-server": "desk.example.com",

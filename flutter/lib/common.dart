@@ -147,7 +147,7 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
   final Color? toastText;
   final Color? divider;
 
-  /// The old colour roles, drawn from the BetterDesk tokens.
+  /// The old colour roles, drawn from the NeoDesk tokens.
   factory ColorThemeExtension.from(BdColors c) => ColorThemeExtension(
         border: c.rule,
         border2: c.border,
@@ -219,7 +219,7 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
 class MyTheme {
   MyTheme._();
 
-  // Old colour names, now read from the BetterDesk tokens (bd_theme.dart).
+  // Old colour names, now read from the NeoDesk tokens (bd_theme.dart).
   static Color get grayBg => bdColors.bgSubtle;
   static Color get accent => bdColors.accent;
   static Color get accent50 => bdColors.accent.withOpacity(0.47);
@@ -1986,7 +1986,7 @@ setEnvTerminalAdmin() {
   bind.mainSetEnv(key: 'IS_TERMINAL_ADMIN', value: 'Y');
 }
 
-/// Canonical `betterdesk://` and legacy `rustdesk://`. Scheme match is case-insensitive.
+/// Canonical `neodesk://` and legacy `rustdesk://`. Scheme match is case-insensitive.
 bool isSupportedUniLink(String value) {
   final lower = value.toLowerCase();
   return lower.startsWith(bind.mainUriPrefixSync().toLowerCase()) ||
@@ -2151,7 +2151,7 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     id = uri.path.substring("/new/".length);
   } else if (isDesktop &&
       (uri.authority == "join" || uri.authority == "support")) {
-    // betterdesk://join/<server>/<code> and betterdesk://support/...
+    // neodesk://join/<server>/<code> and neodesk://support/...
     // A join link asks first, naming the server.
     confirmOnboardingLink(uri.toString(), onboardingService.handleLink);
     return null;
@@ -3484,7 +3484,7 @@ Color? disabledTextColor(BuildContext context, bool enabled) {
 }
 
 Widget loadPowered(BuildContext context) {
-  // BetterDesk official client: never show "Powered by RustDesk".
+  // NeoDesk official client: never show "Powered by RustDesk".
   if (bind.isCustomClient() ||
       bind.mainGetBuildinOption(key: "hide-powered-by-me") == 'Y') {
     return const SizedBox.shrink();
@@ -3822,7 +3822,7 @@ void earlyAssert() {
 }
 
 void checkUpdate() {
-  // BetterDesk: temporarily disable rustdesk.com / client software update checks.
+  // NeoDesk: temporarily disable rustdesk.com / client software update checks.
 }
 
 // https://github.com/flutter/flutter/issues/153560#issuecomment-2497160535

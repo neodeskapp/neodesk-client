@@ -9,7 +9,7 @@
 //   it gave one); errorKind: the sentence the screen picks.
 // - A bare code needs a server the computer already joined; otherwise the
 //   screen asks for the server and passes https://<server>/join/<code>.
-// - A link on plain HTTP (http://... or betterdesk://...?http=1) is redeemed
+// - A link on plain HTTP (http://... or neodesk://...?http=1) is redeemed
 //   as it is; the screens warn before they pass one on.
 // - In the quick support app, redeemSupport('') tries the link the app was
 //   started with again (Try again on the offline screen).
@@ -236,7 +236,7 @@ class FfiOnboardingService extends OnboardingService {
     _called();
   }
 
-  /// A betterdesk://join or betterdesk://support link the app received:
+  /// A neodesk://join or neodesk://support link the app received:
   /// joins, or starts quick support (in a quick support window of its own
   /// when this is the normal app).
   void handleLink(String link) {

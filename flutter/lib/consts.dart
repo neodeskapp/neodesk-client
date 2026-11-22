@@ -726,16 +726,16 @@ extension WindowsTargetExt on int {
 
 const kCheckSoftwareUpdateFinish = 'check_software_update_finish';
 
-/// AGPL attribution — BetterDesk is a fork of RustDesk.
+/// AGPL attribution — NeoDesk is a fork of RustDesk.
 const kUpstreamProjectName = 'RustDesk';
 const kUpstreamRepoUrl = 'https://github.com/rustdesk/rustdesk';
-const kBetterDeskClientRepoUrl =
-    'https://github.com/neodeskapp/betterdesk-client';
-const kBetterDeskLicenseSpdx = 'AGPL-3.0-only';
-const kBetterDeskLicenseName = 'GNU Affero General Public License v3.0';
-const kBetterDeskClientProduct = 'betterdesk-desktop';
-const kBetterDeskDisplayName = 'BetterDesk Client';
-const kBetterDeskForkAttributionTip =
-    'BetterDesk Client is a fork of the RustDesk client. Corresponding source is available under AGPL-3.0.';
-const kBetterDeskForkAttributionTipPl =
-    'BetterDesk Client jest forkiem klienta RustDesk. Odpowiedni kod źródłowy jest dostępny na licencji AGPL-3.0.';
+const kNeoDeskClientRepoUrl =
+    'https://github.com/neodeskapp/neodesk-client';
+const kNeoDeskLicenseSpdx = 'AGPL-3.0-only';
+const kNeoDeskLicenseName = 'GNU Affero General Public License v3.0';
+const kNeoDeskClientProduct = 'neodesk-desktop';
+const kNeoDeskDisplayName = 'NeoDesk Client';
+const kNeoDeskForkAttributionTip =
+    'NeoDesk Client is based on RustDesk. Its source code is available under the AGPL-3.0.';
+const kNeoDeskForkAttributionTipPl =
+    'NeoDesk Client jest oparty na RustDesk. Jego kod źródłowy jest dostępny na licencji AGPL-3.0.';

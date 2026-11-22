@@ -228,7 +228,7 @@ Map<String, dynamic> jsonDecodeOptions(String raw) {
   return {};
 }
 
-/// A betterdesk://join link opens a question naming the server before the
+/// A neodesk://join link opens a question naming the server before the
 /// computer joins it (plain HTTP links also carry the warning). Support
 /// links and anything else go straight to [handle].
 Future<void> confirmOnboardingLink(

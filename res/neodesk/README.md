@@ -1,4 +1,4 @@
-# BetterDesk `custom.txt` signing
+# NeoDesk `custom.txt` signing
 
 Used by the official desktop client and the web panel **Support Generator**.
 
@@ -18,7 +18,7 @@ python scripts/generate_custom_client_signing_key.py
 
 Requires `pynacl`. After generation, rebuild the client so `include_str!` picks up the new `.pub`.
 
-**Production:** do not ship the example seed. Generate a fresh pair, embed the new `.pub` in Client releases, and store the `.seed` only on the BetterDesk console Generator module (`data/modules/betterdesk-support-generator/`).
+**Production:** do not ship the example seed. Generate a fresh pair, embed the new `.pub` in Client releases, and store the `.seed` only on the NeoDesk console Generator module (`data/modules/neodesk-support-generator/`).
 
 ## `custom.txt` formats
 
@@ -27,7 +27,7 @@ Requires `pynacl`. After generation, rebuild the client so `include_str!` picks 
 
 ```json
 {
-  "app-name": "BetterDesk",
+  "app-name": "NeoDesk",
   "default-settings": {
     "custom-rendezvous-server": "desk.example.com",
     "relay-server": "desk.example.com",
@@ -45,26 +45,26 @@ Top-level string keys (e.g. `"conn-type": "incoming"`, `"disable-settings": "Y"`
 
 ### Support Agent (incoming-only)
 
-- Example: [`examples/betterdesk-support-agent.example.json`](../../examples/betterdesk-support-agent.example.json)
+- Example: [`examples/neodesk-support-agent.example.json`](../../examples/neodesk-support-agent.example.json)
 - Docs: [OFFICIAL_CLIENT.md](../../docs/OFFICIAL_CLIENT.md)
 
 ```bash
-cp examples/betterdesk-support-agent.example.json /path/to/Release/custom.txt
-python scripts/sign_custom_client_config.py examples/betterdesk-support-agent.example.json > custom.txt
+cp examples/neodesk-support-agent.example.json /path/to/Release/custom.txt
+python scripts/sign_custom_client_config.py examples/neodesk-support-agent.example.json > custom.txt
 ```
 
-Runtime branding: `GET /api/branding` (both SKUs). Enrollment: `POST /api/devices/register` (`device_type=betterdesk-desktop` + `product_sku` / `conn_mode`).
+Runtime branding: `GET /api/branding` (both SKUs). Enrollment: `POST /api/devices/register` (`device_type=neodesk-desktop` + `product_sku` / `conn_mode`).
 
 ### Generator templates (CI)
 
-[`.github/workflows/betterdesk-desktop-release.yml`](../../.github/workflows/betterdesk-desktop-release.yml) publishes clean desktops + `generator-templates-<version>.tar.gz`.
+[`.github/workflows/neodesk-desktop-release.yml`](../../.github/workflows/neodesk-desktop-release.yml) publishes clean desktops + `generator-templates-<version>.tar.gz`.
 
 ```bash
 python scripts/pack_generator_templates.py --dist-root ./dist --out ./generator-templates --version 1.5.0 --archive
 ```
 
-The BetterDesk console installs the archive from a Client release or accepts a
+The NeoDesk console installs the archive from a Client release or accepts a
 local upload. It verifies the archive checksum, manifest schema, platform
 completeness, binary paths and injection markers before replacing an existing
-module. Production builds require `BETTERDESK_CUSTOM_CLIENT_SIGNING_SEED` or
+module. Production builds require `NEODESK_CUSTOM_CLIENT_SIGNING_SEED` or
 `data/custom-client-signing.seed`; the seed is never part of the Client release.

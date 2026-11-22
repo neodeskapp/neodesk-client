@@ -17,7 +17,7 @@ void main() {
             service: svc, onSetUpByHand: () {}, initialText: '')),
         size: mainSize,
         brightness: b);
-    expect(find.text('Set up BetterDesk'), findsOneWidget);
+    expect(find.text('Set up NeoDesk'), findsOneWidget);
     await shot(tester, 'client-first-start-default', b);
   });
 

@@ -1,11 +1,11 @@
-# Oficjalny klient BetterDesk (desktop)
+# Oficjalny klient NeoDesk (desktop)
 
-Ten fork ([BetterDesk-Client](../)) jest **oficjalnym klientem desktop BetterDesk**:
+Ten fork ([neodesk-client](../)) jest **oficjalnym klientem desktop NeoDesk**:
 
 1. **Nie łączy się** z publiczną infrastrukturą rustdesk.com.
 2. Użytkownik **wpisuje** ID / Relay / API / Key (Settings → Network) lub importuje deploy string z panelu.
-3. Klient **identyfikuje się** wobec API jako `betterdesk-desktop` (`device_type` / `client_product`) oraz jawnym `product_sku` (`betterdesk-desktop` | `betterdesk-support`).
-4. Mechanizmy konfiguracji (`BETTERDESK_SUPPORT_CONFIG_B64`, deploy string i legacy `custom.txt`) są zachowane pod **Client Generator** w panelu web (dwa SKU — dualizm poniżej).
+3. Klient **identyfikuje się** wobec API jako `neodesk-desktop` (`device_type` / `client_product`) oraz jawnym `product_sku` (`neodesk-desktop` | `neodesk-support`).
+4. Mechanizmy konfiguracji (`NEODESK_SUPPORT_CONFIG_B64`, deploy string i legacy `custom.txt`) są zachowane pod **Client Generator** w panelu web (dwa SKU — dualizm poniżej).
 
 ## Kill public cloud
 
@@ -21,7 +21,7 @@ Bez skonfigurowanego serwera klient **nie rejestruje się** na publicznym cloudu
 
 ## Ręczna konfiguracja (produkt codzienny)
 
-1. Panel BetterDesk → Dashboard → **RustDesk Client Configuration**.
+1. Panel NeoDesk → Dashboard → **RustDesk Client Configuration**.
 2. W kliencie: Settings → Network → ID / Relay / API / Key (lub **Import** deploy string).
 3. API: `http://<host>:21114` (native) lub `:21121` (Docker AIO); klucz = `id_ed25519.pub`.
 
@@ -31,10 +31,10 @@ Deploy string = `reverse(base64({host,relay,api,key}))` — ten sam format co st
 
 `get_sysinfo()`, heartbeat i enrollment wysyłają m.in.:
 
-- `app_name` — `BetterDesk Client` / `BetterDesk Support Agent` (lub z `custom.txt`)
-- exe / proces — `betterdesk` (`betterdesk.exe` na Windows)
-- `client` / `client_product` / `device_type` — zawsze `betterdesk-desktop` (`BETTERDESK_CLIENT_PRODUCT`; legacy CDAP-safe)
-- `product_sku` — `betterdesk-desktop` (pełny) albo `betterdesk-support` (bake-in incoming-only)
+- `app_name` — `NeoDesk Client` / `NeoDesk Support Agent` (lub z `custom.txt`)
+- exe / proces — `neodesk` (`neodesk.exe` na Windows)
+- `client` / `client_product` / `device_type` — zawsze `neodesk-desktop` (`NEODESK_CLIENT_PRODUCT`; legacy CDAP-safe)
+- `product_sku` — `neodesk-desktop` (pełny) albo `neodesk-support` (bake-in incoming-only)
 - `conn_mode` — `normal` albo `incoming-only` (effective mode; permanent Support
   Agent wynika z `HARD_SETTINGS`, pełny klient może mieć podpisaną politykę z API)
 - `effective_conn_mode`, `policy_revision`, `policy_status` — stan zdalnej
@@ -42,9 +42,9 @@ Deploy string = `reverse(base64({host,relay,api,key}))` — ten sam format co st
 - opcjonalnie `enrollment_status`, `branding_revision`, `branding_source`
 - `license` — `AGPL-3.0-only`
 - `upstream_project` / `upstream_repo` — RustDesk + `https://github.com/rustdesk/rustdesk`
-- `source_repo` — `https://github.com/neodeskapp/betterdesk-client`
+- `source_repo` — `https://github.com/neodeskapp/neodesk-client`
 
-Helper HTTP: [`src/hbbs_http/betterdesk.rs`](../src/hbbs_http/betterdesk.rs) (`/api/health`, `/api/branding`, `/api/server-key`, identity helpers).
+Helper HTTP: [`src/hbbs_http/neodesk.rs`](../src/hbbs_http/neodesk.rs) (`/api/health`, `/api/branding`, `/api/server-key`, identity helpers).
 
 ## Dualizm SKU (Full Client vs Support Agent)
 
@@ -56,12 +56,12 @@ Support Agent.
 
 | SKU | Generator / bake-in | Tryb pulpitu | Serwery / klucz | Branding | Strategy / API config |
 |-----|---------------------|--------------|-----------------|----------|------------------------|
-| **BetterDesk Client** (pełny) | `examples/betterdesk-custom.example.json` lub profil full | Normalny domyślnie; opcjonalnie zdalnie `incoming-only` | `default-settings` lub fleet `override-settings` | `GET /api/branding` | Heartbeat `strategy` + enrollment + sysinfo + podpisana komenda trybu |
-| **BetterDesk Support Agent** | `product_type: betterdesk-support` / embedded Support workflow | **Na stałe** `conn-type: incoming` | Wkompilowane w podpisanym payloadzie + `hide-server-settings` | Ten sam `/api/branding` | Branding + enrollment/status; **bez** wyjścia z incoming-only |
+| **NeoDesk Client** (pełny) | `examples/neodesk-custom.example.json` lub profil full | Normalny domyślnie; opcjonalnie zdalnie `incoming-only` | `default-settings` lub fleet `override-settings` | `GET /api/branding` | Heartbeat `strategy` + enrollment + sysinfo + podpisana komenda trybu |
+| **NeoDesk Support Agent** | `product_type: neodesk-support` / embedded Support workflow | **Na stałe** `conn-type: incoming` | Wkompilowane w podpisanym payloadzie + `hide-server-settings` | Ten sam `/api/branding` | Branding + enrollment/status; **bez** wyjścia z incoming-only |
 
 **Enforcement (panel / API — poza tym repo):**
 
-- Przy register/heartbeat: jeśli `product_sku=betterdesk-support` (lub tagi `betterdesk-support,incoming-only`), oznacz urządzenie jako Support Agent.
+- Przy register/heartbeat: jeśli `product_sku=neodesk-support` (lub tagi `neodesk-support,incoming-only`), oznacz urządzenie jako Support Agent.
 - Nie wysyłaj strategii usuwającej incoming-only ani zmieniającej serwery floty Support w sposób conflicting.
 - UI panelu może oferować przełączanie tylko dla urządzeń z capability
   `connection-mode.remote-control`; device details pokazują `product_sku`,
@@ -69,7 +69,7 @@ Support Agent.
 
 **Enforcement (klient):** `conn-type` permanentnego Support Agent pozostaje
 tylko w `HARD_SETTINGS`; komendy zmieniające effective mode są akceptowane
-wyłącznie w `betterdesk_envelope`, z podpisem serwera, targetem urządzenia,
+wyłącznie w `neodesk_envelope`, z podpisem serwera, targetem urządzenia,
 rewizją i czasem ważności. Heartbeat `strategy` nie może zmienić trybu ani
 ominąć zaufanej komendy.
 
@@ -85,14 +85,14 @@ Po poprawnej konfiguracji Network (`api-server`) oficjalny klient **automatyczni
 | UI | Settings → Branding w trybie managed (read-only) gdy `branding-source=server` |
 | Stock RustDesk | **nie** woła `/api/branding`; dostaje tylko bezpieczny podzbiór przez heartbeat `strategy.config_options` (np. `display-name`) |
 
-Źródło prawdy edytuje panel: **Main → Client Branding** (nie Settings → Branding konsoli). Kontrakt: `schema_version`, `revision`, pola firmy/kontaktu/logo, `accent_color` i `background_color` (`#RRGGBB` lub `#AARRGGBB`), `profiles.betterdesk` / `profiles.rustdesk`.
+Źródło prawdy edytuje panel: **Main → Client Branding** (nie Settings → Branding konsoli). Kontrakt: `schema_version`, `revision`, pola firmy/kontaktu/logo, `accent_color` i `background_color` (`#RRGGBB` lub `#AARRGGBB`), `profiles.neodesk` / `profiles.rustdesk`.
 
 ## Attribution / licencja (AGPL-3.0)
 
-BetterDesk Client **jest forkiem klienta RustDesk**. W Settings → About oraz w sysinfo:
+NeoDesk Client **jest forkiem klienta RustDesk**. W Settings → About oraz w sysinfo:
 
 - licencja **AGPL-3.0** (plik `LICENSE` w repo)
-- link do **kodu źródłowego forka** (`BetterDesk-Client`)
+- link do **kodu źródłowego forka** (`neodesk-client`)
 - link do **upstream** (`rustdesk/rustdesk`)
 - copyright UNITRONIX + oryginalnych autorów RustDesk / Purslane
 
@@ -102,7 +102,7 @@ Stałe: `UPSTREAM_*` / `FORK_REPO_URL` / `LICENSE_*` w [`libs/hbb_common/src/con
 
 | Mechanizm | Rola |
 |-----------|------|
-| **Compile-time Support config** | Signed base64(NaCl-sign(JSON)) przekazany przez `BETTERDESK_SUPPORT_CONFIG_B64`; payload trafia do binarium |
+| **Compile-time Support config** | Signed base64(NaCl-sign(JSON)) przekazany przez `NEODESK_SUPPORT_CONFIG_B64`; payload trafia do binarium |
 | **Plain/signed `custom.txt`** | Legacy/migration only; nie jest wynikiem embedded production builda |
 | **MSI template** | [`res/msi/preprocess.py`](../res/msi/preprocess.py) — cab2 z `custom.txt` + branding |
 | **Deploy string** | Dashboard / Import — bez przebudowy binarki |
@@ -112,7 +112,7 @@ Stałe: `UPSTREAM_*` / `FORK_REPO_URL` / `LICENSE_*` w [`libs/hbb_common/src/con
 
 ```bash
 python scripts/generate_custom_client_signing_key.py
-python scripts/sign_custom_client_config.py examples/betterdesk-custom.example.json > custom.txt
+python scripts/sign_custom_client_config.py examples/neodesk-custom.example.json > custom.txt
 ```
 
 Seed (`*.seed`) jest prywatny — trafia do panelu Generatora (jak Support Agent `bundleSigningKey`), **nie** do publicznych mirrorów.
@@ -121,7 +121,7 @@ Seed (`*.seed`) jest prywatny — trafia do panelu Generatora (jak Support Agent
 
 ```json
 {
-  "app-name": "BetterDesk Client",
+  "app-name": "NeoDesk Client",
   "default-settings": {
     "custom-rendezvous-server": "desk.example.com",
     "relay-server": "desk.example.com",
@@ -135,21 +135,21 @@ Fleet lock: te same pola w `override-settings` (+ opcjonalnie `hide-server-setti
 
 ## Support Agent (incoming-only, jak QuickSupport)
 
-Support Agent to **osobny SKU** Generatora (patrz dualizm powyżej): użytkownik widzi **ID + hasło**, **nie łączy się** do innych urządzeń, a technik łączy się z **pełnego** BetterDesk desktop **do** agenta. Zdalny pulpit (input) jest jednokierunkowy (controller → host); chat / schowek / pliki mogą działać w obie strony wg uprawnień sesji.
+Support Agent to **osobny SKU** Generatora (patrz dualizm powyżej): użytkownik widzi **ID + hasło**, **nie łączy się** do innych urządzeń, a technik łączy się z **pełnego** NeoDesk desktop **do** agenta. Zdalny pulpit (input) jest jednokierunkowy (controller → host); chat / schowek / pliki mogą działać w obie strony wg uprawnień sesji.
 
 Nie wymaga nowego protokołu — hard setting `conn-type: incoming` (`is_incoming_only()` w [`libs/hbb_common/src/config.rs`](../libs/hbb_common/src/config.rs); blokada outbound w [`src/client.rs`](../src/client.rs); UI w [`flutter/lib/desktop/pages/desktop_home_page.dart`](../flutter/lib/desktop/pages/desktop_home_page.dart)).
 
 ### Embedded Support SKU
 
 1. Zbuduj desktop jak w [BUILD_DESKTOP.md](BUILD_DESKTOP.md) albo użyj release `desktop/*` z GitHub Actions.
-2. Dla lokalnego testu ustaw podpisany payload w `BETTERDESK_SUPPORT_CONFIG_B64` i zbuduj klienta.
-3. Produkcyjna ścieżka to **panel BetterDesk → Generator** oraz workflow [`support-build.yml`](../.github/workflows/support-build.yml), który buduje sześć targetów i publikuje artefakt workflow bez `custom.txt`.
+2. Dla lokalnego testu ustaw podpisany payload w `NEODESK_SUPPORT_CONFIG_B64` i zbuduj klienta.
+3. Produkcyjna ścieżka to **panel NeoDesk → Generator** oraz workflow [`support-build.yml`](../.github/workflows/support-build.yml), który buduje sześć targetów i publikuje artefakt workflow bez `custom.txt`.
 
 Top-level (→ `HARD_SETTINGS`):
 
 | Klucz | Wartość | Efekt |
 |-------|---------|--------|
-| `conn-type` | `incoming` | Ukrywa Connect UI; blokuje outbound (wyjątek: verified switch-sides); `product_sku=betterdesk-support` |
+| `conn-type` | `incoming` | Ukrywa Connect UI; blokuje outbound (wyjątek: verified switch-sides); `product_sku=neodesk-support` |
 | `disable-settings` | `Y` | Ukrywa Settings (opcjonalny lockdown floty) |
 
 W `override-settings`: serwery + `key`, `hide-server-settings`, `hide-help-cards`.
@@ -159,11 +159,11 @@ W `override-settings`: serwery + `key`, `hide-server-settings`, `hide-help-cards
 Z bake-in `api-server` (oba SKU):
 
 - Branding: `GET /api/branding` (~60 s) — panel **Main → Client Branding**
-- Enrollment: `POST /api/devices/register` z `device_type=betterdesk-desktop` (legacy) + `product_sku` / `conn_mode` / `tags` (managed → kolejka akceptacji; open → od razu)
+- Enrollment: `POST /api/devices/register` z `device_type=neodesk-desktop` (legacy) + `product_sku` / `conn_mode` / `tags` (managed → kolejka akceptacji; open → od razu)
 
 ### CI: czyste klienty + szablony Generatora
 
-Jedyny workflow release: [`.github/workflows/betterdesk-desktop-release.yml`](../.github/workflows/betterdesk-desktop-release.yml) (wołany build: [`flutter-build.yml`](../.github/workflows/flutter-build.yml) — **tylko desktop**).
+Jedyny workflow release: [`.github/workflows/neodesk-desktop-release.yml`](../.github/workflows/neodesk-desktop-release.yml) (wołany build: [`flutter-build.yml`](../.github/workflows/flutter-build.yml) — **tylko desktop**).
 
 | Trigger | Zachowanie |
 |---------|------------|
@@ -171,17 +171,17 @@ Jedyny workflow release: [`.github/workflows/betterdesk-desktop-release.yml`](..
 | Tag `desktop/*` | Build + prerelease pod tym tagiem |
 | `workflow_dispatch` | Ręczny build / tag |
 
-Workflow `betterdesk-desktop-release.yml` buduje tylko pełny BetterDesk Client (`product_sku=betterdesk-desktop`, bez `custom.txt`, bez `conn-type: incoming`). Osobny `support-build.yml` jest wywoływany przez panel i buduje Support z konfiguracją embedded dla sześciu targetów; nie publikuje go jako stałego release z cudzym adresem serwera.
+Workflow `neodesk-desktop-release.yml` buduje tylko pełny NeoDesk Client (`product_sku=neodesk-desktop`, bez `custom.txt`, bez `conn-type: incoming`). Osobny `support-build.yml` jest wywoływany przez panel i buduje Support z konfiguracją embedded dla sześciu targetów; nie publikuje go jako stałego release z cudzym adresem serwera.
 
 Zakres platform: **Windows / Linux / macOS** (x86_64 + aarch64). Brak jobów Android, iOS, AppImage, Flatpak, Sciter, DRM, web, F-Droid, nightly/tag upstream.
 
 | Asset | Zawartość |
 |-------|-----------|
-| `betterdesk-*-windows-*.tar.gz` / `.exe` / `.msi` | Portable + instalatory Windows |
-| `betterdesk-*-linux-*.deb` / `.rpm` / `*-portable.tar.gz` | Instalatory + portable Linux |
-| `betterdesk-*-macos-*.dmg` / `.tar.gz` | DMG + archiwum macOS |
+| `neodesk-*-windows-*.tar.gz` / `.exe` / `.msi` | Portable + instalatory Windows |
+| `neodesk-*-linux-*.deb` / `.rpm` / `*-portable.tar.gz` | Instalatory + portable Linux |
+| `neodesk-*-macos-*.dmg` / `.tar.gz` | DMG + archiwum macOS |
 | `generator-templates-*.tar.gz` + manifest | Czyste binaria pod konsolowy Generator |
-| `betterdesk-template-*.msi` | MSI template (cab2) |
+| `neodesk-template-*.msi` | MSI template (cab2) |
 
 Pack lokalnie: `python scripts/pack_generator_templates.py --dist-root ./dist --out ./generator-templates --version … --archive`.
 Walidacja: `python scripts/validate_generator_templates.py --root ./generator-templates`.
@@ -189,7 +189,7 @@ Manifest generatora wymaga kompletu Windows/Linux/macOS x86_64+aarch64, binarió
 
 ### Baseline bezpieczeństwa floty
 
-- Produkcja embedded: podpisany payload wkompilowany do binarium; seed tylko na konsoli (`BETTERDESK_CUSTOM_CLIENT_SIGNING_SEED`).
+- Produkcja embedded: podpisany payload wkompilowany do binarium; seed tylko na konsoli (`NEODESK_CUSTOM_CLIENT_SIGNING_SEED`).
 - Release klienta odrzuca unsigned plain JSON; plain JSON pozostaje dostępny wyłącznie dla buildów debug.
 - Serwery w `override-settings` + `hide-server-settings` / `disable-settings`.
 - Preferuj HTTPS dla `api-server` gdy panel to umożliwia; `/api/branding` jest publicznym GET (kosmetyka — zaufanie = Twój API).
@@ -199,7 +199,7 @@ Manifest generatora wymaga kompletu Windows/Linux/macOS x86_64+aarch64, binarió
 
 ### vs legacy CDAP Support Agent
 
-Dawny Go/Wails Support Agent w monorepo BetterDesk został usunięty. Oficjalna ścieżka to **BetterDesk-Client** + embedded Support workflow + Generator w panelu (`product_type: betterdesk-support`).
+Dawny Go/Wails Support Agent w monorepo NeoDesk został usunięty. Oficjalna ścieżka to **neodesk-client** + embedded Support workflow + Generator w panelu (`product_type: neodesk-support`).
 
 ## Pliki kluczowe
 
@@ -207,10 +207,10 @@ Dawny Go/Wails Support Agent w monorepo BetterDesk został usunięty. Oficjalna 
 |-------|--------|
 | Defaults / kill public | `libs/hbb_common/src/config.rs` |
 | API / key / custom.txt | `src/common.rs` |
-| BetterDesk HTTP (branding + enrollment) | `src/hbbs_http/betterdesk.rs` |
-| Signing keys | `res/betterdesk/` |
+| NeoDesk HTTP (branding + enrollment) | `src/hbbs_http/neodesk.rs` |
+| Signing keys | `res/neodesk/` |
 | Scripts | `scripts/generate_custom_client_signing_key.py`, `sign_custom_client_config.py`, `pack_generator_templates.py` |
-| Przykład full client | `examples/betterdesk-custom.example.json` |
-| Przykład Support Agent | `examples/betterdesk-support-agent.example.json` |
-| Clean desktop CI | `.github/workflows/betterdesk-desktop-release.yml` |
+| Przykład full client | `examples/neodesk-custom.example.json` |
+| Przykład Support Agent | `examples/neodesk-support-agent.example.json` |
+| Clean desktop CI | `.github/workflows/neodesk-desktop-release.yml` |
 | Łączność | [CONNECTIVITY.md](CONNECTIVITY.md) |

@@ -1483,7 +1483,7 @@ class TabbarTheme extends ThemeExtension<TabbarTheme> {
       required this.closeHoverColor,
       required this.selectedTabBackgroundColor});
 
-  /// Tab colours drawn from the BetterDesk tokens.
+  /// Tab colours drawn from the NeoDesk tokens.
   factory TabbarTheme.from(BdColors c) => TabbarTheme(
       selectedTabIconColor: c.accent,
       unSelectedTabIconColor: c.textMuted,

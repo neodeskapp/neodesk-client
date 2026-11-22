@@ -41,7 +41,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   double? get height => bind.isIncomingOnly() ? null : em * 3;
 
   void onUsePublicServerGuide() {
-    // BetterDesk: open Network settings instead of rustdesk.com pricing.
+    // NeoDesk: open Network settings instead of rustdesk.com pricing.
     DesktopSettingPage.switch2page(SettingsTabKey.network);
   }
 
@@ -146,7 +146,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
         jsonDecode(await bind.mainGetConnectStatus()) as Map<String, dynamic>;
     final statusNum = status['status_num'] as int;
     _statusReason.value = status['status_reason'] as String? ?? 'offline';
-    _standing.value = bind.mainGetOptionSync(key: 'betterdesk-device-standing');
+    _standing.value = bind.mainGetOptionSync(key: 'neodesk-device-standing');
     if (statusNum == 0) {
       stateGlobal.svcStatus.value = SvcStatus.connecting;
     } else if (statusNum == -1) {

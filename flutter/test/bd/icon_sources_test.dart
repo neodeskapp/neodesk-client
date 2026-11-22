@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Asset paths the app may still name, with the reason they stay.
 const _keptAssets = <String, String>{
-  'assets/bd-logo-': 'the BetterDesk logo',
+  'assets/bd-logo-': 'the NeoDesk logo',
   'assets/bd-os-': 'operating system marks (Phosphor, as in the console)',
   'assets/flags/': 'language flags (Twemoji)',
   r'assets/auth-$svgFile.svg': 'logos of the sign-in providers',

@@ -434,7 +434,7 @@ class BdAvatar extends StatelessWidget {
   }
 }
 
-/// The BetterDesk mark (rounded square, circle, overlap) in the logo
+/// The NeoDesk mark (rounded square, circle, overlap) in the logo
 /// colours of the theme. Never the accent.
 class BdLogoMark extends StatelessWidget {
   const BdLogoMark({super.key, this.size = 18});
@@ -482,7 +482,7 @@ class BdMarkPainter extends CustomPainter {
       oldDelegate.overlap != overlap;
 }
 
-/// The mark and the "betterdesk" wordmark.
+/// The mark and the "neodesk" wordmark.
 class BdWordmark extends StatelessWidget {
   const BdWordmark({super.key, this.height = 18});
   final double height;
@@ -493,7 +493,7 @@ class BdWordmark extends StatelessWidget {
     return SvgPicture.asset(
       dark ? 'assets/bd-logo-dark.svg' : 'assets/bd-logo-light.svg',
       height: height,
-      semanticsLabel: 'BetterDesk',
+      semanticsLabel: 'NeoDesk',
     );
   }
 }

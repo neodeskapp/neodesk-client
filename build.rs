@@ -77,10 +77,10 @@ fn install_android_deps() {
 }
 
 fn validate_embedded_support_config() {
-    println!("cargo:rerun-if-env-changed=BETTERDESK_SUPPORT_CONFIG_B64");
-    println!("cargo:rerun-if-env-changed=BETTERDESK_GENERIC_SUPPORT");
+    println!("cargo:rerun-if-env-changed=NEODESK_SUPPORT_CONFIG_B64");
+    println!("cargo:rerun-if-env-changed=NEODESK_GENERIC_SUPPORT");
 
-    let Ok(value) = std::env::var("BETTERDESK_SUPPORT_CONFIG_B64") else {
+    let Ok(value) = std::env::var("NEODESK_SUPPORT_CONFIG_B64") else {
         return;
     };
     let value = value.trim();
@@ -93,7 +93,7 @@ fn validate_embedded_support_config() {
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'='))
     {
-        panic!("BETTERDESK_SUPPORT_CONFIG_B64 is not a valid signed base64 payload");
+        panic!("NEODESK_SUPPORT_CONFIG_B64 is not a valid signed base64 payload");
     }
 }
 

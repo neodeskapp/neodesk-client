@@ -32,37 +32,37 @@ def fake_raw(raw: Path, platforms: set[str]) -> None:
     for arch in ("x86_64", "aarch64"):
         if f"windows-{arch}" in platforms:
             build = raw / f"rustdesk-unsigned-windows-{arch}"
-            write(build / "betterdesk.exe", BINARY)
+            write(build / "neodesk.exe", BINARY)
             write(build / "rustdesk.exe", BINARY)
             write(build / "librustdesk.dll")
-            write(raw / "windows-installers" / f"betterdesk-{VERSION}-{arch}.exe", b"exe " + arch.encode())
-            write(raw / "windows-installers" / f"betterdesk-{VERSION}-{arch}.msi", b"msi " + arch.encode())
-            write(raw / "msi-template-arts" / f"betterdesk-template-{arch}.msi")
+            write(raw / "windows-installers" / f"neodesk-{VERSION}-{arch}.exe", b"exe " + arch.encode())
+            write(raw / "windows-installers" / f"neodesk-{VERSION}-{arch}.msi", b"msi " + arch.encode())
+            write(raw / "msi-template-arts" / f"neodesk-template-{arch}.msi")
             write(raw / "msi-template-arts" / f"rustdesk-template-{arch}.msi")
         if f"macos-{arch}" in platforms:
-            art = raw / f"betterdesk-unsigned-macos-{arch}"
-            write(art / f"betterdesk-{VERSION}-{arch}.dmg", b"dmg " + arch.encode())
-            app = art.parent / f"app-{arch}" / "BetterDesk Client.app"
-            write(app / "Contents" / "MacOS" / "BetterDesk Client", BINARY)
-            with tarfile.open(art / f"betterdesk-{VERSION}-{arch}-app.tar.gz", "w:gz") as tar:
+            art = raw / f"neodesk-unsigned-macos-{arch}"
+            write(art / f"neodesk-{VERSION}-{arch}.dmg", b"dmg " + arch.encode())
+            app = art.parent / f"app-{arch}" / "NeoDesk Client.app"
+            write(app / "Contents" / "MacOS" / "NeoDesk Client", BINARY)
+            with tarfile.open(art / f"neodesk-{VERSION}-{arch}-app.tar.gz", "w:gz") as tar:
                 tar.add(app, arcname=app.name)
             if arch == "aarch64":
                 # The x86_64 leg leaves the zip out to cover the fallback.
-                with zipfile.ZipFile(art / f"betterdesk-{VERSION}-{arch}-app.zip", "w") as zf:
-                    zf.writestr("BetterDesk Client.app/Contents/MacOS/BetterDesk Client", BINARY)
+                with zipfile.ZipFile(art / f"neodesk-{VERSION}-{arch}-app.zip", "w") as zf:
+                    zf.writestr("NeoDesk Client.app/Contents/MacOS/NeoDesk Client", BINARY)
         if f"linux-{arch}" in platforms:
             root = raw.parent / f"deb-{arch}"
-            write(root / "usr/share/rustdesk/betterdesk", BINARY)
+            write(root / "usr/share/rustdesk/neodesk", BINARY)
             write(root / "usr/share/rustdesk/lib/librustdesk.so")
             write(root / "DEBIAN/control", (
-                f"Package: betterdesk\nVersion: {VERSION}\nArchitecture: all\n"
+                f"Package: neodesk\nVersion: {VERSION}\nArchitecture: all\n"
                 "Maintainer: test\nDescription: test\n"
             ).encode())
-            deb = raw / "linux-debs" / f"betterdesk-{VERSION}-{arch}.deb"
+            deb = raw / "linux-debs" / f"neodesk-{VERSION}-{arch}.deb"
             deb.parent.mkdir(parents=True, exist_ok=True)
             subprocess.run(["dpkg-deb", "-b", str(root), str(deb)], check=True, capture_output=True)
-            write(raw / "linux-rpms" / f"betterdesk-{VERSION}-0.{arch}.rpm", b"rpm")
-            write(raw / "linux-rpms" / f"betterdesk-{VERSION}-0.{arch}-suse.rpm", b"suse")
+            write(raw / "linux-rpms" / f"neodesk-{VERSION}-0.{arch}.rpm", b"rpm")
+            write(raw / "linux-rpms" / f"neodesk-{VERSION}-0.{arch}-suse.rpm", b"suse")
 
 
 def run(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -86,38 +86,38 @@ def check_full(tmp: Path) -> None:
     expected = set()
     for arch in ("x86_64", "aarch64"):
         expected |= {
-            f"betterdesk-{VERSION}-windows-{arch}.exe",
-            f"betterdesk-{VERSION}-windows-{arch}.msi",
-            f"betterdesk-{VERSION}-windows-{arch}.tar.gz",
-            f"betterdesk-{VERSION}-linux-{arch}.deb",
-            f"betterdesk-{VERSION}-linux-{arch}.rpm",
-            f"betterdesk-{VERSION}-linux-{arch}-suse.rpm",
-            f"betterdesk-{VERSION}-linux-{arch}-portable.tar.gz",
-            f"betterdesk-{VERSION}-macos-{arch}.dmg",
-            f"betterdesk-{VERSION}-macos-{arch}-portable.zip",
+            f"neodesk-{VERSION}-windows-{arch}.exe",
+            f"neodesk-{VERSION}-windows-{arch}.msi",
+            f"neodesk-{VERSION}-windows-{arch}.tar.gz",
+            f"neodesk-{VERSION}-linux-{arch}.deb",
+            f"neodesk-{VERSION}-linux-{arch}.rpm",
+            f"neodesk-{VERSION}-linux-{arch}-suse.rpm",
+            f"neodesk-{VERSION}-linux-{arch}-portable.tar.gz",
+            f"neodesk-{VERSION}-macos-{arch}.dmg",
+            f"neodesk-{VERSION}-macos-{arch}-portable.zip",
         }
     expect(names == expected, f"clean/ has {sorted(names ^ expected)} beyond or missing from the expected set")
 
     clean = dist / "clean"
-    expect((clean / f"betterdesk-{VERSION}-windows-aarch64.exe").read_bytes() == b"exe aarch64",
+    expect((clean / f"neodesk-{VERSION}-windows-aarch64.exe").read_bytes() == b"exe aarch64",
            "windows aarch64 exe is not the aarch64 build")
-    expect((clean / f"betterdesk-{VERSION}-linux-x86_64-suse.rpm").read_bytes() == b"suse",
+    expect((clean / f"neodesk-{VERSION}-linux-x86_64-suse.rpm").read_bytes() == b"suse",
            "suse rpm mixed up with the plain rpm")
-    with tarfile.open(clean / f"betterdesk-{VERSION}-linux-x86_64-portable.tar.gz") as tar:
+    with tarfile.open(clean / f"neodesk-{VERSION}-linux-x86_64-portable.tar.gz") as tar:
         members = set(tar.getnames())
-    expect("./betterdesk" in members and "./lib/librustdesk.so" in members,
+    expect("./neodesk" in members and "./lib/librustdesk.so" in members,
            f"linux portable tarball lacks the app folder: {sorted(members)}")
     for arch in ("x86_64", "aarch64"):
-        with zipfile.ZipFile(clean / f"betterdesk-{VERSION}-macos-{arch}-portable.zip") as zf:
+        with zipfile.ZipFile(clean / f"neodesk-{VERSION}-macos-{arch}-portable.zip") as zf:
             listed = zf.namelist()
-        expect(any(n.endswith("BetterDesk Client.app/Contents/MacOS/BetterDesk Client") for n in listed),
+        expect(any(n.endswith("NeoDesk Client.app/Contents/MacOS/NeoDesk Client") for n in listed),
                f"macos {arch} zip lacks the app: {listed}")
     expect(sorted(p.name for p in (dist / "msi-template").iterdir())
-           == ["betterdesk-template-aarch64.msi", "betterdesk-template-x86_64.msi"],
+           == ["neodesk-template-aarch64.msi", "neodesk-template-x86_64.msi"],
            "msi templates not renamed")
     for folder in every:
         expect((dist / folder).is_dir(), f"missing unpacked build {folder}")
-    expect(not (dist / "macos-x86_64" / f"betterdesk-{VERSION}-x86_64.dmg").exists(),
+    expect(not (dist / "macos-x86_64" / f"neodesk-{VERSION}-x86_64.dmg").exists(),
            "the dmg ended up in the unpacked macOS build")
 
     result = run("sums", str(clean))
@@ -149,16 +149,16 @@ def check_full(tmp: Path) -> None:
     notes_path = tmp / "notes.md"
     table = subprocess.run(
         [sys.executable, str(HERE / "generate_release_download_table.py"), "--product", "desktop",
-         "--asset-dir", str(clean), "--repo", "neodeskapp/betterdesk-client", "--tag", "desktop/1.5.0",
-         "--release-name", "BetterDesk Client 1.5.0", "-o", str(notes_path)],
+         "--asset-dir", str(clean), "--repo", "neodeskapp/neodesk-client", "--tag", "desktop/1.5.0",
+         "--release-name", "NeoDesk Client 1.5.0", "-o", str(notes_path)],
         capture_output=True, text=True,
     )
     expect(table.returncode == 0, f"download table failed: {table.stderr}")
     notes = notes_path.read_text(encoding="utf-8")
-    base = "https://github.com/neodeskapp/betterdesk-client/releases/download/desktop/1.5.0/"
+    base = "https://github.com/neodeskapp/neodesk-client/releases/download/desktop/1.5.0/"
     for name in sorted(expected) + ["SHA256SUMS"]:
         expect(f"({base}{name})" in notes, f"download table does not link {name}")
-    expect("betterdesk-template-" not in notes.split("### Other assets")[0],
+    expect("neodesk-template-" not in notes.split("### Other assets")[0],
            "download table links an MSI template as an installer")
 
 
@@ -189,8 +189,8 @@ def openssl(*args: str, data: bytes | None = None) -> bytes:
 
 def check_signature(tmp: Path) -> None:
     dist = tmp / "dist"
-    write(dist / f"betterdesk-{VERSION}-linux-x86_64.deb", b"deb")
-    write(dist / f"betterdesk-{VERSION}-windows-x86_64.exe", b"exe")
+    write(dist / f"neodesk-{VERSION}-linux-x86_64.deb", b"deb")
+    write(dist / f"neodesk-{VERSION}-windows-x86_64.exe", b"exe")
     key = tmp / "key.pem"
     openssl("genpkey", "-algorithm", "ed25519", "-out", str(key))
     public_pem = tmp / "public.pem"
@@ -234,7 +234,7 @@ def check_signature(tmp: Path) -> None:
 
 def main() -> int:
     for check in (check_full, check_partial, check_empty, check_signature):
-        with tempfile.TemporaryDirectory(prefix="betterdesk-collect-") as value:
+        with tempfile.TemporaryDirectory(prefix="neodesk-collect-") as value:
             check(Path(value))
         print(f"{check.__name__}: OK")
     return 0

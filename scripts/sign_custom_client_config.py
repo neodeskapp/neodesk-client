@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Sign a BetterDesk custom-client JSON for custom.txt (Generator bake-in).
+"""Sign a NeoDesk custom-client JSON for custom.txt (Generator bake-in).
 
 Usage:
   python scripts/sign_custom_client_config.py path/to/config.json > custom.txt
 
-Reads seed from res/betterdesk/custom-client-signing.seed
+Reads seed from res/neodesk/custom-client-signing.seed
 Requires: pip install pynacl
 """
 
@@ -26,7 +26,7 @@ def main() -> int:
         type=Path,
         default=Path(__file__).resolve().parents[1]
         / "res"
-        / "betterdesk"
+        / "neodesk"
         / "custom-client-signing.seed",
     )
     args = parser.parse_args()

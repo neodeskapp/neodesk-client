@@ -1,4 +1,4 @@
-// The BetterDesk components (DESIGN.md, Components). Each reads only
+// The NeoDesk components (DESIGN.md, Components). Each reads only
 // BdColors and BdText from the theme.
 export '../../theme/bd_theme.dart';
 export 'bd_button.dart';

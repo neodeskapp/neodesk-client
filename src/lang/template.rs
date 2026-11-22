@@ -763,7 +763,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Lock canvas", ""),
         ("Sync clipboard between sessions", ""),
         ("sync-clipboard-between-sessions-tip", ""),
-        ("betterdesk_fork_attribution_tip", ""),
+        ("neodesk_fork_attribution_tip", ""),
         ("Source code", ""),
         ("Upstream", ""),
         ("View license", ""),
@@ -776,7 +776,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Choose logo", ""),
         ("Remove logo", ""),
         ("Save branding", ""),
-        ("Managed by BetterDesk server", ""),
+        ("Managed by NeoDesk server", ""),
         ("Clear branding", ""),
         ("Logo too large", ""),
         ("Invalid logo format", ""),
@@ -789,12 +789,12 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Paired. This device is approved.", ""),
         ("Paired. This device waits for approval in the console.", ""),
         ("The code is wrong or has expired.", ""),
-        ("Enter the address of your BetterDesk server.", ""),
+        ("Enter the address of your NeoDesk server.", ""),
         ("Enter the code.", ""),
         ("Could not reach the server.", ""),
         ("The server did not accept the request.", ""),
         ("The server did not admit this device.", ""),
-        // BetterDesk client design: new keys (bd-*).
+        // NeoDesk client design: new keys (bd-*).
         ("bd-first-start-title", ""),
         ("bd-first-start-lead", ""),
         ("bd-invite-field", ""),
@@ -1171,8 +1171,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-desc:bd-set-row-choose-the-shared-screen-again", ""),
         ("bd-set-row-ask-again-for-keyboard-shortcuts", ""),
         ("bd-desc:bd-set-row-ask-again-for-keyboard-shortcuts", ""),
-        ("bd-set-row-betterdesk-printer", ""),
-        ("bd-desc:bd-set-row-betterdesk-printer", ""),
+        ("bd-set-row-neodesk-printer", ""),
+        ("bd-desc:bd-set-row-neodesk-printer", ""),
         ("bd-set-row-print-jobs-from-other-computers", ""),
         ("bd-desc:bd-set-row-print-jobs-from-other-computers", ""),
         ("bd-set-row-print-without-asking", ""),
@@ -1198,6 +1198,6 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-install-installing-lead", ""),
         ("bd-install-installing-join", ""),
         ("bd-install-failed", ""),
-        // End of the BetterDesk client design keys.
+        // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

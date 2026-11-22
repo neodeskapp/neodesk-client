@@ -201,11 +201,11 @@ void runMainApp(bool startService) async {
 /// Picks the onboarding implementation: the one on the client core
 /// (onboarding_service_bind.dart); the pair-with-code fallback only applies
 /// when nothing registered. Debug and profile builds can
-/// walk through the screens with BETTERDESK_DEMO_ONBOARDING (onboarding_demo.dart).
+/// walk through the screens with NEODESK_DEMO_ONBOARDING (onboarding_demo.dart).
 void _registerOnboarding() {
   registerOnboardingService();
   if (!kReleaseMode) {
-    final demo = Platform.environment['BETTERDESK_DEMO_ONBOARDING'] ?? '';
+    final demo = Platform.environment['NEODESK_DEMO_ONBOARDING'] ?? '';
     if (demo == 'first-start') {
       OnboardingService.registered = DemoOnboardingService.firstStart();
     } else if (demo == 'quick-support') {

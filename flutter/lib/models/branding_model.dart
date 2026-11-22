@@ -8,7 +8,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 const int kBrandingLogoMaxBytes = 512 * 1024;
-const String kBrandingLogoFileName = 'betterdesk_branding_logo';
+const String kBrandingLogoFileName = 'neodesk_branding_logo';
 
 final _brandingLogoExts = <String>{'.png', '.jpg', '.jpeg', '.webp'};
 

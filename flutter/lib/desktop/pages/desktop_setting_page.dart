@@ -2540,7 +2540,7 @@ class _BrandingState extends State<_Branding> {
         _Card(title: 'bd-sec-reports-and-branding', children: [
           if (managed)
             Text(
-              translate('Managed by BetterDesk server'),
+              translate('Managed by NeoDesk server'),
               style: TextStyle(
                 fontSize: _kContentFontSize,
                 color: Theme.of(context).colorScheme.primary,
@@ -2604,16 +2604,16 @@ class _AboutState extends State<_About> {
         ),
         onViewLicence: () =>
             launchUrlString('https://www.gnu.org/licenses/agpl-3.0.html'),
-        onSource: () => launchUrlString(kBetterDeskClientRepoUrl),
+        onSource: () => launchUrlString(kNeoDeskClientRepoUrl),
         onUpstream: () => launchUrlString(kUpstreamRepoUrl),
         // Update checks are off in this build; the releases page shows
         // the newest version.
         onCheckUpdates: () {
-          launchUrlString('$kBetterDeskClientRepoUrl/releases');
+          launchUrlString('$kNeoDeskClientRepoUrl/releases');
           setState(() => _result = null);
         },
         updateResult: _result,
-        sourceLabel: kBetterDeskClientRepoUrl.replaceFirst('https://', ''),
+        sourceLabel: kNeoDeskClientRepoUrl.replaceFirst('https://', ''),
       );
     });
   }

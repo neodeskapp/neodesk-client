@@ -1,10 +1,10 @@
-pkgname=betterdesk
+pkgname=neodesk
 pkgver=1.5.0
 pkgrel=0
 epoch=
 pkgdesc=""
 arch=('x86_64' 'aarch64')
-url="https://github.com/neodeskapp/betterdesk-client"
+url="https://github.com/neodeskapp/neodesk-client"
 license=('AGPL-3.0')
 groups=()
 depends=('gtk3' 'xdotool' 'libxcb' 'libxfixes' 'alsa-lib' 'libva' 'libappindicator-gtk3' 'gst-plugins-base' 'gst-plugin-pipewire')
@@ -27,13 +27,13 @@ package() {
 	  [[ ${CARCH} == aarch64 ]] && bundle="${HBB}/flutter/build/linux/arm64/release/bundle"
 	  mkdir -p "${pkgdir}/usr/share/rustdesk" && cp -r "${bundle}"/* -t "${pkgdir}/usr/share/rustdesk"
   else
-	  install -Dm 755 "${HBB}/target/release/rustdesk" "${pkgdir}/usr/share/rustdesk/betterdesk"
+	  install -Dm 755 "${HBB}/target/release/rustdesk" "${pkgdir}/usr/share/rustdesk/neodesk"
   fi
   mkdir -p "${pkgdir}/usr/bin"
-  pushd ${pkgdir} && ln -s /usr/share/rustdesk/betterdesk usr/bin/betterdesk && ln -s /usr/share/rustdesk/betterdesk usr/bin/rustdesk && popd
+  pushd ${pkgdir} && ln -s /usr/share/rustdesk/neodesk usr/bin/neodesk && ln -s /usr/share/rustdesk/neodesk usr/bin/rustdesk && popd
   install -Dm 644 $HBB/res/rustdesk.service -t "${pkgdir}/usr/share/rustdesk/files"
-  install -Dm 644 $HBB/res/betterdesk.desktop -t "${pkgdir}/usr/share/rustdesk/files"
-  install -Dm 644 $HBB/res/betterdesk-link.desktop -t "${pkgdir}/usr/share/rustdesk/files"
+  install -Dm 644 $HBB/res/neodesk.desktop -t "${pkgdir}/usr/share/rustdesk/files"
+  install -Dm 644 $HBB/res/neodesk-link.desktop -t "${pkgdir}/usr/share/rustdesk/files"
   install -Dm 644 $HBB/res/rustdesk-link.desktop -t "${pkgdir}/usr/share/rustdesk/files"
   install -Dm 644 $HBB/res/128x128@2x.png "${pkgdir}/usr/share/icons/hicolor/256x256/apps/rustdesk.png"
   install -Dm 644 $HBB/res/scalable.svg "${pkgdir}/usr/share/icons/hicolor/scalable/apps/rustdesk.svg"

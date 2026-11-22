@@ -1,4 +1,4 @@
-//! Key proof and device token for BetterDesk enrollment requests.
+//! Key proof and device token for NeoDesk enrollment requests.
 //!
 //! Register, status and pairing requests carry a short-lived proof made with
 //! the device's Ed25519 key, the same key the client registers with the
@@ -29,9 +29,9 @@ const HEADER_AUTHORIZATION: &str = "Authorization";
 const PROOF_VERSION: &str = "bd-enrollment-v1";
 const NONCE_BYTES: usize = 32;
 
-const OPTION_DEVICE_TOKEN: &str = "betterdesk-device-token";
-const OPTION_DEVICE_TOKEN_ID: &str = "betterdesk-device-token-id";
-const OPTION_DEVICE_TOKEN_API: &str = "betterdesk-device-token-api";
+const OPTION_DEVICE_TOKEN: &str = "neodesk-device-token";
+const OPTION_DEVICE_TOKEN_ID: &str = "neodesk-device-token-id";
+const OPTION_DEVICE_TOKEN_API: &str = "neodesk-device-token-api";
 
 /// The text the device signs for one enrollment request.
 pub fn proof_payload(
@@ -261,7 +261,7 @@ pub fn next_enrollment_step(
 /// Config option with what the server last said about this device, as JSON
 /// of [`Standing`]; empty when there is nothing to say. The status line reads
 /// it.
-pub const OPTION_STANDING: &str = "betterdesk-device-standing";
+pub const OPTION_STANDING: &str = "neodesk-device-standing";
 
 /// What the server last said about this device.
 #[derive(Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

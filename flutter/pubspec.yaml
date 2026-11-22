@@ -157,7 +157,7 @@ flutter:
     - assets/flags/
 
   fonts:
-    # BetterDesk type and icons (lib/common/theme/bd_theme.dart, bd_icons.dart).
+    # NeoDesk type and icons (lib/common/theme/bd_theme.dart, bd_icons.dart).
     # Licences next to the files: IBMPlex-OFL.txt, FunnelDisplay-OFL.txt,
     # MaterialSymbols-LICENSE.txt.
     - family: IBMPlexSans

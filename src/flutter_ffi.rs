@@ -49,7 +49,7 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
     } else {
         crate::read_custom_client(custom_client_config);
     }
-    crate::hbbs_http::betterdesk::log_client_identity();
+    crate::hbbs_http::neodesk::log_client_identity();
     #[cfg(target_os = "android")]
     {
         // flexi_logger can't work when android_logger initialized.
@@ -1187,7 +1187,7 @@ pub fn main_http_request(url: String, method: String, body: Option<String>, head
     http_request(url, method, body, header)
 }
 
-/// Pairs this device with a BetterDesk server using a code from the console.
+/// Pairs this device with a NeoDesk server using a code from the console.
 /// Returns JSON `{"ok": bool, "status": String, "message": String}`.
 pub fn main_pair_with_code(server: String, code: String) -> String {
     crate::hbbs_http::pairing::pair_and_apply(server, code).to_json()

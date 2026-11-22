@@ -1,4 +1,4 @@
-# BetterDesk Client (full desktop client): build, and release on tags.
+# NeoDesk Client (full desktop client): build, and release on tags.
 #
 # Every push to main builds the client for all six desktop
 # targets and keeps the packages as workflow artifacts of the run. Nothing is
@@ -10,16 +10,16 @@
 # use desktop-v* releases but not desktop/* ones.
 #
 # Package versions: a tag's version for releases, <Cargo.toml version>-dev.<run
-# number> for everything else (betterdesk-1.5.0-dev.42-windows-x86_64.exe).
+# number> for everything else (neodesk-1.5.0-dev.42-windows-x86_64.exe).
 #
 # Manual runs (workflow_dispatch) build one platform or all of them, as
 # artifacts only:
-#   gh workflow run betterdesk-desktop-release.yml --ref main -f platforms=linux-x86_64
+#   gh workflow run neodesk-desktop-release.yml --ref main -f platforms=linux-x86_64
 #
 # Incoming-only Support Agent packages are a separate workflow:
-#   betterdesk-support-generic-release.yml (tags support-v*).
+#   neodesk-support-generic-release.yml (tags support-v*).
 #
-name: BetterDesk desktop release
+name: NeoDesk desktop release
 
 on:
   push:
@@ -53,13 +53,13 @@ on:
 # A newer push ends the older run of the same branch; a manual run only ends
 # an older manual run, so rerunning one platform leaves a push run alone.
 concurrency:
-  group: betterdesk-desktop-release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  group: neodesk-desktop-release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
   # Clean full client only — never bake Support Agent custom.txt in CI.
-  PRODUCT: betterdesk-desktop
-  PRODUCT_SKU: betterdesk-desktop
+  PRODUCT: neodesk-desktop
+  PRODUCT_SKU: neodesk-desktop
 
 jobs:
   prepare:
@@ -124,12 +124,12 @@ jobs:
           fi
 
           if [ "${IS_DEV}" = "true" ]; then
-            RELEASE_NAME="BetterDesk Client ${VERSION} (dev ${RUN_N})"
+            RELEASE_NAME="NeoDesk Client ${VERSION} (dev ${RUN_N})"
           else
-            RELEASE_NAME="BetterDesk Client ${VERSION}"
+            RELEASE_NAME="NeoDesk Client ${VERSION}"
           fi
 
-          # Previous BetterDesk desktop tag for changelog (fallback: last 20 commits)
+          # Previous NeoDesk desktop tag for changelog (fallback: last 20 commits)
           PREV="$(git describe --tags --abbrev=0 --match 'desktop/*' --match 'desktop-v*' "${GITHUB_SHA}^" 2>/dev/null || true)"
           if [ -z "${PREV}" ]; then
             PREV="$(git rev-list --max-count=1 HEAD~20 2>/dev/null || echo "")"
@@ -139,7 +139,7 @@ jobs:
             echo "publish=${PUBLISH}"
             echo "version=${VERSION}"
             echo "platforms=${PLATFORMS}"
-            echo "dist_name=betterdesk-desktop-${VERSION}-${SHORT_SHA}"
+            echo "dist_name=neodesk-desktop-${VERSION}-${SHORT_SHA}"
             echo "tag_name=${TAG_NAME}"
             echo "release_name=${RELEASE_NAME}"
             echo "is_dev=${IS_DEV}"
@@ -157,7 +157,7 @@ jobs:
     secrets: inherit
 
   package:
-    name: Package clean BetterDesk Client
+    name: Package clean NeoDesk Client
     needs: [prepare, build]
     # A release needs every build. Artifact-only runs package whatever built,
     # so one broken platform does not hide the others.
@@ -197,28 +197,28 @@ jobs:
       - name: Download macOS unsigned
         uses: actions/download-artifact@v4
         with:
-          pattern: betterdesk-unsigned-macos-*
+          pattern: neodesk-unsigned-macos-*
           path: dist-raw
           merge-multiple: false
 
       - name: Download Linux debs
         uses: actions/download-artifact@v4
         with:
-          pattern: "betterdesk-*.deb"
+          pattern: "neodesk-*.deb"
           path: dist-raw/linux-debs
           merge-multiple: true
 
       - name: Download Linux rpms
         uses: actions/download-artifact@v4
         with:
-          pattern: "betterdesk-*-rpms"
+          pattern: "neodesk-*-rpms"
           path: dist-raw/linux-rpms
           merge-multiple: true
 
       - name: Download Windows installers
         uses: actions/download-artifact@v4
         with:
-          pattern: betterdesk-windows-installers-*
+          pattern: neodesk-windows-installers-*
           path: dist-raw/windows-installers
           merge-multiple: true
 
@@ -257,7 +257,7 @@ jobs:
           if [ "${PUBLISH}" = "true" ]; then
             cp dist/generator-templates-*.tar.gz dist/clean/
             cp dist/generator-templates-*.tar.gz.sha256 dist/clean/
-            cp dist/generator-templates/manifest.json dist/clean/betterdesk-${VERSION}-generator-manifest.json
+            cp dist/generator-templates/manifest.json dist/clean/neodesk-${VERSION}-generator-manifest.json
           fi
 
       - name: Write clean desktop manifest
@@ -270,24 +270,24 @@ jobs:
           version = os.environ["VERSION"]
           root = Path("dist/clean")
           assets = []
-          for p in sorted(root.glob("betterdesk-*")):
+          for p in sorted(root.glob("neodesk-*")):
               if p.name.endswith("manifest.json"):
                   continue
               h = hashlib.sha256(p.read_bytes()).hexdigest()
               assets.append({"name": p.name, "sha256": h, "size": p.stat().st_size})
           manifest = {
               "schema_version": 1,
-              "product": os.environ.get("PRODUCT", "betterdesk-desktop"),
-              "sku": os.environ.get("PRODUCT_SKU", "betterdesk-desktop"),
+              "product": os.environ.get("PRODUCT", "neodesk-desktop"),
+              "sku": os.environ.get("PRODUCT_SKU", "neodesk-desktop"),
               "variant": "clean",
               "version": version,
               "note": (
-                  "Official BetterDesk Client (full). No custom.txt / no Support Agent bake-in. "
+                  "Official NeoDesk Client (full). No custom.txt / no Support Agent bake-in. "
                   "Configure Settings → Network. Incoming-only Support Agents are separate support-v* releases."
               ),
               "assets": assets,
           }
-          Path("dist/clean/betterdesk-desktop-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          Path("dist/clean/neodesk-desktop-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
           print(json.dumps(manifest, indent=2))
           PY
 
@@ -382,7 +382,7 @@ jobs:
             echo "### Notes"
             echo
             echo "- Windows: portable **EXE** and installed **MSI** for x86_64 and ARM64."
-            echo "- Configure servers in Settings → Network, or import a deploy string from the BetterDesk panel."
+            echo "- Configure servers in Settings → Network, or import a deploy string from the NeoDesk panel."
             echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             if [ "${IS_DEV}" = "true" ]; then
               echo "- This is a **development prerelease**."

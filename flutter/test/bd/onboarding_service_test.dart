@@ -26,7 +26,7 @@ void main() {
               .isPlainHttp,
           isTrue);
       expect(
-          InviteInput.parse('betterdesk://join/h.example/7KQ4-M2XD?http=1')
+          InviteInput.parse('neodesk://join/h.example/7KQ4-M2XD?http=1')
               .isPlainHttp,
           isTrue);
       expect(
@@ -36,10 +36,10 @@ void main() {
     });
 
     test('deep links for join and support', () {
-      final j = InviteInput.parse('betterdesk://join/help.fernhill.example/7KQ4-M2XD');
+      final j = InviteInput.parse('neodesk://join/help.fernhill.example/7KQ4-M2XD');
       expect(j.kind, InviteKind.joinLink);
       expect(j.host, 'help.fernhill.example');
-      final s = InviteInput.parse('betterdesk://support/help.fernhill.example/R8TW-3NPA');
+      final s = InviteInput.parse('neodesk://support/help.fernhill.example/R8TW-3NPA');
       expect(s.kind, InviteKind.supportLink);
       expect(s.code, 'R8TW3NPA');
       expect(InviteInput.parse('https://h.example/s/R8TW3NPA').kind,

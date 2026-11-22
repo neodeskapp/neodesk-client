@@ -1,19 +1,19 @@
 [Desktop Entry]
-Name=BetterDesk Client
+Name=NeoDesk Client
 GenericName=Remote Desktop
-Comment=BetterDesk Remote Desktop
-Exec=betterdesk %u
+Comment=NeoDesk Remote Desktop
+Exec=neodesk %u
 Icon=rustdesk
 Terminal=false
 Type=Application
 StartupNotify=true
 Categories=Network;RemoteAccess;GTK;
-Keywords=internet;linux;dart;rust;remote-control;p2p;betterdesk;remote-desktop;
+Keywords=internet;linux;dart;rust;remote-control;p2p;neodesk;remote-desktop;
 Actions=new-window;
-StartupWMClass=betterdesk
+StartupWMClass=neodesk
 
 X-Desktop-File-Install-Version=0.23
 
 [Desktop Action new-window]
 Name=Open a New Window
-Exec=betterdesk %u
+Exec=neodesk %u

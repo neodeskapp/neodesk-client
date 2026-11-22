@@ -1,4 +1,4 @@
-//! Invites as people get them: a link, a `betterdesk://` link, a code, or
+//! Invites as people get them: a link, a `neodesk://` link, a code, or
 //! the name of the file the invite page served.
 //!
 //! A code is 8 symbols of `23456789ABCDEFGHJKMNPQRSTVWXYZ`, shown as
@@ -6,11 +6,11 @@
 //! name the console the code belongs to:
 //!
 //! - `https://<host>[:port]/join/<CODE>` and `https://<host>[:port]/s/<CODE>`
-//! - `betterdesk://join/<host>[:port]/<CODE>` and
-//!   `betterdesk://support/<host>[:port]/<CODE>`, with `?http=1` for a
+//! - `neodesk://join/<host>[:port]/<CODE>` and
+//!   `neodesk://support/<host>[:port]/<CODE>`, with `?http=1` for a
 //!   console on plain HTTP. Without it the console is reached over HTTPS only.
-//! - `BetterDesk-Setup-<filehost>-<CODE>.exe` and
-//!   `BetterDesk-QuickSupport-<filehost>-<CODE>.exe`, where `<filehost>` is
+//! - `NeoDesk-Setup-<filehost>-<CODE>.exe` and
+//!   `NeoDesk-QuickSupport-<filehost>-<CODE>.exe`, where `<filehost>` is
 //!   `host[_port][_http]`, left out for an IPv6 console. A browser's ` (1)`
 //!   after the code is ignored.
 
@@ -18,8 +18,8 @@ use hbb_common::config;
 
 const CODE_LENGTH: usize = 8;
 const CODE_ALPHABET: &str = "23456789ABCDEFGHJKMNPQRSTVWXYZ";
-const FILE_PREFIX_SETUP: &str = "betterdesk-setup-";
-const FILE_PREFIX_SUPPORT: &str = "betterdesk-quicksupport-";
+const FILE_PREFIX_SETUP: &str = "neodesk-setup-";
+const FILE_PREFIX_SUPPORT: &str = "neodesk-quicksupport-";
 
 /// What a code is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +95,7 @@ pub struct Invite {
 }
 
 impl Invite {
-    /// The `betterdesk://` link of the invite, None without kind or console.
+    /// The `neodesk://` link of the invite, None without kind or console.
     pub fn deep_link(&self) -> Option<String> {
         let kind = self.kind?;
         let console = self.console.as_ref()?;
@@ -172,7 +172,7 @@ fn console_of_url(url: &url::Url, https: bool) -> Option<Console> {
 }
 
 /// Reads what a person pasted or a link handed over: a join or support link
-/// of the console, a `betterdesk://` link, or a bare code.
+/// of the console, a `neodesk://` link, or a bare code.
 pub fn parse(text: &str) -> Result<Invite, LinkError> {
     let text = text.trim();
     if let Some(invite) = parse_deep_link(text) {
@@ -214,7 +214,7 @@ fn parse_web_link(text: &str) -> Option<Invite> {
     })
 }
 
-/// `Some(Err)` for a `betterdesk://` link that is not an invite, None for
+/// `Some(Err)` for a `neodesk://` link that is not an invite, None for
 /// any other text.
 fn parse_deep_link(text: &str) -> Option<Result<Invite, LinkError>> {
     let prefix = format!("{}://", config::URI_SCHEME);
@@ -422,35 +422,35 @@ mod tests {
 
     #[test]
     fn deep_links_use_https_unless_they_say_http() {
-        let invite = parse("betterdesk://join/desk.example.com/ABCDEF23").unwrap();
+        let invite = parse("neodesk://join/desk.example.com/ABCDEF23").unwrap();
         assert_eq!(invite.kind, Some(Kind::Join));
         assert_eq!(invite.console, console(true, "desk.example.com", None));
 
-        let invite = parse("BetterDesk://support/desk.lan:5000/abcdef23?http=1").unwrap();
+        let invite = parse("NeoDesk://support/desk.lan:5000/abcdef23?http=1").unwrap();
         assert_eq!(invite.kind, Some(Kind::Support));
         assert_eq!(invite.console, console(false, "desk.lan", Some(5000)));
 
-        let invite = parse("betterdesk://join/[fd00::5]:8443/ABCDEF23/").unwrap();
+        let invite = parse("neodesk://join/[fd00::5]:8443/ABCDEF23/").unwrap();
         assert_eq!(invite.console, console(true, "fd00::5", Some(8443)));
-        let invite = parse("betterdesk://join/%5Bfd00::5%5D:8443/ABCDEF23").unwrap();
+        let invite = parse("neodesk://join/%5Bfd00::5%5D:8443/ABCDEF23").unwrap();
         assert_eq!(invite.console, console(true, "fd00::5", Some(8443)));
 
         // Only http=1 turns HTTPS off.
-        let invite = parse("betterdesk://join/desk.lan/ABCDEF23?http=0").unwrap();
+        let invite = parse("neodesk://join/desk.lan/ABCDEF23?http=0").unwrap();
         assert!(invite.console.unwrap().https);
     }
 
     #[test]
     fn broken_deep_links_are_not_invites() {
         for text in [
-            "betterdesk://join/desk.example.com",
-            "betterdesk://join/ABCDEF23",
-            "betterdesk://connect/desk.example.com/ABCDEF23",
-            "betterdesk://join/desk.example.com:/ABCDEF23",
-            "betterdesk://join/desk.example.com:99999/ABCDEF23",
-            "betterdesk://join/desk_example.com/ABCDEF23",
-            "betterdesk://join/[nothost]/ABCDEF23",
-            "betterdesk://join/desk.example.com/ABCDEF2",
+            "neodesk://join/desk.example.com",
+            "neodesk://join/ABCDEF23",
+            "neodesk://connect/desk.example.com/ABCDEF23",
+            "neodesk://join/desk.example.com:/ABCDEF23",
+            "neodesk://join/desk.example.com:99999/ABCDEF23",
+            "neodesk://join/desk_example.com/ABCDEF23",
+            "neodesk://join/[nothost]/ABCDEF23",
+            "neodesk://join/desk.example.com/ABCDEF2",
         ] {
             assert_eq!(parse(text), Err(LinkError::NotALink), "{text}");
         }
@@ -476,31 +476,31 @@ mod tests {
         let invite = parse("https://desk.example.com:8443/s/ABCDEF23").unwrap();
         assert_eq!(
             invite.deep_link().as_deref(),
-            Some("betterdesk://support/desk.example.com:8443/ABCDEF23")
+            Some("neodesk://support/desk.example.com:8443/ABCDEF23")
         );
-        let invite = parse_file_name("BetterDesk-Setup-192.168.1.5_5000_http-ABCDEF23.exe").unwrap();
+        let invite = parse_file_name("NeoDesk-Setup-192.168.1.5_5000_http-ABCDEF23.exe").unwrap();
         let link = invite.deep_link().unwrap();
-        assert_eq!(link, "betterdesk://join/192.168.1.5:5000/ABCDEF23?http=1");
+        assert_eq!(link, "neodesk://join/192.168.1.5:5000/ABCDEF23?http=1");
         assert_eq!(parse(&link).unwrap(), invite);
         assert_eq!(parse("ABCDEF23").unwrap().deep_link(), None);
     }
 
     #[test]
     fn file_names_carry_kind_console_and_code() {
-        let invite = parse_file_name("BetterDesk-Setup-desk.example.com-ABCDEF23.exe").unwrap();
+        let invite = parse_file_name("NeoDesk-Setup-desk.example.com-ABCDEF23.exe").unwrap();
         assert_eq!(invite.kind, Some(Kind::Join));
         assert_eq!(invite.console, console(true, "desk.example.com", None));
         assert_eq!(invite.code, "ABCDEF23");
 
         let invite =
-            parse_file_name("BetterDesk-QuickSupport-desk.example.com_8443-ABCDEF23.exe").unwrap();
+            parse_file_name("NeoDesk-QuickSupport-desk.example.com_8443-ABCDEF23.exe").unwrap();
         assert_eq!(invite.kind, Some(Kind::Support));
         assert_eq!(invite.console, console(true, "desk.example.com", Some(8443)));
 
-        let invite = parse_file_name("BetterDesk-Setup-192.168.1.5_5000_http-ABCDEF23.exe").unwrap();
+        let invite = parse_file_name("NeoDesk-Setup-192.168.1.5_5000_http-ABCDEF23.exe").unwrap();
         assert_eq!(invite.console, console(false, "192.168.1.5", Some(5000)));
 
-        let invite = parse_file_name("betterdesk-setup-desk.lan_http-abcdef23.EXE").unwrap();
+        let invite = parse_file_name("neodesk-setup-desk.lan_http-abcdef23.EXE").unwrap();
         assert_eq!(invite.console, console(false, "desk.lan", None));
         assert_eq!(invite.code, "ABCDEF23");
     }
@@ -508,22 +508,22 @@ mod tests {
     #[test]
     fn host_names_with_dashes_and_browser_copies_still_parse() {
         let invite =
-            parse_file_name("BetterDesk-Setup-my-desk.example.com-ABCDEF23 (1).exe").unwrap();
+            parse_file_name("NeoDesk-Setup-my-desk.example.com-ABCDEF23 (1).exe").unwrap();
         assert_eq!(invite.console, console(true, "my-desk.example.com", None));
         assert_eq!(invite.code, "ABCDEF23");
 
-        let invite = parse_file_name("BetterDesk-QuickSupport-desk.lan-ABCDEF23(12).exe").unwrap();
+        let invite = parse_file_name("NeoDesk-QuickSupport-desk.lan-ABCDEF23(12).exe").unwrap();
         assert_eq!(invite.code, "ABCDEF23");
 
         let invite =
-            parse_file_name(r"C:\Users\anna\Downloads\BetterDesk-Setup-desk.lan-ABCDEF23.exe")
+            parse_file_name(r"C:\Users\anna\Downloads\NeoDesk-Setup-desk.lan-ABCDEF23.exe")
                 .unwrap();
         assert_eq!(invite.console, console(true, "desk.lan", None));
     }
 
     #[test]
     fn a_file_name_without_host_has_no_console() {
-        let invite = parse_file_name("BetterDesk-Setup-ABCDEF23.exe").unwrap();
+        let invite = parse_file_name("NeoDesk-Setup-ABCDEF23.exe").unwrap();
         assert_eq!(invite.kind, Some(Kind::Join));
         assert_eq!(invite.console, None);
         assert_eq!(invite.code, "ABCDEF23");
@@ -532,16 +532,16 @@ mod tests {
     #[test]
     fn other_file_names_are_not_invites() {
         for name in [
-            "BetterDesk.exe",
-            "betterdesk-1.4.6-windows-x86_64.exe",
-            "BetterDesk-Setup.exe",
-            "BetterDesk-Setup-desk.example.com.exe",
-            "BetterDesk-Setup-desk.example.com-ABCDEF2.exe",
-            "BetterDesk-Setup-desk.example.com-ABCD-EF23.exe",
-            "BetterDesk-Setup-desk.example.com_x-ABCDEF23.exe",
-            "BetterDesk-Setup-desk.example.com_http_5000-ABCDEF23.exe",
-            "BetterDesk-Setup-desk.example.com_5000_6000-ABCDEF23.exe",
-            "BetterDesk-Setup-desk!.example.com-ABCDEF23.exe",
+            "NeoDesk.exe",
+            "neodesk-1.4.6-windows-x86_64.exe",
+            "NeoDesk-Setup.exe",
+            "NeoDesk-Setup-desk.example.com.exe",
+            "NeoDesk-Setup-desk.example.com-ABCDEF2.exe",
+            "NeoDesk-Setup-desk.example.com-ABCD-EF23.exe",
+            "NeoDesk-Setup-desk.example.com_x-ABCDEF23.exe",
+            "NeoDesk-Setup-desk.example.com_http_5000-ABCDEF23.exe",
+            "NeoDesk-Setup-desk.example.com_5000_6000-ABCDEF23.exe",
+            "NeoDesk-Setup-desk!.example.com-ABCDEF23.exe",
             "rustdesk-host=desk.example.com.exe",
         ] {
             assert_eq!(parse_file_name(name), None, "{name}");

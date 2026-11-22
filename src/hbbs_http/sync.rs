@@ -118,8 +118,8 @@ async fn start_hbbs_sync_async() {
                 let id = Config::get_id();
                 if url.is_empty() {
                     *PRO.lock().unwrap() = false;
-                    crate::hbbs_http::betterdesk::sync_client_branding().await;
-                    crate::hbbs_http::betterdesk::sync_device_enrollment().await;
+                    crate::hbbs_http::neodesk::sync_client_branding().await;
+                    crate::hbbs_http::neodesk::sync_device_enrollment().await;
                     continue;
                 }
                 if config::option2bool("stop-service", &Config::get_option("stop-service")) {
@@ -266,7 +266,7 @@ async fn start_hbbs_sync_async() {
                 }
                 let modified_at = LocalConfig::get_option("strategy_timestamp").parse::<i64>().unwrap_or(0);
                 v["modified_at"] = json!(modified_at);
-                crate::hbbs_http::betterdesk::merge_device_identity(&mut v);
+                crate::hbbs_http::neodesk::merge_device_identity(&mut v);
                 let telemetry_due = !telemetry_results.is_empty()
                     || last_telemetry_sent
                         .map(|sent| sent.elapsed() >= telemetry_interval(&id))
@@ -286,18 +286,18 @@ async fn start_hbbs_sync_async() {
                 let telemetry_base = url.trim_end_matches("/api/heartbeat");
                 let use_secure_request = telemetry_due || secure_command_poll;
                 if use_secure_request {
-                    match crate::hbbs_http::betterdesk::fetch_telemetry_server_key().await {
+                    match crate::hbbs_http::neodesk::fetch_telemetry_server_key().await {
                         Ok((key_id, public_key)) => {
                             match telemetry::seal_payload(&v, &key_id, &public_key, &id) {
                                 Ok(envelope) => {
                                     request = json!({
                                         "id": id,
                                         "uuid": v["uuid"],
-                                        "betterdesk_envelope": envelope,
+                                        "neodesk_envelope": envelope,
                                     });
                                 }
                                 Err(err) => {
-                                    log::warn!("BetterDesk telemetry payload was not sealed: {err}");
+                                    log::warn!("NeoDesk telemetry payload was not sealed: {err}");
                                     if telemetry_base.starts_with("https://") {
                                         request = v.clone();
                                     }
@@ -305,17 +305,17 @@ async fn start_hbbs_sync_async() {
                             }
                         }
                         Err(err) => {
-                            log::debug!("BetterDesk telemetry key unavailable: {err}");
+                            log::debug!("NeoDesk telemetry key unavailable: {err}");
                             if telemetry_base.starts_with("https://") {
                                 request = v.clone();
                             }
                         }
                     }
                 }
-                if !telemetry_base.starts_with("https://") && request.get("betterdesk_envelope").is_none() {
+                if !telemetry_base.starts_with("https://") && request.get("neodesk_envelope").is_none() {
                     if telemetry_due {
                         log::debug!(
-                            "BetterDesk telemetry omitted because the configured API is plain HTTP"
+                            "NeoDesk telemetry omitted because the configured API is plain HTTP"
                         );
                     }
                     request = json!({
@@ -326,7 +326,7 @@ async fn start_hbbs_sync_async() {
                 if let Ok(s) = crate::post_request(url.clone(), request.to_string(), "").await {
                     if let Some(answer) = read_heartbeat_answer(&s, telemetry::open_response) {
                         let HeartbeatAnswer { fields: mut rsp, mut sealed_only, sealed: secure_response } = answer;
-                        crate::hbbs_http::betterdesk::note_heartbeat_error(rsp.get("error").and_then(Value::as_str));
+                        crate::hbbs_http::neodesk::note_heartbeat_error(rsp.get("error").and_then(Value::as_str));
                         if rsp.remove("sysinfo").is_some() {
                             info_uploaded.uploaded = false;
                             config::Status::set("sysinfo_hash", "".to_owned());
@@ -381,8 +381,8 @@ async fn start_hbbs_sync_async() {
                         }
                     }
                 }
-                crate::hbbs_http::betterdesk::sync_client_branding().await;
-                crate::hbbs_http::betterdesk::sync_device_enrollment().await;
+                crate::hbbs_http::neodesk::sync_client_branding().await;
+                crate::hbbs_http::neodesk::sync_device_enrollment().await;
             }
         }
     }
@@ -420,7 +420,7 @@ fn read_heartbeat_answer(
     fields.retain(|key, _| !SEALED_ONLY.contains(&key.as_str()));
     let mut sealed_only = HashMap::new();
     let mut sealed = false;
-    if let Some(envelope) = fields.remove("betterdesk_envelope") {
+    if let Some(envelope) = fields.remove("neodesk_envelope") {
         match open(&envelope) {
             Ok(response) => {
                 sealed = true;
@@ -432,7 +432,7 @@ fn read_heartbeat_answer(
                     }
                 }
             }
-            Err(err) => log::warn!("BetterDesk response decryption failed: {err}"),
+            Err(err) => log::warn!("NeoDesk response decryption failed: {err}"),
         }
     }
     Some(HeartbeatAnswer {
@@ -676,7 +676,7 @@ mod tests {
     fn telemetry_commands_come_from_inside_the_envelope_only() {
         let envelope = json!({"version": 1});
         let answer = read(
-            json!({"betterdesk_envelope": envelope}),
+            json!({"neodesk_envelope": envelope}),
             Ok(json!({"telemetry_commands": [file_read()]})),
         );
         assert!(answer.sealed);
@@ -685,7 +685,7 @@ mod tests {
             Some(&json!([file_read()]))
         );
 
-        let beside = json!({"betterdesk_envelope": envelope, "telemetry_commands": [file_read()]});
+        let beside = json!({"neodesk_envelope": envelope, "telemetry_commands": [file_read()]});
         let answer = read(beside.clone(), Ok(json!({"sysinfo": true})));
         assert!(answer.sealed);
         assert_eq!(answer.fields.get("sysinfo"), Some(&json!(true)));
@@ -702,13 +702,13 @@ mod tests {
     fn a_connection_mode_command_counts_only_from_inside_the_envelope() {
         let command = json!({"command_id": "c1", "mode": "incoming-only", "revision": 2});
         let answer = read(
-            json!({"betterdesk_envelope": {"version": 1}}),
+            json!({"neodesk_envelope": {"version": 1}}),
             Ok(json!({"connection_mode_command": command})),
         );
         assert_eq!(answer.sealed_only.get("connection_mode_command"), Some(&command));
 
         let answer = read(
-            json!({"betterdesk_envelope": {"version": 1}, "connection_mode_command": command}),
+            json!({"neodesk_envelope": {"version": 1}, "connection_mode_command": command}),
             Ok(json!({})),
         );
         assert!(answer.sealed);
@@ -729,7 +729,7 @@ mod tests {
         }
 
         let answer = read(
-            json!({"betterdesk_envelope": {"version": 1}, "modified_at": 5, "strategy": strategy}),
+            json!({"neodesk_envelope": {"version": 1}, "modified_at": 5, "strategy": strategy}),
             Ok(json!({"modified_at": 4})),
         );
         assert_eq!(answer.fields.get("strategy"), None);
@@ -737,7 +737,7 @@ mod tests {
         assert_eq!(answer.sealed_only.get("modified_at"), Some(&json!(4)));
 
         let answer = read(
-            json!({"betterdesk_envelope": {"version": 1}}),
+            json!({"neodesk_envelope": {"version": 1}}),
             Ok(json!({"modified_at": 4, "strategy": strategy})),
         );
         assert_eq!(answer.sealed_only.get("strategy"), Some(&strategy));

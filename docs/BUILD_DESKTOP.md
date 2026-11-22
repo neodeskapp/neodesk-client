@@ -116,7 +116,7 @@ If `--vram` fails (missing GPU / Media SDK pieces), use:
 python build.py --flutter --hwcodec --skip-portable-pack
 ```
 
-**Artifact:** `flutter/build/windows/x64/runner/Release/betterdesk.exe` (+ `librustdesk.dll`)
+**Artifact:** `flutter/build/windows/x64/runner/Release/neodesk.exe` (+ `librustdesk.dll`)
 
 ---
 
@@ -152,7 +152,7 @@ sudo apt-get remove -y libopus-dev || true
    cd "$VCPKG_ROOT"
    git checkout 9e593bb18ea69cc5095e012465dcd675a822ed0d
    ./bootstrap-vcpkg.sh
-   cd /path/to/BetterDesk-Client
+   cd /path/to/neodesk-client
    "$VCPKG_ROOT/vcpkg" install --triplet x64-linux --x-install-root="$VCPKG_ROOT/installed"
    ```
 4. CMake 3.x+ (if vcpkg fails on SPDX scripts, install CMake **4.3.0** as in CI `VCPKG_CMAKE_VERSION`).
@@ -202,16 +202,16 @@ python3 ./build.py --flutter --hwcodec
 - Android / iOS / macOS / ARM builds
 - Automatic installation of Visual Studio or Flutter (install those manually, then use the check scripts)
 
-Official BetterDesk identity, public-server kill, Client Generator bake-in (`custom.txt`), Support Agent (incoming-only), and clean desktop CI: [OFFICIAL_CLIENT.md](OFFICIAL_CLIENT.md).
+Official NeoDesk identity, public-server kill, Client Generator bake-in (`custom.txt`), Support Agent (incoming-only), and clean desktop CI: [OFFICIAL_CLIENT.md](OFFICIAL_CLIENT.md).
 
-Example configs: [`examples/betterdesk-custom.example.json`](../examples/betterdesk-custom.example.json), [`examples/betterdesk-support-agent.example.json`](../examples/betterdesk-support-agent.example.json).
+Example configs: [`examples/neodesk-custom.example.json`](../examples/neodesk-custom.example.json), [`examples/neodesk-support-agent.example.json`](../examples/neodesk-support-agent.example.json).
 
-Release workflow (clean desktop agents + installers + generator templates): [`.github/workflows/betterdesk-desktop-release.yml`](../.github/workflows/betterdesk-desktop-release.yml). Desktop-only reusable build: [`.github/workflows/flutter-build.yml`](../.github/workflows/flutter-build.yml).
+Release workflow (clean desktop agents + installers + generator templates): [`.github/workflows/neodesk-desktop-release.yml`](../.github/workflows/neodesk-desktop-release.yml). Desktop-only reusable build: [`.github/workflows/flutter-build.yml`](../.github/workflows/flutter-build.yml).
 
 ## Generator template validation
 
 The release workflow publishes clean templates only. The Support Agent is created later
-by the BetterDesk console with a signed `custom.txt`; release builds reject unsigned
+by the NeoDesk console with a signed `custom.txt`; release builds reject unsigned
 custom configuration. To build and validate a local template package:
 
 ```sh

@@ -16,10 +16,10 @@ def main() -> None:
     parser.add_argument("manifest", type=Path)
     parser.add_argument("signature", type=Path)
     args = parser.parse_args()
-    raw_seed = os.environ.get("BETTERDESK_SUPPORT_RELEASE_SIGNING_SEED", "")
+    raw_seed = os.environ.get("NEODESK_SUPPORT_RELEASE_SIGNING_SEED", "")
     seed = base64.b64decode(raw_seed, validate=True)
     if len(seed) != 32:
-        raise SystemExit("BETTERDESK_SUPPORT_RELEASE_SIGNING_SEED must be base64-encoded 32 bytes")
+        raise SystemExit("NEODESK_SUPPORT_RELEASE_SIGNING_SEED must be base64-encoded 32 bytes")
     signature = SigningKey(seed).sign(args.manifest.read_bytes()).signature
     args.signature.write_text(base64.b64encode(signature).decode("ascii") + "\n", encoding="utf-8")
 

@@ -1,4 +1,4 @@
-//! BetterDesk-specific HTTP helpers for the official desktop client.
+//! NeoDesk-specific HTTP helpers for the official desktop client.
 //!
 //! Branding sync (`/api/branding`), device enrollment (`/api/devices/register`),
 //! and health/server-key probes. Base URL comes from configured `api-server`.
@@ -22,12 +22,12 @@ use serde_json::Value;
 use super::{create_http_client_async_with_url, enrollment};
 
 /// Product marker sent as `device_type` / `client_product` (legacy CDAP-safe).
-pub const CLIENT_PRODUCT: &str = config::BETTERDESK_CLIENT_PRODUCT;
+pub const CLIENT_PRODUCT: &str = config::NEODESK_CLIENT_PRODUCT;
 
 /// Generator SKU: full desktop client (outbound + inbound).
-pub const PRODUCT_SKU_DESKTOP: &str = "betterdesk-desktop";
+pub const PRODUCT_SKU_DESKTOP: &str = "neodesk-desktop";
 /// Generator SKU: Support Agent (hard `conn-type: incoming`).
-pub const PRODUCT_SKU_SUPPORT: &str = "betterdesk-support";
+pub const PRODUCT_SKU_SUPPORT: &str = "neodesk-support";
 
 pub const CONN_MODE_NORMAL: &str = "normal";
 pub const CONN_MODE_INCOMING_ONLY: &str = "incoming-only";
@@ -42,8 +42,8 @@ const BRANDING_SOURCE_SERVER: &str = "server";
 const BRANDING_LOGO_MAX_BYTES: usize = 512 * 1024;
 const BRANDING_POLL_INTERVAL: Duration = Duration::from_secs(60);
 const TELEMETRY_KEY_POLL_INTERVAL: Duration = Duration::from_secs(3600);
-const OPTION_ENROLLMENT_STATUS: &str = "betterdesk-enrollment-status";
-const OPTION_ENROLLMENT_LAST_ATTEMPT: &str = "betterdesk-enrollment-last-attempt";
+const OPTION_ENROLLMENT_STATUS: &str = "neodesk-enrollment-status";
+const OPTION_ENROLLMENT_LAST_ATTEMPT: &str = "neodesk-enrollment-last-attempt";
 
 /// Applied SKU from bake-in (`conn-type: incoming` → Support Agent).
 #[inline]
@@ -165,7 +165,7 @@ fn api_base() -> String {
 pub async fn fetch_health() -> ResultType<Value> {
     let base = api_base();
     if base.is_empty() {
-        bail!("BetterDesk API server is not configured");
+        bail!("NeoDesk API server is not configured");
     }
     let url = format!("{base}/api/health");
     let client = create_http_client_async_with_url(&url).await;
@@ -185,7 +185,7 @@ pub async fn fetch_health() -> ResultType<Value> {
 pub async fn fetch_branding() -> ResultType<Value> {
     let base = api_base();
     if base.is_empty() {
-        bail!("BetterDesk API server is not configured");
+        bail!("NeoDesk API server is not configured");
     }
     let url = format!("{base}/api/branding");
     let client = create_http_client_async_with_url(&url).await;
@@ -211,7 +211,7 @@ pub async fn fetch_branding() -> ResultType<Value> {
 pub async fn fetch_server_key() -> ResultType<String> {
     let base = api_base();
     if base.is_empty() {
-        bail!("BetterDesk API server is not configured");
+        bail!("NeoDesk API server is not configured");
     }
     let url = format!("{base}/api/server-key");
     let client = create_http_client_async_with_url(&url).await;
@@ -244,7 +244,7 @@ pub async fn fetch_telemetry_server_key() -> ResultType<(String, String)> {
 
     let base = api_base();
     if base.is_empty() {
-        bail!("BetterDesk API server is not configured");
+        bail!("NeoDesk API server is not configured");
     }
     let url = format!("{base}/api/telemetry/key");
     let client = create_http_client_async_with_url(&url).await;
@@ -279,13 +279,13 @@ pub async fn fetch_telemetry_server_key() -> ResultType<(String, String)> {
     };
     let configured_key = Config::get_option(keys::OPTION_KEY);
     if configured_key.is_empty() {
-        bail!("BetterDesk server key is not configured");
+        bail!("NeoDesk server key is not configured");
     }
     let configured_key = hbb_common::base64::engine::general_purpose::STANDARD
         .decode(configured_key)
-        .map_err(|_| hbb_common::anyhow::anyhow!("invalid BetterDesk server key"))?;
+        .map_err(|_| hbb_common::anyhow::anyhow!("invalid NeoDesk server key"))?;
     let signing_key = hbb_common::sodiumoxide::crypto::sign::PublicKey::from_slice(&configured_key)
-        .ok_or_else(|| hbb_common::anyhow::anyhow!("invalid BetterDesk server key size"))?;
+        .ok_or_else(|| hbb_common::anyhow::anyhow!("invalid NeoDesk server key size"))?;
     let signed = hbb_common::base64::engine::general_purpose::STANDARD
         .decode(&signature)
         .map_err(|_| hbb_common::anyhow::anyhow!("invalid telemetry key signature"))?;
@@ -298,7 +298,7 @@ pub async fn fetch_telemetry_server_key() -> ResultType<(String, String)> {
     let mut cache = TELEMETRY_SERVER_KEY.lock().unwrap();
     *cache = Some((key_id.clone(), public_key.clone(), signature, Instant::now()));
     LocalConfig::set_option(
-        "betterdesk-telemetry-server-key-id".to_owned(),
+        "neodesk-telemetry-server-key-id".to_owned(),
         key_id.clone(),
     );
     Ok((key_id, public_key))
@@ -307,7 +307,7 @@ pub async fn fetch_telemetry_server_key() -> ResultType<(String, String)> {
 /// Log a one-line identity banner at startup (no network).
 pub fn log_client_identity() {
     log::info!(
-        "BetterDesk official client product={} sku={} conn_mode={} app={}",
+        "NeoDesk official client product={} sku={} conn_mode={} app={}",
         CLIENT_PRODUCT,
         product_sku(),
         conn_mode(),
@@ -332,7 +332,7 @@ pub(crate) fn record_enrollment_answer(
         return;
     }
     if LocalConfig::get_option(OPTION_ENROLLMENT_STATUS) != status {
-        log::info!("BetterDesk enrollment status={status}");
+        log::info!("NeoDesk enrollment status={status}");
     }
     LocalConfig::set_option(OPTION_ENROLLMENT_STATUS.to_owned(), status.to_owned());
     LocalConfig::set_option(
@@ -343,7 +343,7 @@ pub(crate) fn record_enrollment_answer(
         enrollment::TokenChange::Keep => {}
         enrollment::TokenChange::Replace(token) => {
             enrollment::store_token(&token, device_id, api);
-            log::info!("BetterDesk device token stored");
+            log::info!("NeoDesk device token stored");
         }
         enrollment::TokenChange::Clear => enrollment::clear_token(),
     }
@@ -379,9 +379,9 @@ fn note_rejection(answer: &Value) {
     }
 }
 
-/// POST `{api}/api/devices/register` for BetterDesk desktop / Support (incoming-only).
+/// POST `{api}/api/devices/register` for NeoDesk desktop / Support (incoming-only).
 ///
-/// Uses `device_type: betterdesk-desktop` so the server does **not** apply the
+/// Uses `device_type: neodesk-desktop` so the server does **not** apply the
 /// legacy CDAP Support Agent proof path. Managed mode → pending queue; open → approved.
 /// Requests carry the device key proof and, when one is stored for this device
 /// and server, the device token (see [`enrollment`]). Once the device is
@@ -436,11 +436,11 @@ pub async fn sync_device_enrollment() {
         // Keep legacy device_type so the server does not take the old CDAP proof path.
         "device_type": CLIENT_PRODUCT,
         "tags": if config::is_permanent_incoming_only() {
-            "betterdesk-support,incoming-only"
+            "neodesk-support,incoming-only"
         } else if config::is_incoming_only() {
-            "betterdesk-desktop,incoming-only"
+            "neodesk-desktop,incoming-only"
         } else {
-            "betterdesk-desktop"
+            "neodesk-desktop"
         },
     });
     if let Some(public_key) = enrollment::public_key_b64() {
@@ -571,12 +571,12 @@ fn clear_server_logo_files() {
         let _ = fs::remove_file(&path);
     }
     // Best-effort cleanup of previous server logo variants in config dir.
-    let probe = Config::path("betterdesk_branding_logo_server_probe");
+    let probe = Config::path("neodesk_branding_logo_server_probe");
     if let Some(dir) = probe.parent() {
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
-                if name.starts_with("betterdesk_branding_logo_server") {
+                if name.starts_with("neodesk_branding_logo_server") {
                     let _ = fs::remove_file(entry.path());
                 }
             }
@@ -584,7 +584,7 @@ fn clear_server_logo_files() {
     }
 }
 
-/// Clear branding previously applied from the BetterDesk API (not manual local branding).
+/// Clear branding previously applied from the NeoDesk API (not manual local branding).
 pub fn clear_server_branding() {
     if !is_server_managed() {
         LocalConfig::set_option(OPTION_BRANDING_SYNCED_API.to_owned(), "".to_owned());
@@ -604,7 +604,7 @@ pub fn clear_server_branding() {
     LocalConfig::set_option(OPTION_BRANDING_REVISION.to_owned(), "".to_owned());
     LocalConfig::set_option(OPTION_BRANDING_SYNCED_API.to_owned(), "".to_owned());
     notify_branding_updated();
-    log::info!("cleared server-managed BetterDesk branding");
+    log::info!("cleared server-managed NeoDesk branding");
 }
 
 fn logo_ext_from_mime(mime: &str) -> &'static str {
@@ -637,7 +637,7 @@ fn write_logo_payload(logo: &BrandingLogoPayload) -> ResultType<PathBuf> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0);
-    let path = Config::path(format!("betterdesk_branding_logo_server_{stamp}.{ext}"));
+    let path = Config::path(format!("neodesk_branding_logo_server_{stamp}.{ext}"));
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
@@ -795,7 +795,7 @@ async fn apply_branding_payload(base: &str, payload: BrandingPayload) -> ResultT
     LocalConfig::set_option(OPTION_BRANDING_SYNCED_API.to_owned(), base.to_owned());
     notify_branding_updated();
     log::info!(
-        "applied BetterDesk server branding revision={}",
+        "applied NeoDesk server branding revision={}",
         payload.revision
     );
     Ok(())

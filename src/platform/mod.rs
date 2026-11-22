@@ -72,9 +72,9 @@ pub fn installing_service() -> bool {
 // Names of the processes and temp files this client makes on Windows. They
 // carry the client's own name, so a stock RustDesk on the same computer keeps
 // its processes and files.
-pub const RUNTIME_BROKER_EXE: &str = "RuntimeBroker_betterdesk.exe";
-pub const VERIFIED_UPDATE_FILE_PREFIX: &str = "betterdesk-verified-";
-pub const INSTALL_SCRIPT_PREFIX: &str = "betterdesk_install_";
+pub const RUNTIME_BROKER_EXE: &str = "RuntimeBroker_neodesk.exe";
+pub const VERIFIED_UPDATE_FILE_PREFIX: &str = "neodesk-verified-";
+pub const INSTALL_SCRIPT_PREFIX: &str = "neodesk_install_";
 
 /// True for an installer, a verified update copy or an install script this
 /// client left in the temp folder.
@@ -309,7 +309,7 @@ mod tests {
             "rustdesk-1.4.6-x86_64.msi",
             "rustdesk-verified-1234-5678.exe",
             "rustdesk_install_0a1b2c.bat",
-            "betterdesk-notes.txt",
+            "neodesk-notes.txt",
         ] {
             assert!(!is_own_temp_update_file(stock), "{stock}");
         }
@@ -317,22 +317,22 @@ mod tests {
 
     #[test]
     fn only_a_link_entry_that_starts_this_client_is_its_own() {
-        let exe = r"C:\Program Files\BetterDesk\betterdesk.exe";
+        let exe = r"C:\Program Files\NeoDesk\neodesk.exe";
         assert!(scheme_command_runs(
-            r#""C:\Program Files\BetterDesk\betterdesk.exe" "%1""#,
+            r#""C:\Program Files\NeoDesk\neodesk.exe" "%1""#,
             exe
         ));
         assert!(scheme_command_runs(
-            r#" "c:/program files/betterdesk/BetterDesk.exe" "%1""#,
+            r#" "c:/program files/neodesk/NeoDesk.exe" "%1""#,
             exe
         ));
-        assert!(scheme_command_runs(r"C:\BD\betterdesk.exe %1", r"C:\BD\betterdesk.exe"));
+        assert!(scheme_command_runs(r"C:\BD\neodesk.exe %1", r"C:\BD\neodesk.exe"));
         assert!(!scheme_command_runs(
             r#""C:\Program Files\RustDesk\rustdesk.exe" "%1""#,
             exe
         ));
         assert!(!scheme_command_runs(
-            r#""C:\Program Files\BetterDesk\betterdesk.exe.old" "%1""#,
+            r#""C:\Program Files\NeoDesk\neodesk.exe.old" "%1""#,
             exe
         ));
         assert!(!scheme_command_runs("", exe));

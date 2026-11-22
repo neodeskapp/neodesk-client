@@ -255,7 +255,7 @@ fn a_console_that_does_not_answer_is_unreachable() {
 fn a_link_without_http_1_never_talks_plain_http() {
     let console = FakeConsole::start(|_| (200, json!({"success": true})));
     let invite = super::link::parse(&format!(
-        "betterdesk://join/127.0.0.1:{}/ABCDEF23",
+        "neodesk://join/127.0.0.1:{}/ABCDEF23",
         console.port
     ))
     .unwrap();
@@ -271,7 +271,7 @@ fn a_link_without_http_1_never_talks_plain_http() {
     assert!(console.requests().is_empty(), "{:?}", console.requests());
 
     let plain = super::link::parse(&format!(
-        "betterdesk://join/127.0.0.1:{}/ABCDEF23?http=1",
+        "neodesk://join/127.0.0.1:{}/ABCDEF23?http=1",
         console.port
     ))
     .unwrap();
@@ -555,16 +555,16 @@ fn the_state_has_the_ui_names() {
 #[test]
 fn quick_support_uses_its_own_ipc_names() {
     assert_eq!(
-        super::namespaced_ipc_path("/tmp/betterdesk-1000/ipc"),
-        "/tmp/betterdesk-qs-1000/ipc"
+        super::namespaced_ipc_path("/tmp/neodesk-1000/ipc"),
+        "/tmp/neodesk-qs-1000/ipc"
     );
     assert_eq!(
-        super::namespaced_ipc_path("/tmp/betterdesk-service/ipc_service"),
-        "/tmp/betterdesk-qs-service/ipc_service"
+        super::namespaced_ipc_path("/tmp/neodesk-service/ipc_service"),
+        "/tmp/neodesk-qs-service/ipc_service"
     );
     assert_eq!(
-        super::namespaced_ipc_path(r"\\.\pipe\betterdesk\query_cm"),
-        r"\\.\pipe\betterdesk-qs\query_cm"
+        super::namespaced_ipc_path(r"\\.\pipe\neodesk\query_cm"),
+        r"\\.\pipe\neodesk-qs\query_cm"
     );
 }
 
@@ -576,8 +576,8 @@ fn join_and_support_links_are_read_from_the_arguments() {
         Some("https://desk.example.com/join/ABCDEF23")
     );
     assert_eq!(
-        super::invite_argument(&args(&["betterdesk://support/desk.example.com/ABCDEF23"])),
-        Some("betterdesk://support/desk.example.com/ABCDEF23")
+        super::invite_argument(&args(&["neodesk://support/desk.example.com/ABCDEF23"])),
+        Some("neodesk://support/desk.example.com/ABCDEF23")
     );
     assert_eq!(super::invite_argument(&args(&["--join"])), None);
     assert_eq!(super::invite_argument(&args(&["--server"])), None);
@@ -659,8 +659,8 @@ fn quick_support_chat_keeps_the_lines_of_both_sides() {
 
 #[test]
 fn the_packed_exe_name_carries_the_invite() {
-    let extracted = r"C:\Users\anna\AppData\Local\betterdesk\betterdesk.exe";
-    let packed = "BetterDesk-Setup-desk.example.com-ABCDEF23 (1).exe";
+    let extracted = r"C:\Users\anna\AppData\Local\neodesk\neodesk.exe";
+    let packed = "NeoDesk-Setup-desk.example.com-ABCDEF23 (1).exe";
     let started = super::started_file(Some(extracted), Some(packed));
     assert_eq!(started, Some(packed));
     let invite = super::link::parse_file_name(started.unwrap()).unwrap();

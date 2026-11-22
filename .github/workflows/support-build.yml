@@ -1,10 +1,10 @@
-name: BetterDesk embedded Support build
+name: NeoDesk embedded Support build
 
 on:
   workflow_dispatch:
     inputs:
       generation_id:
-        description: "BetterDesk generation identifier"
+        description: "NeoDesk generation identifier"
         required: true
         type: string
       config_b64:
@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       client_commit:
-        description: "Expected BetterDesk-Client commit"
+        description: "Expected neodesk-client commit"
         required: true
         type: string
 
@@ -24,7 +24,7 @@ jobs:
   validate:
     runs-on: ubuntu-22.04
     env:
-      BETTERDESK_SUPPORT_CONFIG_B64: ${{ inputs.config_b64 }}
+      NEODESK_SUPPORT_CONFIG_B64: ${{ inputs.config_b64 }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -58,21 +58,21 @@ jobs:
       - name: Download macOS builds
         uses: actions/download-artifact@v4
         with:
-          pattern: betterdesk-unsigned-macos-*
+          pattern: neodesk-unsigned-macos-*
           path: raw/macos
           merge-multiple: false
 
       - name: Download Linux x86_64 build
         uses: actions/download-artifact@v4
         with:
-          pattern: betterdesk-*-x86_64.deb
+          pattern: neodesk-*-x86_64.deb
           path: raw/linux-x86_64
           merge-multiple: true
 
       - name: Download Linux aarch64 build
         uses: actions/download-artifact@v4
         with:
-          pattern: betterdesk-*-aarch64.deb
+          pattern: neodesk-*-aarch64.deb
           path: raw/linux-aarch64
           merge-multiple: true
 
@@ -94,7 +94,7 @@ jobs:
               echo "External config found in Windows artifact" >&2
               exit 1
             fi
-            (cd stage && zip -qr "../out/betterdesk-support-${GENERATION_ID}-windows-${arch}.zip" "windows-${arch}")
+            (cd stage && zip -qr "../out/neodesk-support-${GENERATION_ID}-windows-${arch}.zip" "windows-${arch}")
           done
 
           for arch in x86_64 aarch64; do
@@ -106,7 +106,7 @@ jobs:
               echo "External config found in macOS artifact" >&2
               exit 1
             fi
-            tar -C stage -czf "out/betterdesk-support-${GENERATION_ID}-macos-${arch}.tar.gz" "macos-${arch}"
+            tar -C stage -czf "out/neodesk-support-${GENERATION_ID}-macos-${arch}.tar.gz" "macos-${arch}"
           done
 
           for arch in x86_64 aarch64; do
@@ -118,7 +118,7 @@ jobs:
               echo "External config found in Linux artifact" >&2
               exit 1
             fi
-            tar -C "stage/linux-${arch}" -czf "out/betterdesk-support-${GENERATION_ID}-linux-${arch}.tar.gz" root
+            tar -C "stage/linux-${arch}" -czf "out/neodesk-support-${GENERATION_ID}-linux-${arch}.tar.gz" root
           done
 
           python3 - <<'PY'
@@ -136,7 +136,7 @@ jobs:
                   })
           manifest = {
               "schema_version": 1,
-              "sku": "betterdesk-support",
+              "sku": "neodesk-support",
               "generation_id": os.environ["GENERATION_ID"],
               "client_commit": os.environ["CLIENT_COMMIT"],
               "assets": assets,
@@ -150,5 +150,5 @@ jobs:
       - name: Upload embedded Support artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: betterdesk-support-${{ inputs.generation_id }}
+          name: neodesk-support-${{ inputs.generation_id }}
           path: out

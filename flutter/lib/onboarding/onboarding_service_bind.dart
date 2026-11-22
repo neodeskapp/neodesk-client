@@ -30,7 +30,7 @@ class BindOnboardingNative implements OnboardingNative {
 }
 
 /// The one onboarding service of the app. The link handler in common.dart
-/// passes betterdesk://join and betterdesk://support links to it.
+/// passes neodesk://join and neodesk://support links to it.
 final FfiOnboardingService onboardingService =
     FfiOnboardingService(const BindOnboardingNative());
 

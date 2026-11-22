@@ -65,8 +65,8 @@ void main() {
       'error': null,
       'errorText': null,
       'inputActive': true,
-      'link': 'betterdesk://support/help.fernhill.example/7KQ4M2XD',
-      'fileName': 'BetterDesk-QuickSupport-help.fernhill.example-7KQ4M2XD.exe',
+      'link': 'neodesk://support/help.fernhill.example/7KQ4M2XD',
+      'fileName': 'NeoDesk-QuickSupport-help.fernhill.example-7KQ4M2XD.exe',
       'quickSupport': true,
     }));
     expect(state.phase, OnboardingPhase.supportInSession);
@@ -76,9 +76,9 @@ void main() {
     expect(state.error, isNull);
     expect(state.errorKind, isNull);
     expect(state.inputActive, isTrue);
-    expect(state.link, 'betterdesk://support/help.fernhill.example/7KQ4M2XD');
+    expect(state.link, 'neodesk://support/help.fernhill.example/7KQ4M2XD');
     expect(state.fileName,
-        'BetterDesk-QuickSupport-help.fernhill.example-7KQ4M2XD.exe');
+        'NeoDesk-QuickSupport-help.fernhill.example-7KQ4M2XD.exe');
     expect(state.declined, isFalse);
   });
 
@@ -174,12 +174,12 @@ void main() {
     await service.consent(true);
     await service.consent(false);
     await service.endSupport();
-    await service.redeemSupport(' betterdesk://support/desk.lan/7KQ4M2XD ');
+    await service.redeemSupport(' neodesk://support/desk.lan/7KQ4M2XD ');
     expect(native.calls, [
       'consent true',
       'consent false',
       'end',
-      'support betterdesk://support/desk.lan/7KQ4M2XD',
+      'support neodesk://support/desk.lan/7KQ4M2XD',
     ]);
   });
 
@@ -250,12 +250,12 @@ void main() {
   test('links are sorted into join and quick support', () {
     final native = FakeNative();
     final service = serviceOf(native);
-    service.handleLink('betterdesk://support/desk.lan/7KQ4M2XD');
-    service.handleLink('betterdesk://join/desk.lan:5000/7KQ4M2XD?http=1');
-    service.handleLink('betterdesk://join/not-a-link');
+    service.handleLink('neodesk://support/desk.lan/7KQ4M2XD');
+    service.handleLink('neodesk://join/desk.lan:5000/7KQ4M2XD?http=1');
+    service.handleLink('neodesk://join/not-a-link');
     expect(native.calls, [
-      'support betterdesk://support/desk.lan/7KQ4M2XD',
-      'join betterdesk://join/desk.lan:5000/7KQ4M2XD?http=1',
+      'support neodesk://support/desk.lan/7KQ4M2XD',
+      'join neodesk://join/desk.lan:5000/7KQ4M2XD?http=1',
     ]);
   });
 

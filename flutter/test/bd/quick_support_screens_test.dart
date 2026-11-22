@@ -15,7 +15,7 @@ const _base = OnboardingState(
   company: fernCompany,
   supporterName: 'Mara Jensen',
   companyPhone: '+49 30 5550 1420',
-  fileName: 'BetterDesk-QuickSupport-help.fernhill.example-R8TW3NPA.exe',
+  fileName: 'NeoDesk-QuickSupport-help.fernhill.example-R8TW3NPA.exe',
 );
 
 Widget _window(Widget child) => BdWindowFrame(

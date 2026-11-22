@@ -1,4 +1,4 @@
-//! Pairing with a short code from the BetterDesk console.
+//! Pairing with a short code from the NeoDesk console.
 //!
 //! The user types the server and the code the console shows. The client sends
 //! `POST {api}/api/pairing/redeem` with its identity and the device key proof.
@@ -19,10 +19,10 @@ use hbb_common::{
 };
 use serde_json::{json, Value};
 
-use super::{betterdesk, create_http_client_async_with_url, enrollment};
+use super::{create_http_client_async_with_url, enrollment, neodesk};
 
 pub const MESSAGE_CODE_INVALID: &str = "The code is wrong or has expired.";
-const MESSAGE_SERVER_INVALID: &str = "Enter the address of your BetterDesk server.";
+const MESSAGE_SERVER_INVALID: &str = "Enter the address of your NeoDesk server.";
 const MESSAGE_CODE_EMPTY: &str = "Enter the code.";
 const MESSAGE_UNREACHABLE: &str = "Could not reach the server.";
 const MESSAGE_REFUSED: &str = "The server did not accept the request.";
@@ -49,7 +49,7 @@ pub struct PairingTarget {
 
 /// An http(s) URL is used as the API base as typed. A host or host:port is
 /// an ID server, and the API base follows the rule `get_api_server` uses
-/// without api-server: plain http on the BetterDesk API port.
+/// without api-server: plain http on the NeoDesk API port.
 pub fn pairing_target(server: &str) -> Option<PairingTarget> {
     let server = server.trim();
     let lower = server.to_ascii_lowercase();
@@ -223,7 +223,7 @@ pub async fn pair_with_code(server: &str, code: &str, device_id: String) -> Pair
         "hostname": crate::hostname(),
         "platform": std::env::consts::OS,
         "version": crate::VERSION,
-        "device_type": betterdesk::CLIENT_PRODUCT,
+        "device_type": neodesk::CLIENT_PRODUCT,
     });
     if let Some(public_key) = enrollment::public_key_b64() {
         body["public_key"] = Value::String(public_key);
@@ -241,7 +241,7 @@ pub async fn pair_with_code(server: &str, code: &str, device_id: String) -> Pair
     let resp = match request.send().await {
         Ok(resp) => resp,
         Err(err) => {
-            log::warn!("BetterDesk pairing request failed: {err}");
+            log::warn!("NeoDesk pairing request failed: {err}");
             return Pairing::failed(MESSAGE_UNREACHABLE);
         }
     };
@@ -251,7 +251,7 @@ pub async fn pair_with_code(server: &str, code: &str, device_id: String) -> Pair
     let result = redeem_result(http_status, &answer);
     if !result.ok {
         log::info!(
-            "BetterDesk pairing refused: HTTP {http_status}, status={}",
+            "NeoDesk pairing refused: HTTP {http_status}, status={}",
             result.status
         );
         return Pairing {
@@ -302,7 +302,7 @@ pub fn pair_and_apply(server: String, code: String) -> PairResult {
             &pairing.api,
             send,
         );
-        log::info!("BetterDesk pairing done, status={}", pairing.result.status);
+        log::info!("NeoDesk pairing done, status={}", pairing.result.status);
     }
     pairing.result
 }
@@ -330,8 +330,8 @@ fn keep_enrollment(
     })
     .to_string();
     if let Err(err) = send(payload) {
-        log::info!("BetterDesk pairing keeps its device token in this process: {err}");
-        betterdesk::record_enrollment_answer(status, Some(token), device_id, api);
+        log::info!("NeoDesk pairing keeps its device token in this process: {err}");
+        neodesk::record_enrollment_answer(status, Some(token), device_id, api);
     }
 }
 

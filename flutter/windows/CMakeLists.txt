@@ -1,7 +1,7 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
-set(BINARY_NAME "betterdesk")
-project(betterdesk LANGUAGES CXX)
+set(BINARY_NAME "neodesk")
+project(neodesk LANGUAGES CXX)
 
 # Explicitly opt into modern CMake behaviors to avoid warnings with recent
 # versions of CMake.

@@ -1,8 +1,8 @@
-# BetterDesk Client
+# NeoDesk Client
 
 <div align="center">
 
-<img src="res/betterdesk.png" alt="BetterDesk" width="280">
+<img src="res/neodesk.png" alt="NeoDesk" width="280">
 
 <br><br>
 
@@ -13,7 +13,7 @@
 [![Sponsor](https://img.shields.io/badge/GitHub-Sponsor-181717?logo=github&logoColor=white&style=flat)](https://github.com/sponsors/UNITRONIX)
 [![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white&style=flat)](https://discord.gg/MPp9hyyG97)
 
-**Official UNITRONIX desktop remote client** — a fork of [RustDesk](https://github.com/rustdesk/rustdesk), licensed under **AGPL-3.0**.
+NeoDesk is a fork of [RustDesk](https://github.com/rustdesk/rustdesk) that started from UNITRONIX's [BetterDesk client](https://github.com/UNITRONIX/BetterDesk-Client). Licensed under **AGPL-3.0**.
 
 [Build](docs/BUILD_DESKTOP.md) · [Official client](docs/OFFICIAL_CLIENT.md) · [Connectivity](docs/CONNECTIVITY.md) · [Client API](docs/CLIENT_API.md) · [Upstream](https://github.com/rustdesk/rustdesk)
 
@@ -24,13 +24,13 @@
 > [!Caution]
 > **Misuse Disclaimer:** The developers of this software do not condone or support any unethical or illegal use. Misuse, such as unauthorized access, control or invasion of privacy, is strictly against our guidelines. The authors are not responsible for any misuse of the application.
 
-This repository is the **official BetterDesk desktop client** ([UNITRONIX/BetterDesk-Client](https://github.com/UNITRONIX/BetterDesk-Client)). Active work targets **Flutter desktop on Windows and Linux**. Mobile and web trees remain in-repo but are not the current focus.
+This repository is the **official NeoDesk desktop client** ([neodeskapp/neodesk-client](https://github.com/neodeskapp/neodesk-client)). Active work targets **Flutter desktop on Windows and Linux**. Mobile and web trees remain in-repo but are not the current focus.
 
-> **AI-assisted development:** BetterDesk Client is created and maintained with the assistance of artificial intelligence tools.
+> **AI-assisted development:** NeoDesk Client is created and maintained with the assistance of artificial intelligence tools.
 
-The client **does not** connect to public `*.rustdesk.com` infrastructure. Configure your own ID / Relay / API / Key (Settings → Network), import a deploy string from the BetterDesk panel, or use a Generator bake-in (`custom.txt`). Without a configured server, the client does not register on a public cloud.
+The client **does not** connect to public `*.rustdesk.com` infrastructure. Configure your own ID / Relay / API / Key (Settings → Network), import a deploy string from the NeoDesk panel, or use a Generator bake-in (`custom.txt`). Without a configured server, the client does not register on a public cloud.
 
-Pair it with the self-hosted BetterDesk server and web console: [UNITRONIX/BetterDesk](https://github.com/UNITRONIX/BetterDesk).
+Pair it with the self-hosted NeoDesk server and web console: [neodeskapp/neodesk](https://github.com/neodeskapp/neodesk).
 
 ---
 
@@ -38,10 +38,10 @@ Pair it with the self-hosted BetterDesk server and web console: [UNITRONIX/Bette
 
 | SKU | Role |
 |-----|------|
-| **BetterDesk Client** | Full desktop client (outbound + inbound) |
-| **BetterDesk Support Agent** | Incoming-only agent (Generator bake-in; no outbound remote control) |
+| **NeoDesk Client** | Full desktop client (outbound + inbound) |
+| **NeoDesk Support Agent** | Incoming-only agent (Generator bake-in; no outbound remote control) |
 
-Both identify to the API as `betterdesk-desktop` with a distinct `product_sku`. Details: [docs/OFFICIAL_CLIENT.md](docs/OFFICIAL_CLIENT.md).
+Both identify to the API as `neodesk-desktop` with a distinct `product_sku`. Details: [docs/OFFICIAL_CLIENT.md](docs/OFFICIAL_CLIENT.md).
 
 ---
 
@@ -53,7 +53,7 @@ Both identify to the API as `betterdesk-desktop` with a distinct `product_sku`. 
 | Desktop build (Windows / Linux Flutter) | [docs/BUILD_DESKTOP.md](docs/BUILD_DESKTOP.md) |
 | How connections work (P2P / LAN / relay / API) | [docs/CONNECTIVITY.md](docs/CONNECTIVITY.md) |
 | Client API layers (HTTP / FFI / IPC) | [docs/CLIENT_API.md](docs/CLIENT_API.md) |
-| BetterDesk server wiki | [BetterDesk Wiki](https://github.com/UNITRONIX/BetterDesk/wiki) |
+| NeoDesk server docs | [neode.sk/docs](https://neode.sk/docs) |
 
 ---
 
@@ -87,22 +87,22 @@ Short checklist:
 - **`libs/scrap/`** — screen capture
 - **`libs/enigo/`** — input control
 - **`libs/clipboard/`** — clipboard / file copy-paste
-- **`res/betterdesk/`** — Generator signing keys and notes for `custom.txt`
+- **`res/neodesk/`** — Generator signing keys and notes for `custom.txt`
 
 ---
 
 ## Attribution and license
 
-BetterDesk Client is a fork of [RustDesk](https://github.com/rustdesk/rustdesk). The About UI and sysinfo keep upstream attribution and source links as required by the project policy ([docs/OFFICIAL_CLIENT.md](docs/OFFICIAL_CLIENT.md)).
+NeoDesk Client is a fork of [RustDesk](https://github.com/rustdesk/rustdesk). It includes work from [BetterDesk-Client](https://github.com/UNITRONIX/BetterDesk-Client) by UNITRONIX, also licensed under the AGPL-3.0. The About UI and sysinfo keep upstream attribution and source links as required by the project policy ([docs/OFFICIAL_CLIENT.md](docs/OFFICIAL_CLIENT.md)).
 
 The language flags in `flutter/assets/flags` are from [Twemoji](https://github.com/jdecked/twemoji) (`@twemoji/svg` 15.0.0), licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
-[AGPL-3.0](LICENSE) · Source: [UNITRONIX/BetterDesk-Client](https://github.com/UNITRONIX/BetterDesk-Client) · Upstream: [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk)
+[AGPL-3.0](LICENSE) · Source: [neodeskapp/neodesk-client](https://github.com/neodeskapp/neodesk-client) · Upstream: [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk)
 
 ---
 
 ## Support
 
 - [Discord](https://discord.gg/MPp9hyyG97)
-- [BetterDesk Issues](https://github.com/UNITRONIX/BetterDesk/issues)
-- [BetterDesk-Client Issues](https://github.com/UNITRONIX/BetterDesk-Client/issues)
+- [NeoDesk issues](https://github.com/neodeskapp/neodesk/issues)
+- [NeoDesk Client issues](https://github.com/neodeskapp/neodesk-client/issues)

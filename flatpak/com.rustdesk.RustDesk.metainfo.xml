@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>com.unitronix.betterdesk</id>
+  <id>com.unitronix.neodesk</id>
   <developer id="com.unitronix">
-    <name>BetterDesk</name>
+    <name>NeoDesk</name>
   </developer>
-  <launchable type="desktop-id">betterdesk.desktop</launchable>
+  <launchable type="desktop-id">neodesk.desktop</launchable>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>AGPL-3.0-only</project_license>
-  <name>BetterDesk Client</name>
+  <name>NeoDesk Client</name>
   <summary>Secure remote desktop access</summary>
   <description>
     <p>
-        BetterDesk Client is a full-featured open source remote control alternative for self-hosting and security with minimal configuration.
+        NeoDesk Client is a full-featured open source remote control alternative for self-hosting and security with minimal configuration.
     </p>
     <ul>
       <li> Works on Windows, macOS, Linux, iOS, Android, Web. </li>

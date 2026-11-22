@@ -113,7 +113,7 @@ const kSettingsIndex = <SettingsIndexEntry>[
   SettingsIndexEntry('advanced', 'bd-sec-drawing', 'Always use software rendering', 'bd-desc:Always use software rendering', 'switch', false, '', [], 'Linux'),
   SettingsIndexEntry('advanced', 'bd-sec-drawing', 'Use texture rendering', 'bd-desc:Use texture rendering', 'switch', true, '', [], ''),
   SettingsIndexEntry('advanced', 'bd-sec-drawing', 'Use D3D rendering', 'bd-desc:Use D3D rendering', 'switch', false, '', [], 'Windows'),
-  SettingsIndexEntry('advanced', 'bd-sec-printing', 'bd-set-row-betterdesk-printer', 'bd-desc:bd-set-row-betterdesk-printer', 'button', false, 'Install', [], 'Windows'),
+  SettingsIndexEntry('advanced', 'bd-sec-printing', 'bd-set-row-neodesk-printer', 'bd-desc:bd-set-row-neodesk-printer', 'button', false, 'Install', [], 'Windows'),
   SettingsIndexEntry('advanced', 'bd-sec-printing', 'bd-set-row-print-jobs-from-other-computers', 'bd-desc:bd-set-row-print-jobs-from-other-computers', 'select', false, 'Default printer', ['Don\'t print', 'Default printer', 'This printer: (list)'], 'Windows'),
   SettingsIndexEntry('advanced', 'bd-sec-printing', 'bd-set-row-print-without-asking', 'bd-desc:bd-set-row-print-without-asking', 'switch', false, '', [], 'Windows'),
   SettingsIndexEntry('advanced', 'bd-sec-reports-and-branding', 'bd-set-row-share-app-activity-with-the-server', 'bd-desc:bd-set-row-share-app-activity-with-the-server', 'switch', false, '', [], ''),

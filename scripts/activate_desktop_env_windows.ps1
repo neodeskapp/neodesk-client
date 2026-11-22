@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Activates BetterDesk desktop build environment for the current PowerShell session (Windows x64).
+  Activates NeoDesk desktop build environment for the current PowerShell session (Windows x64).
 
 .DESCRIPTION
   Sets PATH / VCPKG_ROOT / LIBCLANG_PATH for tools installed under C:\tools (and optional

@@ -1,7 +1,7 @@
-# BetterDesk desktop agent builds only (Windows / Linux / macOS).
-# Called from betterdesk-desktop-release.yml. No Android, iOS, Sciter, AppImage,
+# NeoDesk desktop agent builds only (Windows / Linux / macOS).
+# Called from neodesk-desktop-release.yml. No Android, iOS, Sciter, AppImage,
 # Flatpak, DRM, or web. Artifacts are the standard full client (not incoming-only).
-name: Build BetterDesk desktop
+name: Build NeoDesk desktop
 
 on:
   workflow_call:
@@ -50,8 +50,8 @@ env:
   VERSION: "1.5.0"
   MACOS_P12_BASE64: "${{ secrets.MACOS_P12_BASE64 }}"
   UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
-  BETTERDESK_SUPPORT_CONFIG_B64: "${{ inputs.support-config-b64 }}"
-  BETTERDESK_GENERIC_SUPPORT: "${{ inputs.generic-support && '1' || '' }}"
+  NEODESK_SUPPORT_CONFIG_B64: "${{ inputs.support-config-b64 }}"
+  NEODESK_GENERIC_SUPPORT: "${{ inputs.generic-support && '1' || '' }}"
 
 jobs:
   # Turns the platforms input into the matrices of the jobs below. A family
@@ -415,13 +415,13 @@ jobs:
           # --hwcodec is shared by all Windows targets; per-target extras (e.g. --vram) come from the matrix
           python3 .\build.py --portable --flutter --skip-portable-pack --hwcodec ${{ matrix.job.build-args }}
           mv ./flutter/build/windows/${{ matrix.job.flutter-arch }}/runner/Release ./rustdesk
-          # BetterDesk fork ships betterdesk.exe; keep rustdesk.exe alias for upstream WiX paths
-          if (Test-Path ./rustdesk/betterdesk.exe) {
+          # NeoDesk fork ships neodesk.exe; keep rustdesk.exe alias for upstream WiX paths
+          if (Test-Path ./rustdesk/neodesk.exe) {
             if (-not (Test-Path ./rustdesk/rustdesk.exe)) {
-              Copy-Item ./rustdesk/betterdesk.exe ./rustdesk/rustdesk.exe
+              Copy-Item ./rustdesk/neodesk.exe ./rustdesk/rustdesk.exe
             }
           } elseif (Test-Path ./rustdesk/rustdesk.exe) {
-            Copy-Item ./rustdesk/rustdesk.exe ./rustdesk/betterdesk.exe
+            Copy-Item ./rustdesk/rustdesk.exe ./rustdesk/neodesk.exe
           }
 
           # Download usbmmidd_v2.zip and extract it to ./rustdesk
@@ -510,14 +510,14 @@ jobs:
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          # Prefer BetterDesk exe name when packing portable
-          EXE=../../rustdesk/betterdesk.exe
+          # Prefer NeoDesk exe name when packing portable
+          EXE=../../rustdesk/neodesk.exe
           if [ ! -f "$EXE" ]; then EXE=../../rustdesk/rustdesk.exe; fi
           python3 ./generate.py -f ../../rustdesk/ -o . -e "$EXE"
           popd
           mkdir -p ./SignOutput
-          mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe
-          cp ./SignOutput/betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe
+          mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe
+          cp ./SignOutput/neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
@@ -529,14 +529,14 @@ jobs:
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
           pushd ./res/msi
-          python preprocess.py --arp -d ../../rustdesk --app-name "BetterDesk Client"
+          python preprocess.py --arp -d ../../rustdesk --app-name "NeoDesk Client"
           nuget restore msi.sln
           $msiPlatform = if ('${{ matrix.job.arch }}' -eq 'aarch64') { 'ARM64' } else { 'x64' }
           msbuild msi.sln -p:Configuration=Release -p:Platform=$msiPlatform /p:TargetVersion=Windows10
           $msi = Get-ChildItem ./Package/bin/*/Release/en-us/Package.msi | Select-Object -First 1
-          mv $msi.FullName ../../SignOutput/betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi
-          Copy-Item ../../SignOutput/betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi ../../SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi
-          sha256sum ../../SignOutput/betterdesk-*.msi
+          mv $msi.FullName ../../SignOutput/neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi
+          Copy-Item ../../SignOutput/neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi ../../SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi
+          sha256sum ../../SignOutput/neodesk-*.msi
 
       - name: Sign the portable exe and the MSI
         if: env.UPLOAD_ARTIFACT == 'true' && env.WINDOWS_SIGNING == 'true'
@@ -569,8 +569,8 @@ jobs:
         run: |
           git checkout -- res/msi
           cp -r ./rustdesk ./rustdesk-msi-template
-          if (Test-Path ./rustdesk-msi-template/betterdesk.exe) {
-            Move-Item -Force ./rustdesk-msi-template/betterdesk.exe ./rustdesk-msi-template/RDAPPNAM.exe
+          if (Test-Path ./rustdesk-msi-template/neodesk.exe) {
+            Move-Item -Force ./rustdesk-msi-template/neodesk.exe ./rustdesk-msi-template/RDAPPNAM.exe
             Remove-Item -ErrorAction SilentlyContinue ./rustdesk-msi-template/rustdesk.exe
           } else {
             mv ./rustdesk-msi-template/rustdesk.exe ./rustdesk-msi-template/RDAPPNAM.exe
@@ -589,8 +589,8 @@ jobs:
           $msi = Get-ChildItem ./Package/bin/*/Release/en-us/Package.msi | Select-Object -First 1
           popd
           mkdir ./msi-template
-          mv $msi.FullName ./msi-template/betterdesk-template-${{ matrix.job.arch }}.msi
-          Copy-Item ./msi-template/betterdesk-template-${{ matrix.job.arch }}.msi ./msi-template/rustdesk-template-${{ matrix.job.arch }}.msi
+          mv $msi.FullName ./msi-template/neodesk-template-${{ matrix.job.arch }}.msi
+          Copy-Item ./msi-template/neodesk-template-${{ matrix.job.arch }}.msi ./msi-template/rustdesk-template-${{ matrix.job.arch }}.msi
           git checkout -- res/msi
           rm -r -fo ./rustdesk-msi-template
 
@@ -625,12 +625,12 @@ jobs:
         if: env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: betterdesk-windows-installers-${{ matrix.job.arch }}
+          name: neodesk-windows-installers-${{ matrix.job.arch }}
           path: |
-            ./SignOutput/betterdesk-*.msi
-            ./SignOutput/betterdesk-*.exe
+            ./SignOutput/neodesk-*.msi
+            ./SignOutput/neodesk-*.exe
 
-      # GitHub Release is published only by betterdesk-desktop-release.yml.
+      # GitHub Release is published only by neodesk-desktop-release.yml.
 
   build-for-macOS:
     name: ${{ matrix.job.target }}
@@ -826,28 +826,28 @@ jobs:
           CREATE_DMG="$(command -v create-dmg)"
           CREATE_DMG="$(readlink -f "$CREATE_DMG")"
           sed -i -e 's/MAXIMUM_UNMOUNTING_ATTEMPTS=3/MAXIMUM_UNMOUNTING_ATTEMPTS=7/' "$CREATE_DMG"
-          create-dmg --icon "BetterDesk Client.app" 200 190 --hide-extension "BetterDesk Client.app" --window-size 800 400 --app-drop-link 600 185 betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg "./flutter/build/macos/Build/Products/Release/BetterDesk Client.app"
+          create-dmg --icon "NeoDesk Client.app" 200 190 --hide-extension "NeoDesk Client.app" --window-size 800 400 --app-drop-link 600 185 neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg "./flutter/build/macos/Build/Products/Release/NeoDesk Client.app"
 
       - name: Upload unsigned macOS app
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
           tar -C "./flutter/build/macos/Build/Products/Release" \
-            -czf "betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.tar.gz" \
-            "BetterDesk Client.app"
+            -czf "neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.tar.gz" \
+            "NeoDesk Client.app"
           # The app alone in a zip, to run it from the Downloads folder without
           # installing. ditto keeps the symlinks and attributes of the bundle.
-          ditto -c -k --keepParent "./flutter/build/macos/Build/Products/Release/BetterDesk Client.app" \
-            "betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.zip"
+          ditto -c -k --keepParent "./flutter/build/macos/Build/Products/Release/NeoDesk Client.app" \
+            "neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.zip"
 
       - name: Upload unsigned macOS app artifacts
         if: env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: betterdesk-unsigned-macos-${{ matrix.job.arch }}
+          name: neodesk-unsigned-macos-${{ matrix.job.arch }}
           path: |
-            betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg
-            betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.tar.gz
-            betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.zip
+            neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg
+            neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.tar.gz
+            neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.zip
 
       - name: Codesign app and create signed dmg
         if: env.MACOS_P12_BASE64 != null && env.UPLOAD_ARTIFACT == 'true'
@@ -861,16 +861,16 @@ jobs:
           security unlock-keychain -p ${{ secrets.MACOS_P12_PASSWORD }} rustdesk.keychain
           # start sign the rustdesk.app and dmg
           rm -rf *.dmg || true
-          codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict "./flutter/build/macos/Build/Products/Release/BetterDesk Client.app" -vvv
-          create-dmg --icon "BetterDesk Client.app" 200 190 --hide-extension "BetterDesk Client.app" --window-size 800 400 --app-drop-link 600 185 betterdesk-${{ env.VERSION }}.dmg "./flutter/build/macos/Build/Products/Release/BetterDesk Client.app"
-          codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict betterdesk-${{ env.VERSION }}.dmg -vvv
-          # notarize the betterdesk-${{ env.VERSION }}.dmg
-          rcodesign notary-submit --api-key-path ${{ github.workspace }}/rustdesk.json  --staple betterdesk-${{ env.VERSION }}.dmg
+          codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict "./flutter/build/macos/Build/Products/Release/NeoDesk Client.app" -vvv
+          create-dmg --icon "NeoDesk Client.app" 200 190 --hide-extension "NeoDesk Client.app" --window-size 800 400 --app-drop-link 600 185 neodesk-${{ env.VERSION }}.dmg "./flutter/build/macos/Build/Products/Release/NeoDesk Client.app"
+          codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict neodesk-${{ env.VERSION }}.dmg -vvv
+          # notarize the neodesk-${{ env.VERSION }}.dmg
+          rcodesign notary-submit --api-key-path ${{ github.workspace }}/rustdesk.json  --staple neodesk-${{ env.VERSION }}.dmg
 
       - name: Rename rustdesk
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          for name in betterdesk*??.dmg; do
+          for name in neodesk*??.dmg; do
               mv "$name" "${name%%.dmg}-${{ matrix.job.arch }}.dmg"
           done
 
@@ -1165,7 +1165,7 @@ jobs:
             export CARGO_INCREMENTAL=0
             export DEB_ARCH=${{ matrix.job.deb_arch }}
             python3 ./build.py --flutter --skip-cargo
-            for name in betterdesk*??.deb; do
+            for name in neodesk*??.deb; do
               mv "$name" "${name%%.deb}-${{ matrix.job.arch }}.deb"
             done
 
@@ -1179,7 +1179,7 @@ jobs:
             esac
             HBB=`pwd` rpmbuild ./res/rpm-flutter.spec -bb
             pushd ~/rpmbuild/RPMS/${{ matrix.job.arch }}
-            for name in betterdesk*??.rpm; do
+            for name in neodesk*??.rpm; do
                 mv "$name" /workspace/"${name%%.rpm}.rpm"
             done
 
@@ -1193,7 +1193,7 @@ jobs:
             esac
             HBB=`pwd` rpmbuild ./res/rpm-flutter-suse.spec -bb
             pushd ~/rpmbuild/RPMS/${{ matrix.job.arch }}
-            for name in betterdesk*??.rpm; do
+            for name in neodesk*??.rpm; do
                 mv "$name" /workspace/"${name%%.rpm}-suse.rpm"
             done
 
@@ -1201,13 +1201,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: env.UPLOAD_ARTIFACT == 'true'
         with:
-          name: betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.deb
-          path: betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.deb
+          name: neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}.deb
+          path: neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}.deb
 
       - name: Upload rpm packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: env.UPLOAD_ARTIFACT == 'true'
         with:
-          name: betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-rpms
+          name: neodesk-${{ env.VERSION }}-${{ matrix.job.arch }}-rpms
           path: |
-            betterdesk-*.rpm
+            neodesk-*.rpm

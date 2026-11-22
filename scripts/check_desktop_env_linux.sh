@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks local prerequisites for building the BetterDesk / RustDesk Flutter desktop client on Linux x64.
+# Checks local prerequisites for building the NeoDesk / RustDesk Flutter desktop client on Linux x64.
 # Read-only; does not install packages. Versions aligned with CI (Flutter 3.24.5, Rust 1.75, vcpkg commit).
 
 set -uo pipefail

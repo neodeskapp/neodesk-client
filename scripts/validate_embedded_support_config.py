@@ -25,11 +25,11 @@ def main() -> int:
         type=Path,
         default=Path(__file__).resolve().parents[1]
         / "res"
-        / "betterdesk"
+        / "neodesk"
         / "custom-client-signing.pub",
     )
     args = parser.parse_args()
-    encoded = args.payload or os.environ.get("BETTERDESK_SUPPORT_CONFIG_B64", "")
+    encoded = args.payload or os.environ.get("NEODESK_SUPPORT_CONFIG_B64", "")
     if not encoded:
         return fail("Missing embedded Support payload")
 

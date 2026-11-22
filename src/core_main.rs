@@ -47,7 +47,7 @@ pub fn core_main() -> Option<CoreMainAction> {
     }
     crate::load_custom_client();
     crate::onboard::init_process_mode();
-    crate::hbbs_http::betterdesk::log_client_identity();
+    crate::hbbs_http::neodesk::log_client_identity();
     #[cfg(windows)]
     if !crate::platform::windows::bootstrap() {
         // return None to terminate the process

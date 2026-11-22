@@ -81,7 +81,7 @@ def make_parser():
         help='Connection type, e.g. "incoming", "outgoing". Default is empty, means incoming-outgoing',
     )
     parser.add_argument(
-        "--app-name", type=str, default="BetterDesk Client", help="The app name."
+        "--app-name", type=str, default="NeoDesk Client", help="The app name."
     )
     parser.add_argument(
         "--exe-name", type=str, default="", help="The executable file name."
@@ -254,7 +254,7 @@ def gen_pre_vars(args, dist_dir):
             f'{indent}<?define Manufacturer="{args.manufacturer}" ?>\n',
             f'{indent}<?define Product="{args.app_name}" ?>\n',
             f'{indent}<?define Executable="{args.exe_name}" ?>\n',
-            f'{indent}<?define UriScheme="betterdesk" ?>\n',
+            f'{indent}<?define UriScheme="neodesk" ?>\n',
             f'{indent}<?define LegacyUriScheme="rustdesk" ?>\n',
             f'{indent}<?define Description="{args.app_name} Installer" ?>\n',
             f'{indent}<?define ProductLower="{args.app_name.lower()}" ?>\n',
@@ -537,7 +537,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     app_name = args.app_name
-    args.exe_name = args.exe_name or ("RDAPPNAM.exe" if args.template else "betterdesk.exe")
+    args.exe_name = args.exe_name or ("RDAPPNAM.exe" if args.template else "neodesk.exe")
     dist_dir = Path(sys.argv[0]).parent.joinpath(args.dist_dir).resolve()
 
     if not prepare_resources():

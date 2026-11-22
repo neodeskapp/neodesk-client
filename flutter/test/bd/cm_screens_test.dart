@@ -10,7 +10,7 @@ const _cmSize = Size(380, 600);
 Widget _cmWindow(Widget body, Widget foot) => Builder(
       builder: (context) => BdWindowFrame(
         titleBar: BdTitleBar(
-          brand: const BdTitleBrand(title: 'BetterDesk'),
+          brand: const BdTitleBrand(title: 'NeoDesk'),
           controls: BdWindowControls(onMinimize: () {}),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

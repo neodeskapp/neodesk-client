@@ -8,7 +8,7 @@
 // - OnboardingService: sendChat() and dismissJoined(), with default bodies,
 //   so an implementation that `extends OnboardingService` compiles without
 //   them. An implementation that `implements` it must add both.
-// - InviteInput: parses what people paste (link, betterdesk:// link, code).
+// - InviteInput: parses what people paste (link, neodesk:// link, code).
 // - OnboardingService.registered: main.dart sets the real implementation
 //   here at start. Without one, PairingOnboardingService below joins through
 //   the existing pair-with-code call.
@@ -188,7 +188,7 @@ abstract class OnboardingService {
   Stream<OnboardingState> get states;
   OnboardingState get current;
 
-  /// A link, a short code, or a betterdesk:// link.
+  /// A link, a short code, or a neodesk:// link.
   Future<void> redeemJoin(String linkOrCode);
   Future<void> redeemSupport(String linkOrCode);
   Future<void> consent(bool allow);
@@ -223,8 +223,8 @@ class InviteInput {
 
   static final _code = RegExp(r'^[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}$');
 
-  /// Accepts https://<host>/join/<code>, http://..., betterdesk://join/<host>/<code>,
-  /// the same for support (/s/<code>, betterdesk://support/...), and a bare
+  /// Accepts https://<host>/join/<code>, http://..., neodesk://join/<host>/<code>,
+  /// the same for support (/s/<code>, neodesk://support/...), and a bare
   /// code with or without the dash.
   static InviteInput parse(String raw) {
     final s = raw.trim();
@@ -238,8 +238,8 @@ class InviteInput {
       // The console adds ?http=1 when it is served over plain HTTP.
       final httpFlag = uri.queryParameters['http'] == '1';
       final segs = uri.pathSegments.where((p) => p.isNotEmpty).toList();
-      if (uri.scheme == 'betterdesk') {
-        // betterdesk://join/<host>/<code>: the host part is "join".
+      if (uri.scheme == 'neodesk') {
+        // neodesk://join/<host>/<code>: the host part is "join".
         final kind = uri.host == 'join'
             ? InviteKind.joinLink
             : (uri.host == 'support' ? InviteKind.supportLink : null);
