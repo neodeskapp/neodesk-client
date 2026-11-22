@@ -20,7 +20,7 @@ const META_LINE_PREFIX_TIMESTAMP: &str = "timestamp = ";
 const META_LINE_PREFIX_FILE: &str = "file = ";
 const APP_PREFIX: &str = "rustdesk";
 #[cfg(windows)]
-const VERIFIED_UPDATE_FILE_PREFIX: &str = "rustdesk-verified-";
+const VERIFIED_UPDATE_FILE_PREFIX: &str = "betterdesk-verified-";
 const APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
@@ -35,6 +35,13 @@ fn app_dir_name(exe: &str) -> String {
         .map(|stem| stem.trim().to_lowercase())
         .filter(|stem| !stem.is_empty())
         .unwrap_or_else(|| APP_PREFIX.to_owned())
+}
+
+// The privacy mode broker: RuntimeBroker.exe copied under the client's own
+// name, so stock RustDesk's RuntimeBroker_rustdesk.exe is never touched.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn runtime_broker_exe(exe: &str) -> String {
+    format!("RuntimeBroker_{}.exe", app_dir_name(exe))
 }
 
 fn is_timestamp_matches(dir: &Path, ts: &mut u64) -> bool {
@@ -189,7 +196,7 @@ fn setup(
     }
     write_meta(&dir, ts, &metadata_paths);
     #[cfg(windows)]
-    win::copy_runtime_broker(&dir);
+    win::copy_runtime_broker(&dir, &runtime_broker_exe(&reader.exe));
     #[cfg(linux)]
     reader.configure_permission(&dir);
     Some(dir.join(&reader.exe))
@@ -321,7 +328,6 @@ mod win {
 
     // Used for privacy mode(magnifier impl).
     pub const RUNTIME_BROKER_EXE: &'static str = "C:\\Windows\\System32\\RuntimeBroker.exe";
-    pub const WIN_TOPMOST_INJECTED_PROCESS_EXE: &'static str = "RuntimeBroker_rustdesk.exe";
 
     pub(super) fn schedule_verified_update_cleanup() -> std::io::Result<()> {
         use windows::{
@@ -350,9 +356,8 @@ mod win {
         .map_err(std::io::Error::other)
     }
 
-    pub(super) fn copy_runtime_broker(dir: &Path) {
+    pub(super) fn copy_runtime_broker(dir: &Path, tgt: &str) {
         let src = RUNTIME_BROKER_EXE;
-        let tgt = WIN_TOPMOST_INJECTED_PROCESS_EXE;
         let target_file = dir.join(tgt);
         if target_file.exists() {
             if let (Ok(src_file), Ok(tgt_file)) = (fs::read(src), fs::read(&target_file)) {
@@ -364,7 +369,7 @@ mod win {
             }
         }
         let _allow_err = Command::new("taskkill")
-            .args(&["/F", "/IM", "RuntimeBroker_rustdesk.exe"])
+            .args(&["/F", "/IM", tgt])
             .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
             .output();
         let _allow_err = std::fs::copy(src, &format!("{}\\{}", dir.to_string_lossy(), tgt));
@@ -382,6 +387,13 @@ mod win {
 #[cfg(test)]
 mod meta_tests {
     use super::*;
+
+    #[test]
+    fn the_broker_carries_the_clients_name() {
+        assert_eq!(runtime_broker_exe("betterdesk.exe"), "RuntimeBroker_betterdesk.exe");
+        assert_eq!(runtime_broker_exe("bin/BetterDesk.exe"), "RuntimeBroker_betterdesk.exe");
+        assert_eq!(runtime_broker_exe(""), "RuntimeBroker_rustdesk.exe");
+    }
 
     #[test]
     fn resolve_within_rejects_paths_that_escape() {

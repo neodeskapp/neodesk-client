@@ -69,6 +69,21 @@ pub fn installing_service() -> bool {
     INSTALLING_SERVICE.lock().unwrap().clone()
 }
 
+// Names of the processes and temp files this client makes on Windows. They
+// carry the client's own name, so a stock RustDesk on the same computer keeps
+// its processes and files.
+pub const RUNTIME_BROKER_EXE: &str = "RuntimeBroker_betterdesk.exe";
+pub const VERIFIED_UPDATE_FILE_PREFIX: &str = "betterdesk-verified-";
+pub const INSTALL_SCRIPT_PREFIX: &str = "betterdesk_install_";
+
+/// True for an installer, a verified update copy or an install script this
+/// client left in the temp folder.
+pub fn is_own_temp_update_file(name: &str) -> bool {
+    let installer = format!("{}-", hbb_common::config::EXE_NAME);
+    (name.starts_with(&installer) && (name.ends_with(".msi") || name.ends_with(".exe")))
+        || (name.starts_with(INSTALL_SCRIPT_PREFIX) && name.ends_with(".bat"))
+}
+
 pub fn is_xfce() -> bool {
     #[cfg(target_os = "linux")]
     {
@@ -260,6 +275,31 @@ mod tests {
         assert!(validate_install_app_name("-RustDesk").is_ok());
         #[cfg(target_os = "macos")]
         assert!(validate_install_app_name("-RustDesk").is_err());
+    }
+
+    #[test]
+    fn processes_and_temp_files_carry_this_clients_name() {
+        let name = hbb_common::config::EXE_NAME;
+        assert_eq!(RUNTIME_BROKER_EXE, format!("RuntimeBroker_{name}.exe"));
+        assert!(VERIFIED_UPDATE_FILE_PREFIX.starts_with(&format!("{name}-")));
+        assert!(INSTALL_SCRIPT_PREFIX.starts_with(&format!("{name}_")));
+        for own in [
+            format!("{VERIFIED_UPDATE_FILE_PREFIX}1234-5678.exe"),
+            format!("{VERIFIED_UPDATE_FILE_PREFIX}1234-5678.msi"),
+            format!("{INSTALL_SCRIPT_PREFIX}0a1b2c.bat"),
+            format!("{name}-1.5.0-x86_64.exe"),
+        ] {
+            assert!(is_own_temp_update_file(&own), "{own}");
+        }
+        for stock in [
+            "rustdesk-1.4.6-x86_64.exe",
+            "rustdesk-1.4.6-x86_64.msi",
+            "rustdesk-verified-1234-5678.exe",
+            "rustdesk_install_0a1b2c.bat",
+            "betterdesk-notes.txt",
+        ] {
+            assert!(!is_own_temp_update_file(stock), "{stock}");
+        }
     }
 
     #[test]
