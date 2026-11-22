@@ -44,7 +44,6 @@ const BRANDING_POLL_INTERVAL: Duration = Duration::from_secs(60);
 const TELEMETRY_KEY_POLL_INTERVAL: Duration = Duration::from_secs(3600);
 const OPTION_ENROLLMENT_STATUS: &str = "betterdesk-enrollment-status";
 const OPTION_ENROLLMENT_LAST_ATTEMPT: &str = "betterdesk-enrollment-last-attempt";
-const ENROLLMENT_RETRY_SECS: u64 = 120;
 
 /// Applied SKU from bake-in (`conn-type: incoming` → Support Agent).
 #[inline]
@@ -355,34 +354,42 @@ pub(super) fn record_enrollment_answer(
 /// Uses `device_type: betterdesk-desktop` so the server does **not** apply the
 /// legacy CDAP Support Agent proof path. Managed mode → pending queue; open → approved.
 /// Requests carry the device key proof and, when one is stored for this device
-/// and server, the device token (see [`enrollment`]).
+/// and server, the device token (see [`enrollment`]). Once the device is
+/// approved and holds a token, only a status check runs every 10 minutes, so a
+/// token the console issues later reaches the device.
 pub async fn sync_device_enrollment() {
     let base = api_base();
     if base.is_empty() || crate::is_public(&base) {
         return;
     }
 
-    let status = LocalConfig::get_option(OPTION_ENROLLMENT_STATUS);
-    if status == "approved" {
-        return;
-    }
-
-    {
-        let mut last = LAST_ENROLLMENT_POLL.lock().unwrap();
-        if let Some(t) = *last {
-            if t.elapsed() < Duration::from_secs(ENROLLMENT_RETRY_SECS) {
-                return;
-            }
-        }
-        *last = Some(Instant::now());
-    }
-
     let device_id = Config::get_id();
     if device_id.is_empty() {
         return;
     }
+    let status = LocalConfig::get_option(OPTION_ENROLLMENT_STATUS);
     let stored_token = enrollment::StoredToken::load();
     let token = stored_token.usable_for(&device_id, &base);
+
+    let step = {
+        let mut last = LAST_ENROLLMENT_POLL.lock().unwrap();
+        let step =
+            enrollment::next_enrollment_step(&status, token.is_some(), last.map(|t| t.elapsed()));
+        if step != enrollment::EnrollmentStep::Wait {
+            *last = Some(Instant::now());
+        }
+        step
+    };
+    match step {
+        enrollment::EnrollmentStep::Wait => return,
+        enrollment::EnrollmentStep::CheckToken => {
+            let client = create_http_client_async_with_url(&base).await;
+            check_enrollment_status(&client, &base, &device_id).await;
+            return;
+        }
+        enrollment::EnrollmentStep::Register => {}
+    }
+
     let device_uuid = String::from_utf8_lossy(&hbb_common::get_uuid()).into_owned();
 
     let mut body = serde_json::json!({

@@ -14,6 +14,13 @@ use hbb_common::{
     sodiumoxide::{crypto::sign, randombytes},
 };
 use serde_json::Value;
+use std::time::Duration;
+
+/// Time between enrollment attempts while the device is not approved or
+/// holds no token for the current id.
+pub const ENROLLMENT_RETRY: Duration = Duration::from_secs(120);
+/// Time between token checks once the device is approved and holds a token.
+pub const TOKEN_CHECK_INTERVAL: Duration = Duration::from_secs(600);
 
 pub const HEADER_TIMESTAMP: &str = "X-BD-Enrollment-Timestamp";
 pub const HEADER_NONCE: &str = "X-BD-Enrollment-Nonce";
@@ -219,6 +226,38 @@ pub fn token_change(status: &str, token: Option<&str>) -> TokenChange {
     }
 }
 
+/// What the sync loop does next for enrollment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnrollmentStep {
+    /// Nothing is due yet.
+    Wait,
+    /// Register, then ask for the status when the answer is "pending".
+    Register,
+    /// Ask for the status with the token, so a token the console issued
+    /// after ending the old one reaches the device.
+    CheckToken,
+}
+
+/// Until the device is approved and holds a token for the current id, it
+/// registers every [`ENROLLMENT_RETRY`]. After that it checks its token every
+/// [`TOKEN_CHECK_INTERVAL`]. `since_last` is the time since the last attempt,
+/// None when there was none in this process.
+pub fn next_enrollment_step(
+    status: &str,
+    has_token: bool,
+    since_last: Option<Duration>,
+) -> EnrollmentStep {
+    let (step, interval) = if status == "approved" && has_token {
+        (EnrollmentStep::CheckToken, TOKEN_CHECK_INTERVAL)
+    } else {
+        (EnrollmentStep::Register, ENROLLMENT_RETRY)
+    };
+    match since_last {
+        Some(elapsed) if elapsed < interval => EnrollmentStep::Wait,
+        _ => step,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -383,5 +422,57 @@ mod tests {
     fn device_id_is_url_encoded() {
         assert_eq!(query_value("a b&c=d/é"), "a+b%26c%3Dd%2F%C3%A9");
         assert_eq!(query_value("123456789"), "123456789");
+    }
+
+    #[test]
+    fn schedule_registers_every_120s_until_approved_with_a_token() {
+        let secs = |s| Some(Duration::from_secs(s));
+        assert_eq!(
+            next_enrollment_step("", false, None),
+            EnrollmentStep::Register
+        );
+        assert_eq!(
+            next_enrollment_step("pending", false, secs(119)),
+            EnrollmentStep::Wait
+        );
+        assert_eq!(
+            next_enrollment_step("pending", false, secs(120)),
+            EnrollmentStep::Register
+        );
+        assert_eq!(
+            next_enrollment_step("rejected", false, secs(300)),
+            EnrollmentStep::Register
+        );
+        // Approved earlier, but no token for this id yet.
+        assert_eq!(
+            next_enrollment_step("approved", false, secs(130)),
+            EnrollmentStep::Register
+        );
+        // A token alone is not enough while the status is not approved.
+        assert_eq!(
+            next_enrollment_step("pending", true, secs(130)),
+            EnrollmentStep::Register
+        );
+    }
+
+    #[test]
+    fn schedule_checks_the_token_every_600s_once_approved() {
+        let secs = |s| Some(Duration::from_secs(s));
+        assert_eq!(
+            next_enrollment_step("approved", true, None),
+            EnrollmentStep::CheckToken
+        );
+        assert_eq!(
+            next_enrollment_step("approved", true, secs(130)),
+            EnrollmentStep::Wait
+        );
+        assert_eq!(
+            next_enrollment_step("approved", true, secs(599)),
+            EnrollmentStep::Wait
+        );
+        assert_eq!(
+            next_enrollment_step("approved", true, secs(600)),
+            EnrollmentStep::CheckToken
+        );
     }
 }
