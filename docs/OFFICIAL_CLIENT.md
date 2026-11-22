@@ -94,7 +94,7 @@ NeoDesk Client **jest forkiem klienta RustDesk**. W Settings → About oraz w sy
 - licencja **AGPL-3.0** (plik `LICENSE` w repo)
 - link do **kodu źródłowego forka** (`neodesk-client`)
 - link do **upstream** (`rustdesk/rustdesk`)
-- copyright UNITRONIX + oryginalnych autorów RustDesk / Purslane
+- copyright współtwórców NeoDesk, UNITRONIX + oryginalnych autorów RustDesk / Purslane
 
 Stałe: `UPSTREAM_*` / `FORK_REPO_URL` / `LICENSE_*` w [`libs/hbb_common/src/config.rs`](../libs/hbb_common/src/config.rs) oraz [`flutter/lib/consts.dart`](../flutter/lib/consts.dart).
 

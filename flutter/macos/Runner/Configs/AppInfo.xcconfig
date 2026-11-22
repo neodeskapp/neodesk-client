@@ -8,7 +8,7 @@
 PRODUCT_NAME = NeoDesk Client
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.unitronix.neodesk
+PRODUCT_BUNDLE_IDENTIFIER = sk.neode.neodesk
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 Purslane Tech Pte. Ltd. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 NeoDesk contributors, Purslane Tech Pte. Ltd. All rights reserved.

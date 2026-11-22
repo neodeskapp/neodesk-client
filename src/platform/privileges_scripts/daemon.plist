@@ -3,10 +3,10 @@
 <plist version="1.0">
     <dict>
         <key>Label</key>
-        <string>com.unitronix.neodesk_service</string>
+        <string>sk.neode.neodesk_service</string>
 
 	<key>AssociatedBundleIdentifiers</key>
-	<string>com.unitronix.neodesk</string>
+	<string>sk.neode.neodesk</string>
     
         <key>KeepAlive</key>
         <true/>

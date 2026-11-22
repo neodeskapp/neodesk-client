@@ -15,7 +15,7 @@ script:
 AppDir:
   path: ./AppDir
   app_info:
-    id: com.unitronix.neodesk
+    id: sk.neode.neodesk
     name: NeoDesk
     icon: neodesk
     version: 1.5.0

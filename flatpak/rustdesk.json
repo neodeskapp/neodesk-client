@@ -1,5 +1,5 @@
 {
-  "id": "com.unitronix.neodesk",
+  "id": "sk.neode.neodesk",
   "runtime": "org.freedesktop.Platform",
   "runtime-version": "24.08",
   "sdk": "org.freedesktop.Sdk",
@@ -28,7 +28,7 @@
         "bsdtar -Oxf neodesk.deb data.tar.xz | bsdtar -xf -",
         "cp -r usr/* /app/",
         "mkdir -p /app/bin /app/share/metainfo && ln -s /app/share/rustdesk/neodesk /app/bin/neodesk && ln -s /app/share/rustdesk/neodesk /app/bin/rustdesk",
-        "install -Dm644 com.rustdesk.RustDesk.metainfo.xml /app/share/metainfo/com.unitronix.neodesk.metainfo.xml"
+        "install -Dm644 com.rustdesk.RustDesk.metainfo.xml /app/share/metainfo/sk.neode.neodesk.metainfo.xml"
       ],
       "sources": [
         {

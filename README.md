@@ -14,9 +14,6 @@
 ![Flutter](https://img.shields.io/badge/Flutter-desktop-02569B.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)
 
-[![Sponsor](https://img.shields.io/badge/GitHub-Sponsor-181717?logo=github&logoColor=white&style=flat)](https://github.com/sponsors/UNITRONIX)
-[![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white&style=flat)](https://discord.gg/MPp9hyyG97)
-
 NeoDesk is a fork of [RustDesk](https://github.com/rustdesk/rustdesk) that started from UNITRONIX's [BetterDesk client](https://github.com/UNITRONIX/BetterDesk-Client). Licensed under **AGPL-3.0**.
 
 [Build](docs/BUILD_DESKTOP.md) · [Official client](docs/OFFICIAL_CLIENT.md) · [Connectivity](docs/CONNECTIVITY.md) · [Client API](docs/CLIENT_API.md) · [Upstream](https://github.com/rustdesk/rustdesk)
@@ -107,6 +104,5 @@ The language flags in `flutter/assets/flags` are from [Twemoji](https://github.c
 
 ## Support
 
-- [Discord](https://discord.gg/MPp9hyyG97)
 - [NeoDesk issues](https://github.com/neodeskapp/neodesk/issues)
 - [NeoDesk Client issues](https://github.com/neodeskapp/neodesk-client/issues)

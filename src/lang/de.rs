@@ -1098,7 +1098,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-about-latest", "Sie haben die neueste Version."),
         ("bd-about-new", "Version {} ist erschienen."),
         ("bd-about-checking", "Wird geprüft…"),
-        ("bd-about-copyright", "Copyright 2026 UNITRONIX. Basiert auf RustDesk, Copyright Purslane Ltd. und die RustDesk-Mitwirkenden. Lizenziert unter der AGPL-3.0."),
+        ("bd-about-copyright", "Copyright 2026 NeoDesk-Mitwirkende, UNITRONIX. Basiert auf RustDesk, Copyright Purslane Ltd. und die RustDesk-Mitwirkenden. Lizenziert unter der AGPL-3.0."),
         ("bd-about-powered", "Mit NeoDesk"),
         ("bd-sec-language-and-look", "Sprache und Aussehen"),
         ("bd-sec-language-and-look-lead", "Wie NeoDesk auf diesem Computer aussieht."),

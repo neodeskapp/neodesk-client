@@ -7,7 +7,7 @@ project(runner LANGUAGES C CXX)
 set(BINARY_NAME "neodesk")
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "com.unitronix.neodesk")
+set(APPLICATION_ID "sk.neode.neodesk")
 
 # Explicitly opt into modern CMake behaviors to avoid warnings with recent
 # versions of CMake.

@@ -60,7 +60,7 @@ for relative in ("appimage/AppImageBuilder-x86_64.yml", "appimage/AppImageBuilde
 flatpak = read("flatpak/rustdesk.json")
 require("flatpak/rustdesk.json", flatpak, '"command": "neodesk"')
 require("flatpak/rustdesk.json", flatpak, "/app/share/rustdesk/neodesk")
-require("flatpak/rustdesk.json", flatpak, "/app/share/metainfo/com.unitronix.neodesk.metainfo.xml")
+require("flatpak/rustdesk.json", flatpak, "/app/share/metainfo/sk.neode.neodesk.metainfo.xml")
 
 pkgbuild = read("res/PKGBUILD")
 require("res/PKGBUILD", pkgbuild, 'install -Dm 755 "${HBB}/target/release/rustdesk" "${pkgdir}/usr/share/rustdesk/neodesk"')
@@ -79,14 +79,14 @@ require("flutter/macos/Runner/Configs/AppInfo.xcconfig", mac_xcconfig, "PRODUCT_
 require(
     "flutter/macos/Runner/Configs/AppInfo.xcconfig",
     mac_xcconfig,
-    "PRODUCT_BUNDLE_IDENTIFIER = com.unitronix.neodesk",
+    "PRODUCT_BUNDLE_IDENTIFIER = sk.neode.neodesk",
 )
 mac_plist = read("flutter/macos/Runner/Info.plist")
 require("flutter/macos/Runner/Info.plist", mac_plist, "<string>neodesk</string>")
 require("flutter/macos/Runner/Info.plist", mac_plist, "<string>rustdesk</string>")
 macos_runtime = read("src/platform/macos.rs")
-require("src/platform/macos.rs", macos_runtime, 'com.unitronix.{}_service.plist')
-require("src/platform/macos.rs", macos_runtime, 'com.unitronix.{}_server.plist')
+require("src/platform/macos.rs", macos_runtime, 'sk.neode.{}_service.plist')
+require("src/platform/macos.rs", macos_runtime, 'sk.neode.{}_server.plist')
 
 release = read(".github/workflows/neodesk-desktop-release.yml")
 require(".github/workflows/neodesk-desktop-release.yml", release, "pattern: neodesk-unsigned-macos-*")

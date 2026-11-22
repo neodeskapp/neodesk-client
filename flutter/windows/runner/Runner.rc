@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "UNITRONIX" "\0"
+            VALUE "CompanyName", "NeoDesk" "\0"
             VALUE "FileDescription", "NeoDesk Client" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "neodesk" "\0"
-            VALUE "LegalCopyright", "Copyright © UNITRONIX. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright © NeoDesk contributors, UNITRONIX. All rights reserved." "\0"
             VALUE "OriginalFilename", "neodesk.exe" "\0"
             VALUE "ProductName", "NeoDesk Client" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

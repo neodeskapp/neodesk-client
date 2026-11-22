@@ -1,7 +1,7 @@
 [package]
 name = "rustdesk"
 version = "1.5.0"
-authors = ["UNITRONIX <https://github.com/UNITRONIX/BetterDesk>"]
+authors = ["NeoDesk <https://github.com/neodeskapp/neodesk-client>"]
 edition = "2021"
 build= "build.rs"
 description = "NeoDesk Remote Desktop"
@@ -217,7 +217,7 @@ exclude = ["vdi/host"]
 libxdo-sys = { path = "libs/libxdo-sys-stub" }
 
 [package.metadata.winres]
-LegalCopyright = "Copyright © UNITRONIX. All rights reserved."
+LegalCopyright = "Copyright © NeoDesk contributors, UNITRONIX. All rights reserved."
 ProductName = "NeoDesk Client"
 FileDescription = "NeoDesk Client"
 OriginalFilename = "neodesk.exe"
@@ -237,7 +237,7 @@ docopt = "1.1"
 
 [package.metadata.bundle]
 name = "NeoDesk Client"
-identifier = "com.unitronix.neodesk"
+identifier = "sk.neode.neodesk"
 icon = ["res/32x32.png", "res/128x128.png", "res/128x128@2x.png"]
 osx_minimum_system_version = "10.14"
 

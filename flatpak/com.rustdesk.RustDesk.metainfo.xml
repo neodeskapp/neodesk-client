@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>com.unitronix.neodesk</id>
-  <developer id="com.unitronix">
+  <id>sk.neode.neodesk</id>
+  <developer id="sk.neode">
     <name>NeoDesk</name>
   </developer>
   <launchable type="desktop-id">neodesk.desktop</launchable>
