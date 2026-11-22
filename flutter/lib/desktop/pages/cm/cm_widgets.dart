@@ -152,12 +152,12 @@ class CmRequestBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         header,
-        const SizedBox(height: 22),
+        const SizedBox(height: 16),
         Text(tr('bd-cm-request-title', [name]), style: t.titleMd),
-        const SizedBox(height: 8),
-        Text(tr('bd-cm-request-note'), style: t.small.copyWith(fontSize: 14)),
+        const SizedBox(height: 6),
+        Text(tr('bd-cm-request-note'), style: t.small),
         if (permissions.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           CmPermissionList(
               heading: tr('bd-cm-may', [name]), items: permissions),
         ],
