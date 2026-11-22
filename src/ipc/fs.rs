@@ -209,7 +209,7 @@ pub(crate) fn remove_ipc_entry_via_secure_parent_fd(path: &str) -> ResultType<()
 }
 
 fn remove_ipc_socket_via_secure_parent_fd(postfix: &str) -> ResultType<()> {
-    remove_ipc_entry_via_secure_parent_fd(&config::Config::ipc_path(postfix))
+    remove_ipc_entry_via_secure_parent_fd(&super::ipc_path(postfix))
 }
 
 // Purpose:
@@ -428,7 +428,7 @@ pub(crate) fn scrub_secure_ipc_parent_dir(path: &str, postfix: &str) -> ResultTy
 
 #[inline]
 pub(crate) fn get_pid_file(postfix: &str) -> String {
-    let path = config::Config::ipc_path(postfix);
+    let path = super::ipc_path(postfix);
     format!("{}.pid", path)
 }
 

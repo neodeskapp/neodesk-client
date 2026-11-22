@@ -46,6 +46,12 @@ pub fn signal_receiver() -> broadcast::Receiver<Vec<i32>> {
     SENDER.lock().unwrap().subscribe()
 }
 
+/// Closes the connections with these ids, as the console's disconnect list does.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub fn disconnect(conns: Vec<i32>) {
+    SENDER.lock().unwrap().send(conns).ok();
+}
+
 #[cfg(not(any(target_os = "ios")))]
 fn start_hbbs_sync() -> broadcast::Sender<Vec<i32>> {
     let (tx, _rx) = broadcast::channel::<Vec<i32>>(16);

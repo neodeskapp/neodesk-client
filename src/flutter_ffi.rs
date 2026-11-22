@@ -1193,6 +1193,61 @@ pub fn main_pair_with_code(server: String, code: String) -> String {
     crate::hbbs_http::pairing::pair_and_apply(server, code).to_json()
 }
 
+/// The state of Add a computer and quick support, as JSON: `phase`,
+/// `server`, `supporterName`, `company`, `error`, `errorText`, `joinStep`,
+/// `deviceId`, `deviceName`, `folderId`, `link`, `fileName`, `inputActive`,
+/// `quickSupport`, `hasServer`.
+pub fn main_onboard_state() -> SyncReturn<String> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let state = crate::onboard::state_json();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let state = "{}".to_owned();
+    SyncReturn(state)
+}
+
+/// Joins the server of an invite link or code; the state follows.
+pub fn main_onboard_redeem_join(text: String) -> SyncReturn<()> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::onboard::redeem_join(text);
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let _ = text;
+    SyncReturn(())
+}
+
+/// Starts quick support for a support link or code; the state follows.
+pub fn main_onboard_redeem_support(text: String) -> SyncReturn<()> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::onboard::redeem_support(text);
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let _ = text;
+    SyncReturn(())
+}
+
+/// The answer on the quick support consent screen.
+pub fn main_onboard_consent(allow: bool) -> SyncReturn<()> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::onboard::consent(allow);
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let _ = allow;
+    SyncReturn(())
+}
+
+/// Ends the quick support session.
+pub fn main_onboard_end_support() -> SyncReturn<()> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::onboard::end_support();
+    SyncReturn(())
+}
+
+/// True when this process is the quick support app.
+pub fn main_onboard_is_quick_support() -> SyncReturn<bool> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let quick = crate::onboard::is_quick_support();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let quick = false;
+    SyncReturn(quick)
+}
+
 pub fn main_get_local_option(key: String) -> SyncReturn<String> {
     SyncReturn(get_local_option(key))
 }
