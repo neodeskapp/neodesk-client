@@ -55,7 +55,7 @@ List<Widget> _sections(String group, {bool locked = false}) {
   void flush() {
     if (section != null) {
       out.add(SettingsSection(
-        title: translate(section!),
+        title: translate(section),
         lead: translateOrNull('$section-lead'),
         children: rows,
       ));

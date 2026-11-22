@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/bd/bd.dart';
 import 'package:flutter_hbb/desktop/pages/install_view.dart';
 import 'package:flutter_hbb/onboarding/onboarding_service.dart';
-import 'package:url_launcher/url_launcher_string.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/models/platform_model.dart';

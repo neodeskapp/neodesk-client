@@ -839,7 +839,7 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
             close();
           },
           buttonStyle: ButtonStyle(
-              backgroundColor: MaterialStatePropertyAll(context.bd.danger)),
+              backgroundColor: WidgetStatePropertyAll(context.bd.danger)),
         );
         final okButton = dialogButton(
           "OK",

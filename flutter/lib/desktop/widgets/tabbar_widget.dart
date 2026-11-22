@@ -6,7 +6,6 @@ import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide TabBarTheme;
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/common/widgets/bd/bd.dart';
 import 'package:flutter_hbb/common/widgets/branding_logo.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
@@ -27,7 +26,6 @@ import '../../utils/multi_window_manager.dart';
 
 const double _kTabBarHeight = kDesktopRemoteTabBarHeight;
 const double _kIconSize = 18;
-const double _kDividerIndent = 10;
 const double _kActionIconSize = 12;
 
 class TabInfo {

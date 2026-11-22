@@ -19,7 +19,6 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
-import 'package:flutter_hbb/mobile/widgets/dialog.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/printer_model.dart';
@@ -33,28 +32,13 @@ import 'package:url_launcher/url_launcher_string.dart';
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/login.dart';
 
-const double _kTabWidth = 200;
-const double _kTabHeight = 42;
-const double _kCardFixedWidth = 540;
 const double _kCardLeftMargin = 15;
 const double _kContentHMargin = 15;
 const double _kContentHSubMargin = _kContentHMargin + 33;
 const double _kCheckBoxLeftMargin = 10;
-const double _kRadioLeftMargin = 10;
-const double _kListViewBottomMargin = 15;
-const double _kTitleFontSize = 20;
 const double _kContentFontSize = 15;
-Color get _accentColor => MyTheme.accent;
 const String _kSettingPageControllerTag = 'settingPageController';
 const String _kSettingPageTabKeyTag = 'settingPageTabKey';
-
-class _TabInfo {
-  late final SettingsTabKey key;
-  late final String label;
-  late final IconData unselected;
-  late final IconData selected;
-  _TabInfo(this.key, this.label, this.unselected, this.selected);
-}
 
 enum SettingsTabKey {
   general,
@@ -2854,7 +2838,7 @@ class _WaylandCardState extends State<WaylandCard> {
       showConfirmMsgBox,
       tip: 'clear_Wayland_screen_selection_tip',
       style: ButtonStyle(
-        backgroundColor: MaterialStateProperty.all<Color>(
+        backgroundColor: WidgetStateProperty.all<Color>(
             Theme.of(context).colorScheme.error.withOpacity(0.75)),
       ),
     );
@@ -2897,7 +2881,7 @@ class _WaylandCardState extends State<WaylandCard> {
         showConfirmMsgBox,
         tip: 'clear-shortcuts-inhibitor-permission-tip',
         style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.all<Color>(
+          backgroundColor: WidgetStateProperty.all<Color>(
               Theme.of(context).colorScheme.error.withOpacity(0.75)),
         ),
       ),
@@ -2974,51 +2958,6 @@ Widget _lock(
       }
     }),
   );
-}
-
-_LabeledTextField(
-    BuildContext context,
-    String label,
-    TextEditingController controller,
-    String errorText,
-    bool enabled,
-    bool secure) {
-  return Table(
-    columnWidths: const {
-      0: FixedColumnWidth(150),
-      1: FlexColumnWidth(),
-    },
-    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-    children: [
-      TableRow(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: Text(
-              '${translate(label)}:',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 16,
-                color: disabledTextColor(context, enabled),
-              ),
-            ),
-          ),
-          TextField(
-            controller: controller,
-            enabled: enabled,
-            obscureText: secure,
-            autocorrect: false,
-            decoration: InputDecoration(
-              errorText: errorText.isNotEmpty ? errorText : null,
-            ),
-            style: TextStyle(
-              color: disabledTextColor(context, enabled),
-            ),
-          ).workaroundFreezeLinuxMint(),
-        ],
-      ),
-    ],
-  ).marginOnly(bottom: 8);
 }
 
 class _CountDownButton extends StatefulWidget {

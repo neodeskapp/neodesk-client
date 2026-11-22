@@ -2,14 +2,11 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/bd/bd.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
-import 'package:flutter_hbb/common/widgets/connection_page_title.dart';
 import 'package:flutter_hbb/consts.dart';
-import 'package:flutter_hbb/desktop/widgets/popup_menu.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 import 'package:window_manager/window_manager.dart';
@@ -20,7 +17,6 @@ import '../../common/formatter/id_formatter.dart';
 import '../../common/widgets/peer_tab_page.dart';
 import '../../common/widgets/autocomplete.dart';
 import '../../models/platform_model.dart';
-import '../../desktop/widgets/material_mod_popup_menu.dart' as mod_menu;
 import 'desktop_setting_page.dart';
 
 class OnlineStatusWidget extends StatefulWidget {
@@ -162,7 +158,6 @@ class _ConnectionPageState extends State<ConnectionPage>
   // https://github.com/flutter/flutter/issues/157244
   Iterable<Peer> _autocompleteOpts = [];
 
-  final _menuOpen = false.obs;
 
   @override
   void initState() {

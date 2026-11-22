@@ -283,7 +283,6 @@ class BdStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
     final t = context.bdText;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -477,8 +476,10 @@ class BdMarkPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(BdMarkPainter old) =>
-      old.square != square || old.circle != circle || old.overlap != overlap;
+  bool shouldRepaint(BdMarkPainter oldDelegate) =>
+      oldDelegate.square != square ||
+      oldDelegate.circle != circle ||
+      oldDelegate.overlap != overlap;
 }
 
 /// The mark and the "betterdesk" wordmark.

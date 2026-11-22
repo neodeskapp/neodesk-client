@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
 import 'package:flutter_hbb/onboarding/first_start_view.dart';
 import 'package:flutter_hbb/onboarding/joining_view.dart';
 import 'package:flutter_hbb/onboarding/onboarding_service.dart';

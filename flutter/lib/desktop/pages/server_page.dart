@@ -571,37 +571,6 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
   }
 }
 
-class _AppIcon extends StatelessWidget {
-  const _AppIcon({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 4.0),
-      child: loadIcon(30),
-    );
-  }
-}
-
-class _CloseButton extends StatelessWidget {
-  const _CloseButton({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: () {
-        windowManager.close();
-      },
-      icon: const Icon(
-        IconFont.close,
-        size: 18,
-      ),
-      splashColor: Colors.transparent,
-      hoverColor: Colors.transparent,
-    );
-  }
-}
-
 const double buttonBottomMargin = 8;
 
 class _CmControlPanel extends StatelessWidget {

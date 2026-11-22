@@ -345,7 +345,6 @@ class ConnectHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
     final t = context.bdText;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

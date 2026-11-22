@@ -345,8 +345,6 @@ class _ToolbarTheme {
 
   static double dividerSpaceToAction = 8;
 
-  static double menuBorderRadius = 4;
-  static EdgeInsets menuPadding = const EdgeInsets.symmetric(vertical: 4);
   static const double menuButtonBorderRadius = 4.0;
 
   static Color borderColor(BuildContext context) => context.bd.rule;
@@ -356,21 +354,11 @@ class _ToolbarTheme {
   static MenuStyle defaultMenuStyle(BuildContext context) =>
       bdMenuStyle(context);
   static final defaultMenuButtonStyle = ButtonStyle(
-    backgroundColor: MaterialStatePropertyAll(Colors.transparent),
-    padding: MaterialStatePropertyAll(EdgeInsets.zero),
-    overlayColor: MaterialStatePropertyAll(Colors.transparent),
+    backgroundColor: WidgetStatePropertyAll(Colors.transparent),
+    padding: WidgetStatePropertyAll(EdgeInsets.zero),
+    overlayColor: WidgetStatePropertyAll(Colors.transparent),
   );
 
-  static Widget borderWrapper(
-      BuildContext context, Widget child, BorderRadius borderRadius) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: borderColor(context), width: 1),
-        borderRadius: borderRadius,
-      ),
-      child: child,
-    );
-  }
 }
 
 typedef DismissFunc = void Function();
@@ -798,13 +786,16 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       final privacyModeState = PrivacyModeState.find(widget.id);
       if ((privacyModeState.isEmpty ||
               allowDisplaySwitchInPrivacyMode(pi, privacyModeState.value)) &&
-          pi.displaysCount.value > 1 &&
-          mainGetLocalBoolOptionSync(kOptionAllowMonitorSwitchMainToolbar)) {
-        return _MonitorMenu(
-            id: widget.id,
-            ffi: widget.ffi,
-            edge: edge,
-            setRemoteState: widget.setRemoteState);
+          pi.displaysCount.value > 1) {
+        return Row(mainAxisSize: MainAxisSize.min, children: [
+          if (mainGetLocalBoolOptionSync(kOptionAllowMonitorSwitchMainToolbar))
+            _MainMonitorSwitchButton(id: widget.id, ffi: widget.ffi),
+          _MonitorMenu(
+              id: widget.id,
+              ffi: widget.ffi,
+              edge: edge,
+              setRemoteState: widget.setRemoteState),
+        ]);
       } else {
         return const Offstage();
       }
@@ -912,11 +903,11 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     return Theme.of(context).copyWith(
       menuButtonTheme: MenuButtonThemeData(
         style: ButtonStyle(
-          minimumSize: MaterialStatePropertyAll(Size(64, 32)),
-          textStyle: MaterialStatePropertyAll(
+          minimumSize: WidgetStatePropertyAll(Size(64, 32)),
+          textStyle: WidgetStatePropertyAll(
             TextStyle(fontWeight: FontWeight.normal),
           ),
-          shape: MaterialStatePropertyAll(RoundedRectangleBorder(
+          shape: WidgetStatePropertyAll(RoundedRectangleBorder(
               borderRadius:
                   BorderRadius.circular(_ToolbarTheme.menuButtonBorderRadius))),
         ),
@@ -927,56 +918,13 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       ),
       menuBarTheme: MenuBarThemeData(
           style: MenuStyle(
-        padding: MaterialStatePropertyAll(EdgeInsets.zero),
-        elevation: MaterialStatePropertyAll(0),
-        shape: MaterialStatePropertyAll(BeveledRectangleBorder()),
+        padding: WidgetStatePropertyAll(EdgeInsets.zero),
+        elevation: WidgetStatePropertyAll(0),
+        shape: WidgetStatePropertyAll(BeveledRectangleBorder()),
       ).copyWith(
               backgroundColor:
                   Theme.of(context).menuBarTheme.style?.backgroundColor)),
     );
-  }
-}
-
-class _PinMenu extends StatelessWidget {
-  final ToolbarState state;
-  const _PinMenu({Key? key, required this.state}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(
-      () => _IconMenuButton(
-        assetName: state.pin ? "assets/pinned.svg" : "assets/unpinned.svg",
-        tooltip: state.pin ? 'Unpin Toolbar' : 'Pin Toolbar',
-        onPressed: state.switchPin,
-        color:
-            state.pin ? _ToolbarTheme.blueColor : _ToolbarTheme.inactiveColor,
-        hoverColor: state.pin
-            ? _ToolbarTheme.hoverBlueColor
-            : _ToolbarTheme.hoverInactiveColor,
-      ),
-    );
-  }
-}
-
-class _MobileActionMenu extends StatelessWidget {
-  final FFI ffi;
-  const _MobileActionMenu({Key? key, required this.ffi}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    if (!ffi.ffiModel.isPeerAndroid) return Offstage();
-    return Obx(() => _IconMenuButton(
-          assetName: 'assets/actions_mobile.svg',
-          tooltip: 'Mobile Actions',
-          onPressed: () => ffi.dialogManager.setMobileActionsOverlayVisible(
-              !ffi.dialogManager.mobileActionsOverlayVisible.value),
-          color: ffi.dialogManager.mobileActionsOverlayVisible.isTrue
-              ? _ToolbarTheme.blueColor
-              : _ToolbarTheme.inactiveColor,
-          hoverColor: ffi.dialogManager.mobileActionsOverlayVisible.isTrue
-              ? _ToolbarTheme.hoverBlueColor
-              : _ToolbarTheme.hoverInactiveColor,
-        ));
   }
 }
 
@@ -1107,7 +1055,7 @@ class _MonitorMenu extends StatelessWidget {
         hoverColor: _ToolbarTheme.hoverBlueColor,
         menuStyle: MenuStyle(
             padding:
-                MaterialStatePropertyAll(EdgeInsets.symmetric(horizontal: 6))),
+                WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 6))),
         menuChildrenGetter: (_) => [buildMonitorSubmenuWidget(context)]);
   }
 
@@ -1301,36 +1249,6 @@ class _MonitorMenu extends StatelessWidget {
         openMonitorInTheSameTab(i, ffi, pi, updateCursorPos: !isMulti);
       }
     }
-  }
-}
-
-class _ControlMenu extends StatelessWidget {
-  final String id;
-  final FFI ffi;
-  final ToolbarState state;
-  _ControlMenu(
-      {Key? key, required this.id, required this.ffi, required this.state})
-      : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return _IconSubmenuButton(
-        tooltip: 'Control Actions',
-        svg: "assets/actions.svg",
-        color: _ToolbarTheme.blueColor,
-        hoverColor: _ToolbarTheme.hoverBlueColor,
-        ffi: ffi,
-        menuChildrenGetter: (_) => toolbarControls(context, id, ffi).map((e) {
-              if (e.divider) {
-                return Divider();
-              } else {
-                return MenuButton(
-                    child: e.child,
-                    onPressed: e.onPressed,
-                    ffi: ffi,
-                    trailingIcon: e.trailingIcon);
-              }
-            }).toList());
   }
 }
 
@@ -3284,10 +3202,10 @@ class _BdToolbarSubmenuState extends State<_BdToolbarSubmenu> {
     );
     return MenuBar(
       style: MenuStyle(
-        padding: const MaterialStatePropertyAll(EdgeInsets.zero),
-        elevation: const MaterialStatePropertyAll(0),
-        backgroundColor: const MaterialStatePropertyAll(Colors.transparent),
-        shape: const MaterialStatePropertyAll(RoundedRectangleBorder()),
+        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+        elevation: const WidgetStatePropertyAll(0),
+        backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+        shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
       ),
       children: [
         button.marginSymmetric(
@@ -3345,9 +3263,9 @@ class _IconMenuButtonState extends State<_IconMenuButton> {
       height: _ToolbarTheme.buttonSize,
       child: MenuItemButton(
           style: ButtonStyle(
-              backgroundColor: MaterialStatePropertyAll(Colors.transparent),
-              padding: MaterialStatePropertyAll(EdgeInsets.zero),
-              overlayColor: MaterialStatePropertyAll(Colors.transparent)),
+              backgroundColor: WidgetStatePropertyAll(Colors.transparent),
+              padding: WidgetStatePropertyAll(EdgeInsets.zero),
+              overlayColor: WidgetStatePropertyAll(Colors.transparent)),
           onHover: (value) => setState(() {
                 hover = value;
               }),
@@ -3870,8 +3788,8 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
   @override
   Widget build(BuildContext context) {
     final ButtonStyle buttonStyle = ButtonStyle(
-      minimumSize: MaterialStateProperty.all(const Size(0, 0)),
-      padding: MaterialStateProperty.all(EdgeInsets.zero),
+      minimumSize: WidgetStateProperty.all(const Size(0, 0)),
+      padding: WidgetStateProperty.all(EdgeInsets.zero),
     );
     final isFullscreen = stateGlobal.fullscreen;
     const double iconSize = 20;
@@ -3884,8 +3802,8 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
         onPressed: onPressed,
         child: child,
         style: buttonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.hovered)) {
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered)) {
               return (bgColor ?? hover).withOpacity(0.15);
             }
             return bgColor;
@@ -3974,7 +3892,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
               .menuBarTheme
               .style
               ?.backgroundColor
-              ?.resolve(MaterialState.values.toSet()),
+              ?.resolve(WidgetState.values.toSet()),
           border: Border.all(
             color: _ToolbarTheme.borderColor(context),
             width: 1,
@@ -4098,10 +4016,10 @@ class _MinimizedMonitorSwitchButton extends StatelessWidget {
         child: TextButton(
           onPressed: cycle.next,
           style: ButtonStyle(
-            minimumSize: MaterialStateProperty.all(const Size(0, 0)),
-            padding: MaterialStateProperty.all(EdgeInsets.zero),
-            backgroundColor: MaterialStateProperty.resolveWith((states) {
-              if (states.contains(MaterialState.hovered)) {
+            minimumSize: WidgetStateProperty.all(const Size(0, 0)),
+            padding: WidgetStateProperty.all(EdgeInsets.zero),
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) {
                 return _ToolbarTheme.blueColor.withOpacity(0.15);
               }
               return null;
