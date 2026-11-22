@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/desktop/widgets/bd_toolbar_button.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
@@ -815,14 +816,14 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     final controls = toolbarControls(context, widget.id, widget.ffi);
     final transfer = _findControl(controls, ['Transfer file']);
     if (isDefaultConn && transfer != null) {
-      toolbarItems.add(_BdToolbarButton(
+      toolbarItems.add(BdToolbarButton(
         icon: BdIcons.folder,
         label: tr('bd-tb-files'),
         showLabel: labels && !narrow,
         onPressed: transfer.onPressed,
       ));
     }
-    toolbarItems.add(_BdToolbarButton(
+    toolbarItems.add(BdToolbarButton(
       icon: BdIcons.chat,
       label: translate('Chat'),
       showLabel: labels && !narrow,
@@ -834,7 +835,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     ));
     toolbarItems.add(Obx(() {
       final full = stateGlobal.fullscreen.isTrue;
-      return _BdToolbarButton(
+      return BdToolbarButton(
         icon: full ? BdIcons.fullscreenExit : BdIcons.fullscreen,
         label: full ? tr('bd-tb-exit-full-screen') : tr('bd-tb-full-screen'),
         showLabel: labels && !narrow,
@@ -3133,7 +3134,7 @@ class _RecordMenu extends StatelessWidget {
     final visible = !hideRecordingButton &&
         (recordingModel.start || ffi.permissions['recording'] != false);
     if (!visible || !recordingModel.start) return Offstage();
-    return _BdToolbarButton(
+    return BdToolbarButton(
       icon: BdIcons.fiberManualRecord,
       iconColor: context.bd.danger,
       label: tr('bd-tb-recording'),
@@ -3154,7 +3155,7 @@ class _CloseMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _BdToolbarButton(
+    return BdToolbarButton(
       icon: BdIcons.callEnd,
       label: tr('bd-tb-end'),
       showLabel: showLabel,
@@ -3212,78 +3213,6 @@ TTextMenu? _findControl(List<TTextMenu> controls, List<String> keys) {
     if (!c.divider && _isLabel(c.child, keys)) return c;
   }
   return null;
-}
-
-/// A toolbar button: 36 high, 20 px icon and a 13 / 500 label.
-class _BdToolbarButton extends StatefulWidget {
-  const _BdToolbarButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.showLabel = true,
-    this.danger = false,
-    this.iconColor,
-    this.tooltip,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool showLabel;
-  final bool danger;
-  final Color? iconColor;
-  final String? tooltip;
-
-  @override
-  State<_BdToolbarButton> createState() => _BdToolbarButtonState();
-}
-
-class _BdToolbarButtonState extends State<_BdToolbarButton> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
-    final enabled = widget.onPressed != null;
-    final fg = widget.danger ? c.danger : c.text;
-    Widget content = Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(widget.icon, size: 20, color: widget.iconColor ?? fg),
-      if (widget.showLabel) ...[
-        const SizedBox(width: 8),
-        Text(widget.label,
-            style: t.label.copyWith(fontSize: 13, height: 18 / 13, color: fg)),
-      ],
-    ]);
-    return Tooltip(
-      message: widget.showLabel ? (widget.tooltip ?? '') : widget.label,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onPressed,
-          child: Opacity(
-            opacity: enabled ? 1 : 0.45,
-            child: Container(
-              height: _ToolbarTheme.buttonSize,
-              padding: EdgeInsets.symmetric(
-                  horizontal: widget.showLabel ? 10 : 8),
-              margin: const EdgeInsets.symmetric(
-                  horizontal: _ToolbarTheme.buttonHMargin,
-                  vertical: _ToolbarTheme.buttonVMargin),
-              decoration: BoxDecoration(
-                color: _hover && enabled ? c.hover : Colors.transparent,
-                borderRadius: BdSize.r,
-              ),
-              child: content,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// A toolbar button that opens a menu (Keyboard, More), with expand_more.
