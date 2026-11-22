@@ -112,11 +112,13 @@ Future<void> main(List<String> args) async {
     await windowManager.ensureInitialized();
     runConnectionManagerScreen();
   } else if (args.contains('--install')) {
-    _registerOnboarding();
     runInstallPage();
   } else {
     desktopType = DesktopType.main;
     await windowManager.ensureInitialized();
+    // The onboarding service reads the client core, so the core is loaded
+    // first; runMainApp and runQuickSupportApp then skip that step.
+    await initEnv(kAppTypeMain);
     _registerOnboarding();
     if (OnboardingService.instance.isQuickSupportBuild) {
       runQuickSupportApp();
@@ -130,7 +132,11 @@ Future<void> main(List<String> args) async {
   }
 }
 
+bool _envReady = false;
+
 Future<void> initEnv(String appType) async {
+  if (_envReady) return;
+  _envReady = true;
   // global shared preference
   await platformFFI.init(appType);
   // global FFI, use this **ONLY** for global configuration
@@ -449,6 +455,7 @@ void _runApp(
 void runInstallPage() async {
   await windowManager.ensureInitialized();
   await initEnv(kAppTypeMain);
+  _registerOnboarding();
   _runApp('', const InstallPage(), MyTheme.currentThemeMode());
   WindowOptions windowOptions =
       getHiddenTitleBarWindowOptions(size: Size(680, 560), center: true);
