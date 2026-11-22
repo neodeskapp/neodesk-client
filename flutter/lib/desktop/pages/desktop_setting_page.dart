@@ -1789,6 +1789,13 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
                   title: 'ID/Relay Server',
                   onTap: () => showServerSettings(gFFI.dialogManager, setState),
                 ),
+              if (!hideServer) divider,
+              if (!hideServer)
+                listTile(
+                  icon: Icons.link,
+                  title: 'Pair with code',
+                  onTap: showPairWithCodeDialog,
+                ),
               if (!hideProxy && !hideServer) divider,
               if (!hideProxy)
                 listTile(
@@ -3545,6 +3552,92 @@ void changeSocks5Proxy() async {
       actions: [
         dialogButton('Cancel', onPressed: close, isOutline: true),
         if (!isOptFixed) dialogButton('OK', onPressed: submit),
+      ],
+      onSubmit: submit,
+      onCancel: close,
+    );
+  });
+}
+
+void showPairWithCodeDialog() async {
+  var serverController = TextEditingController();
+  var codeController = TextEditingController();
+  String message = '';
+  bool isError = false;
+  var isInProgress = false;
+
+  gFFI.dialogManager.show((setState, close, context) {
+    submit() async {
+      if (isInProgress) return;
+      setState(() {
+        message = '';
+        isInProgress = true;
+      });
+      final oldApiServer = await bind.mainGetApiServer();
+      final res = await bind.mainPairWithCode(
+          server: serverController.text.trim(),
+          code: codeController.text.trim());
+      Map<String, dynamic> result = {};
+      try {
+        result = jsonDecode(res);
+      } catch (_) {}
+      final ok = result['ok'] == true;
+      final status = (result['status'] ?? '').toString();
+      final error = (result['message'] ?? '').toString();
+      if (ok) {
+        final newApiServer = await bind.mainGetApiServer();
+        if (oldApiServer.isNotEmpty &&
+            oldApiServer != newApiServer &&
+            gFFI.userModel.isLogin) {
+          gFFI.userModel.logOut(apiServer: oldApiServer);
+        }
+      }
+      setState(() {
+        isInProgress = false;
+        isError = !ok;
+        if (ok && status == 'approved') {
+          message = translate('Paired. This device is approved.');
+        } else if (ok) {
+          message = translate(
+              'Paired. This device waits for approval in the console.');
+        } else {
+          message = translate(error.isEmpty ? 'Failed' : error);
+        }
+      });
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate('Pair with code')),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 500),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: serverController,
+              decoration: InputDecoration(labelText: translate('Server')),
+              autofocus: true,
+            ).workaroundFreezeLinuxMint(),
+            TextField(
+              controller: codeController,
+              decoration: InputDecoration(labelText: translate('Code')),
+            ).workaroundFreezeLinuxMint().marginOnly(top: 8),
+            if (message.isNotEmpty)
+              Text(
+                message,
+                style: TextStyle(
+                    color:
+                        isError ? Theme.of(context).colorScheme.error : null),
+              ).marginOnly(top: 12),
+            // NOT use Offstage to wrap LinearProgressIndicator
+            if (isInProgress)
+              const LinearProgressIndicator().marginOnly(top: 8),
+          ],
+        ),
+      ),
+      actions: [
+        dialogButton('Close', onPressed: close, isOutline: true),
+        dialogButton('Pair', onPressed: isInProgress ? null : submit),
       ],
       onSubmit: submit,
       onCancel: close,

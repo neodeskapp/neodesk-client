@@ -8,6 +8,7 @@ pub mod betterdesk;
 pub mod downloader;
 pub mod enrollment;
 mod http_client;
+pub mod pairing;
 pub mod record_upload;
 pub mod sync;
 pub use http_client::{

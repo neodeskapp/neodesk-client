@@ -1187,6 +1187,12 @@ pub fn main_http_request(url: String, method: String, body: Option<String>, head
     http_request(url, method, body, header)
 }
 
+/// Pairs this device with a BetterDesk server using a code from the console.
+/// Returns JSON `{"ok": bool, "status": String, "message": String}`.
+pub fn main_pair_with_code(server: String, code: String) -> String {
+    crate::hbbs_http::pairing::pair_and_apply(server, code).to_json()
+}
+
 pub fn main_get_local_option(key: String) -> SyncReturn<String> {
     SyncReturn(get_local_option(key))
 }
