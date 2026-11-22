@@ -89,7 +89,10 @@ require("src/platform/macos.rs", macos_runtime, 'com.unitronix.{}_service.plist'
 require("src/platform/macos.rs", macos_runtime, 'com.unitronix.{}_server.plist')
 
 release = read(".github/workflows/betterdesk-desktop-release.yml")
-require(".github/workflows/betterdesk-desktop-release.yml", release, 'betterdesk-unsigned-macos-${arch}')
+require(".github/workflows/betterdesk-desktop-release.yml", release, "pattern: betterdesk-unsigned-macos-*")
+require(".github/workflows/betterdesk-desktop-release.yml", release, "scripts/collect_desktop_dist.sh collect")
+collect = read("scripts/collect_desktop_dist.sh")
+require("scripts/collect_desktop_dist.sh", collect, 'betterdesk-unsigned-macos-${arch}')
 
 if failures:
     print("\n".join(failures), file=sys.stderr)
