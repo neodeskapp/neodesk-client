@@ -1,0 +1,458 @@
+// The contract between the onboarding screens (redesign) and the code that
+// joins servers and runs quick support (onboard-client, in
+// onboarding_service_ffi.dart).
+//
+// Additions to the contract of 22 Nov, made for the screens:
+// - OnboardingState: errorKind, joinStep, deviceName, folder, deviceId,
+//   companyPhone, accentHex, link, fileName, declined, messages.
+// - OnboardingService: sendChat() and dismissJoined(), with default bodies,
+//   so an implementation that `extends OnboardingService` compiles without
+//   them. An implementation that `implements` it must add both.
+// - InviteInput: parses what people paste (link, betterdesk:// link, code).
+// - OnboardingService.registered: main.dart sets the real implementation
+//   here at start. Without one, PairingOnboardingService below joins through
+//   the existing pair-with-code call.
+
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+
+enum OnboardingPhase {
+  notSetUp,
+  joining,
+  joined,
+  joinFailed,
+  supportWaiting,
+  supportConsent,
+  supportConnecting,
+  supportInSession,
+  supportEnded,
+  supportExpired,
+}
+
+/// Why a join or a support session failed; picks the sentence on screen.
+enum OnboardingError {
+  /// The text is not a link or code.
+  notAnInvite,
+  expired,
+  usedUp,
+
+  /// The server did not answer (no network, wrong address).
+  unreachable,
+
+  /// The console uses plain HTTP; the person must confirm to go on.
+  insecureHttp,
+  tooManyTries,
+  other,
+}
+
+class OnboardingChatMessage {
+  const OnboardingChatMessage({
+    required this.fromSupporter,
+    required this.text,
+    required this.time,
+  });
+
+  final bool fromSupporter;
+  final String text;
+  final DateTime time;
+}
+
+@immutable
+class OnboardingState {
+  const OnboardingState({
+    required this.phase,
+    this.server,
+    this.supporterName,
+    this.company,
+    this.error,
+    this.inputActive = false,
+    this.errorKind,
+    this.joinStep = 0,
+    this.deviceName,
+    this.folder,
+    this.deviceId,
+    this.companyPhone,
+    this.accentHex,
+    this.link,
+    this.fileName,
+    this.declined = false,
+    this.messages = const [],
+  });
+
+  final OnboardingPhase phase;
+
+  /// The console's host name, e.g. help.fernhill.example.
+  final String? server;
+  final String? supporterName;
+  final String? company;
+
+  /// The server's answer as text, shown in the failed notice.
+  final String? error;
+
+  /// True while the supporter's mouse or keyboard input arrives.
+  final bool inputActive;
+
+  final OnboardingError? errorKind;
+
+  /// Joining progress: 0 checks the invite, 1 gets the settings, 2 adds this
+  /// computer to the server.
+  final int joinStep;
+
+  /// What the invite set (left out on screen when null).
+  final String? deviceName;
+  final String? folder;
+
+  /// This computer's ID after joining.
+  final String? deviceId;
+
+  /// The branding's phone number (quick support waiting too long).
+  final String? companyPhone;
+
+  /// The branding's accent colour from the redeem, as hex.
+  final String? accentHex;
+
+  /// The link or code that was redeemed (Try again).
+  final String? link;
+
+  /// The quick support file the person downloaded.
+  final String? fileName;
+
+  /// The person clicked Decline (supportEnded).
+  final bool declined;
+
+  /// Chat during a quick support session, oldest first.
+  final List<OnboardingChatMessage> messages;
+
+  OnboardingState copyWith({
+    OnboardingPhase? phase,
+    String? server,
+    String? supporterName,
+    String? company,
+    String? error,
+    bool? inputActive,
+    OnboardingError? errorKind,
+    bool clearError = false,
+    int? joinStep,
+    String? deviceName,
+    String? folder,
+    String? deviceId,
+    String? companyPhone,
+    String? accentHex,
+    String? link,
+    String? fileName,
+    bool? declined,
+    List<OnboardingChatMessage>? messages,
+  }) =>
+      OnboardingState(
+        phase: phase ?? this.phase,
+        server: server ?? this.server,
+        supporterName: supporterName ?? this.supporterName,
+        company: company ?? this.company,
+        error: clearError ? null : (error ?? this.error),
+        inputActive: inputActive ?? this.inputActive,
+        errorKind: clearError ? null : (errorKind ?? this.errorKind),
+        joinStep: joinStep ?? this.joinStep,
+        deviceName: deviceName ?? this.deviceName,
+        folder: folder ?? this.folder,
+        deviceId: deviceId ?? this.deviceId,
+        companyPhone: companyPhone ?? this.companyPhone,
+        accentHex: accentHex ?? this.accentHex,
+        link: link ?? this.link,
+        fileName: fileName ?? this.fileName,
+        declined: declined ?? this.declined,
+        messages: messages ?? this.messages,
+      );
+
+  /// The supporter's first name for the short lines; the full name when the
+  /// account has only one word.
+  String get supporterShortName {
+    final n = (supporterName ?? '').trim();
+    if (n.isEmpty) return '';
+    final first = n.split(RegExp(r'\s+')).first;
+    return first;
+  }
+}
+
+abstract class OnboardingService {
+  /// The implementation main.dart chose at start.
+  static OnboardingService? registered;
+
+  static OnboardingService? _fallback;
+
+  /// The service the screens use.
+  static OnboardingService get instance =>
+      registered ?? (_fallback ??= PairingOnboardingService());
+
+  Stream<OnboardingState> get states;
+  OnboardingState get current;
+
+  /// A link, a short code, or a betterdesk:// link.
+  Future<void> redeemJoin(String linkOrCode);
+  Future<void> redeemSupport(String linkOrCode);
+  Future<void> consent(bool allow);
+  Future<void> endSupport();
+
+  /// Started from a QuickSupport file name or link.
+  bool get isQuickSupportBuild;
+
+  /// Sends a chat line to the supporter during quick support.
+  Future<void> sendChat(String text) async {}
+
+  /// Done on the joined screen: the app goes to Home.
+  void dismissJoined() {}
+}
+
+/// What people paste into the invite field.
+class InviteInput {
+  const InviteInput._(this.kind, this.host, this.code,
+      [this.isPlainHttp = false]);
+
+  final InviteKind kind;
+
+  /// The link uses http://, not https://; the screen warns first.
+  final bool isPlainHttp;
+
+  /// The console host (with port), when the text names one.
+  final String? host;
+
+  /// The code without dash, upper case.
+  final String? code;
+
+  static final _code = RegExp(r'^[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}$');
+
+  /// Accepts https://<host>/join/<code>, http://..., betterdesk://join/<host>/<code>,
+  /// the same for support (/s/<code>, betterdesk://support/...), and a bare
+  /// code with or without the dash.
+  static InviteInput parse(String raw) {
+    final s = raw.trim();
+    if (s.isEmpty) return const InviteInput._(InviteKind.empty, null, null);
+    if (_code.hasMatch(s)) {
+      return InviteInput._(
+          InviteKind.code, null, s.replaceAll('-', '').toUpperCase());
+    }
+    final uri = Uri.tryParse(s);
+    if (uri != null && uri.scheme.isNotEmpty) {
+      final segs = uri.pathSegments.where((p) => p.isNotEmpty).toList();
+      if (uri.scheme == 'betterdesk') {
+        // betterdesk://join/<host>/<code>: the host part is "join".
+        final kind = uri.host == 'join'
+            ? InviteKind.joinLink
+            : (uri.host == 'support' ? InviteKind.supportLink : null);
+        if (kind != null && segs.length >= 2 && _code.hasMatch(segs[1])) {
+          return InviteInput._(
+              kind, segs[0], segs[1].replaceAll('-', '').toUpperCase());
+        }
+      } else if ((uri.scheme == 'https' || uri.scheme == 'http') &&
+          uri.host.isNotEmpty &&
+          segs.length >= 2) {
+        final host = uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
+        final kind = segs[segs.length - 2] == 'join'
+            ? InviteKind.joinLink
+            : (segs[segs.length - 2] == 's' ? InviteKind.supportLink : null);
+        final code = segs.last;
+        if (kind != null && _code.hasMatch(code)) {
+          return InviteInput._(kind, host,
+              code.replaceAll('-', '').toUpperCase(), uri.scheme == 'http');
+        }
+      }
+    }
+    return InviteInput._(InviteKind.invalid, null, null);
+  }
+
+  bool get needsServer => kind == InviteKind.code;
+
+  /// The code as people read it: 7KQ4-M2XD.
+  String? get displayCode => code == null || code!.length != 8
+      ? code
+      : '${code!.substring(0, 4)}-${code!.substring(4)}';
+}
+
+enum InviteKind { empty, invalid, code, joinLink, supportLink }
+
+/// The screens' test double, and the demo for screenshots: every phase can
+/// be set by hand, redeemJoin walks through the three steps.
+class FakeOnboardingService extends OnboardingService {
+  FakeOnboardingService([OnboardingState? start, this.quickSupport = false])
+      : _state = start ?? const OnboardingState(phase: OnboardingPhase.notSetUp);
+
+  final bool quickSupport;
+  OnboardingState _state;
+  final _ctrl = StreamController<OnboardingState>.broadcast();
+  final List<String> calls = [];
+
+  /// What the next redeemJoin ends in; null joins.
+  OnboardingError? nextJoinError;
+  Duration stepDelay = const Duration(milliseconds: 600);
+
+  @override
+  Stream<OnboardingState> get states => _ctrl.stream;
+
+  @override
+  OnboardingState get current => _state;
+
+  void emit(OnboardingState s) {
+    _state = s;
+    _ctrl.add(s);
+  }
+
+  @override
+  bool get isQuickSupportBuild => quickSupport;
+
+  @override
+  Future<void> redeemJoin(String linkOrCode) async {
+    calls.add('redeemJoin:$linkOrCode');
+    final input = InviteInput.parse(linkOrCode);
+    if (input.kind == InviteKind.invalid || input.kind == InviteKind.empty) {
+      emit(_state.copyWith(
+          phase: OnboardingPhase.notSetUp,
+          errorKind: OnboardingError.notAnInvite));
+      return;
+    }
+    emit(_state.copyWith(
+        phase: OnboardingPhase.joining,
+        joinStep: 0,
+        server: input.host ?? _state.server,
+        link: linkOrCode,
+        clearError: true));
+    for (var i = 1; i <= 2; i++) {
+      await Future.delayed(stepDelay);
+      emit(_state.copyWith(joinStep: i));
+    }
+    await Future.delayed(stepDelay);
+    if (nextJoinError != null) {
+      emit(_state.copyWith(
+          phase: OnboardingPhase.joinFailed, errorKind: nextJoinError));
+    } else {
+      emit(_state.copyWith(phase: OnboardingPhase.joined));
+    }
+  }
+
+  @override
+  Future<void> redeemSupport(String linkOrCode) async {
+    calls.add('redeemSupport:$linkOrCode');
+    emit(_state.copyWith(
+        phase: OnboardingPhase.supportConnecting,
+        link: linkOrCode,
+        clearError: true));
+  }
+
+  @override
+  Future<void> consent(bool allow) async {
+    calls.add('consent:$allow');
+    emit(_state.copyWith(
+        phase: allow
+            ? OnboardingPhase.supportWaiting
+            : OnboardingPhase.supportEnded,
+        declined: !allow));
+  }
+
+  @override
+  Future<void> endSupport() async {
+    calls.add('endSupport');
+    emit(_state.copyWith(phase: OnboardingPhase.supportEnded, declined: false));
+  }
+
+  @override
+  Future<void> sendChat(String text) async {
+    calls.add('sendChat:$text');
+    emit(_state.copyWith(messages: [
+      ..._state.messages,
+      OnboardingChatMessage(
+          fromSupporter: false, text: text, time: DateTime.now()),
+    ]));
+  }
+
+  @override
+  void dismissJoined() {
+    calls.add('dismissJoined');
+  }
+}
+
+/// Joins through today's pair-with-code call (server address and code)
+/// until the real implementation is registered. Quick support needs the
+/// real implementation; here it reports the link as expired.
+class PairingOnboardingService extends OnboardingService {
+  PairingOnboardingService({this.pair, this.hasServer});
+
+  /// bind.mainPairWithCode, as JSON {"ok","status","message"}.
+  final Future<String> Function(String server, String code)? pair;
+
+  /// Whether this computer already has a server.
+  final bool Function()? hasServer;
+
+  final _ctrl = StreamController<OnboardingState>.broadcast();
+  OnboardingState? _state;
+
+  @override
+  Stream<OnboardingState> get states => _ctrl.stream;
+
+  @override
+  OnboardingState get current => _state ??= OnboardingState(
+      phase: (hasServer?.call() ?? true)
+          ? OnboardingPhase.joined
+          : OnboardingPhase.notSetUp);
+
+  void _emit(OnboardingState s) {
+    _state = s;
+    _ctrl.add(s);
+  }
+
+  @override
+  bool get isQuickSupportBuild => false;
+
+  @override
+  Future<void> redeemJoin(String linkOrCode) async {
+    final input = InviteInput.parse(linkOrCode);
+    if (input.host == null || input.code == null || pair == null) {
+      _emit(current.copyWith(
+          phase: OnboardingPhase.notSetUp,
+          errorKind: OnboardingError.notAnInvite));
+      return;
+    }
+    final scheme = input.isPlainHttp ? 'http' : 'https';
+    _emit(current.copyWith(
+        phase: OnboardingPhase.joining,
+        joinStep: 1,
+        server: input.host,
+        link: linkOrCode,
+        clearError: true));
+    Map<String, dynamic> res = {};
+    try {
+      res = jsonDecode(await pair!('$scheme://${input.host}', input.code!));
+    } catch (_) {}
+    if (res['ok'] == true) {
+      _emit(current.copyWith(phase: OnboardingPhase.joined, joinStep: 2));
+    } else {
+      final msg = (res['message'] ?? '').toString();
+      final lower = msg.toLowerCase();
+      _emit(current.copyWith(
+        phase: OnboardingPhase.joinFailed,
+        error: msg,
+        errorKind: lower.contains('expired')
+            ? OnboardingError.expired
+            : lower.contains('used')
+                ? OnboardingError.usedUp
+                : lower.contains('too many') || lower.contains('429')
+                    ? OnboardingError.tooManyTries
+                    : msg.isEmpty
+                        ? OnboardingError.unreachable
+                        : OnboardingError.other,
+      ));
+    }
+  }
+
+  @override
+  Future<void> redeemSupport(String linkOrCode) async {
+    _emit(current.copyWith(phase: OnboardingPhase.supportExpired));
+  }
+
+  @override
+  Future<void> consent(bool allow) async {}
+
+  @override
+  Future<void> endSupport() async {
+    _emit(current.copyWith(phase: OnboardingPhase.supportEnded));
+  }
+}
