@@ -353,13 +353,13 @@ jobs:
         run: |
           bincache="${VCPKG_BINCACHE}"
           if command -v cygpath >/dev/null; then bincache="$(cygpath -u "${bincache}")"; fi
-          cached_before="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          cached_before="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
           status=0
           $VCPKG_ROOT/vcpkg \
             install \
             --triplet ${{ matrix.job.vcpkg-triplet }} \
             --x-install-root="$VCPKG_ROOT/installed" || status=$?
-          cached_after="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          cached_after="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
           echo "vcpkg binary cache: ${cached_before} -> ${cached_after} packages"
           if [ "${cached_after}" -gt "${cached_before}" ]; then
             echo "built=true" >> "${GITHUB_OUTPUT}"
@@ -747,12 +747,12 @@ jobs:
         run: |
           bincache="${VCPKG_BINCACHE}"
           if command -v cygpath >/dev/null; then bincache="$(cygpath -u "${bincache}")"; fi
-          cached_before="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          cached_before="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
           status=0
           $VCPKG_ROOT/vcpkg \
             install \
             --x-install-root="$VCPKG_ROOT/installed" || status=$?
-          cached_after="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          cached_after="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
           echo "vcpkg binary cache: ${cached_before} -> ${cached_after} packages"
           if [ "${cached_after}" -gt "${cached_before}" ]; then
             echo "built=true" >> "${GITHUB_OUTPUT}"
@@ -963,13 +963,13 @@ jobs:
           sudo apt install -y libva-dev && apt show libva-dev
           bincache="${VCPKG_BINCACHE}"
           if command -v cygpath >/dev/null; then bincache="$(cygpath -u "${bincache}")"; fi
-          cached_before="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          cached_before="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
           status=0
           $VCPKG_ROOT/vcpkg \
             install \
             --triplet ${{ matrix.job.vcpkg-triplet }} \
             --x-install-root="$VCPKG_ROOT/installed" || status=$?
-          cached_after="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          cached_after="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
           echo "vcpkg binary cache: ${cached_before} -> ${cached_after} packages"
           if [ "${cached_after}" -gt "${cached_before}" ]; then
             echo "built=true" >> "${GITHUB_OUTPUT}"
