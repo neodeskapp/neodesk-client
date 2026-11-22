@@ -796,6 +796,16 @@ impl Connection {
                             conn.chat_unanswered = false;
                         }
                         ipc::Data::SwitchPermission{name, enabled} => {
+                            if enabled && crate::cm_switch_blocked_by_server(
+                                conn.control_permissions.as_ref().map(|cp| cp.permissions),
+                                &name,
+                            ) {
+                                // The server turned this permission off for the session; the
+                                // connection manager's switch flips back.
+                                log::info!("Permission {} stays off: the server turned it off for this session", name);
+                                conn.send_to_cm(ipc::Data::SwitchPermission { name, enabled: false });
+                                continue;
+                            }
                             log::info!("Change permission {} -> {}", name, enabled);
                             if &name == "keyboard" {
                                 conn.keyboard = enabled;

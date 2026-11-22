@@ -3042,8 +3042,11 @@ pub fn str2color(s: &str, alpha: u8) -> u32 {
 }
 
 /// Check control permission state from a u64 bitmap.
-/// Each permission uses 2 bits: 0 = not set, 1 = disable, 2 = enable, 3 = invalid (treated as not set)
-/// Returns: Some(true) = enabled, Some(false) = disabled, None = not set or invalid
+/// Each permission uses 2 bits: 0 = not set, 1 = disable, 2 = enable, 3 = invalid.
+/// The server can only take a permission away for a session: enable reads as not set,
+/// so the device's own setting decides. A server that passes on bits the controller
+/// chose cannot switch on what the device has off.
+/// Returns: Some(false) = disabled by the server, None = the device decides
 pub fn get_control_permission(
     permissions: u64,
     permission: hbb_common::rendezvous_proto::control_permissions::Permission,
@@ -3054,11 +3057,39 @@ pub fn get_control_permission(
         let value = (permissions >> shift) & 0b11;
         match value {
             1 => Some(false), // disable
-            2 => Some(true),  // enable
-            _ => None,        // 0 = not set, 3 = invalid
+            _ => None,        // 0 = not set, 2 = enable (ignored), 3 = invalid
         }
     } else {
         None
+    }
+}
+
+/// The control permission behind a permission switch of the connection manager, by the
+/// name the switch sends (`ipc::Data::SwitchPermission`).
+pub fn cm_switch_control_permission(
+    name: &str,
+) -> Option<hbb_common::rendezvous_proto::control_permissions::Permission> {
+    use hbb_common::rendezvous_proto::control_permissions::Permission;
+    match name {
+        "keyboard" => Some(Permission::keyboard),
+        "clipboard" => Some(Permission::clipboard),
+        "audio" => Some(Permission::audio),
+        "file" => Some(Permission::file),
+        "restart" => Some(Permission::restart),
+        "recording" => Some(Permission::recording),
+        "block_input" => Some(Permission::block_input),
+        "privacy_mode" => Some(Permission::privacy_mode),
+        _ => None,
+    }
+}
+
+/// Whether the server turned off, for this session, the permission a switch of the
+/// connection manager names. Such a switch cannot turn it on: neither the person at the
+/// device nor a controller who clicks the connection manager through the session.
+pub fn cm_switch_blocked_by_server(control_permissions: Option<u64>, name: &str) -> bool {
+    match (control_permissions, cm_switch_control_permission(name)) {
+        (Some(bits), Some(permission)) => get_control_permission(bits, permission) == Some(false),
+        _ => false,
     }
 }
 
@@ -3088,6 +3119,61 @@ mod tests {
         time::{interval, interval_at, sleep, Duration, Instant, Interval},
     };
     use std::collections::HashSet;
+
+    use hbb_common::rendezvous_proto::control_permissions::Permission;
+
+    /// The control_permissions bits that set each permission to `value` (1 off, 2 on).
+    fn control_bits(permissions: &[Permission], value: u64) -> u64 {
+        permissions
+            .iter()
+            .fold(0, |bits, p| bits | value << (2 * p.value() as u64))
+    }
+
+    #[test]
+    fn control_permissions_from_the_server_only_turn_permissions_off() {
+        let off = control_bits(&[Permission::file, Permission::clipboard], 1);
+        assert_eq!(get_control_permission(off, Permission::file), Some(false));
+        assert_eq!(get_control_permission(off, Permission::clipboard), Some(false));
+        assert_eq!(get_control_permission(off, Permission::keyboard), None);
+
+        // An enable bit leaves the permission to the device's own setting.
+        let on = control_bits(&[Permission::file, Permission::keyboard, Permission::privacy_mode], 2);
+        assert_eq!(get_control_permission(on, Permission::file), None);
+        assert_eq!(get_control_permission(on, Permission::keyboard), None);
+        assert_eq!(get_control_permission(on, Permission::privacy_mode), None);
+
+        // 3 is invalid and reads as not set.
+        let invalid = control_bits(&[Permission::audio], 3);
+        assert_eq!(get_control_permission(invalid, Permission::audio), None);
+    }
+
+    #[test]
+    fn connection_manager_switches_cannot_turn_on_what_the_server_turned_off() {
+        let names = [
+            ("keyboard", Permission::keyboard),
+            ("clipboard", Permission::clipboard),
+            ("audio", Permission::audio),
+            ("file", Permission::file),
+            ("restart", Permission::restart),
+            ("recording", Permission::recording),
+            ("block_input", Permission::block_input),
+            ("privacy_mode", Permission::privacy_mode),
+        ];
+        for (name, permission) in names {
+            assert_eq!(cm_switch_control_permission(name), Some(permission), "{name}");
+            let off = control_bits(&[permission], 1);
+            assert!(cm_switch_blocked_by_server(Some(off), name), "{name} off");
+            let on = control_bits(&[permission], 2);
+            assert!(!cm_switch_blocked_by_server(Some(on), name), "{name} on");
+            assert!(!cm_switch_blocked_by_server(Some(0), name), "{name} not set");
+            assert!(!cm_switch_blocked_by_server(None, name), "{name} without server permissions");
+        }
+        // Another permission turned off does not block this switch.
+        let file_off = control_bits(&[Permission::file], 1);
+        assert!(!cm_switch_blocked_by_server(Some(file_off), "clipboard"));
+        // A name without a control permission is never blocked.
+        assert!(!cm_switch_blocked_by_server(Some(u64::MAX), "unknown"));
+    }
 
     #[test]
     fn parses_stable_rustdesk_release_url() {
