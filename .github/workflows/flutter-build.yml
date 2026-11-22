@@ -109,7 +109,7 @@ jobs:
               },
               "aarch64": {
                   "target": "aarch64-apple-darwin",
-                  "os": "macos-14",
+                  "os": "macos-15",
                   # "--disable-flutter-texture-render" stays off on mac: users report flickering
                   # on both arm and x64, https://github.com/rustdesk/rustdesk/issues/6296
                   "extra-build-args": "--screencapturekit",
