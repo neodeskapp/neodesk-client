@@ -14,7 +14,7 @@
 )]
 
 use hbb_common::{
-    config::{self, keys, Config},
+    config::{self, keys},
     log, tokio,
 };
 use serde_json::{json, Value};
@@ -208,8 +208,9 @@ impl Pairing {
     }
 }
 
-/// Redeems `code` at `server`. Changes nothing locally, see [`pair_and_apply`].
-pub async fn pair_with_code(server: &str, code: &str) -> Pairing {
+/// Redeems `code` at `server` for `device_id`. Changes nothing locally, see
+/// [`pair_and_apply`].
+pub async fn pair_with_code(server: &str, code: &str, device_id: String) -> Pairing {
     let Some(target) = pairing_target(server).filter(|target| !crate::is_public(&target.api))
     else {
         return Pairing::failed(MESSAGE_SERVER_INVALID);
@@ -218,7 +219,6 @@ pub async fn pair_with_code(server: &str, code: &str) -> Pairing {
     if code.is_empty() {
         return Pairing::failed(MESSAGE_CODE_EMPTY);
     }
-    let device_id = Config::get_id();
     if device_id.is_empty() {
         return Pairing::failed(MESSAGE_NOT_ADMITTED);
     }
@@ -276,15 +276,20 @@ pub async fn pair_with_code(server: &str, code: &str) -> Pairing {
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn pair_with_code_blocking(server: String, code: String) -> Pairing {
-    pair_with_code(&server, &code).await
+async fn pair_with_code_blocking(server: String, code: String, device_id: String) -> Pairing {
+    pair_with_code(&server, &code, device_id).await
 }
 
 /// Pairs with `code` and, when the server admitted the device, takes over its
 /// settings and keeps the enrollment status and device token. Runs outside
 /// any async runtime, because setting options goes to the service over IPC.
 pub fn pair_and_apply(server: String, code: String) -> PairResult {
-    let pairing = pair_with_code_blocking(server, code);
+    // The service's ID, which its sync loop sends the token with.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let device_id = crate::ipc::get_id();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let device_id = config::Config::get_id();
+    let pairing = pair_with_code_blocking(server, code, device_id);
     if pairing.result.ok {
         for (key, value) in pairing.options {
             crate::ui_interface::set_option(key.to_owned(), value);
