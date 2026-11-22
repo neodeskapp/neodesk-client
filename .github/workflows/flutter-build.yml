@@ -585,8 +585,8 @@ jobs:
           name: rustdesk-unsigned-msi-template-${{ matrix.job.arch }}
           path: ./msi-template
 
-      # With signing on, every exe and msi this job ships has to carry a valid
-      # signature by the publisher. The MSI template is left out: the console
+      # With signing on, every exe and msi this job ships has to carry a valid,
+      # timestamped signature by the publisher. The MSI template is left out: the console
       # generator rewrites it, which would break any signature.
       - name: Check the signatures
         if: env.UPLOAD_ARTIFACT == 'true'
@@ -597,13 +597,13 @@ jobs:
           $bad = 0
           foreach ($f in $files) {
             $s = Get-AuthenticodeSignature -LiteralPath $f.FullName
-            Write-Host "$($f.FullName): $($s.Status) $($s.SignerCertificate.Subject)"
+            Write-Host "$($f.FullName): $($s.Status) $($s.SignerCertificate.Subject) timestamp: $($s.TimeStamperCertificate.Subject)"
             if ($env:WINDOWS_SIGNING -eq 'true') {
-              if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch '^CN="?Rath & Blume GbR') { $bad++ }
+              if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch '^CN="?Rath & Blume GbR' -or -not $s.TimeStamperCertificate) { $bad++ }
             }
           }
           if ($files.Count -eq 0) { throw "no exe or msi found to check" }
-          if ($bad) { throw "$bad file(s) without a valid Rath & Blume GbR signature" }
+          if ($bad) { throw "$bad file(s) without a valid, timestamped Rath & Blume GbR signature" }
 
       - name: Upload Windows installers
         if: env.UPLOAD_ARTIFACT == 'true'

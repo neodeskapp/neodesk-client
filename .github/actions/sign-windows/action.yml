@@ -3,8 +3,9 @@
 # Looks for .exe, .dll and .msi files under the given paths and signs the ones
 # that have no signature yet, so files that come signed by someone else (or
 # belong to a driver package whose catalog covers them) keep what they have.
-# Fails when a file it signed does not then carry a valid signature by the
-# publisher.
+# Fails when a file it signed does not then carry a valid, timestamped
+# signature by the publisher. Artifact Signing certificates last three days,
+# so a signature without a timestamp stops being valid soon after.
 #
 # x64 runners sign with azure/artifact-signing-action. That action does not
 # run on Windows on Arm, so arm64 runners sign the same way through jsign,
@@ -124,7 +125,7 @@ runs:
         $bad = 0
         Get-Content -LiteralPath $env:SIGN_LIST | Where-Object { $_ } | ForEach-Object {
           $s = Get-AuthenticodeSignature -LiteralPath $_
-          Write-Host "$($_): $($s.Status) $($s.SignerCertificate.Subject)"
-          if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch '^CN="?Rath & Blume GbR') { $bad++ }
+          Write-Host "$($_): $($s.Status) $($s.SignerCertificate.Subject) timestamp: $($s.TimeStamperCertificate.Subject)"
+          if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch '^CN="?Rath & Blume GbR' -or -not $s.TimeStamperCertificate) { $bad++ }
         }
-        if ($bad) { throw "$bad file(s) without a valid Rath & Blume GbR signature" }
+        if ($bad) { throw "$bad file(s) without a valid, timestamped Rath & Blume GbR signature" }
