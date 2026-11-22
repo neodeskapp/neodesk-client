@@ -112,6 +112,7 @@ Future<void> main(List<String> args) async {
     await windowManager.ensureInitialized();
     runConnectionManagerScreen();
   } else if (args.contains('--install')) {
+    _registerOnboarding();
     runInstallPage();
   } else {
     desktopType = DesktopType.main;
@@ -450,7 +451,7 @@ void runInstallPage() async {
   await initEnv(kAppTypeMain);
   _runApp('', const InstallPage(), MyTheme.currentThemeMode());
   WindowOptions windowOptions =
-      getHiddenTitleBarWindowOptions(size: Size(800, 600), center: true);
+      getHiddenTitleBarWindowOptions(size: Size(680, 560), center: true);
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     windowManager.show();
     windowManager.focus();
