@@ -19,7 +19,7 @@ use hbb_common::{
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::create_http_client_async_with_url;
+use super::{create_http_client_async_with_url, enrollment};
 
 /// Product marker sent as `device_type` / `client_product` (legacy CDAP-safe).
 pub const CLIENT_PRODUCT: &str = config::BETTERDESK_CLIENT_PRODUCT;
@@ -44,7 +44,6 @@ const BRANDING_POLL_INTERVAL: Duration = Duration::from_secs(60);
 const TELEMETRY_KEY_POLL_INTERVAL: Duration = Duration::from_secs(3600);
 const OPTION_ENROLLMENT_STATUS: &str = "betterdesk-enrollment-status";
 const OPTION_ENROLLMENT_LAST_ATTEMPT: &str = "betterdesk-enrollment-last-attempt";
-const ENROLLMENT_RETRY_SECS: u64 = 120;
 
 /// Applied SKU from bake-in (`conn-type: incoming` → Support Agent).
 #[inline]
@@ -320,35 +319,77 @@ lazy_static::lazy_static! {
     static ref LAST_ENROLLMENT_POLL: Mutex<Option<Instant>> = Mutex::new(None);
 }
 
+/// Stores the status and device token from an enrollment answer for the
+/// device id and API base the request went to. A "rejected" answer clears the
+/// token.
+pub(super) fn record_enrollment_answer(
+    status: &str,
+    token: Option<&str>,
+    device_id: &str,
+    api: &str,
+) {
+    if status.is_empty() {
+        return;
+    }
+    if LocalConfig::get_option(OPTION_ENROLLMENT_STATUS) != status {
+        log::info!("BetterDesk enrollment status={status}");
+    }
+    LocalConfig::set_option(OPTION_ENROLLMENT_STATUS.to_owned(), status.to_owned());
+    LocalConfig::set_option(
+        OPTION_ENROLLMENT_LAST_ATTEMPT.to_owned(),
+        format!("{}", hbb_common::get_time()),
+    );
+    match enrollment::token_change(status, token) {
+        enrollment::TokenChange::Keep => {}
+        enrollment::TokenChange::Replace(token) => {
+            enrollment::store_token(&token, device_id, api);
+            log::info!("BetterDesk device token stored");
+        }
+        enrollment::TokenChange::Clear => enrollment::clear_token(),
+    }
+}
+
 /// POST `{api}/api/devices/register` for BetterDesk desktop / Support (incoming-only).
 ///
 /// Uses `device_type: betterdesk-desktop` so the server does **not** apply the
 /// legacy CDAP Support Agent proof path. Managed mode → pending queue; open → approved.
+/// Requests carry the device key proof and, when one is stored for this device
+/// and server, the device token (see [`enrollment`]). Once the device is
+/// approved and holds a token, only a status check runs every 10 minutes, so a
+/// token the console issues later reaches the device.
 pub async fn sync_device_enrollment() {
     let base = api_base();
     if base.is_empty() || crate::is_public(&base) {
         return;
     }
 
-    let status = LocalConfig::get_option(OPTION_ENROLLMENT_STATUS);
-    if status == "approved" {
-        return;
-    }
-
-    {
-        let mut last = LAST_ENROLLMENT_POLL.lock().unwrap();
-        if let Some(t) = *last {
-            if t.elapsed() < Duration::from_secs(ENROLLMENT_RETRY_SECS) {
-                return;
-            }
-        }
-        *last = Some(Instant::now());
-    }
-
     let device_id = Config::get_id();
     if device_id.is_empty() {
         return;
     }
+    let status = LocalConfig::get_option(OPTION_ENROLLMENT_STATUS);
+    let stored_token = enrollment::StoredToken::load();
+    let token = stored_token.usable_for(&device_id, &base);
+
+    let step = {
+        let mut last = LAST_ENROLLMENT_POLL.lock().unwrap();
+        let step =
+            enrollment::next_enrollment_step(&status, token.is_some(), last.map(|t| t.elapsed()));
+        if step != enrollment::EnrollmentStep::Wait {
+            *last = Some(Instant::now());
+        }
+        step
+    };
+    match step {
+        enrollment::EnrollmentStep::Wait => return,
+        enrollment::EnrollmentStep::CheckToken => {
+            let client = create_http_client_async_with_url(&base).await;
+            check_enrollment_status(&client, &base, &device_id).await;
+            return;
+        }
+        enrollment::EnrollmentStep::Register => {}
+    }
+
     let device_uuid = String::from_utf8_lossy(&hbb_common::get_uuid()).into_owned();
 
     let mut body = serde_json::json!({
@@ -367,11 +408,21 @@ pub async fn sync_device_enrollment() {
             "betterdesk-desktop"
         },
     });
+    if let Some(public_key) = enrollment::public_key_b64() {
+        body["public_key"] = Value::String(public_key);
+    }
     merge_device_identity(&mut body);
 
     let url = format!("{base}/api/devices/register");
     let client = create_http_client_async_with_url(&url).await;
-    let resp = match client.post(&url).json(&body).send().await {
+    let request = enrollment::sign_request(
+        client.post(&url).json(&body),
+        "POST",
+        &url,
+        &device_id,
+        token,
+    );
+    let resp = match request.send().await {
         Ok(r) => r,
         Err(err) => {
             log::debug!("enrollment register skipped: {err}");
@@ -380,38 +431,50 @@ pub async fn sync_device_enrollment() {
     };
     let status_code = resp.status();
     let text = resp.text().await.unwrap_or_default();
-    if !(status_code.is_success() || status_code.as_u16() == 202 || status_code.as_u16() == 403) {
-        log::debug!("enrollment register HTTP {status_code}: {text}");
+    if !(status_code.is_success() || matches!(status_code.as_u16(), 403 | 409)) {
+        log::debug!("enrollment register HTTP {status_code}");
         return;
     }
 
     let value: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
-    let enroll_status = value
-        .get("status")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_owned();
-    if !enroll_status.is_empty() {
-        LocalConfig::set_option(OPTION_ENROLLMENT_STATUS.to_owned(), enroll_status.clone());
-        LocalConfig::set_option(
-            OPTION_ENROLLMENT_LAST_ATTEMPT.to_owned(),
-            format!("{}", hbb_common::get_time()),
-        );
-        log::info!("BetterDesk enrollment status={enroll_status}");
-    }
+    let enroll_status = enrollment::answer_status(&value).to_owned();
+    record_enrollment_answer(
+        &enroll_status,
+        enrollment::answer_token(&value),
+        &device_id,
+        &base,
+    );
 
     // Poll status when pending
     if enroll_status == "pending" {
-        let status_url = format!("{base}/api/devices/register/status?device_id={device_id}");
-        if let Ok(r) = client.get(&status_url).send().await {
-            if let Ok(t) = r.text().await {
-                if let Ok(v) = serde_json::from_str::<Value>(&t) {
-                    if let Some(s) = v.get("status").and_then(|x| x.as_str()) {
-                        LocalConfig::set_option(OPTION_ENROLLMENT_STATUS.to_owned(), s.to_owned());
-                    }
-                }
-            }
+        check_enrollment_status(&client, &base, &device_id).await;
+    }
+}
+
+/// GET `{api}/api/devices/register/status` with the key proof and the stored
+/// device token, and store what it answers.
+async fn check_enrollment_status(client: &reqwest::Client, base: &str, device_id: &str) {
+    let url = format!(
+        "{base}/api/devices/register/status?device_id={}",
+        enrollment::query_value(device_id)
+    );
+    let stored_token = enrollment::StoredToken::load();
+    let token = stored_token.usable_for(device_id, base);
+    let request = enrollment::sign_request(client.get(&url), "GET", &url, device_id, token);
+    let text = match request.send().await {
+        Ok(resp) => resp.text().await.unwrap_or_default(),
+        Err(err) => {
+            log::debug!("enrollment status check skipped: {err}");
+            return;
         }
+    };
+    if let Ok(value) = serde_json::from_str::<Value>(&text) {
+        record_enrollment_answer(
+            enrollment::answer_status(&value),
+            enrollment::answer_token(&value),
+            device_id,
+            base,
+        );
     }
 }
 

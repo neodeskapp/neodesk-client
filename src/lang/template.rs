@@ -783,5 +783,16 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Accent color", ""),
         ("Background color", ""),
         ("Invalid color", ""),
+        ("Pair with code", ""),
+        ("Code", ""),
+        ("Pair", ""),
+        ("Paired. This device is approved.", ""),
+        ("Paired. This device waits for approval in the console.", ""),
+        ("The code is wrong or has expired.", ""),
+        ("Enter the address of your BetterDesk server.", ""),
+        ("Enter the code.", ""),
+        ("Could not reach the server.", ""),
+        ("The server did not accept the request.", ""),
+        ("The server did not admit this device.", ""),
     ].iter().cloned().collect();
 }
