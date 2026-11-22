@@ -349,7 +349,7 @@ async fn start_hbbs_sync_async() {
                                 handle_config_options(strategy.config_options);
                             }
                         }
-                        if let Some(command) = rsp.remove("connection_mode_command") {
+                        if let Some(command) = sealed_only.remove("connection_mode_command") {
                             if secure_response && telemetry_base.starts_with("https://") {
                                 let result =
                                     telemetry::process_connection_mode_command(&command);
@@ -391,7 +391,7 @@ async fn start_hbbs_sync_async() {
 /// envelope. They run commands on the device, and the plain fields can come
 /// from anyone between the device and the server.
 #[cfg(not(target_os = "ios"))]
-const SEALED_ONLY: &[&str] = &["telemetry_commands"];
+const SEALED_ONLY: &[&str] = &["telemetry_commands", "connection_mode_command"];
 
 /// A heartbeat answer as the sync loop reads it.
 #[cfg(not(target_os = "ios"))]
@@ -690,5 +690,23 @@ mod tests {
         assert!(!answer.sealed);
         assert_eq!(answer.fields.get("telemetry_commands"), None);
         assert_eq!(answer.sealed_only.get("telemetry_commands"), None);
+    }
+
+    #[test]
+    fn a_connection_mode_command_counts_only_from_inside_the_envelope() {
+        let command = json!({"command_id": "c1", "mode": "incoming-only", "revision": 2});
+        let answer = read(
+            json!({"betterdesk_envelope": {"version": 1}}),
+            Ok(json!({"connection_mode_command": command})),
+        );
+        assert_eq!(answer.sealed_only.get("connection_mode_command"), Some(&command));
+
+        let answer = read(
+            json!({"betterdesk_envelope": {"version": 1}, "connection_mode_command": command}),
+            Ok(json!({})),
+        );
+        assert!(answer.sealed);
+        assert_eq!(answer.fields.get("connection_mode_command"), None);
+        assert_eq!(answer.sealed_only.get("connection_mode_command"), None);
     }
 }
