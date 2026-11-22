@@ -61,7 +61,7 @@ class BdWindowControls extends StatelessWidget {
             height: height),
       if (onMaximize != null)
         BdWinButton(
-            icon: maximized ? BdIcons.filterNone : BdIcons.cropSquare,
+            icon: maximized ? BdIcons.filterNone : BdIcons.square,
             tooltip: translate(maximized ? 'Restore' : 'Maximize'),
             onTap: onMaximize,
             height: height),
@@ -76,7 +76,8 @@ class BdWindowControls extends StatelessWidget {
   }
 }
 
-/// One window button, 46 x [height]; the close button hovers red.
+/// One window button, 46 x [height]; the close button hovers red. The icon
+/// is 20 px like the session toolbar's, so the strokes have the same weight.
 class BdWinButton extends StatefulWidget {
   const BdWinButton({
     super.key,
@@ -123,7 +124,7 @@ class _WinButtonState extends State<BdWinButton> {
             height: widget.height,
             color: bg,
             alignment: Alignment.center,
-            child: Icon(widget.icon, size: 16, color: fg),
+            child: Icon(widget.icon, size: 20, color: fg),
           ),
         ),
       ),

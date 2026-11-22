@@ -12,6 +12,7 @@ import '../../desktop/widgets/tabbar_widget.dart';
 import '../../models/chat_model.dart';
 import '../../models/model.dart';
 import 'chat_page.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 class DraggableChatWindow extends StatelessWidget {
   const DraggableChatWindow(
@@ -99,7 +100,7 @@ class DraggableChatWindow extends StatelessWidget {
                     chatModel.hideChatWindowOverlay();
                   },
                   icon: Icon(
-                    Icons.keyboard_arrow_down,
+                    BdIcons.expandMore,
                     color: context.bd.onAccent,
                   )),
               IconButton(
@@ -108,7 +109,7 @@ class DraggableChatWindow extends StatelessWidget {
                     chatModel.hideChatIconOverlay();
                   },
                   icon: Icon(
-                    Icons.close,
+                    BdIcons.close,
                     color: context.bd.onAccent,
                   ))
             ],
@@ -119,6 +120,25 @@ class DraggableChatWindow extends StatelessWidget {
   }
 
   Widget _buildDesktopAppBar(BuildContext context) {
+    return ChatWindowTitleBar(
+        focused: chatModel.isWindowFocus,
+        onClose: chatModel.hideChatWindowOverlay);
+  }
+}
+
+/// The title row of the chat window over a session on desktop: the chat
+/// icon and name, dimmed while the window has no focus, and a close button.
+/// Both icons are 20 px, as in the session toolbar.
+class ChatWindowTitleBar extends StatelessWidget {
+  const ChatWindowTitleBar(
+      {Key? key, required this.focused, required this.onClose})
+      : super(key: key);
+
+  final RxBool focused;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
           border: Border(
@@ -131,9 +151,9 @@ class DraggableChatWindow extends StatelessWidget {
           Padding(
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
               child: Obx(() => Opacity(
-                  opacity: chatModel.isWindowFocus.value ? 1.0 : 0.4,
+                  opacity: focused.value ? 1.0 : 0.4,
                   child: Row(children: [
-                    Icon(Icons.chat_bubble_outline,
+                    Icon(BdIcons.chat,
                         size: 20, color: Theme.of(context).colorScheme.primary),
                     SizedBox(width: 6),
                     Text(translate("Chat"))
@@ -142,8 +162,8 @@ class DraggableChatWindow extends StatelessWidget {
               padding: EdgeInsets.all(2),
               child: ActionIcon(
                 message: 'Close',
-                icon: IconFont.close,
-                onTap: chatModel.hideChatWindowOverlay,
+                icon: BdIcons.close,
+                onTap: onClose,
                 isClose: true,
                 boxSize: 32,
               ))
@@ -215,19 +235,19 @@ class DraggableMobileActions extends StatelessWidget {
                             color: bdColors.onCanvas,
                             onPressed: onBackPressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
-                            icon: const Icon(Icons.arrow_back),
+                            icon: const Icon(BdIcons.arrowBack),
                             iconSize: 24 * scale),
                         IconButton(
                             color: bdColors.onCanvas,
                             onPressed: onHomePressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
-                            icon: const Icon(Icons.home),
+                            icon: const Icon(BdIcons.home),
                             iconSize: 24 * scale),
                         IconButton(
                             color: bdColors.onCanvas,
                             onPressed: onRecentPressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
-                            icon: const Icon(Icons.more_horiz),
+                            icon: const Icon(BdIcons.moreHoriz),
                             iconSize: 24 * scale),
                         const VerticalDivider(
                           width: 0,
@@ -239,7 +259,7 @@ class DraggableMobileActions extends StatelessWidget {
                             color: bdColors.onCanvas,
                             onPressed: onHidePressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
-                            icon: const Icon(Icons.keyboard_arrow_down),
+                            icon: const Icon(BdIcons.expandMore),
                             iconSize: 24 * scale),
                       ],
                     ),

@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
 import '../../mobile/pages/home_page.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 enum ChatPageType {
   mobileMain,
@@ -32,7 +33,7 @@ class ChatPage extends StatelessWidget implements PageShape {
     PopupMenuButton<MessageKey>(
         tooltip: "",
         icon: unreadTopRightBuilder(gFFI.chatModel.mobileUnreadSum,
-            icon: Icon(Icons.group)),
+            icon: Icon(BdIcons.group)),
         itemBuilder: (context) {
           // only mobile need [appBarActions], just bind gFFI.chatModel
           final chatModel = gFFI.chatModel;
@@ -48,8 +49,8 @@ class ChatPage extends StatelessWidget implements PageShape {
                 children: [
                   Icon(
                           key.isOut
-                              ? Icons.call_made_rounded
-                              : Icons.call_received_rounded,
+                              ? BdIcons.callMade
+                              : BdIcons.callReceived,
                           color: MyTheme.accent)
                       .marginOnly(right: 6),
                   Text("${user.firstName}   ${user.id}"),
@@ -104,6 +105,17 @@ class ChatPage extends StatelessWidget implements PageShape {
                             .messages[chatModel.currentKey]?.chatMessages ??
                         [],
                     readOnly: readOnly,
+                    scrollToBottomOptions: ScrollToBottomOptions(
+                      scrollToBottomBuilder: (scrollController) =>
+                          DefaultScrollToBottom(
+                        scrollController: scrollController,
+                        readOnly: readOnly,
+                        backgroundColor:
+                            Theme.of(context).scaffoldBackgroundColor,
+                        textColor: Theme.of(context).primaryColor,
+                        icon: BdIcons.arrowDownward,
+                      ),
+                    ),
                     inputOptions: InputOptions(
                       focusNode: chatModel.inputNode,
                       textController: chatModel.textController,
@@ -124,11 +136,15 @@ class ChatPage extends StatelessWidget implements PageShape {
                           ),
                         ),
                       ),
-                      sendButtonBuilder: defaultSendButton(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 0),
-                        color: MyTheme.accent,
-                        icon: Icons.send_rounded,
+                      // dash_chat_2's defaultSendButton draws Material's
+                      // send icon whatever icon it is given.
+                      sendButtonBuilder: (send) => InkWell(
+                        onTap: () => send(),
+                        child: Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                          child: Icon(BdIcons.send, color: MyTheme.accent),
+                        ),
                       ),
                     ),
                     messageOptions: MessageOptions(

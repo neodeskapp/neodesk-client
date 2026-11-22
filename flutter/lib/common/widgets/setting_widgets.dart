@@ -6,6 +6,7 @@ import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:get/get.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 customImageQualityWidget(
     {required double initQuality,
@@ -205,12 +206,12 @@ List<Widget> ServerConfigImportExportWidgets(
     Tooltip(
       message: translate('Import server config'),
       child: IconButton(
-          icon: Icon(Icons.paste, color: bdColors.textMuted), onPressed: import),
+          icon: Icon(BdIcons.contentPaste, color: bdColors.textMuted), onPressed: import),
     ),
     Tooltip(
         message: translate('Export Server Config'),
         child: IconButton(
-            icon: Icon(Icons.copy, color: bdColors.textMuted), onPressed: export))
+            icon: Icon(BdIcons.contentCopy, color: bdColors.textMuted), onPressed: export))
   ];
 }
 

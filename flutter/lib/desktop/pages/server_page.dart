@@ -17,7 +17,6 @@ import 'package:get/get.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../common.dart';
 import '../../common/widgets/chat_page.dart';
@@ -336,9 +335,9 @@ class ConnectionManagerState extends State<ConnectionManager>
         child: Row(
           children: [
             ActionIcon(
-                icon: Icons.arrow_left, iconSize: 22, onTap: sc.backward),
+                icon: BdIcons.chevronLeft, iconSize: 22, onTap: sc.backward),
             ActionIcon(
-                icon: Icons.arrow_right, iconSize: 22, onTap: sc.forward),
+                icon: BdIcons.chevronRight, iconSize: 22, onTap: sc.forward),
           ],
         ));
   }
@@ -846,10 +845,8 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
           children: [
             Transform.rotate(
               angle: item.action == CmFileAction.remoteToLocal ? 0 : pi,
-              child: SvgPicture.asset(
-                "assets/arrow.svg",
-                colorFilter: svgColor(Theme.of(context).tabBarTheme.labelColor),
-              ),
+              child: Icon(BdIcons.arrowForward,
+                  color: Theme.of(context).tabBarTheme.labelColor),
             ),
             Text(item.action == CmFileAction.remoteToLocal
                 ? translate('Send')
@@ -860,7 +857,7 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
         return Column(
           children: [
             Icon(
-              Icons.delete,
+              BdIcons.delete,
               color: Theme.of(context).tabBarTheme.labelColor,
             ),
             Text(translate('Delete'))
@@ -870,7 +867,7 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
         return Column(
           children: [
             Icon(
-              Icons.create_new_folder,
+              BdIcons.createNewFolder,
               color: Theme.of(context).tabBarTheme.labelColor,
             ),
             Text(translate('Create Folder'))
@@ -880,7 +877,7 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
         return Column(
           children: [
             Icon(
-              Icons.drive_file_move_outlined,
+              BdIcons.driveFileRenameOutline,
               color: Theme.of(context).tabBarTheme.labelColor,
             ),
             Text(translate('Rename'))
@@ -1004,12 +1001,12 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            SvgPicture.asset(
-                              "assets/transfer.svg",
-                              colorFilter: svgColor(
-                                  Theme.of(context).tabBarTheme.labelColor),
-                              height: 40,
-                            ).paddingOnly(bottom: 10),
+                            Icon(BdIcons.swapHoriz,
+                                    size: 40,
+                                    color: Theme.of(context)
+                                        .tabBarTheme
+                                        .labelColor)
+                                .paddingOnly(bottom: 10),
                             Text(
                               translate("No transfers in progress"),
                               textAlign: TextAlign.center,

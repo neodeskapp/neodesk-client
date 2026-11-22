@@ -18,6 +18,7 @@ import '../desktop/widgets/tabbar_widget.dart';
 import '../mobile/pages/server_page.dart';
 import 'model.dart';
 import 'state_model.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 const kLoginDialogTag = "LOGIN";
 
@@ -393,7 +394,7 @@ class ServerModel with ChangeNotifier {
         submit() => close(true);
         return CustomAlertDialog(
           title: Row(children: [
-            Icon(Icons.warning_amber_sharp,
+            Icon(BdIcons.warning,
                 color: context.bd.danger, size: 28),
             const SizedBox(width: 10),
             Text(translate("Warning")),
@@ -420,7 +421,7 @@ class ServerModel with ChangeNotifier {
         submit() => close(true);
         return CustomAlertDialog(
           title: Row(children: [
-            Icon(Icons.warning_amber_sharp,
+            Icon(BdIcons.warning,
                 color: context.bd.danger, size: 28),
             const SizedBox(width: 10),
             Text(translate("Warning")),
@@ -651,7 +652,7 @@ class ServerModel with ChangeNotifier {
         title:
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text(translate(title)),
-          IconButton(onPressed: close, icon: const Icon(Icons.close))
+          IconButton(onPressed: close, icon: const Icon(BdIcons.close))
         ]),
         content: Column(
           mainAxisSize: MainAxisSize.min,

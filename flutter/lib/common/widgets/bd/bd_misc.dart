@@ -513,29 +513,32 @@ BdOs bdOsFromPlatform(String platform) {
   return BdOs.other;
 }
 
-/// The operating system mark (Phosphor fill) in its system colour.
+/// The operating system mark (Phosphor fill) in its system colour, or in
+/// [color] where it sits on a coloured tile.
 class BdOsMark extends StatelessWidget {
-  const BdOsMark({super.key, required this.os, this.size = 16});
+  const BdOsMark({super.key, required this.os, this.size = 16, this.color});
   final BdOs os;
   final double size;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     final c = context.bd;
-    final (asset, color) = switch (os) {
+    final (asset, systemColor) = switch (os) {
       BdOs.windows => ('assets/bd-os-windows.svg', c.osWindows),
       BdOs.apple => ('assets/bd-os-apple.svg', c.osApple),
       BdOs.linux => ('assets/bd-os-linux.svg', c.osLinux),
       BdOs.android => ('assets/bd-os-android.svg', c.success),
       BdOs.other => ('', c.textMuted),
     };
+    final fg = color ?? systemColor;
     if (asset.isEmpty) {
-      return Icon(BdIcons.computer, size: size, color: color);
+      return Icon(BdIcons.computer, size: size, color: fg);
     }
     return SvgPicture.asset(asset,
         width: size,
         height: size,
-        colorFilter: ColorFilter.mode(color, BlendMode.srcIn));
+        colorFilter: ColorFilter.mode(fg, BlendMode.srcIn));
   }
 }
 

@@ -17,10 +17,12 @@ class BdIcons {
   static const IconData accountCircle = IconData(0xf20b, fontFamily: _f);
   static const IconData add = IconData(0xe145, fontFamily: _f);
   static const IconData addCircle = IconData(0xe990, fontFamily: _f);
+  static const IconData adminPanelSettings = IconData(0xef3d, fontFamily: _f);
   static const IconData apps = IconData(0xe5c3, fontFamily: _f);
   static const IconData arrowBack = IconData(0xe5c4, fontFamily: _f);
   static const IconData arrowDownward = IconData(0xe5db, fontFamily: _f);
   static const IconData arrowDropDown = IconData(0xe5c5, fontFamily: _f);
+  static const IconData arrowDropUp = IconData(0xe5c7, fontFamily: _f);
   static const IconData arrowForward = IconData(0xe5c8, fontFamily: _f);
   static const IconData arrowUpward = IconData(0xe5d8, fontFamily: _f);
   static const IconData attachFile = IconData(0xe226, fontFamily: _f);
@@ -31,6 +33,8 @@ class BdIcons {
   static const IconData build = IconData(0xf8cd, fontFamily: _f);
   static const IconData call = IconData(0xf0d4, fontFamily: _f);
   static const IconData callEnd = IconData(0xf0bc, fontFamily: _f);
+  static const IconData callMade = IconData(0xe0b2, fontFamily: _f);
+  static const IconData callReceived = IconData(0xe0b5, fontFamily: _f);
   static const IconData callSplit = IconData(0xe0b6, fontFamily: _f);
   static const IconData cancel = IconData(0xe888, fontFamily: _f);
   static const IconData cast = IconData(0xe307, fontFamily: _f);
@@ -44,17 +48,21 @@ class BdIcons {
   static const IconData cleaningServices = IconData(0xf0ff, fontFamily: _f);
   static const IconData close = IconData(0xe5cd, fontFamily: _f);
   static const IconData closeFullscreen = IconData(0xf1cf, fontFamily: _f);
+  static const IconData cloudLock = IconData(0xf386, fontFamily: _f);
   static const IconData cloudOff = IconData(0xe2c1, fontFamily: _f);
   static const IconData computer = IconData(0xe31e, fontFamily: _f);
+  static const IconData contacts = IconData(0xe0ba, fontFamily: _f);
   static const IconData contentCopy = IconData(0xe14d, fontFamily: _f);
   static const IconData contentCut = IconData(0xe14e, fontFamily: _f);
   static const IconData contentPaste = IconData(0xe14f, fontFamily: _f);
   static const IconData contrast = IconData(0xeb37, fontFamily: _f);
   static const IconData copyAll = IconData(0xe2ec, fontFamily: _f);
+  static const IconData createNewFolder = IconData(0xe2cc, fontFamily: _f);
   static const IconData cropSquare = IconData(0xe3c6, fontFamily: _f);
   static const IconData dangerous = IconData(0xe99a, fontFamily: _f);
   static const IconData darkMode = IconData(0xe51c, fontFamily: _f);
   static const IconData delete = IconData(0xe92e, fontFamily: _f);
+  static const IconData deleteForever = IconData(0xe92b, fontFamily: _f);
   static const IconData description = IconData(0xe873, fontFamily: _f);
   static const IconData desktopMac = IconData(0xe30b, fontFamily: _f);
   static const IconData desktopWindows = IconData(0xe30c, fontFamily: _f);
@@ -69,6 +77,7 @@ class BdIcons {
   static const IconData dragHandle = IconData(0xe25d, fontFamily: _f);
   static const IconData dragIndicator = IconData(0xe945, fontFamily: _f);
   static const IconData draw = IconData(0xe746, fontFamily: _f);
+  static const IconData driveFileRenameOutline = IconData(0xe9a2, fontFamily: _f);
   static const IconData east = IconData(0xf1df, fontFamily: _f);
   static const IconData edit = IconData(0xf097, fontFamily: _f);
   static const IconData error = IconData(0xf8b6, fontFamily: _f);
@@ -88,8 +97,10 @@ class BdIcons {
   static const IconData forwardToInbox = IconData(0xf187, fontFamily: _f);
   static const IconData fullscreen = IconData(0xe5d0, fontFamily: _f);
   static const IconData fullscreenExit = IconData(0xe5d1, fontFamily: _f);
+  static const IconData gppBad = IconData(0xf012, fontFamily: _f);
   static const IconData gridView = IconData(0xe9b0, fontFamily: _f);
   static const IconData group = IconData(0xea21, fontFamily: _f);
+  static const IconData hardDrive = IconData(0xf80e, fontFamily: _f);
   static const IconData hd = IconData(0xe052, fontFamily: _f);
   static const IconData help = IconData(0xe8fd, fontFamily: _f);
   static const IconData helpOutline = IconData(0xe8fd, fontFamily: _f);
@@ -99,6 +110,7 @@ class BdIcons {
   static const IconData home = IconData(0xe9b2, fontFamily: _f);
   static const IconData hourglassEmpty = IconData(0xe88b, fontFamily: _f);
   static const IconData hourglassTop = IconData(0xea5b, fontFamily: _f);
+  static const IconData howToReg = IconData(0xe174, fontFamily: _f);
   static const IconData image = IconData(0xe3f4, fontFamily: _f);
   static const IconData info = IconData(0xe88e, fontFamily: _f);
   static const IconData insertDriveFile = IconData(0xe66d, fontFamily: _f);
@@ -130,6 +142,7 @@ class BdIcons {
   static const IconData minimize = IconData(0xe931, fontFamily: _f);
   static const IconData mobileScreenShare = IconData(0xf2df, fontFamily: _f);
   static const IconData monitor = IconData(0xef5b, fontFamily: _f);
+  static const IconData monitorFilled = IconData(0xef5b, fontFamily: _ff);
   static const IconData monitorHeart = IconData(0xeaa2, fontFamily: _f);
   static const IconData more = IconData(0xe619, fontFamily: _f);
   static const IconData moreHoriz = IconData(0xe5d3, fontFamily: _f);
@@ -145,10 +158,12 @@ class BdIcons {
   static const IconData palette = IconData(0xe40a, fontFamily: _f);
   static const IconData password = IconData(0xf042, fontFamily: _f);
   static const IconData pause = IconData(0xe034, fontFamily: _f);
+  static const IconData pauseCircle = IconData(0xe1a2, fontFamily: _f);
   static const IconData person = IconData(0xf0d3, fontFamily: _f);
   static const IconData personAdd = IconData(0xea4d, fontFamily: _f);
   static const IconData phone = IconData(0xf0d4, fontFamily: _f);
   static const IconData phoneDisabled = IconData(0xe9cc, fontFamily: _f);
+  static const IconData phoneInTalk = IconData(0xe61d, fontFamily: _f);
   static const IconData photoCamera = IconData(0xe412, fontFamily: _f);
   static const IconData photoLibrary = IconData(0xe413, fontFamily: _f);
   static const IconData pin = IconData(0xf045, fontFamily: _f);
@@ -166,12 +181,14 @@ class BdIcons {
   static const IconData radioButtonUnchecked = IconData(0xe836, fontFamily: _f);
   static const IconData rateReview = IconData(0xe560, fontFamily: _f);
   static const IconData recordVoiceOver = IconData(0xe91f, fontFamily: _f);
+  static const IconData rectangleFilled = IconData(0xeb54, fontFamily: _ff);
   static const IconData refresh = IconData(0xe5d5, fontFamily: _f);
   static const IconData remove = IconData(0xe15b, fontFamily: _f);
   static const IconData removeCircle = IconData(0xf08f, fontFamily: _f);
   static const IconData replay = IconData(0xe042, fontFamily: _f);
   static const IconData reply = IconData(0xe15e, fontFamily: _f);
   static const IconData restartAlt = IconData(0xf053, fontFamily: _f);
+  static const IconData ringVolume = IconData(0xf0dd, fontFamily: _f);
   static const IconData rocketLaunch = IconData(0xeb9b, fontFamily: _f);
   static const IconData save = IconData(0xe161, fontFamily: _f);
   static const IconData schedule = IconData(0xefd6, fontFamily: _f);
@@ -185,6 +202,7 @@ class BdIcons {
   static const IconData sell = IconData(0xf05b, fontFamily: _f);
   static const IconData send = IconData(0xe163, fontFamily: _f);
   static const IconData sensors = IconData(0xe51e, fontFamily: _f);
+  static const IconData sentimentVeryDissatisfied = IconData(0xe814, fontFamily: _f);
   static const IconData settings = IconData(0xe8b8, fontFamily: _f);
   static const IconData settingsEthernet = IconData(0xe8be, fontFamily: _f);
   static const IconData share = IconData(0xe80d, fontFamily: _f);
@@ -196,6 +214,7 @@ class BdIcons {
   static const IconData south = IconData(0xf1e3, fontFamily: _f);
   static const IconData speed = IconData(0xe9e4, fontFamily: _f);
   static const IconData sportsEsports = IconData(0xea28, fontFamily: _f);
+  static const IconData square = IconData(0xeb36, fontFamily: _f);
   static const IconData star = IconData(0xf09a, fontFamily: _f);
   static const IconData starFilled = IconData(0xf09a, fontFamily: _ff);
   static const IconData stop = IconData(0xe047, fontFamily: _f);
@@ -208,6 +227,7 @@ class BdIcons {
   static const IconData syncAlt = IconData(0xea18, fontFamily: _f);
   static const IconData systemUpdate = IconData(0xf2cd, fontFamily: _f);
   static const IconData tab = IconData(0xe8d8, fontFamily: _f);
+  static const IconData tag = IconData(0xe9ef, fontFamily: _f);
   static const IconData taskAlt = IconData(0xe2e6, fontFamily: _f);
   static const IconData terminal = IconData(0xeb8e, fontFamily: _f);
   static const IconData timer = IconData(0xe425, fontFamily: _f);
@@ -215,11 +235,13 @@ class BdIcons {
   static const IconData translate = IconData(0xe8e2, fontFamily: _f);
   static const IconData tune = IconData(0xe429, fontFamily: _f);
   static const IconData tv = IconData(0xe63b, fontFamily: _f);
+  static const IconData unfoldMore = IconData(0xe5d7, fontFamily: _f);
   static const IconData upload = IconData(0xf09b, fontFamily: _f);
   static const IconData usb = IconData(0xe1e0, fontFamily: _f);
   static const IconData verifiedUser = IconData(0xf013, fontFamily: _f);
   static const IconData videoCall = IconData(0xe070, fontFamily: _f);
   static const IconData videocam = IconData(0xe04b, fontFamily: _f);
+  static const IconData viewAgenda = IconData(0xe8e9, fontFamily: _f);
   static const IconData viewColumn = IconData(0xe8ec, fontFamily: _f);
   static const IconData viewList = IconData(0xe8ef, fontFamily: _f);
   static const IconData visibility = IconData(0xe8f4, fontFamily: _f);
@@ -232,6 +254,7 @@ class BdIcons {
   static const IconData warning = IconData(0xf083, fontFamily: _f);
   static const IconData west = IconData(0xf1e6, fontFamily: _f);
   static const IconData wifiOff = IconData(0xe648, fontFamily: _f);
+  static const IconData workspaces = IconData(0xea0f, fontFamily: _f);
   static const IconData zoomIn = IconData(0xe8ff, fontFamily: _f);
   static const IconData zoomOut = IconData(0xe900, fontFamily: _f);
 }

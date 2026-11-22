@@ -14,6 +14,7 @@ import '../../common.dart';
 import '../../common/theme/bd_theme.dart';
 import './dialog.dart';
 import './oidc_auth_status.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 const kOpSvgList = [
   'github',
@@ -72,18 +73,20 @@ class _IconOP extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final svgFile =
-        kOpSvgList.contains(op.toLowerCase()) ? op.toLowerCase() : 'default';
+        kOpSvgList.contains(op.toLowerCase()) ? op.toLowerCase() : null;
     return Container(
       margin: margin,
-      child: icon == null
-          ? SvgPicture.asset(
-              'assets/auth-$svgFile.svg',
-              width: 20,
-            )
-          : SvgPicture.string(
+      child: icon != null
+          ? SvgPicture.string(
               icon!,
               width: 20,
-            ),
+            )
+          : svgFile != null
+              ? SvgPicture.asset(
+                  'assets/auth-$svgFile.svg',
+                  width: 20,
+                )
+              : Icon(BdIcons.howToReg, size: 20, color: bdColors.accent),
     );
   }
 }
@@ -551,7 +554,7 @@ class _WidgetOPState extends State<WidgetOP> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.error_outline,
+                            Icon(BdIcons.error,
                                 color: errorColor, size: 16),
                             const SizedBox(width: 6),
                             Flexible(
@@ -945,7 +948,7 @@ Future<bool?> _openLoginDialog() async {
           onExit: (_) => setState(() => isCloseHovered = false),
           child: InkWell(
             child: Icon(
-              Icons.close,
+              BdIcons.close,
               size: 25,
               // No need to handle the branch of null.
               // Because we can ensure the color is not null when debug.
@@ -1071,7 +1074,7 @@ Future<bool?> verificationCodeDialog(
                 offstage: !isEmailVerification || user?.email == null,
                 child: TextField(
                   decoration: InputDecoration(
-                      labelText: "Email", prefixIcon: Icon(Icons.email)),
+                      labelText: "Email", prefixIcon: Icon(BdIcons.mail)),
                   readOnly: true,
                   controller: TextEditingController(text: user?.email),
                 ).workaroundFreezeLinuxMint()),

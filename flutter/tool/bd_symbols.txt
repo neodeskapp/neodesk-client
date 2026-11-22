@@ -4,10 +4,12 @@ accessibilityNew accessibility_new
 accountCircle account_circle
 add add
 addCircle add_circle
+adminPanelSettings admin_panel_settings
 apps apps
 arrowBack arrow_back
 arrowDownward arrow_downward
 arrowDropDown arrow_drop_down
+arrowDropUp arrow_drop_up
 arrowForward arrow_forward
 arrowUpward arrow_upward
 attachFile attach_file
@@ -18,6 +20,8 @@ block block
 build build
 call call
 callEnd call_end
+callMade call_made
+callReceived call_received
 callSplit call_split
 cancel cancel
 cast cast
@@ -31,17 +35,21 @@ chevronRight chevron_right
 cleaningServices cleaning_services
 close close
 closeFullscreen close_fullscreen
+cloudLock cloud_lock
 cloudOff cloud_off
 computer computer
+contacts contacts
 contentCopy content_copy
 contentCut content_cut
 contentPaste content_paste
 contrast contrast
 copyAll copy_all
+createNewFolder create_new_folder
 cropSquare crop_square
 dangerous dangerous
 darkMode dark_mode
 delete delete
+deleteForever delete_forever
 description description
 desktopMac desktop_mac
 desktopWindows desktop_windows
@@ -56,6 +64,7 @@ draft draft
 dragHandle drag_handle
 dragIndicator drag_indicator
 draw draw
+driveFileRenameOutline drive_file_rename_outline
 east east
 edit edit
 error error
@@ -75,8 +84,10 @@ folderOpen folder_open
 forwardToInbox forward_to_inbox
 fullscreen fullscreen
 fullscreenExit fullscreen_exit
+gppBad gpp_bad
 gridView grid_view
 group group
+hardDrive hard_drive
 hd hd
 help help
 helpOutline help_outline
@@ -86,6 +97,7 @@ historyToggleOff history_toggle_off
 home home
 hourglassEmpty hourglass_empty
 hourglassTop hourglass_top
+howToReg how_to_reg
 image image
 info info
 insertDriveFile insert_drive_file
@@ -117,6 +129,7 @@ micOff mic_off
 minimize minimize
 mobileScreenShare mobile_screen_share
 monitor monitor
+monitorFilled monitor filled
 monitorHeart monitor_heart
 more more
 moreHoriz more_horiz
@@ -132,10 +145,12 @@ openInNew open_in_new
 palette palette
 password password
 pause pause
+pauseCircle pause_circle
 person person
 personAdd person_add
 phone phone
 phoneDisabled phone_disabled
+phoneInTalk phone_in_talk
 photoCamera photo_camera
 photoLibrary photo_library
 pin pin
@@ -153,12 +168,14 @@ radioButtonChecked radio_button_checked
 radioButtonUnchecked radio_button_unchecked
 rateReview rate_review
 recordVoiceOver record_voice_over
+rectangleFilled rectangle filled
 refresh refresh
 remove remove
 removeCircle remove_circle
 replay replay
 reply reply
 restartAlt restart_alt
+ringVolume ring_volume
 rocketLaunch rocket_launch
 save save
 schedule schedule
@@ -172,6 +189,7 @@ selectAll select_all
 sell sell
 send send
 sensors sensors
+sentimentVeryDissatisfied sentiment_very_dissatisfied
 settings settings
 settingsEthernet settings_ethernet
 share share
@@ -183,6 +201,7 @@ sort sort
 south south
 speed speed
 sportsEsports sports_esports
+square square
 star star
 starFilled star filled
 stop stop
@@ -195,6 +214,7 @@ sync sync
 syncAlt sync_alt
 systemUpdate system_update
 tab tab
+tag tag
 taskAlt task_alt
 terminal terminal
 timer timer
@@ -202,11 +222,13 @@ timerOff timer_off
 translate translate
 tune tune
 tv tv
+unfoldMore unfold_more
 upload upload
 usb usb
 verifiedUser verified_user
 videoCall video_call
 videocam videocam
+viewAgenda view_agenda
 viewColumn view_column
 viewList view_list
 visibility visibility
@@ -219,5 +241,6 @@ wallpaper wallpaper
 warning warning
 west west
 wifiOff wifi_off
+workspaces workspaces
 zoomIn zoom_in
 zoomOut zoom_out

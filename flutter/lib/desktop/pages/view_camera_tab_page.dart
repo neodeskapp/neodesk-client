@@ -17,11 +17,11 @@ import 'package:flutter_hbb/desktop/widgets/material_mod_popup_menu.dart'
     as mod_menu;
 import 'package:flutter_hbb/desktop/widgets/popup_menu.dart';
 import 'package:flutter_hbb/utils/multi_window_manager.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:bot_toast/bot_toast.dart';
 
 import '../../models/platform_model.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 class _MenuTheme {
   static Color get blueColor => MyTheme.button;
@@ -43,8 +43,8 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
   final tabController =
       Get.put(DesktopTabController(tabType: DesktopTabType.viewCamera));
   final contentKey = UniqueKey();
-  static const IconData selectedIcon = Icons.desktop_windows_sharp;
-  static const IconData unselectedIcon = Icons.desktop_windows_outlined;
+  static const IconData selectedIcon = BdIcons.desktopWindows;
+  static const IconData unselectedIcon = BdIcons.desktopWindows;
 
   String? peerId;
   bool _isScreenRectSet = false;
@@ -175,11 +175,9 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
                 icon,
                 Tooltip(
                   message: '$msgConn\n$msgFingerprint',
-                  child: SvgPicture.asset(
-                    'assets/${connectionType.secure.value}${connectionType.direct.value}.svg',
-                    width: themeConf.iconSize,
-                    height: themeConf.iconSize,
-                  ).paddingOnly(right: 5),
+                  child: getConnectionIcon(secure, direct,
+                          size: themeConf.iconSize)
+                      .paddingOnly(right: 5),
                 ),
                 label,
                 unreadMessageCountBuilder(UnreadChatCountState.find(key))

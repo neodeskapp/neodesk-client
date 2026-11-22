@@ -26,7 +26,9 @@ import '../../utils/multi_window_manager.dart';
 
 const double _kTabBarHeight = kDesktopRemoteTabBarHeight;
 const double _kIconSize = 18;
-const double _kActionIconSize = 12;
+// Icons of the title bar buttons (new tab, tab list) and the chat window's
+// close: 20 px like the session toolbar's, so the strokes match.
+const double _kActionIconSize = 20;
 
 class TabInfo {
   final String key; // Notice: cm use client_id.toString() as key
@@ -820,7 +822,7 @@ class WindowActionPanelState extends State<WindowActionPanel> {
                 Obx(() => BdWinButton(
                       icon: stateGlobal.isMaximized.isTrue
                           ? BdIcons.filterNone
-                          : BdIcons.cropSquare,
+                          : BdIcons.square,
                       tooltip: translate(stateGlobal.isMaximized.isTrue
                           ? 'Restore'
                           : 'Maximize'),
@@ -916,7 +918,7 @@ Future<bool> closeConfirmDialog() async {
 
     return CustomAlertDialog(
       title: Row(children: [
-        Icon(Icons.warning_amber_sharp,
+        Icon(BdIcons.warning,
             color: context.bd.danger, size: 28),
         const SizedBox(width: 10),
         Text(translate("Warning")),
@@ -1342,7 +1344,7 @@ class AddButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ActionIcon(
         message: 'New Connection',
-        icon: IconFont.add,
+        icon: BdIcons.add,
         onTap: () => rustDeskWinManager.call(
             WindowType.Main, kWindowMainWindowOnTop, ""),
         isClose: false);
@@ -1376,7 +1378,7 @@ class _TabDropDownButtonState extends State<_TabDropDownButton> {
         final y = details.globalPosition.dy;
         position = RelativeRect.fromLTRB(x, y, x, y);
       },
-      icon: Icons.arrow_drop_down,
+      icon: BdIcons.arrowDropDown,
       onTap: () {
         showMenu(
           context: context,
@@ -1430,7 +1432,7 @@ class _TabDropDownButtonState extends State<_TabDropDownButton> {
                                       setState(() => btnHover.value = true),
                                   onExit: (event) =>
                                       setState(() => btnHover.value = false),
-                                  child: Icon(Icons.close,
+                                  child: Icon(BdIcons.close,
                                       color:
                                           btnHover.value ? context.bd.danger : null)));
                         } else {

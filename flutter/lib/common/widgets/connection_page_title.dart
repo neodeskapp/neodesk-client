@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../common.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 Widget getConnectionPageTitle(BuildContext context, bool isWeb) {
   return Row(
@@ -22,7 +23,7 @@ Widget getConnectionPageTitle(BuildContext context, bool isWeb) {
             waitDuration: Duration(milliseconds: 300),
             message: translate(isWeb ? "web_id_input_tip" : "id_input_tip"),
             child: Icon(
-              Icons.help_outline_outlined,
+              BdIcons.help,
               size: 16,
               color: Theme.of(context)
                   .textTheme

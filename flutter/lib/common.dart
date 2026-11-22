@@ -49,6 +49,9 @@ import 'package:flutter_hbb/native/win32.dart'
 import 'package:flutter_hbb/native/common.dart'
     if (dart.library.html) 'package:flutter_hbb/web/common.dart';
 import 'package:flutter_hbb/utils/http_service.dart' as http;
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_misc.dart'
+    show BdOsMark, bdOsFromPlatform;
 
 final globalKey = GlobalKey<NavigatorState>();
 final navigationBarKey = GlobalKey();
@@ -115,31 +118,6 @@ enum DesktopType {
 
 bool isDoubleEqual(double a, double b) {
   return (a - b).abs() < _kPositionEpsilon;
-}
-
-class IconFont {
-  static const _family1 = 'Tabbar';
-  static const _family2 = 'PeerSearchbar';
-  static const _family3 = 'AddressBook';
-  static const _family4 = 'DeviceGroup';
-  static const _family5 = 'More';
-
-  IconFont._();
-
-  static const IconData max = IconData(0xe606, fontFamily: _family1);
-  static const IconData restore = IconData(0xe607, fontFamily: _family1);
-  static const IconData close = IconData(0xe668, fontFamily: _family1);
-  static const IconData min = IconData(0xe609, fontFamily: _family1);
-  static const IconData add = IconData(0xe664, fontFamily: _family1);
-  static const IconData menu = IconData(0xe628, fontFamily: _family1);
-  static const IconData search = IconData(0xe6a4, fontFamily: _family2);
-  static const IconData roundClose = IconData(0xe6ed, fontFamily: _family2);
-  static const IconData addressBook = IconData(0xe602, fontFamily: _family3);
-  static const IconData deviceGroupOutline =
-      IconData(0xe623, fontFamily: _family4);
-  static const IconData deviceGroupFill =
-      IconData(0xe748, fontFamily: _family4);
-  static const IconData more = IconData(0xe609, fontFamily: _family5);
 }
 
 class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
@@ -1096,19 +1074,19 @@ Color? _msgboxColor(String type) {
 Widget msgboxIcon(String type) {
   IconData? iconData;
   if (type.contains("error") || type == "re-input-password") {
-    iconData = Icons.cancel;
+    iconData = BdIcons.cancel;
   }
   if (type.contains("success")) {
-    iconData = Icons.check_circle;
+    iconData = BdIcons.checkCircle;
   }
   if (type == "wait-uac" || type == "wait-remote-accept-nook") {
-    iconData = Icons.hourglass_top;
+    iconData = BdIcons.hourglassTop;
   }
   if (type == 'on-uac' || type == 'on-foreground-elevated') {
-    iconData = Icons.admin_panel_settings;
+    iconData = BdIcons.adminPanelSettings;
   }
   if (type.contains('info')) {
-    iconData = Icons.info;
+    iconData = BdIcons.info;
   }
   if (iconData != null) {
     return Icon(iconData, size: 50, color: _msgboxColor(type))
@@ -1459,20 +1437,16 @@ Future<bool> matchPeer(
   return false;
 }
 
-/// Get the image for the current [platform].
+/// The operating system mark for [platform], in white for the coloured
+/// tiles it sits on.
 Widget getPlatformImage(String platform, {double size = 50}) {
   if (platform.isEmpty) {
     return Container(width: size, height: size);
   }
-  if (platform == kPeerPlatformMacOS) {
-    platform = 'mac';
-  } else if (platform != kPeerPlatformLinux &&
-      platform != kPeerPlatformAndroid) {
-    platform = 'win';
-  } else {
-    platform = platform.toLowerCase();
-  }
-  return SvgPicture.asset('assets/$platform.svg', height: size, width: size);
+  return BdOsMark(
+      os: bdOsFromPlatform(platform),
+      size: size,
+      color: BdPalette.onDataColor);
 }
 
 class LastWindowPosition {
@@ -3002,7 +2976,7 @@ Widget unreadMessageCountBuilder(RxInt? count,
 Widget unreadTopRightBuilder(RxInt? count, {Widget? icon}) {
   return Stack(
     children: [
-      icon ?? Icon(Icons.chat),
+      icon ?? Icon(BdIcons.chat),
       Positioned(
           top: 0,
           right: 0,
@@ -3034,7 +3008,7 @@ Widget buildErrorBanner(BuildContext context,
             children: [
               FittedBox(
                 child: Icon(
-                  Icons.info,
+                  BdIcons.info,
                   color: context.bd.danger,
                 ),
               ).marginAll(4),
@@ -3062,7 +3036,7 @@ Widget buildErrorBanner(BuildContext context,
                   onTap: () {
                     close.call();
                   },
-                  child: Icon(Icons.close).marginSymmetric(horizontal: 5),
+                  child: Icon(BdIcons.close).marginSymmetric(horizontal: 5),
                 ),
               ).marginAll(4)
             ],
@@ -3476,7 +3450,7 @@ class ComboBox extends StatelessWidget {
                     ? Theme.of(context).textTheme.titleMedium?.color
                     : disabledTextColor(context, enabled)),
             icon: const Icon(
-              Icons.expand_more_sharp,
+              BdIcons.expandMore,
               size: 20,
             ).marginOnly(right: 15),
             onChanged: enabled
@@ -3980,6 +3954,19 @@ String getConnectionText(bool secure, bool direct, String streamType) {
   } else {
     return '$connectionText ($streamType)';
   }
+}
+
+/// The mark of a session's connection: a shield with a check when it is
+/// direct and encrypted, a cloud with a lock when it is relayed and
+/// encrypted, a crossed shield in danger when it is not encrypted.
+Widget getConnectionIcon(bool secure, bool direct, {double size = 20}) {
+  final icon = !secure
+      ? BdIcons.gppBad
+      : direct
+          ? BdIcons.verifiedUser
+          : BdIcons.cloudLock;
+  return Icon(icon,
+      size: size, color: secure ? bdColors.success : bdColors.danger);
 }
 
 String decode_http_response(http.Response resp) {

@@ -15,6 +15,7 @@ import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 bool isEditOsPassword = false;
 const String kPeerOptionAllowWaylandKeyboard = 'allow-wayland-keyboard';
@@ -366,7 +367,7 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
               }
               handleOsPasswordEditIcon(sessionId, ffi.dialogManager);
             },
-            icon: Icon(Icons.edit, color: isMobile ? MyTheme.accent : null),
+            icon: Icon(BdIcons.edit, color: isMobile ? MyTheme.accent : null),
           ),
         ),
         onPressed: () => handleOsPasswordAction(sessionId, ffi.dialogManager),
@@ -590,8 +591,8 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
               padding: EdgeInsets.only(left: 12),
               child: Icon(
                   ffi.recordingModel.start
-                      ? Icons.pause_circle_filled
-                      : Icons.videocam_outlined,
+                      ? BdIcons.pauseCircle
+                      : BdIcons.videocam,
                   color: MyTheme.accent),
             )
           ],
@@ -1348,7 +1349,7 @@ List<Widget> getVirtualDisplayMenuChildren(
                             sessionId: ffi.sessionId, index: 0, on: false);
                         clickCallBack?.call();
                       },
-                child: Icon(Icons.remove),
+                child: Icon(BdIcons.remove),
               ),
               Text(count.toString()),
               TextButton(
@@ -1359,7 +1360,7 @@ List<Widget> getVirtualDisplayMenuChildren(
                             sessionId: ffi.sessionId, index: 0, on: true);
                         clickCallBack?.call();
                       },
-                child: Icon(Icons.add),
+                child: Icon(BdIcons.add),
               ),
             ],
           )),

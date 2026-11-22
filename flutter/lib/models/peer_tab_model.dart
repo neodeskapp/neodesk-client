@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 
 import '../common.dart';
 import 'model.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 enum PeerTabIndex {
   recent,
@@ -31,11 +32,11 @@ class PeerTabModel with ChangeNotifier {
     'Accessible devices',
   ];
   static const List<IconData> icons = [
-    Icons.access_time_filled,
-    Icons.star,
-    Icons.explore,
-    IconFont.addressBook,
-    IconFont.deviceGroupFill,
+    BdIcons.history,
+    BdIcons.star,
+    BdIcons.lan,
+    BdIcons.contacts,
+    BdIcons.workspaces,
   ];
   List<bool> isEnabled = List.from([
     true,
@@ -135,7 +136,7 @@ class PeerTabModel with ChangeNotifier {
     if (index >= 0 && index < icons.length) {
       return icons[index];
     }
-    return Icons.help;
+    return BdIcons.help;
   }
 
   setMultiSelectionMode(bool mode) {

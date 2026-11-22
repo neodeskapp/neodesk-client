@@ -14,6 +14,7 @@ import 'package:flutter_hbb/web/dummy.dart'
 import '../consts.dart';
 import 'model.dart';
 import 'platform_model.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 enum SortBy {
   name,
@@ -224,7 +225,7 @@ class FileModel {
       return CustomAlertDialog(
         title: Row(
           children: [
-            Icon(Icons.warning_rounded, color: context.bd.danger),
+            Icon(BdIcons.warning, color: context.bd.danger),
             Text(title).paddingOnly(
               left: 10,
             ),
@@ -270,19 +271,19 @@ class FileModel {
         actions: [
           dialogButton(
             "Cancel",
-            icon: Icon(Icons.close_rounded),
+            icon: Icon(BdIcons.close),
             onPressed: cancel,
             isOutline: true,
           ),
           dialogButton(
             "Skip",
-            icon: Icon(Icons.navigate_next_rounded),
+            icon: Icon(BdIcons.chevronRight),
             onPressed: () => close(null),
             isOutline: true,
           ),
           dialogButton(
             "OK",
-            icon: Icon(Icons.done_rounded),
+            icon: Icon(BdIcons.check),
             onPressed: submit,
           ),
         ],
@@ -816,7 +817,7 @@ class FileController {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.warning_rounded, color: context.bd.danger),
+            Icon(BdIcons.warning, color: context.bd.danger),
             Expanded(
               child: Text(title).paddingOnly(
                 left: 10,
@@ -857,13 +858,13 @@ class FileController {
         actions: [
           dialogButton(
             "Cancel",
-            icon: Icon(Icons.close_rounded),
+            icon: Icon(BdIcons.close),
             onPressed: cancel,
             isOutline: true,
           ),
           dialogButton(
             "OK",
-            icon: Icon(Icons.done_rounded),
+            icon: Icon(BdIcons.check),
             onPressed: submit,
           ),
         ],
@@ -955,13 +956,13 @@ class FileController {
         actions: [
           dialogButton(
             "Cancel",
-            icon: Icon(Icons.close_rounded),
+            icon: Icon(BdIcons.close),
             onPressed: close,
             isOutline: true,
           ),
           dialogButton(
             "OK",
-            icon: Icon(Icons.done_rounded),
+            icon: Icon(BdIcons.check),
             onPressed: submit,
           ),
         ],

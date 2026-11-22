@@ -715,7 +715,7 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.key, color: context.bd.accent),
+          Icon(BdIcons.key, color: context.bd.accent),
           Text(translate("Set Password")).paddingOnly(left: 10),
         ],
       ),
@@ -780,7 +780,7 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
             if (statusTip.isNotEmpty)
               Row(
                 children: [
-                  Icon(Icons.info, color: context.bd.warning, size: 18)
+                  Icon(BdIcons.info, color: context.bd.warning, size: 18)
                       .marginOnly(right: 6),
                   Expanded(
                       child: Text(
@@ -816,13 +816,13 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
       actions: (() {
         final cancelButton = dialogButton(
           "Cancel",
-          icon: Icon(Icons.close_rounded),
+          icon: Icon(BdIcons.close),
           onPressed: close,
           isOutline: true,
         );
         final removeButton = dialogButton(
           "Remove",
-          icon: Icon(Icons.delete_outline_rounded),
+          icon: Icon(BdIcons.delete),
           onPressed: () async {
             setState(() {
               errMsg0 = "";
@@ -843,7 +843,7 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
         );
         final okButton = dialogButton(
           "OK",
-          icon: Icon(Icons.done_rounded),
+          icon: Icon(BdIcons.check),
           onPressed: canSubmit ? submit : null,
         );
         if (!isDesktop && !isWebDesktop && localPasswordSet) {

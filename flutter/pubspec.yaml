@@ -186,24 +186,11 @@ flutter:
     - family: BdSymbolsFilled
       fonts:
         - asset: assets/fonts/BdSymbolsFilled.ttf
+    # Touch gestures of the mobile app's gesture help, which Material
+    # Symbols has no glyphs for.
     - family: GestureIcons
       fonts:
         - asset: assets/gestures.ttf
-    - family: Tabbar
-      fonts:
-        - asset: assets/tabbar.ttf
-    - family: PeerSearchbar
-      fonts:
-        - asset: assets/peer_searchbar.ttf
-    - family: AddressBook
-      fonts:
-        - asset: assets/address_book.ttf
-    - family: DeviceGroup
-      fonts:
-        - asset: assets/device_group.ttf
-    - family: More
-      fonts:
-        - asset: assets/more.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware.

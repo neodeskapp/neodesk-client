@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../common.dart';
 import '../../common/theme/bd_theme.dart';
 import './material_mod_popup_menu.dart' as mod_menu;
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 // https://stackoverflow.com/questions/68318314/flutter-popup-menu-inside-popup-menu
 class PopupMenuChildrenItem<T> extends mod_menu.PopupMenuEntry<T> {
@@ -246,7 +247,7 @@ class MenuEntryRadios<T> extends MenuEntryBase<T> {
                             focusColor: Colors.transparent,
                             onPressed: () {},
                             icon: Icon(
-                              Icons.check,
+                              BdIcons.check,
                               color: (opt.enabled ?? true.obs).isTrue
                                   ? conf.commonColor
                                   : context.bd.textMuted,
@@ -362,7 +363,7 @@ class MenuEntrySubRadios<T> extends MenuEntryBase<T> {
                                 focusColor: Colors.transparent,
                                 onPressed: () {},
                                 icon: Icon(
-                                  Icons.check,
+                                  BdIcons.check,
                                   color: conf.commonColor,
                                 ))
                             : const SizedBox.shrink())),
@@ -406,7 +407,7 @@ class MenuEntrySubRadios<T> extends MenuEntryBase<T> {
               child: Align(
             alignment: Alignment.centerRight,
             child: Icon(
-              Icons.keyboard_arrow_right,
+              BdIcons.chevronRight,
               color: conf.commonColor,
             ),
           ))
@@ -680,7 +681,7 @@ class MenuEntrySubMenu<T> extends MenuEntryBase<T> {
               child: Align(
             alignment: Alignment.centerRight,
             child: Obx(() => Icon(
-                  Icons.keyboard_arrow_right,
+                  BdIcons.chevronRight,
                   color: super.enabled!.value
                       ? conf.commonColor
                       : context.bd.textMuted,
