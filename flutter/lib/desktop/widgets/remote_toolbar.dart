@@ -11,7 +11,6 @@ import 'package:flutter_hbb/common/widgets/toolbar.dart';
 import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:flutter_hbb/consts.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import 'package:debounce_throttle/debounce_throttle.dart';
@@ -191,13 +190,13 @@ int _monitorMenuQuarterTurns(_ToolbarEdge edge) {
 IconData _toolbarCollapseIcon(_ToolbarEdge edge, bool isCollapsed) {
   switch (edge) {
     case _ToolbarEdge.top:
-      return isCollapsed ? Icons.expand_more : Icons.expand_less;
+      return isCollapsed ? BdIcons.expandMore : BdIcons.expandLess;
     case _ToolbarEdge.bottom:
-      return isCollapsed ? Icons.expand_less : Icons.expand_more;
+      return isCollapsed ? BdIcons.expandLess : BdIcons.expandMore;
     case _ToolbarEdge.left:
-      return isCollapsed ? Icons.chevron_right : Icons.chevron_left;
+      return isCollapsed ? BdIcons.chevronRight : BdIcons.chevronLeft;
     case _ToolbarEdge.right:
-      return isCollapsed ? Icons.chevron_left : Icons.chevron_right;
+      return isCollapsed ? BdIcons.chevronLeft : BdIcons.chevronRight;
   }
 }
 
@@ -983,23 +982,20 @@ class _MainMonitorSwitchButton extends StatelessWidget {
           width: _ToolbarTheme.buttonSize,
           height: _ToolbarTheme.buttonSize,
           child: Stack(
-            alignment: const Alignment(0, -0.125),
+            alignment: Alignment.center,
             children: [
-              SvgPicture.asset(
-                'assets/display_switcher.svg',
-                colorFilter:
-                    ColorFilter.mode(bdColors.onAccent, BlendMode.srcIn),
-                width: _ToolbarTheme.buttonSize,
-                height: _ToolbarTheme.buttonSize,
-              ),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: bdColors.accent,
-                  fontSize: 11,
-                  height: 1,
-                  fontWeight: FontWeight.bold,
+              Icon(BdIcons.monitorFilled, size: 32, color: bdColors.onAccent),
+              Transform.translate(
+                offset: _monitorScreenOffset(32),
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: bdColors.accent,
+                    fontSize: 11,
+                    height: 1,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -1131,7 +1127,7 @@ class _MonitorMenu extends StatelessWidget {
                 : _ToolbarTheme.hoverInactiveColor,
             width: isAllMonitors ? width.value : null,
             icon: isAllMonitors
-                ? monitorsIcon
+                ? monitorsIcon!
                 : Container(
                     alignment: AlignmentDirectional.center,
                     constraints:
@@ -1139,11 +1135,8 @@ class _MonitorMenu extends StatelessWidget {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        SvgPicture.asset(
-                          "assets/screen.svg",
-                          colorFilter:
-                              ColorFilter.mode(bdColors.onAccent, BlendMode.srcIn),
-                        ),
+                        Icon(BdIcons.rectangleFilled,
+                            size: 28, color: bdColors.onAccent),
                         Obx(() => buildOneMonitorButton(i, display.value)),
                       ],
                     ),
@@ -2160,7 +2153,7 @@ class _CustomScaleMenuControlsState
               iconSize: 16,
               padding: EdgeInsets.all(1),
               constraints: smallBtnConstraints,
-              icon: const Icon(Icons.remove),
+              icon: const Icon(BdIcons.remove),
               onPressed: () => nudgeScale(-1),
             ),
           ),
@@ -2171,7 +2164,7 @@ class _CustomScaleMenuControlsState
               iconSize: 16,
               padding: EdgeInsets.all(1),
               constraints: smallBtnConstraints,
-              icon: const Icon(Icons.add),
+              icon: const Icon(BdIcons.add),
               onPressed: () => nudgeScale(1),
             ),
           ),
@@ -2753,7 +2746,7 @@ class _KeyboardMenu extends StatelessWidget {
         MenuButton(
           child: Text(
               '${translate('Local keyboard type')}: ${KBLayoutType.value}'),
-          trailingIcon: const Icon(Icons.settings),
+          trailingIcon: const Icon(BdIcons.settings),
           ffi: ffi,
           onPressed: enabled
               ? () => showKBLayoutTypeChooser(localPlatform, ffi.dialogManager)
@@ -2908,7 +2901,7 @@ class _ChatMenuState extends State<_ChatMenu> {
       return _IconSubmenuButton(
           tooltip: 'Chat',
           key: chatButtonKey,
-          svg: 'assets/chat.svg',
+          icon: _accentIcon(BdIcons.chat),
           ffi: widget.ffi,
           color: _ToolbarTheme.blueColor,
           hoverColor: _ToolbarTheme.hoverBlueColor,
@@ -2918,7 +2911,7 @@ class _ChatMenuState extends State<_ChatMenu> {
 
   buildTextChatButton() {
     return _IconMenuButton(
-      assetName: 'assets/message_24dp_5F6368.svg',
+      icon: _accentIcon(BdIcons.chat),
       tooltip: 'Text chat',
       key: chatButtonKey,
       onPressed: _textChatOnPressed,
@@ -3013,7 +3006,7 @@ class _VoiceCallMenu extends StatelessWidget {
           case VoiceCallStatus.connected:
             return _IconSubmenuButton(
               tooltip: 'Voice call',
-              svg: 'assets/voice_call.svg',
+              icon: _accentIcon(BdIcons.phoneInTalk),
               color: _ToolbarTheme.blueColor,
               hoverColor: _ToolbarTheme.hoverBlueColor,
               menuChildrenGetter: menuChildrenGetter,
@@ -3028,7 +3021,7 @@ class _VoiceCallMenu extends StatelessWidget {
 
   Widget buildCallWaiting(BuildContext context) {
     return _IconMenuButton(
-      assetName: "assets/call_wait.svg",
+      icon: _accentIcon(BdIcons.ringVolume),
       tooltip: "Waiting",
       onPressed: () => bind.sessionCloseVoiceCall(sessionId: ffi.sessionId),
       color: _ToolbarTheme.redColor,
@@ -3216,9 +3209,16 @@ class _BdToolbarSubmenuState extends State<_BdToolbarSubmenu> {
   }
 }
 
+/// A 20 px toolbar icon on the accent of the square menu buttons.
+Widget _accentIcon(IconData icon) =>
+    Center(child: Icon(icon, size: 20, color: bdColors.onAccent));
+
+/// Where the number sits on the screen of BdIcons.monitorFilled drawn at
+/// [size]: the screen's centre is a tenth of the size above the glyph's.
+Offset _monitorScreenOffset(double size) => Offset(0, -size / 10);
+
 class _IconMenuButton extends StatefulWidget {
-  final String? assetName;
-  final Widget? icon;
+  final Widget icon;
   final String tooltip;
   final Color color;
   final Color hoverColor;
@@ -3229,8 +3229,7 @@ class _IconMenuButton extends StatefulWidget {
   final double? width;
   const _IconMenuButton({
     Key? key,
-    this.assetName,
-    this.icon,
+    required this.icon,
     required this.tooltip,
     required this.color,
     required this.hoverColor,
@@ -3250,14 +3249,7 @@ class _IconMenuButtonState extends State<_IconMenuButton> {
 
   @override
   Widget build(BuildContext context) {
-    assert(widget.assetName != null || widget.icon != null);
-    final icon = widget.icon ??
-        SvgPicture.asset(
-          widget.assetName!,
-          colorFilter: ColorFilter.mode(bdColors.onAccent, BlendMode.srcIn),
-          width: _ToolbarTheme.buttonSize,
-          height: _ToolbarTheme.buttonSize,
-        );
+    final icon = widget.icon;
     var button = SizedBox(
       width: widget.width ?? _ToolbarTheme.buttonSize,
       height: _ToolbarTheme.buttonSize,
@@ -3299,8 +3291,7 @@ class _IconMenuButtonState extends State<_IconMenuButton> {
 
 class _IconSubmenuButton extends StatefulWidget {
   final String tooltip;
-  final String? svg;
-  final Widget? icon;
+  final Widget icon;
   final Color color;
   final Color hoverColor;
   final List<Widget> Function(_IconSubmenuButtonState state) menuChildrenGetter;
@@ -3310,8 +3301,7 @@ class _IconSubmenuButton extends StatefulWidget {
 
   _IconSubmenuButton({
     Key? key,
-    this.svg,
-    this.icon,
+    required this.icon,
     required this.tooltip,
     required this.color,
     required this.hoverColor,
@@ -3335,14 +3325,7 @@ class _IconSubmenuButtonState extends State<_IconSubmenuButton> {
 
   @override
   Widget build(BuildContext context) {
-    assert(widget.svg != null || widget.icon != null);
-    final icon = widget.icon ??
-        SvgPicture.asset(
-          widget.svg!,
-          colorFilter: ColorFilter.mode(bdColors.onAccent, BlendMode.srcIn),
-          width: _ToolbarTheme.buttonSize,
-          height: _ToolbarTheme.buttonSize,
-        );
+    final icon = widget.icon;
     final button = SizedBox(
         width: widget.width ?? _ToolbarTheme.buttonSize,
         height: _ToolbarTheme.buttonSize,
@@ -3389,18 +3372,16 @@ class _SubmenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SubmenuButton(
-      key: key,
-      style: bdMenuItemStyle(context),
-      leadingIcon: const SizedBox(width: 18),
-      trailingIcon: Padding(
-        padding: const EdgeInsets.only(left: 24),
-        child: Icon(BdIcons.chevronRight, size: 18, color: context.bd.textMuted),
+    return BdSubmenuMark(
+      child: SubmenuButton(
+        key: key,
+        style: bdSubmenuItemStyle(context),
+        leadingIcon: const SizedBox(width: 18),
+        child: child,
+        menuChildren:
+            menuChildren.map((e) => _buildPointerTrackWidget(e, ffi)).toList(),
+        menuStyle: _ToolbarTheme.defaultMenuStyle(context),
       ),
-      child: child,
-      menuChildren:
-          menuChildren.map((e) => _buildPointerTrackWidget(e, ffi)).toList(),
-      menuStyle: _ToolbarTheme.defaultMenuStyle(context),
     );
   }
 }
@@ -3760,7 +3741,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
         // unmoored. When multi-edge is on we need 2D drag for snap-to-edge.
         axis: widget.multiEdgeEnabled ? null : Axis.horizontal,
         child: Icon(
-          widget.isHorizontal ? Icons.drag_indicator : Icons.drag_handle,
+          widget.isHorizontal ? BdIcons.dragIndicator : BdIcons.dragHandle,
           size: 20,
           color: MyTheme.color(context).drag_indicator,
         ),
@@ -3830,8 +3811,8 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
                     isFullscreen.isTrue ? 'Exit Fullscreen' : 'Fullscreen'),
                 child: Icon(
                   isFullscreen.isTrue
-                      ? Icons.fullscreen_exit
-                      : Icons.fullscreen,
+                      ? BdIcons.fullscreenExit
+                      : BdIcons.fullscreen,
                   size: iconSize,
                 ),
               ),
@@ -3844,7 +3825,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
                   Tooltip(
                     message: translate('Minimize'),
                     child: Icon(
-                      Icons.remove,
+                      BdIcons.remove,
                       size: iconSize,
                     ),
                   ),
@@ -3873,7 +3854,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
                 Tooltip(
                   message: translate('Close'),
                   child: Icon(
-                    Icons.close,
+                    BdIcons.close,
                     size: iconSize,
                     color: _ToolbarTheme.redColor,
                   ),
@@ -4026,22 +4007,20 @@ class _MinimizedMonitorSwitchButton extends StatelessWidget {
             }),
           ),
           child: Stack(
-            alignment: const Alignment(0, -0.125),
+            alignment: Alignment.center,
             children: [
-              SvgPicture.asset(
-                'assets/display_switcher.svg',
-                colorFilter:
-                    ColorFilter.mode(_ToolbarTheme.blueColor, BlendMode.srcIn),
-                width: iconSize,
-                height: iconSize,
-              ),
-              Text(
-                label,
-                style: TextStyle(
-                  color: bdColors.onAccent,
-                  fontSize: 9,
-                  height: 1,
-                  fontWeight: FontWeight.bold,
+              Icon(BdIcons.monitorFilled,
+                  size: iconSize, color: _ToolbarTheme.blueColor),
+              Transform.translate(
+                offset: _monitorScreenOffset(iconSize),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: bdColors.onAccent,
+                    fontSize: 9,
+                    height: 1,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],

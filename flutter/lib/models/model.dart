@@ -30,7 +30,6 @@ import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:flutter_hbb/utils/http_service.dart' as http;
 import 'package:tuple/tuple.dart';
 import 'package:image/image.dart' as img2;
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:uuid/uuid.dart';
 import 'package:window_manager/window_manager.dart';
@@ -287,10 +286,7 @@ class FfiModel with ChangeNotifier {
     if (secure == null || direct == null) {
       return null;
     } else {
-      final icon =
-          '${secure == true ? 'secure' : 'insecure'}${direct == true ? '' : '_relay'}';
-      final iconWidget =
-          SvgPicture.asset('assets/$icon.svg', width: 48, height: 48);
+      final iconWidget = getConnectionIcon(secure!, direct!, size: 48);
       String connectionText =
           getConnectionText(secure!, direct!, cachedPeerData.streamType);
       return Column(

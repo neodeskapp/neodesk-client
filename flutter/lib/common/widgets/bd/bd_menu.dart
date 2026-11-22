@@ -146,6 +146,39 @@ class BdMenuItem extends StatelessWidget {
   }
 }
 
+/// The style of an item that opens a submenu. Flutter's SubmenuButton
+/// draws a Material arrow (24 px, in the icon colour) at the end of every
+/// such item; this style makes that arrow transparent, and BdSubmenuMark
+/// draws BdIcons.chevronRight in its place.
+ButtonStyle bdSubmenuItemStyle(BuildContext context) =>
+    bdMenuItemStyle(context).copyWith(
+        iconColor: const WidgetStatePropertyAll(Colors.transparent));
+
+/// [child], a SubmenuButton with bdSubmenuItemStyle, with the chevron drawn
+/// where Flutter's arrow is: 24 px wide, before the item's 12 px end padding.
+class BdSubmenuMark extends StatelessWidget {
+  const BdSubmenuMark({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(fit: StackFit.passthrough, children: [
+      child,
+      Positioned(
+        top: 0,
+        bottom: 0,
+        right: 12 + (24 - 18) / 2,
+        child: IgnorePointer(
+          child: Center(
+            child: Icon(BdIcons.chevronRight,
+                size: 18, color: context.bd.textMuted),
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
 /// A menu entry that opens a submenu to the side.
 class BdSubmenu extends StatelessWidget {
   const BdSubmenu({
@@ -161,17 +194,14 @@ class BdSubmenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    return SubmenuButton(
-      style: bdMenuItemStyle(context),
-      menuStyle: bdMenuStyle(context),
-      leadingIcon: const _Lead(BdMenuLead.none, null),
-      trailingIcon: Padding(
-        padding: const EdgeInsets.only(left: 24),
-        child: Icon(BdIcons.chevronRight, size: 18, color: c.textMuted),
+    return BdSubmenuMark(
+      child: SubmenuButton(
+        style: bdSubmenuItemStyle(context),
+        menuStyle: bdMenuStyle(context),
+        leadingIcon: const _Lead(BdMenuLead.none, null),
+        menuChildren: enabled ? children : const [],
+        child: Text(label),
       ),
-      menuChildren: enabled ? children : const [],
-      child: Text(label),
     );
   }
 }

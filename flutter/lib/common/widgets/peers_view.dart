@@ -17,6 +17,7 @@ import '../../common.dart';
 import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
 import 'peer_card.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 typedef PeerFilter = bool Function(Peer peer);
 typedef PeerCardBuilder = Widget Function(Peer peer);
@@ -192,7 +193,7 @@ class _PeersViewState extends State<_PeersView>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.sentiment_very_dissatisfied_rounded,
+                  BdIcons.sentimentVeryDissatisfied,
                   color: Theme.of(context).tabBarTheme.labelColor,
                   size: 40,
                 ).paddingOnly(bottom: 10),

@@ -20,6 +20,7 @@ import '../../common/theme/bd_theme.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import 'address_book.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 void clientClose(SessionID sessionId, FFI ffi) async {
   if (allowAskForNoteAtEndOfConnection(ffi, true)) {
@@ -415,7 +416,7 @@ Future<String> changeDirectAccessPort(
                             prefix: Text('$currentIP : '),
                             suffix: IconButton(
                                 padding: EdgeInsets.zero,
-                                icon: const Icon(Icons.clear, size: 16),
+                                icon: const Icon(BdIcons.close, size: 16),
                                 onPressed: () => controller.clear())),
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(RegExp(
@@ -463,7 +464,7 @@ Future<String> changeAutoDisconnectTimeout(String old) async {
                             isCollapsed: true,
                             suffix: IconButton(
                                 padding: EdgeInsets.zero,
-                                icon: const Icon(Icons.clear, size: 16),
+                                icon: const Icon(BdIcons.close, size: 16),
                                 onPressed: () => controller.clear())),
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(RegExp(
@@ -506,9 +507,9 @@ class DialogTextField extends StatelessWidget {
   final int? maxLength;
 
   static const kUsernameTitle = 'Username';
-  static const kUsernameIcon = Icon(Icons.account_circle_outlined);
+  static const kUsernameIcon = Icon(BdIcons.accountCircle);
   static const kPasswordTitle = 'Password';
-  static const kPasswordIcon = Icon(Icons.lock_outline);
+  static const kPasswordIcon = Icon(BdIcons.lock);
 
   DialogTextField(
       {Key? key,
@@ -880,7 +881,7 @@ class _PasswordWidgetState extends State<PasswordWidget> {
       suffixIcon: IconButton(
         icon: Icon(
             // Based on passwordVisible state choose the icon
-            _passwordVisible ? Icons.visibility : Icons.visibility_off,
+            _passwordVisible ? BdIcons.visibility : BdIcons.visibilityOff,
             color: MyTheme.lightTheme.primaryColor),
         onPressed: () {
           // Update the state i.e. toggle the state of passwordVisible variable
@@ -1110,7 +1111,7 @@ _connectDialog(
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.password_rounded, color: MyTheme.accent),
+          Icon(BdIcons.password, color: MyTheme.accent),
           Text(translate('Password Required')).paddingOnly(left: 10),
         ],
       ),
@@ -1124,13 +1125,13 @@ _connectDialog(
       actions: [
         dialogButton(
           'Cancel',
-          icon: Icon(Icons.close_rounded),
+          icon: Icon(BdIcons.close),
           onPressed: cancel,
           isOutline: true,
         ),
         dialogButton(
           'OK',
-          icon: Icon(Icons.done_rounded),
+          icon: Icon(BdIcons.check),
           onPressed: submit,
         ),
       ],
@@ -1151,7 +1152,7 @@ void showWaitUacDialog(
             actions: [
               dialogButton(
                 'OK',
-                icon: Icon(Icons.done_rounded),
+                icon: Icon(BdIcons.check),
                 onPressed: close,
               ),
             ],
@@ -1240,7 +1241,7 @@ void showRequestElevationDialog(
     ),
     child: Row(
       children: [
-        Icon(Icons.info_outline_rounded, size: 20).marginOnly(right: 10),
+        Icon(BdIcons.info, size: 20).marginOnly(right: 10),
         Expanded(
           child: Text(
             translate('still_click_uac_tip'),
@@ -1311,13 +1312,13 @@ void showRequestElevationDialog(
       actions: [
         dialogButton(
           'Cancel',
-          icon: Icon(Icons.close_rounded),
+          icon: Icon(BdIcons.close),
           onPressed: close,
           isOutline: true,
         ),
         dialogButton(
           'OK',
-          icon: Icon(Icons.done_rounded),
+          icon: Icon(BdIcons.check),
           onPressed: submit,
         )
       ],
@@ -1405,7 +1406,7 @@ void showRestartRemoteDevice(PeerInfo pi, String id, SessionID sessionId,
   final res = await dialogManager
       .show<bool>((setState, close, context) => CustomAlertDialog(
             title: Row(children: [
-              Icon(Icons.warning_rounded, color: context.bd.danger, size: 28),
+              Icon(BdIcons.warning, color: context.bd.danger, size: 28),
               Flexible(
                   child: Text(translate("Restart remote device"))
                       .paddingOnly(left: 10)),
@@ -1415,13 +1416,13 @@ void showRestartRemoteDevice(PeerInfo pi, String id, SessionID sessionId,
             actions: [
               dialogButton(
                 "Cancel",
-                icon: Icon(Icons.close_rounded),
+                icon: Icon(BdIcons.close),
                 onPressed: close,
                 isOutline: true,
               ),
               dialogButton(
                 "OK",
-                icon: Icon(Icons.done_rounded),
+                icon: Icon(BdIcons.check),
                 onPressed: () => close(true),
               ),
             ],
@@ -1470,7 +1471,7 @@ showSetOSPassword(
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.password_rounded, color: MyTheme.accent),
+          Icon(BdIcons.password, color: MyTheme.accent),
           Text(translate('OS Password')).paddingOnly(left: 10),
         ],
       ),
@@ -1496,13 +1497,13 @@ showSetOSPassword(
       actions: [
         dialogButton(
           "Cancel",
-          icon: Icon(Icons.close_rounded),
+          icon: Icon(BdIcons.close),
           onPressed: closeWithCallback,
           isOutline: true,
         ),
         dialogButton(
           "OK",
-          icon: Icon(Icons.done_rounded),
+          icon: Icon(BdIcons.check),
           onPressed: submit,
         ),
       ],
@@ -1941,13 +1942,13 @@ List<Widget> _trackpadSpeedDialogActions({
   return [
     dialogButton(
       'Cancel',
-      icon: Icon(Icons.close_rounded),
+      icon: Icon(BdIcons.close),
       onPressed: isSubmitting ? null : close,
       isOutline: true,
     ),
     dialogButton(
       'OK',
-      icon: Icon(Icons.done_rounded),
+      icon: Icon(BdIcons.check),
       onPressed: isSubmitting ? null : submit,
     ),
   ];
@@ -2017,7 +2018,7 @@ void deleteConfirmDialog(Function onSubmit, String title) async {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.delete_rounded,
+              BdIcons.delete,
               color: context.bd.danger,
             ),
             Expanded(
@@ -2031,13 +2032,13 @@ void deleteConfirmDialog(Function onSubmit, String title) async {
         actions: [
           dialogButton(
             "Cancel",
-            icon: Icon(Icons.close_rounded),
+            icon: Icon(BdIcons.close),
             onPressed: close,
             isOutline: true,
           ),
           dialogButton(
             "OK",
-            icon: Icon(Icons.done_rounded),
+            icon: Icon(BdIcons.check),
             onPressed: submit,
           ),
         ],
@@ -2173,7 +2174,7 @@ void renameDialog(
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.edit_rounded, color: MyTheme.accent),
+          Icon(BdIcons.edit, color: MyTheme.accent),
           Text(translate('Rename')).paddingOnly(left: 10),
         ],
       ),
@@ -2199,13 +2200,13 @@ void renameDialog(
       actions: [
         dialogButton(
           "Cancel",
-          icon: Icon(Icons.close_rounded),
+          icon: Icon(BdIcons.close),
           onPressed: cancel,
           isOutline: true,
         ),
         dialogButton(
           "OK",
-          icon: Icon(Icons.done_rounded),
+          icon: Icon(BdIcons.check),
           onPressed: submit,
         ),
       ],
@@ -2528,7 +2529,7 @@ void addPeersToAbDialog(
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(IconFont.addressBook, color: MyTheme.accent),
+          Icon(BdIcons.contacts, color: MyTheme.accent),
           Text(translate('Add to address book')).paddingOnly(left: 10),
         ],
       ),
@@ -2551,6 +2552,8 @@ void addPeersToAbDialog(
                     isDense: true, border: UnderlineInputBorder()),
                 enableFilter: true,
                 controller: controller,
+                trailingIcon: const Icon(BdIcons.arrowDropDown),
+                selectedTrailingIcon: const Icon(BdIcons.arrowDropUp),
               ),
               // NOT use Offstage to wrap LinearProgressIndicator
               isInProgress.value ? const LinearProgressIndicator() : Offstage()
@@ -2559,13 +2562,13 @@ void addPeersToAbDialog(
       actions: [
         dialogButton(
           "Cancel",
-          icon: Icon(Icons.close_rounded),
+          icon: Icon(BdIcons.close),
           onPressed: cancel,
           isOutline: true,
         ),
         dialogButton(
           "OK",
-          icon: Icon(Icons.done_rounded),
+          icon: Icon(BdIcons.check),
           onPressed: submit,
         ),
       ],
@@ -2603,7 +2606,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.key, color: MyTheme.accent),
+          Icon(BdIcons.key, color: MyTheme.accent),
           Text(translate(peer.password.isEmpty
                   ? 'Set shared password'
                   : 'Change Password'))
@@ -2618,7 +2621,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
               decoration: InputDecoration(
                 suffixIcon: IconButton(
                   icon: Icon(
-                      passwordVisible ? Icons.visibility : Icons.visibility_off,
+                      passwordVisible ? BdIcons.visibility : BdIcons.visibilityOff,
                       color: MyTheme.lightTheme.primaryColor),
                   onPressed: () {
                     setState(() {
@@ -2630,7 +2633,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
             ).workaroundFreezeLinuxMint(),
             if (!gFFI.abModel.current.isPersonal())
               Row(children: [
-                Icon(Icons.info, color: context.bd.warning).marginOnly(right: 4),
+                Icon(BdIcons.info, color: context.bd.warning).marginOnly(right: 4),
                 Text(
                   translate('share_warning_tip'),
                   style: TextStyle(fontSize: 12),
@@ -2642,14 +2645,14 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
       actions: [
         dialogButton(
           "Cancel",
-          icon: Icon(Icons.close_rounded),
+          icon: Icon(BdIcons.close),
           onPressed: cancel,
           isOutline: true,
         ),
         if (peer.password.isNotEmpty)
           dialogButton(
             "Remove",
-            icon: Icon(Icons.delete_outline_rounded),
+            icon: Icon(BdIcons.delete),
             onPressed: () => change(''),
             buttonStyle: ButtonStyle(
                 backgroundColor: WidgetStatePropertyAll(context.bd.danger),
@@ -2657,7 +2660,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
           ),
         Obx(() => dialogButton(
               "OK",
-              icon: Icon(Icons.done_rounded),
+              icon: Icon(BdIcons.check),
               onPressed:
                   isInputEmpty.value ? null : () => change(controller.text),
             )),

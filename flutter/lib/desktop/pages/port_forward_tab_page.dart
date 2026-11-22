@@ -9,6 +9,7 @@ import 'package:flutter_hbb/desktop/pages/port_forward_page.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:get/get.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 class PortForwardTabPage extends StatefulWidget {
   final Map<String, dynamic> params;
@@ -23,8 +24,8 @@ class _PortForwardTabPageState extends State<PortForwardTabPage> {
   late final DesktopTabController tabController;
   late final bool isRDP;
 
-  static const IconData selectedIcon = Icons.forward_sharp;
-  static const IconData unselectedIcon = Icons.forward_outlined;
+  static const IconData selectedIcon = BdIcons.settingsEthernet;
+  static const IconData unselectedIcon = BdIcons.settingsEthernet;
 
   _PortForwardTabPageState(Map<String, dynamic> params) {
     isRDP = params['isRDP'];

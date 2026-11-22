@@ -205,7 +205,7 @@ class _PeerCardState extends State<_PeerCard>
                   Positioned(
                     top: 1,
                     left: 1,
-                    child: Icon(Icons.key, size: 6, color: BdPalette.onDataColor),
+                    child: Icon(BdIcons.key, size: 6, color: BdPalette.onDataColor),
                   ),
               ],
             )),
@@ -438,7 +438,7 @@ class _PeerCardState extends State<_PeerCard>
           Positioned(
             top: 4,
             left: 12,
-            child: Icon(Icons.key, size: 12, color: BdPalette.onDataColor),
+            child: Icon(BdIcons.key, size: 12, color: BdPalette.onDataColor),
           ),
         if (colors.isNotEmpty)
           Positioned(
@@ -468,15 +468,15 @@ class _PeerCardState extends State<_PeerCard>
         padding: const EdgeInsets.all(12),
         child: selected
             ? Icon(
-                Icons.check_box,
+                BdIcons.checkBox,
                 color: MyTheme.accent,
               )
-            : Icon(Icons.check_box_outline_blank),
+            : Icon(BdIcons.checkBoxOutlineBlank),
       );
     } else {
       return InkWell(
           child: const Padding(
-              padding: EdgeInsets.all(12), child: Icon(Icons.more_vert)),
+              padding: EdgeInsets.all(12), child: Icon(BdIcons.moreVert)),
           onTapDown: (e) {
             final x = e.globalPosition.dx;
             final y = e.globalPosition.dy;
@@ -494,10 +494,10 @@ class _PeerCardState extends State<_PeerCard>
     if (peerTabModel.multiSelectionMode) {
       final icon = selected
           ? Icon(
-              Icons.check_box,
+              BdIcons.checkBox,
               color: MyTheme.accent,
             )
-          : Icon(Icons.check_box_outline_blank);
+          : Icon(BdIcons.checkBoxOutlineBlank);
       bool last = peerTabModel.isShiftDown && peer.id == peerTabModel.lastId;
       double right = isTile ? 4 : 0;
       if (last) {
@@ -687,7 +687,7 @@ abstract class BasePeerCard extends StatelessWidget {
                 child: Transform.scale(
                     scale: 0.8,
                     child: IconButton(
-                      icon: const Icon(Icons.edit),
+                      icon: const Icon(BdIcons.edit),
                       padding: EdgeInsets.zero,
                       onPressed: () {
                         if (Navigator.canPop(context)) {
@@ -836,7 +836,7 @@ abstract class BasePeerCard extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: Transform.scale(
               scale: 0.8,
-              child: Icon(Icons.delete_forever, color: bdColors.danger),
+              child: Icon(BdIcons.deleteForever, color: bdColors.danger),
             ),
           ).marginOnly(right: 4)),
         ],
@@ -916,7 +916,7 @@ abstract class BasePeerCard extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: Transform.scale(
               scale: 0.8,
-              child: Icon(Icons.star_outline),
+              child: Icon(BdIcons.star),
             ),
           ).marginOnly(right: 4)),
         ],
@@ -951,7 +951,7 @@ abstract class BasePeerCard extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: Transform.scale(
               scale: 0.8,
-              child: Icon(Icons.star),
+              child: Icon(BdIcons.starFilled),
             ),
           ).marginOnly(right: 4)),
         ],
@@ -1322,7 +1322,7 @@ class AddressBookPeerCard extends BasePeerCard {
             actions: [
               dialogButton(
                 "OK",
-                icon: Icon(Icons.done_rounded),
+                icon: Icon(BdIcons.check),
                 onPressed: close,
               ),
             ],
@@ -1485,8 +1485,8 @@ void _rdpDialog(String id) async {
                                     onPressed: () =>
                                         secure.value = !secure.value,
                                     icon: Icon(secure.value
-                                        ? Icons.visibility_off
-                                        : Icons.visibility))),
+                                        ? BdIcons.visibilityOff
+                                        : BdIcons.visibility))),
                             controller: passwordController,
                           ).workaroundFreezeLinuxMint()),
                     ),
@@ -1530,7 +1530,7 @@ Widget build_more(BuildContext context, {bool invert = false}) {
               : (invert
                   ? Theme.of(context).scaffoldBackgroundColor
                   : Theme.of(context).colorScheme.background),
-          child: Icon(Icons.more_vert,
+          child: Icon(BdIcons.moreVert,
               size: 18,
               color: hover.value
                   ? Theme.of(context).textTheme.titleLarge?.color

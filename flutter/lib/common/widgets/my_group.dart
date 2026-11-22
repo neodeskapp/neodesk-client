@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 
 import '../../common.dart';
 import '../../common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 class MyGroup extends StatefulWidget {
   final EdgeInsets? menuPadding;
@@ -142,7 +143,7 @@ class _MyGroupState extends State<MyGroup> {
           decoration: InputDecoration(
             filled: false,
             prefixIcon: Icon(
-              Icons.search_rounded,
+              BdIcons.search,
               color: Theme.of(context).hintColor,
             ).paddingOnly(top: 2),
             hintText: translate("Search"),
@@ -296,7 +297,7 @@ class _MyGroupState extends State<MyGroup> {
                 Container(
                   width: 20,
                   height: 20,
-                  child: Icon(IconFont.deviceGroupOutline,
+                  child: Icon(BdIcons.workspaces,
                       color: MyTheme.accent, size: 19),
                 ).marginOnly(right: 4),
                 Expanded(child: Text(name)),

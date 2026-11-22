@@ -1362,7 +1362,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                   Offstage(
                     offstage: !hasWhitelist.value,
                     child: MouseRegion(
-                      child: Icon(Icons.warning_amber_rounded,
+                      child: Icon(BdIcons.warning,
                               color: context.bd.warning)
                           .marginOnly(right: 5),
                       cursor: SystemMouseCursors.click,
@@ -1412,7 +1412,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                 Offstage(
                   offstage: !hasIdWhitelist.value,
                   child: MouseRegion(
-                    child: Icon(Icons.warning_amber_rounded,
+                    child: Icon(BdIcons.warning,
                             color: context.bd.warning)
                         .marginOnly(right: 5),
                     cursor: SystemMouseCursors.click,
@@ -3109,7 +3109,7 @@ void changeSocks5Proxy() async {
                               waitDuration: Duration(milliseconds: 0),
                               message: translate("default_proxy_tip"),
                               child: Icon(
-                                Icons.help_outline_outlined,
+                                BdIcons.help,
                                 size: 16,
                                 color: Theme.of(context)
                                     .textTheme
@@ -3174,8 +3174,8 @@ void changeSocks5Proxy() async {
                             suffixIcon: IconButton(
                                 onPressed: () => obscure.value = !obscure.value,
                                 icon: Icon(obscure.value
-                                    ? Icons.visibility_off
-                                    : Icons.visibility))),
+                                    ? BdIcons.visibilityOff
+                                    : BdIcons.visibility))),
                         controller: pwdController,
                         enabled: !isOptFixed,
                         maxLength: bind.mainMaxEncryptLen(),

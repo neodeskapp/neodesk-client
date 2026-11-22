@@ -8,6 +8,7 @@ import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:get/get.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 const double _kColumn1Width = 30;
 const double _kColumn4Width = 100;
@@ -201,7 +202,7 @@ class _PortForwardPageState extends State<PortForwardPage>
             controller: localPortController,
             inputFormatters: portInputFormatter),
         const SizedBox(
-            width: _kColumn1Width, child: Icon(Icons.arrow_forward_sharp)),
+            width: _kColumn1Width, child: Icon(BdIcons.arrowForward)),
         buildTunnelInputCell(context,
             controller: remoteHostController, hint: 'localhost'),
         buildTunnelInputCell(context,
@@ -271,7 +272,7 @@ class _PortForwardPageState extends State<PortForwardPage>
         SizedBox(
           width: _kColumn4Width,
           child: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(BdIcons.close),
             onPressed: () async {
               await bind.sessionRemovePortForward(
                   sessionId: _ffi.sessionId, localPort: pf.localPort);
@@ -343,7 +344,7 @@ class _PortForwardPageState extends State<PortForwardPage>
                   ),
                   const SizedBox(
                       width: _kColumn1Width,
-                      child: Icon(Icons.arrow_forward_sharp)),
+                      child: Icon(BdIcons.arrowForward)),
                   text2('localhost'),
                   text2('RDP'),
                 ]),

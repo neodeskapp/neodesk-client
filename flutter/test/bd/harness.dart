@@ -1,7 +1,7 @@
 // Shared setup for the BetterDesk widget tests and screenshots.
 //
-// - Loads the app's fonts (Plex, Funnel Display, the icon subsets) so text
-//   renders as in the app.
+// - Loads the fonts pubspec.yaml declares (Plex, Funnel Display, the icon
+//   fonts) so text and icons render as in the app.
 // - Translates with src/lang/en.rs or de.rs, the same tables the Rust side
 //   uses, falling back to English and then to the key.
 // - shot() pumps a screen at a window size in light or dark and, when
@@ -17,26 +17,31 @@ import 'package:flutter_hbb/common.dart' show translateForTest;
 import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-final _fontFamilies = <String, List<String>>{
-  'IBMPlexSans': [
-    'IBMPlexSans-Regular.ttf',
-    'IBMPlexSans-Medium.ttf',
-    'IBMPlexSans-SemiBold.ttf'
-  ],
-  'IBMPlexMono': ['IBMPlexMono-Regular.ttf', 'IBMPlexMono-SemiBold.ttf'],
-  'FunnelDisplay': ['FunnelDisplay-SemiBold.ttf', 'FunnelDisplay-Bold.ttf'],
-  'BdSymbols': ['BdSymbols.ttf'],
-  'BdSymbolsFilled': ['BdSymbolsFilled.ttf'],
-};
+/// The font families of pubspec.yaml with their asset files.
+Map<String, List<String>> _pubspecFonts() {
+  final families = <String, List<String>>{};
+  String? family;
+  for (final line in File('pubspec.yaml').readAsLinesSync()) {
+    final f = RegExp(r'^\s*- family:\s*(\S+)').firstMatch(line);
+    final a = RegExp(r'^\s*- asset:\s*(\S+\.(?:ttf|otf))').firstMatch(line);
+    if (f != null) {
+      family = f.group(1)!;
+      families[family] = [];
+    } else if (a != null && family != null) {
+      families[family]!.add(a.group(1)!);
+    }
+  }
+  return families;
+}
 
 bool _fontsLoaded = false;
 
 Future<void> loadBdFonts() async {
   if (_fontsLoaded) return;
-  for (final e in _fontFamilies.entries) {
+  for (final e in _pubspecFonts().entries) {
     final loader = FontLoader(e.key);
     for (final f in e.value) {
-      final bytes = File('assets/fonts/$f').readAsBytesSync();
+      final bytes = File(f).readAsBytesSync();
       loader.addFont(Future.value(ByteData.view(bytes.buffer)));
     }
     await loader.load();
@@ -86,7 +91,8 @@ void useLanguage(String lang) {
 String? get shotsDir => Platform.environment['BD_SHOTS_DIR'];
 
 /// Builds [screen] in a window of [size] with the theme of [brightness]
-/// (and an optional server [accent]) and keeps time still.
+/// (and an optional server [accent]) and keeps time still. [extra] adds
+/// theme extensions, as the app does for its older widgets.
 Future<void> pumpScreen(
   WidgetTester tester,
   Widget screen, {
@@ -95,6 +101,7 @@ Future<void> pumpScreen(
   String? accent,
   String lang = 'en',
   Key? rootKey,
+  List<ThemeExtension<dynamic>> Function(BdColors c)? extra,
 }) async {
   await loadBdFonts();
   useLanguage(lang);
@@ -117,7 +124,7 @@ Future<void> pumpScreen(
             size: size, devicePixelRatio: 2, disableAnimations: true),
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: BdTheme.theme(brightness, desktop: true),
+          theme: BdTheme.theme(brightness, desktop: true, extra: extra),
           home: Material(type: MaterialType.transparency, child: screen),
         ),
       ),

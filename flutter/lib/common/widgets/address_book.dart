@@ -22,6 +22,7 @@ import '../../common.dart';
 import '../../common/theme/bd_theme.dart';
 import 'dialog.dart';
 import 'login.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
 
 final hideAbTagsPanel = false.obs;
 
@@ -156,7 +157,7 @@ class _AddressBookState extends State<AddressBook> {
         return Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            icon(Icons.cloud_off, "Personal"),
+            icon(BdIcons.cloudOff, "Personal"),
           ],
         );
       } else {
@@ -164,17 +165,17 @@ class _AddressBookState extends State<AddressBook> {
         final rule = gFFI.abModel.current.sharedProfile()?.rule;
         if (rule == ShareRule.read.value) {
           children.add(
-              icon(Icons.visibility, ShareRule.desc(ShareRule.read.value)));
+              icon(BdIcons.visibility, ShareRule.desc(ShareRule.read.value)));
         } else if (rule == ShareRule.readWrite.value) {
           children
-              .add(icon(Icons.edit, ShareRule.desc(ShareRule.readWrite.value)));
+              .add(icon(BdIcons.edit, ShareRule.desc(ShareRule.readWrite.value)));
         } else if (rule == ShareRule.fullControl.value) {
           children.add(icon(
-              Icons.security, ShareRule.desc(ShareRule.fullControl.value)));
+              BdIcons.security, ShareRule.desc(ShareRule.fullControl.value)));
         }
         final owner = gFFI.abModel.current.sharedProfile()?.owner;
         if (owner != null) {
-          children.add(icon(Icons.person, "${translate("Owner")}: $owner"));
+          children.add(icon(BdIcons.person, "${translate("Owner")}: $owner"));
         }
         return Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -249,7 +250,7 @@ class _AddressBookState extends State<AddressBook> {
               Expanded(
                   child:
                       buildItem(gFFI.abModel.currentName.value, button: true)),
-              Icon(Icons.arrow_drop_down),
+              Icon(BdIcons.arrowDropDown),
             ]),
           )),
       underline: Container(
@@ -594,8 +595,8 @@ class _AddressBookState extends State<AddressBook> {
                             suffixIcon: IconButton(
                               icon: Icon(
                                   passwordVisible
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
+                                      ? BdIcons.visibility
+                                      : BdIcons.visibilityOff,
                                   color: MyTheme.lightTheme.primaryColor),
                               onPressed: () {
                                 setState(() {
@@ -658,7 +659,7 @@ class _AddressBookState extends State<AddressBook> {
             ),
             if (!gFFI.abModel.current.isPersonal())
               Row(children: [
-                Icon(Icons.info, color: context.bd.warning).marginOnly(right: 4),
+                Icon(BdIcons.info, color: context.bd.warning).marginOnly(right: 4),
                 Text(
                   translate('share_warning_tip'),
                   style: TextStyle(fontSize: 12),
