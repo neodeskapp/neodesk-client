@@ -1,0 +1,130 @@
+# Signs Windows files with Azure Artifact Signing as "Rath & Blume GbR".
+#
+# Looks for .exe, .dll and .msi files under the given paths and signs the ones
+# that have no signature yet, so files that come signed by someone else (or
+# belong to a driver package whose catalog covers them) keep what they have.
+# Fails when a file it signed does not then carry a valid signature by the
+# publisher.
+#
+# x64 runners sign with azure/artifact-signing-action. That action does not
+# run on Windows on Arm, so arm64 runners sign the same way through jsign,
+# which talks to the same signing account with an access token.
+name: Sign Windows files
+description: Sign unsigned exe, dll and msi files with Azure Artifact Signing.
+inputs:
+  paths:
+    description: Files or folders (searched recursively), one per line.
+    required: true
+  exclude:
+    description: Regular expression; matching full paths are left alone.
+    required: false
+    default: '^$'
+  azure-tenant-id:
+    required: true
+  azure-client-id:
+    required: true
+  azure-client-secret:
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: List files to sign
+      id: list
+      shell: pwsh
+      env:
+        SIGN_PATHS: ${{ inputs.paths }}
+        SIGN_EXCLUDE: ${{ inputs.exclude }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $files = foreach ($p in ($env:SIGN_PATHS -split "`r?`n" | Where-Object { $_.Trim() })) {
+          $item = Get-Item -LiteralPath $p.Trim()
+          if ($item.PSIsContainer) {
+            Get-ChildItem -LiteralPath $item.FullName -Recurse -File |
+              Where-Object { $_.Extension -in '.exe', '.dll', '.msi' }
+          } else {
+            $item
+          }
+        }
+        $todo = @($files | Where-Object { $_.FullName -notmatch $env:SIGN_EXCLUDE } |
+          Where-Object { (Get-AuthenticodeSignature -LiteralPath $_.FullName).Status -eq 'NotSigned' } |
+          ForEach-Object { $_.FullName } | Sort-Object -Unique)
+        Write-Host "Files to sign: $($todo.Count)"
+        $todo | ForEach-Object { Write-Host "  $_" }
+        $list = Join-Path $env:RUNNER_TEMP "sign-$([guid]::NewGuid()).txt"
+        Set-Content -LiteralPath $list -Value $todo -Encoding utf8
+        "list=$list" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        "count=$($todo.Count)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        $delimiter = "EOF_$([guid]::NewGuid().ToString('N'))"
+        "files<<$delimiter" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        $todo | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        $delimiter | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+    - name: Sign (x64)
+      if: steps.list.outputs.count != '0' && runner.arch == 'X64'
+      uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+      with:
+        azure-tenant-id: ${{ inputs.azure-tenant-id }}
+        azure-client-id: ${{ inputs.azure-client-id }}
+        azure-client-secret: ${{ inputs.azure-client-secret }}
+        endpoint: https://plc.codesigning.azure.net/
+        signing-account-name: Bulwark
+        certificate-profile-name: bulwark-desktop
+        files: ${{ steps.list.outputs.files }}
+        file-digest: SHA256
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
+
+    - name: Sign (arm64)
+      if: steps.list.outputs.count != '0' && runner.arch != 'X64'
+      shell: pwsh
+      env:
+        AZURE_TENANT_ID: ${{ inputs.azure-tenant-id }}
+        AZURE_CLIENT_ID: ${{ inputs.azure-client-id }}
+        AZURE_CLIENT_SECRET: ${{ inputs.azure-client-secret }}
+        SIGN_LIST: ${{ steps.list.outputs.list }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $jar = Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar'
+        if (-not (Test-Path -LiteralPath $jar)) {
+          Invoke-WebRequest -Uri 'https://github.com/ebourg/jsign/releases/download/7.6/jsign-7.6.jar' -OutFile $jar
+        }
+        $hash = (Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash
+        if ($hash -ne '6CF58AA080E7FF82656F320CFF8D4A3BFF30408DF8766806DCBA3740DD839FA5') {
+          Remove-Item -LiteralPath $jar
+          throw "jsign-7.6.jar has an unexpected SHA-256: $hash"
+        }
+        $token = (Invoke-RestMethod -Method Post `
+          -Uri "https://login.microsoftonline.com/$env:AZURE_TENANT_ID/oauth2/v2.0/token" `
+          -Body @{
+            grant_type = 'client_credentials'
+            client_id = $env:AZURE_CLIENT_ID
+            client_secret = $env:AZURE_CLIENT_SECRET
+            scope = 'https://codesigning.azure.net/.default'
+          }).access_token
+        Write-Host "::add-mask::$token"
+        $env:SIGN_TOKEN = $token
+        $java = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { 'java' }
+        & $java -jar $jar `
+          --storetype TRUSTEDSIGNING `
+          --keystore plc.codesigning.azure.net `
+          --storepass env:SIGN_TOKEN `
+          --alias Bulwark/bulwark-desktop `
+          --alg SHA-256 `
+          --tsaurl http://timestamp.acs.microsoft.com `
+          --tsmode RFC3161 `
+          "@$env:SIGN_LIST"
+        if ($LASTEXITCODE -ne 0) { throw "jsign failed with exit code $LASTEXITCODE" }
+
+    - name: Check the new signatures
+      if: steps.list.outputs.count != '0'
+      shell: pwsh
+      env:
+        SIGN_LIST: ${{ steps.list.outputs.list }}
+      run: |
+        $bad = 0
+        Get-Content -LiteralPath $env:SIGN_LIST | Where-Object { $_ } | ForEach-Object {
+          $s = Get-AuthenticodeSignature -LiteralPath $_
+          Write-Host "$($_): $($s.Status) $($s.SignerCertificate.Subject)"
+          if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch '^CN="?Rath & Blume GbR') { $bad++ }
+        }
+        if ($bad) { throw "$bad file(s) without a valid Rath & Blume GbR signature" }

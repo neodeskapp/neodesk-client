@@ -52,7 +52,6 @@ env:
   UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
   BETTERDESK_SUPPORT_CONFIG_B64: "${{ inputs.support-config-b64 }}"
   BETTERDESK_GENERIC_SUPPORT: "${{ inputs.generic-support && '1' || '' }}"
-  SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}-2"
 
 jobs:
   # Turns the platforms input into the matrices of the jobs below. A family
@@ -208,6 +207,11 @@ jobs:
     needs: [plan, build-RustDeskTempTopMostWindow, generate-bridge]
     if: needs.plan.outputs.windows != '[]'
     runs-on: ${{ matrix.job.os }}
+    env:
+      # Windows files are signed through Azure Artifact Signing as "Rath & Blume GbR"
+      # when the repository has the AZURE_* secrets (forks and PRs have none, and
+      # build unsigned).
+      WINDOWS_SIGNING: ${{ secrets.AZURE_CLIENT_SECRET != '' && 'true' || 'false' }}
     strategy:
       fail-fast: false
       matrix:
@@ -461,19 +465,27 @@ jobs:
           name: ${{ matrix.job.arch == 'aarch64' && 'topmostwindow-artifacts-ARM64' || 'topmostwindow-artifacts-x64' }}
           path: "./rustdesk"
 
+      # The app's own exe and dll files, before the portable packer and the MSI
+      # wrap them. Driver packages keep their files as they are: their catalog
+      # signature covers the file hashes.
+      - name: Sign the app files
+        if: env.UPLOAD_ARTIFACT == 'true' && env.WINDOWS_SIGNING == 'true'
+        uses: ./.github/actions/sign-windows
+        with:
+          paths: ${{ github.workspace }}\rustdesk
+          exclude: '\\(drivers|usbmmidd_v2)\\'
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      # Named "unsigned" for the packaging jobs that read it; with signing on, the
+      # files in it are signed.
       - name: Upload unsigned
         if: env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rustdesk-unsigned-windows-${{ matrix.job.arch }}
           path: rustdesk
-
-      - name: Sign rustdesk files
-        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
-        shell: bash
-        run: |
-          pip3 install requests argparse
-          BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./rustdesk/
 
       - name: Build self-extracted executable
         shell: bash
@@ -509,6 +521,15 @@ jobs:
           mv $msi.FullName ../../SignOutput/betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi
           Copy-Item ../../SignOutput/betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi ../../SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi
           sha256sum ../../SignOutput/betterdesk-*.msi
+
+      - name: Sign the portable exe and the MSI
+        if: env.UPLOAD_ARTIFACT == 'true' && env.WINDOWS_SIGNING == 'true'
+        uses: ./.github/actions/sign-windows
+        with:
+          paths: ${{ github.workspace }}\SignOutput
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
 
       - name: Build pre-built MSI template
         # Two things this works around: preprocess.py rewrites res/msi in place, so the
@@ -564,11 +585,25 @@ jobs:
           name: rustdesk-unsigned-msi-template-${{ matrix.job.arch }}
           path: ./msi-template
 
-      - name: Sign rustdesk self-extracted file
-        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
-        shell: bash
+      # With signing on, every exe and msi this job ships has to carry a valid
+      # signature by the publisher. The MSI template is left out: the console
+      # generator rewrites it, which would break any signature.
+      - name: Check the signatures
+        if: env.UPLOAD_ARTIFACT == 'true'
+        shell: pwsh
         run: |
-          BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput
+          $files = @(Get-ChildItem -Recurse -File ./rustdesk, ./SignOutput |
+            Where-Object { $_.Extension -in '.exe', '.msi' -and $_.FullName -notmatch '\\(drivers|usbmmidd_v2)\\' })
+          $bad = 0
+          foreach ($f in $files) {
+            $s = Get-AuthenticodeSignature -LiteralPath $f.FullName
+            Write-Host "$($f.FullName): $($s.Status) $($s.SignerCertificate.Subject)"
+            if ($env:WINDOWS_SIGNING -eq 'true') {
+              if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch '^CN="?Rath & Blume GbR') { $bad++ }
+            }
+          }
+          if ($files.Count -eq 0) { throw "no exe or msi found to check" }
+          if ($bad) { throw "$bad file(s) without a valid Rath & Blume GbR signature" }
 
       - name: Upload Windows installers
         if: env.UPLOAD_ARTIFACT == 'true'
