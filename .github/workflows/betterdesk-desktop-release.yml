@@ -196,102 +196,13 @@ jobs:
           path: dist-raw/windows-installers
           merge-multiple: true
 
-      - name: Normalize BetterDesk layout (full client only)
+      - name: Collect packages under their published names
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist/{windows-x86_64,windows-aarch64,linux-x86_64,linux-aarch64,macos-x86_64,macos-aarch64,msi-template,clean}
-
-          # Windows folders from CI still named rustdesk-unsigned-windows-*
-          for arch in x86_64 aarch64; do
-            src=$(find dist-raw -maxdepth 2 -type d -name "rustdesk-unsigned-windows-${arch}" | head -n1 || true)
-            if [ -n "${src}" ]; then
-              cp -a "${src}/." "dist/windows-${arch}/"
-              # Prefer betterdesk.exe; fall back to rename rustdesk.exe
-              if [ -f "dist/windows-${arch}/rustdesk.exe" ] && [ ! -f "dist/windows-${arch}/betterdesk.exe" ]; then
-                mv "dist/windows-${arch}/rustdesk.exe" "dist/windows-${arch}/betterdesk.exe"
-              fi
-              # Never ship Support Agent bake-in from CI
-              rm -f "dist/windows-${arch}/custom.txt"
-              tar -C "dist/windows-${arch}" -czf "dist/clean/betterdesk-${VERSION}-windows-${arch}.tar.gz" .
-            fi
-          done
-
-          # Portable EXE + MSI installers (standard full client, not incoming-only)
-          if [ -d dist-raw/windows-installers ]; then
-            find dist-raw/windows-installers -type f \( -name 'betterdesk-*.exe' -o -name 'betterdesk-*.msi' \) \
-              -exec cp {} dist/clean/ \;
-          fi
-
-          if [ -d dist-raw/msi-template-arts ]; then
-            find dist-raw/msi-template-arts -name '*.msi' -exec cp {} dist/msi-template/ \;
-            for f in dist/msi-template/rustdesk-template-*.msi; do
-              [ -f "$f" ] || continue
-              base=$(basename "$f" | sed 's/rustdesk-template/betterdesk-template/')
-              mv "$f" "dist/msi-template/${base}"
-            done
-          fi
-
-          for arch in x86_64 aarch64; do
-            src=$(find dist-raw -maxdepth 2 -type d -name "betterdesk-unsigned-macos-${arch}" | head -n1 || true)
-            if [ -n "${src}" ]; then
-              cp -a "${src}/." "dist/macos-${arch}/"
-              app_archive=$(find "dist/macos-${arch}" -maxdepth 1 -name '*-app.tar.gz' | head -n1 || true)
-              if [ -n "${app_archive}" ]; then
-                tar -xzf "${app_archive}" -C "dist/macos-${arch}"
-              fi
-              find "dist/macos-${arch}" -name custom.txt -delete || true
-              # Prefer a named DMG in clean/ when present
-              dmg=$(find "dist/macos-${arch}" -maxdepth 1 -name '*.dmg' | head -n1 || true)
-              if [ -n "${dmg}" ]; then
-                cp "${dmg}" "dist/clean/betterdesk-${VERSION}-macos-${arch}.dmg"
-              fi
-              tar -C "dist/macos-${arch}" -czf "dist/clean/betterdesk-${VERSION}-macos-${arch}.tar.gz" .
-            fi
-          done
-
-          for arch in x86_64 aarch64; do
-            deb=$(find dist-raw/linux-debs -name "*${arch}*.deb" 2>/dev/null | head -n1 || true)
-            if [ -n "${deb}" ]; then
-              cp "${deb}" "dist/clean/betterdesk-${VERSION}-linux-${arch}.deb"
-              mkdir -p "dist/linux-${arch}"
-              if command -v dpkg-deb >/dev/null; then
-                dpkg-deb -x "${deb}" "dist/linux-${arch}/root"
-                bin=$(find "dist/linux-${arch}/root" -type f \( -name betterdesk -o -name rustdesk \) | head -n1 || true)
-                if [ -n "${bin}" ]; then
-                  stage="dist/linux-${arch}/portable"
-                  mkdir -p "${stage}"
-                  cp -a "$(dirname "${bin}")/." "${stage}/"
-                  if [ -f "${stage}/rustdesk" ] && [ ! -f "${stage}/betterdesk" ]; then
-                    mv "${stage}/rustdesk" "${stage}/betterdesk"
-                  fi
-                  rm -f "${stage}/custom.txt"
-                  tar -C "${stage}" -czf "dist/clean/betterdesk-${VERSION}-linux-${arch}-portable.tar.gz" .
-                fi
-              else
-                echo "placeholder" > "dist/linux-${arch}/README.txt"
-              fi
-            fi
-            # Fedora / openSUSE RPMs when present
-            if [ -d dist-raw/linux-rpms ]; then
-              rpm=$(find dist-raw/linux-rpms -name "*${arch}*.rpm" ! -name '*-suse.rpm' 2>/dev/null | head -n1 || true)
-              suse=$(find dist-raw/linux-rpms -name "*${arch}*-suse.rpm" 2>/dev/null | head -n1 || true)
-              [ -n "${rpm}" ] && cp "${rpm}" "dist/clean/betterdesk-${VERSION}-linux-${arch}.rpm"
-              [ -n "${suse}" ] && cp "${suse}" "dist/clean/betterdesk-${VERSION}-linux-${arch}-suse.rpm"
-            fi
-          done
-
-          # Guard: never publish Support Agent bake-ins from CI
-          if find dist/clean dist/msi-template dist/generator-templates* \
-              \( -iname '*betterdesk-support*' -o -iname '*incoming-only*' -o -name 'custom.txt' \) \
-              2>/dev/null | grep -q .; then
-            echo "Refusing to publish Support Agent / bake-in artifacts from CI:" >&2
-            find dist/clean dist/msi-template dist/generator-templates* \
-              \( -iname '*betterdesk-support*' -o -iname '*incoming-only*' -o -name 'custom.txt' \) \
-              2>/dev/null >&2 || true
-            exit 1
-          fi
-
+          python3 scripts/test_collect_desktop_dist.py
+          bash scripts/collect_desktop_dist.sh collect dist-raw dist "${VERSION}"
+          ls -la dist/clean
           ls -laR dist > dist-layout.txt
           head -n 200 dist-layout.txt
 
@@ -320,10 +231,11 @@ jobs:
           if [ "${PUBLISH}" = "true" ]; then
             cp dist/generator-templates-*.tar.gz dist/clean/
             cp dist/generator-templates-*.tar.gz.sha256 dist/clean/
+            cp dist/generator-templates/manifest.json dist/clean/betterdesk-${VERSION}-generator-manifest.json
           fi
-          cp dist/generator-templates/manifest.json dist/clean/betterdesk-${VERSION}-generator-manifest.json
 
       - name: Write clean desktop manifest
+        if: needs.prepare.outputs.publish == 'true'
         shell: bash
         run: |
           python3 - <<'PY'
@@ -361,6 +273,12 @@ jobs:
           if [ -d dist/msi-template ]; then
             cp -a dist/msi-template/. dist/clean/
           fi
+
+      - name: Write SHA256SUMS
+        shell: bash
+        run: |
+          bash scripts/collect_desktop_dist.sh sums dist/clean
+          cat dist/clean/SHA256SUMS
 
       - name: Upload packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

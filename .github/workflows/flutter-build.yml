@@ -778,6 +778,10 @@ jobs:
           tar -C "./flutter/build/macos/Build/Products/Release" \
             -czf "betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.tar.gz" \
             "BetterDesk Client.app"
+          # The app alone in a zip, to run it from the Downloads folder without
+          # installing. ditto keeps the symlinks and attributes of the bundle.
+          ditto -c -k --keepParent "./flutter/build/macos/Build/Products/Release/BetterDesk Client.app" \
+            "betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.zip"
 
       - name: Upload unsigned macOS app artifacts
         if: env.UPLOAD_ARTIFACT == 'true'
@@ -787,6 +791,7 @@ jobs:
           path: |
             betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg
             betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.tar.gz
+            betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.zip
 
       - name: Codesign app and create signed dmg
         if: env.MACOS_P12_BASE64 != null && env.UPLOAD_ARTIFACT == 'true'
