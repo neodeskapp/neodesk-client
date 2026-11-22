@@ -1,6 +1,6 @@
 # BetterDesk Client (full desktop client): build, and release on tags.
 #
-# Every push to master or launch-ci builds the client for all six desktop
+# Every push to main builds the client for all six desktop
 # targets and keeps the packages as workflow artifacts of the run. Nothing is
 # published.
 #
@@ -14,7 +14,7 @@
 #
 # Manual runs (workflow_dispatch) build one platform or all of them, as
 # artifacts only:
-#   gh workflow run betterdesk-desktop-release.yml --ref launch-ci -f platforms=linux-x86_64
+#   gh workflow run betterdesk-desktop-release.yml --ref main -f platforms=linux-x86_64
 #
 # Incoming-only Support Agent packages are a separate workflow:
 #   betterdesk-support-generic-release.yml (tags support-v*).
@@ -24,8 +24,7 @@ name: BetterDesk desktop release
 on:
   push:
     branches:
-      - master
-      - launch-ci
+      - main
     tags:
       - "desktop/*"
       - "desktop-v*"
