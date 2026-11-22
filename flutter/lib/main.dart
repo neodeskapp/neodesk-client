@@ -428,9 +428,12 @@ void _runApp(
   ThemeMode themeMode,
 ) {
   final botToastBuilder = BotToastInit();
-  BdTheme.setServerAccent(BrandingModel.current.accentColor.value);
   runApp(RefreshWrapper(
-    builder: (context) => GetMaterialApp(
+    // A changed server accent (branding, or a redeem in quick support)
+    // rebuilds the window with the new theme.
+    builder: (context) => Obx(() {
+      BdTheme.setServerAccent(BrandingModel.current.accentColor.value);
+      return GetMaterialApp(
       navigatorKey: globalKey,
       debugShowCheckedModeBanner: false,
       title: title,
@@ -454,7 +457,8 @@ void _runApp(
         child = botToastBuilder(context, child);
         return child;
       },
-    ),
+    );
+    }),
   ));
 }
 
