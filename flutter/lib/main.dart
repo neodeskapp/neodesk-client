@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/theme/bd_theme.dart';
@@ -31,6 +32,9 @@ import 'mobile/pages/server_page.dart';
 import 'mobile/widgets/deploy_dialog.dart';
 import 'models/branding_model.dart';
 import 'models/platform_model.dart';
+import 'onboarding/onboarding_demo.dart';
+import 'onboarding/onboarding_service.dart';
+import 'onboarding/quick_support_app.dart';
 
 /// Basic window and launch properties.
 int? kWindowId;
@@ -111,6 +115,11 @@ Future<void> main(List<String> args) async {
   } else {
     desktopType = DesktopType.main;
     await windowManager.ensureInitialized();
+    _registerOnboarding();
+    if (OnboardingService.instance.isQuickSupportBuild) {
+      runQuickSupportApp();
+      return;
+    }
     windowManager.setPreventClose(true);
     if (isMacOS) {
       disableWindowMovable(kWindowId);
@@ -172,6 +181,51 @@ void runMainApp(bool startService) async {
     windowManager.setTitle(getWindowName());
     // Do not use `windowManager.setResizable()` here.
     setResizable(!bind.isIncomingOnly());
+  });
+}
+
+/// Picks the onboarding implementation: the one registered by the joining
+/// code, else joining through pair-with-code. Debug and profile builds can
+/// walk through the screens with BETTERDESK_DEMO_ONBOARDING (onboarding_demo.dart).
+void _registerOnboarding() {
+  if (!kReleaseMode) {
+    final demo = Platform.environment['BETTERDESK_DEMO_ONBOARDING'] ?? '';
+    if (demo == 'first-start') {
+      OnboardingService.registered = DemoOnboardingService.firstStart();
+    } else if (demo == 'quick-support') {
+      OnboardingService.registered = DemoOnboardingService.quickSupport();
+    }
+  }
+  OnboardingService.registered ??= PairingOnboardingService(
+    pair: (server, code) => bind.mainPairWithCode(server: server, code: code),
+    hasServer: () =>
+        bind.isIncomingOnly() ||
+        bind.isOutgoingOnly() ||
+        bind.isCustomClient() ||
+        bind.mainGetOptionSync(key: 'custom-rendezvous-server')
+            .trim()
+            .isNotEmpty,
+  );
+}
+
+/// The quick support app: one 480 x 560 window that is not resizable.
+void runQuickSupportApp() async {
+  await initEnv(kAppTypeMain);
+  await bind.mainCheckConnectStatus();
+  gFFI.serverModel.startService();
+  _runApp(
+    translate('bd-qs-window-title'),
+    QuickSupportWindow(service: OnboardingService.instance),
+    MyTheme.currentThemeMode(),
+  );
+  final options = getHiddenTitleBarWindowOptions(
+      size: kQuickSupportWindowSize, center: true);
+  windowManager.waitUntilReadyToShow(options, () async {
+    await windowManager.show();
+    await windowManager.focus();
+    await windowManager.setOpacity(1);
+    await windowManager.setTitle(translate('bd-qs-window-title'));
+    setResizable(false);
   });
 }
 
