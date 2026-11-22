@@ -324,19 +324,8 @@ async fn start_hbbs_sync_async() {
                     });
                 }
                 if let Ok(s) = crate::post_request(url.clone(), request.to_string(), "").await {
-                    if let Ok(mut rsp) = serde_json::from_str::<HashMap::<String, Value>>(&s) {
-                        let mut secure_response = false;
-                        if let Some(envelope) = rsp.remove("betterdesk_envelope") {
-                            match telemetry::open_response(&envelope) {
-                                Ok(response) => {
-                                    secure_response = true;
-                                    if let Some(object) = response.as_object() {
-                                        rsp.extend(object.clone());
-                                    }
-                                }
-                                Err(err) => log::warn!("BetterDesk response decryption failed: {err}"),
-                            }
-                        }
+                    if let Some(answer) = read_heartbeat_answer(&s, telemetry::open_response) {
+                        let HeartbeatAnswer { fields: mut rsp, mut sealed_only, sealed: secure_response } = answer;
                         if rsp.remove("sysinfo").is_some() {
                             info_uploaded.uploaded = false;
                             config::Status::set("sysinfo_hash", "".to_owned());
@@ -347,20 +336,20 @@ async fn start_hbbs_sync_async() {
                                     SENDER.lock().unwrap().send(conns).ok();
                                 }
                         }
-                        if let Some(rsp_modified_at) = rsp.remove("modified_at") {
+                        if let Some(rsp_modified_at) = sealed_only.remove("modified_at") {
                             if let Ok(rsp_modified_at) = serde_json::from_value::<i64>(rsp_modified_at) {
                                 if rsp_modified_at != modified_at {
                                     LocalConfig::set_option("strategy_timestamp".to_string(), rsp_modified_at.to_string());
                                 }
                             }
                         }
-                        if let Some(strategy) = rsp.remove("strategy") {
+                        if let Some(strategy) = sealed_only.remove("strategy") {
                             if let Ok(strategy) = serde_json::from_value::<StrategyOptions>(strategy) {
                                 log::info!("strategy updated");
                                 handle_config_options(strategy.config_options);
                             }
                         }
-                        if let Some(command) = rsp.remove("connection_mode_command") {
+                        if let Some(command) = sealed_only.remove("connection_mode_command") {
                             if secure_response && telemetry_base.starts_with("https://") {
                                 let result =
                                     telemetry::process_connection_mode_command(&command);
@@ -384,7 +373,7 @@ async fn start_hbbs_sync_async() {
                                 );
                             }
                         }
-                        if let Some(commands) = rsp.remove("telemetry_commands") {
+                        if let Some(commands) = sealed_only.remove("telemetry_commands") {
                             if let Ok(commands) = serde_json::from_value::<Vec<Value>>(commands) {
                                 telemetry_results = telemetry::process_commands(&commands);
                             }
@@ -396,6 +385,60 @@ async fn start_hbbs_sync_async() {
             }
         }
     }
+}
+
+/// Fields of a heartbeat answer that count only from inside the sealed
+/// envelope. They run commands on the device and change its settings, and
+/// the plain fields can come from anyone between the device and the server.
+#[cfg(not(target_os = "ios"))]
+const SEALED_ONLY: &[&str] = &[
+    "telemetry_commands",
+    "connection_mode_command",
+    "strategy",
+    "modified_at",
+];
+
+/// A heartbeat answer as the sync loop reads it.
+#[cfg(not(target_os = "ios"))]
+struct HeartbeatAnswer {
+    /// The plain fields, with the fields of the sealed envelope over them,
+    /// without the [`SEALED_ONLY`] ones.
+    fields: HashMap<String, Value>,
+    /// The [`SEALED_ONLY`] fields from inside the envelope.
+    sealed_only: HashMap<String, Value>,
+    /// True when an envelope signed with the server key opened.
+    sealed: bool,
+}
+
+#[cfg(not(target_os = "ios"))]
+fn read_heartbeat_answer(
+    text: &str,
+    open: impl FnOnce(&Value) -> Result<Value, String>,
+) -> Option<HeartbeatAnswer> {
+    let mut fields = serde_json::from_str::<HashMap<String, Value>>(text).ok()?;
+    fields.retain(|key, _| !SEALED_ONLY.contains(&key.as_str()));
+    let mut sealed_only = HashMap::new();
+    let mut sealed = false;
+    if let Some(envelope) = fields.remove("betterdesk_envelope") {
+        match open(&envelope) {
+            Ok(response) => {
+                sealed = true;
+                for (key, value) in response.as_object().into_iter().flatten() {
+                    if SEALED_ONLY.contains(&key.as_str()) {
+                        sealed_only.insert(key.clone(), value.clone());
+                    } else {
+                        fields.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+            Err(err) => log::warn!("BetterDesk response decryption failed: {err}"),
+        }
+    }
+    Some(HeartbeatAnswer {
+        fields,
+        sealed_only,
+        sealed,
+    })
 }
 
 fn heartbeat_url() -> String {
@@ -565,8 +608,11 @@ fn switch_grant_signed_msg(id: &str, switch_code_verifier: &str, timestamp: &str
 mod tests {
     use std::time::Duration;
 
+    use serde_json::{json, Value};
+
     use super::{
-        switch_code_verifier, switch_grant_signed_msg, telemetry_interval, TIME_TELEMETRY,
+        read_heartbeat_answer, switch_code_verifier, switch_grant_signed_msg, telemetry_interval,
+        HeartbeatAnswer, TIME_TELEMETRY,
     };
 
     #[test]
@@ -603,5 +649,96 @@ mod tests {
         ]
         .concat();
         assert_eq!(switch_grant_signed_msg("id1", "c1", "1700000000"), expected);
+    }
+
+    fn file_read() -> Value {
+        json!({"id": 7, "command": "files.read", "args": {"path": "/etc/shadow"}})
+    }
+
+    /// Reads `answer`; its envelope opens to `opened`, or fails to open.
+    fn read(answer: Value, opened: Result<Value, String>) -> HeartbeatAnswer {
+        read_heartbeat_answer(&answer.to_string(), |_| opened).unwrap()
+    }
+
+    #[test]
+    fn telemetry_commands_of_a_plain_answer_are_not_run() {
+        let answer = read(
+            json!({"modified_at": 1, "telemetry_commands": [file_read()]}),
+            Err("the answer has no envelope".to_owned()),
+        );
+        assert!(!answer.sealed);
+        assert_eq!(answer.fields.get("telemetry_commands"), None);
+        assert_eq!(answer.sealed_only.get("telemetry_commands"), None);
+    }
+
+    #[test]
+    fn telemetry_commands_come_from_inside_the_envelope_only() {
+        let envelope = json!({"version": 1});
+        let answer = read(
+            json!({"betterdesk_envelope": envelope}),
+            Ok(json!({"telemetry_commands": [file_read()]})),
+        );
+        assert!(answer.sealed);
+        assert_eq!(
+            answer.sealed_only.get("telemetry_commands"),
+            Some(&json!([file_read()]))
+        );
+
+        let beside = json!({"betterdesk_envelope": envelope, "telemetry_commands": [file_read()]});
+        let answer = read(beside.clone(), Ok(json!({"sysinfo": true})));
+        assert!(answer.sealed);
+        assert_eq!(answer.fields.get("sysinfo"), Some(&json!(true)));
+        assert_eq!(answer.fields.get("telemetry_commands"), None);
+        assert_eq!(answer.sealed_only.get("telemetry_commands"), None);
+
+        let answer = read(beside, Err("response signature mismatch".to_owned()));
+        assert!(!answer.sealed);
+        assert_eq!(answer.fields.get("telemetry_commands"), None);
+        assert_eq!(answer.sealed_only.get("telemetry_commands"), None);
+    }
+
+    #[test]
+    fn a_connection_mode_command_counts_only_from_inside_the_envelope() {
+        let command = json!({"command_id": "c1", "mode": "incoming-only", "revision": 2});
+        let answer = read(
+            json!({"betterdesk_envelope": {"version": 1}}),
+            Ok(json!({"connection_mode_command": command})),
+        );
+        assert_eq!(answer.sealed_only.get("connection_mode_command"), Some(&command));
+
+        let answer = read(
+            json!({"betterdesk_envelope": {"version": 1}, "connection_mode_command": command}),
+            Ok(json!({})),
+        );
+        assert!(answer.sealed);
+        assert_eq!(answer.fields.get("connection_mode_command"), None);
+        assert_eq!(answer.sealed_only.get("connection_mode_command"), None);
+    }
+
+    #[test]
+    fn strategy_and_its_time_count_only_from_inside_the_envelope() {
+        let strategy = json!({"config_options": {"custom-rendezvous-server": "evil.example"}});
+        let answer = read(
+            json!({"modified_at": 5, "strategy": strategy}),
+            Err("the answer has no envelope".to_owned()),
+        );
+        for key in ["strategy", "modified_at"] {
+            assert_eq!(answer.fields.get(key), None, "{key} of a plain answer");
+            assert_eq!(answer.sealed_only.get(key), None, "{key} of a plain answer");
+        }
+
+        let answer = read(
+            json!({"betterdesk_envelope": {"version": 1}, "modified_at": 5, "strategy": strategy}),
+            Ok(json!({"modified_at": 4})),
+        );
+        assert_eq!(answer.fields.get("strategy"), None);
+        assert_eq!(answer.sealed_only.get("strategy"), None);
+        assert_eq!(answer.sealed_only.get("modified_at"), Some(&json!(4)));
+
+        let answer = read(
+            json!({"betterdesk_envelope": {"version": 1}}),
+            Ok(json!({"modified_at": 4, "strategy": strategy})),
+        );
+        assert_eq!(answer.sealed_only.get("strategy"), Some(&strategy));
     }
 }

@@ -1195,8 +1195,9 @@ pub fn main_pair_with_code(server: String, code: String) -> String {
 
 /// The state of Add a computer and quick support, as JSON: `phase`,
 /// `server`, `supporterName`, `company`, `error`, `errorText`, `joinStep`,
-/// `deviceId`, `deviceName`, `folderId`, `link`, `fileName`, `inputActive`,
-/// `quickSupport`, `hasServer`.
+/// `deviceId`, `deviceName`, `folderId`, `link`, `fileName`, `messages`
+/// (`fromSupporter`, `text`, `time` in ms), `inputActive`, `quickSupport`,
+/// `hasServer`.
 pub fn main_onboard_state() -> SyncReturn<String> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let state = crate::onboard::state_json();
@@ -1236,6 +1237,16 @@ pub fn main_onboard_consent(allow: bool) -> SyncReturn<()> {
 pub fn main_onboard_end_support() -> SyncReturn<()> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     crate::onboard::end_support();
+    SyncReturn(())
+}
+
+/// Sends a chat line to the supporter of the quick support session; it shows
+/// in the state's `messages` once a session took it.
+pub fn main_onboard_send_chat(text: String) -> SyncReturn<()> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::onboard::send_chat(text);
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let _ = text;
     SyncReturn(())
 }
 

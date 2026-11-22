@@ -1402,23 +1402,25 @@ async fn tcp_proxy_request(
     .await?
 }
 
+/// The headers of a post_request header text: one "Key: Value" per line.
+fn simple_header_lines(header: &str) -> impl Iterator<Item = (&str, &str)> {
+    header.lines().filter_map(|line| line.split_once(": "))
+}
+
 /// Build HeaderEntry list from "Key: Value" style header string (used by post_request).
 /// If the caller supplies a Content-Type header it overrides the default `application/json`.
 fn parse_simple_header(header: &str) -> Vec<HeaderEntry> {
     let mut entries = Vec::new();
     let mut has_content_type = false;
-    if !header.is_empty() {
-        let tmp: Vec<&str> = header.splitn(2, ": ").collect();
-        if tmp.len() == 2 {
-            if tmp[0].eq_ignore_ascii_case("Content-Type") {
-                has_content_type = true;
-            }
-            entries.push(HeaderEntry {
-                name: tmp[0].into(),
-                value: tmp[1].into(),
-                ..Default::default()
-            });
+    for (name, value) in simple_header_lines(header) {
+        if name.eq_ignore_ascii_case("Content-Type") {
+            has_content_type = true;
         }
+        entries.push(HeaderEntry {
+            name: name.into(),
+            value: value.into(),
+            ..Default::default()
+        });
     }
     if !has_content_type {
         entries.insert(
@@ -1733,11 +1735,8 @@ async fn post_request_(
         danger_accept_invalid_cert.unwrap_or(false),
     )
     .post(url);
-    if !header.is_empty() {
-        let tmp: Vec<&str> = header.split(": ").collect();
-        if tmp.len() == 2 {
-            req = req.header(tmp[0], tmp[1]);
-        }
+    for (name, value) in simple_header_lines(header) {
+        req = req.header(name, value);
     }
     req = req.header("Content-Type", "application/json");
     let to = std::time::Duration::from_secs(12);
@@ -3550,6 +3549,77 @@ mod tests {
                 .map(|entry| entry.value.as_str()),
             Some("application/json")
         );
+    }
+
+    const ENVELOPE_HEADER: &str =
+        "Authorization: Bearer token\nX-BetterDesk-Envelope: 1\nX-BetterDesk-Device: 123456789";
+
+    #[test]
+    fn test_parse_simple_header_keeps_every_line() {
+        let headers = parse_simple_header(ENVELOPE_HEADER);
+
+        let pairs: Vec<(&str, &str)> = headers
+            .iter()
+            .map(|entry| (entry.name.as_str(), entry.value.as_str()))
+            .collect();
+        assert_eq!(
+            pairs,
+            vec![
+                ("Content-Type", "application/json"),
+                ("Authorization", "Bearer token"),
+                ("X-BetterDesk-Envelope", "1"),
+                ("X-BetterDesk-Device", "123456789"),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_post_request_sends_every_header_line() {
+        use hbb_common::tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/api/devices/cli", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut buf = [0u8; 4096];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let read = stream.read(&mut buf).await.unwrap();
+                if read == 0 {
+                    break;
+                }
+                request.extend_from_slice(&buf[..read]);
+            }
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+            String::from_utf8_lossy(&request).to_ascii_lowercase()
+        });
+
+        post_request_(
+            &url,
+            &url,
+            "{}".to_owned(),
+            ENVELOPE_HEADER,
+            Some(TlsType::Rustls),
+            Some(false),
+            Some(false),
+        )
+        .await
+        .unwrap();
+
+        let request = server.await.unwrap();
+        for line in [
+            "\r\nauthorization: bearer token\r\n",
+            "\r\nx-betterdesk-envelope: 1\r\n",
+            "\r\nx-betterdesk-device: 123456789\r\n",
+        ] {
+            assert!(request.contains(line), "{line:?} missing in {request:?}");
+        }
     }
 
     #[test]

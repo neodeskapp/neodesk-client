@@ -51,6 +51,8 @@ const OPTION_OWN_ID: &str = "betterdesk-quick-support-id";
 const OPTION_CONSOLE: &str = "betterdesk-console";
 /// How long after the last input event a supporter counts as using the computer.
 const INPUT_ACTIVE_FOR_MS: i64 = 2_000;
+/// The chat lines the state keeps.
+const CHAT_LINES_KEPT: usize = 200;
 
 static QUICK_SUPPORT: AtomicBool = AtomicBool::new(false);
 static LAST_INPUT_MS: AtomicI64 = AtomicI64::new(0);
@@ -98,9 +100,32 @@ pub struct State {
     pub link: Option<String>,
     /// The quick support file this app was started from (Windows).
     pub file_name: Option<String>,
+    /// The chat with the supporter in a quick support session, oldest first.
+    pub messages: Vec<ChatLine>,
+}
+
+/// A chat line of a quick support session.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatLine {
+    pub from_supporter: bool,
+    pub text: String,
+    /// Milliseconds since 1970.
+    pub time: i64,
 }
 
 impl State {
+    fn add_chat(&mut self, from_supporter: bool, text: String) {
+        self.messages.push(ChatLine {
+            from_supporter,
+            text,
+            time: hbb_common::get_time(),
+        });
+        if self.messages.len() > CHAT_LINES_KEPT {
+            self.messages.remove(0);
+        }
+    }
+
     /// Records `err` as the error, in code and words.
     pub fn fail(&mut self, err: &OnboardError) {
         let server = self.server.clone().unwrap_or_default();
@@ -409,12 +434,35 @@ fn apply_join(joined: &Joined, device_id: &str) {
     }
 }
 
-/// Keeps a joined device token in this process, which runs the sync loop.
+/// Keeps the device token of a join or a pairing in this process, which runs
+/// the sync loop.
 /// Called by the IPC server for [`crate::ipc::IPC_JOINED_DEVICE_TOKEN`].
 pub fn store_device_token(payload: &str) {
-    let Ok(value) = serde_json::from_str::<Value>(payload) else {
+    let Some(handed) = read_device_token(payload, &Config::get_id()) else {
+        log::warn!("Ignored a device token for another device or without server");
         return;
     };
+    crate::hbbs_http::betterdesk::record_enrollment_answer(
+        handed.status,
+        Some(&handed.token),
+        &handed.device_id,
+        &handed.api,
+    );
+}
+
+/// A device token another process of this client handed over.
+#[derive(Debug, PartialEq, Eq)]
+struct HandedToken {
+    status: &'static str,
+    token: String,
+    device_id: String,
+    api: String,
+}
+
+/// Reads a handed-over device token for `this_device`. A join sends no
+/// status, its device is approved; a pairing sends "approved" or "pending".
+fn read_device_token(payload: &str, this_device: &str) -> Option<HandedToken> {
+    let value = serde_json::from_str::<Value>(payload).ok()?;
     let text = |key: &str| {
         value
             .get(key)
@@ -424,11 +472,20 @@ pub fn store_device_token(payload: &str) {
             .to_owned()
     };
     let (token, device_id, api) = (text("token"), text("device_id"), text("api"));
-    if token.is_empty() || api.is_empty() || device_id != Config::get_id() {
-        log::warn!("Ignored a joined device token for another device or without server");
-        return;
+    if token.is_empty() || api.is_empty() || device_id != this_device {
+        return None;
     }
-    crate::hbbs_http::betterdesk::record_enrollment_answer("approved", Some(&token), &device_id, &api);
+    let status = match text("status").as_str() {
+        "" | "approved" => "approved",
+        "pending" => "pending",
+        _ => return None,
+    };
+    Some(HandedToken {
+        status,
+        token,
+        device_id,
+        api,
+    })
 }
 
 /// Starts quick support for a link or code. Outside quick support mode it
@@ -472,6 +529,7 @@ fn start_support(console: Console, code: String) {
     if running.is_some() {
         return;
     }
+    STATE.update(|s| s.messages.clear());
     let (tx, rx) = mpsc::channel();
     *running = Some(tx);
     std::thread::spawn(move || {
@@ -492,6 +550,49 @@ pub fn end_support() {
     if let Some(tx) = SUPPORT.lock().unwrap().as_ref() {
         tx.send(support::Command::End).ok();
     }
+}
+
+/// Keeps a chat line the supporter sent, for the quick support screen.
+/// Called by the connection for each chat message of its peer.
+pub fn note_chat(text: &str) {
+    if is_quick_support() {
+        STATE.update(|s| s.add_chat(true, text.to_owned()));
+    }
+}
+
+/// Sends a chat line from the quick support screen to the supporter.
+pub fn send_chat(text: String) {
+    if is_quick_support() {
+        chat_to_supporter(&STATE, text, send_to_sessions);
+    }
+}
+
+/// Hands `text` to `send` and keeps it as the person's line once a session
+/// took it.
+fn chat_to_supporter(state: &SharedState, text: String, send: impl FnOnce(&str) -> bool) {
+    if text.trim().is_empty() {
+        return;
+    }
+    if send(&text) {
+        state.update(|s| s.add_chat(false, text));
+    }
+}
+
+/// Hands `text` to the remote sessions of this process, which send it to
+/// their peer. False when no remote session runs.
+fn send_to_sessions(text: &str) -> bool {
+    let mut sent = false;
+    for conn in crate::server::AUTHED_CONNS.lock().unwrap().iter() {
+        if conn.conn_type == crate::server::AuthConnType::Remote {
+            sent |= conn
+                .sender
+                .send(crate::ipc::Data::ChatMessage {
+                    text: text.to_owned(),
+                })
+                .is_ok();
+        }
+    }
+    sent
 }
 
 /// The running app as quick support sees it. The server runs in this

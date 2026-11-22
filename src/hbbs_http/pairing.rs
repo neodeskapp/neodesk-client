@@ -14,7 +14,7 @@
 )]
 
 use hbb_common::{
-    config::{self, keys, Config},
+    config::{self, keys},
     log, tokio,
 };
 use serde_json::{json, Value};
@@ -208,8 +208,9 @@ impl Pairing {
     }
 }
 
-/// Redeems `code` at `server`. Changes nothing locally, see [`pair_and_apply`].
-pub async fn pair_with_code(server: &str, code: &str) -> Pairing {
+/// Redeems `code` at `server` for `device_id`. Changes nothing locally, see
+/// [`pair_and_apply`].
+pub async fn pair_with_code(server: &str, code: &str, device_id: String) -> Pairing {
     let Some(target) = pairing_target(server).filter(|target| !crate::is_public(&target.api))
     else {
         return Pairing::failed(MESSAGE_SERVER_INVALID);
@@ -218,7 +219,6 @@ pub async fn pair_with_code(server: &str, code: &str) -> Pairing {
     if code.is_empty() {
         return Pairing::failed(MESSAGE_CODE_EMPTY);
     }
-    let device_id = Config::get_id();
     if device_id.is_empty() {
         return Pairing::failed(MESSAGE_NOT_ADMITTED);
     }
@@ -276,28 +276,70 @@ pub async fn pair_with_code(server: &str, code: &str) -> Pairing {
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn pair_with_code_blocking(server: String, code: String) -> Pairing {
-    pair_with_code(&server, &code).await
+async fn pair_with_code_blocking(server: String, code: String, device_id: String) -> Pairing {
+    pair_with_code(&server, &code, device_id).await
 }
 
 /// Pairs with `code` and, when the server admitted the device, takes over its
 /// settings and keeps the enrollment status and device token. Runs outside
 /// any async runtime, because setting options goes to the service over IPC.
 pub fn pair_and_apply(server: String, code: String) -> PairResult {
-    let pairing = pair_with_code_blocking(server, code);
+    // The service's ID, which its sync loop sends the token with.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let device_id = crate::ipc::get_id();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let device_id = config::Config::get_id();
+    let pairing = pair_with_code_blocking(server, code, device_id);
     if pairing.result.ok {
         for (key, value) in pairing.options {
             crate::ui_interface::set_option(key.to_owned(), value);
         }
-        betterdesk::record_enrollment_answer(
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        let send = |payload: String| {
+            crate::ipc::set_config(crate::ipc::IPC_JOINED_DEVICE_TOKEN, payload)
+        };
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        let send = |_: String| -> hbb_common::ResultType<()> {
+            hbb_common::bail!("the server runs in this process")
+        };
+        keep_enrollment(
             &pairing.result.status,
             pairing.token.as_deref(),
             &pairing.device_id,
             &pairing.api,
+            send,
         );
         log::info!("BetterDesk pairing done, status={}", pairing.result.status);
     }
     pairing.result
+}
+
+/// Keeps the device token of a pairing where the sync loop runs: `send` hands
+/// it to the server process (the service of an installed client) the way a
+/// join does; when no server process takes it, this process keeps it.
+/// Without a token there is nothing to hand over: the sync loop registers on
+/// its own and gets the status.
+fn keep_enrollment(
+    status: &str,
+    token: Option<&str>,
+    device_id: &str,
+    api: &str,
+    send: impl FnOnce(String) -> hbb_common::ResultType<()>,
+) {
+    let Some(token) = token.filter(|token| !token.is_empty()) else {
+        return;
+    };
+    let payload = json!({
+        "status": status,
+        "token": token,
+        "device_id": device_id,
+        "api": api,
+    })
+    .to_string();
+    if let Err(err) = send(payload) {
+        log::info!("BetterDesk pairing keeps its device token in this process: {err}");
+        betterdesk::record_enrollment_answer(status, Some(token), device_id, api);
+    }
 }
 
 #[cfg(test)]
@@ -441,6 +483,32 @@ mod tests {
         assert!(!redeem_result(400, &Value::Null).ok);
         assert!(!redeem_result(502, &Value::Null).ok);
         assert!(!redeem_result(200, &Value::Null).ok);
+    }
+
+    #[test]
+    fn a_paired_device_token_goes_to_the_server_process() {
+        let mut sent = None;
+        keep_enrollment(
+            "pending",
+            Some("t0ken"),
+            "123456789",
+            "https://bd.example.com",
+            |payload| {
+                sent = Some(payload);
+                Ok(())
+            },
+        );
+        let sent: Value =
+            serde_json::from_str(&sent.expect("nothing went to the server process")).unwrap();
+        assert_eq!(
+            sent,
+            json!({
+                "status": "pending",
+                "token": "t0ken",
+                "device_id": "123456789",
+                "api": "https://bd.example.com",
+            })
+        );
     }
 
     #[test]

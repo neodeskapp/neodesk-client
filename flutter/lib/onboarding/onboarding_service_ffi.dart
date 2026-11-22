@@ -25,7 +25,8 @@ import 'onboarding_service.dart';
 abstract class OnboardingNative {
   /// The state as JSON: phase, server, supporterName, company, error,
   /// errorText, joinStep, deviceId, deviceName, folderId, link, fileName,
-  /// inputActive, quickSupport, hasServer.
+  /// messages (fromSupporter, text, time in ms), inputActive, quickSupport,
+  /// hasServer.
   String state();
 
   bool isQuickSupport();
@@ -33,6 +34,7 @@ abstract class OnboardingNative {
   void redeemSupport(String text);
   void consent(bool allow);
   void endSupport();
+  void sendChat(String text);
 }
 
 const _activePhases = {
@@ -59,6 +61,33 @@ Map<String, dynamic> _decode(String json) {
     if (value is Map<String, dynamic>) return value;
   } catch (_) {}
   return const {};
+}
+
+List<OnboardingChatMessage> _messagesOf(Object? value) {
+  if (value is! List) return const [];
+  return [
+    for (final line in value)
+      if (line is Map && line['text'] is String)
+        OnboardingChatMessage(
+          fromSupporter: line['fromSupporter'] == true,
+          text: line['text'] as String,
+          time: DateTime.fromMillisecondsSinceEpoch(
+              line['time'] is int ? line['time'] as int : 0),
+        ),
+  ];
+}
+
+bool _sameMessages(
+    List<OnboardingChatMessage> a, List<OnboardingChatMessage> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i].fromSupporter != b[i].fromSupporter ||
+        a[i].text != b[i].text ||
+        a[i].time != b[i].time) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /// The sentence the screens pick for one of the core's error names.
@@ -103,6 +132,7 @@ OnboardingState parseOnboardingState(String json) {
     link: _text(map['link']),
     fileName: _text(map['fileName']),
     declined: code == 'declined',
+    messages: _messagesOf(map['messages']),
   );
 }
 
@@ -119,7 +149,8 @@ bool _sameState(OnboardingState a, OnboardingState b) =>
     a.deviceName == b.deviceName &&
     a.link == b.link &&
     a.fileName == b.fileName &&
-    a.declined == b.declined;
+    a.declined == b.declined &&
+    _sameMessages(a.messages, b.messages);
 
 class FfiOnboardingService extends OnboardingService {
   /// Reads the state every [interval] while a join or a session runs or a
@@ -195,6 +226,13 @@ class FfiOnboardingService extends OnboardingService {
   @override
   Future<void> endSupport() async {
     _native.endSupport();
+    _called();
+  }
+
+  @override
+  Future<void> sendChat(String text) async {
+    if (text.trim().isEmpty) return;
+    _native.sendChat(text);
     _called();
   }
 

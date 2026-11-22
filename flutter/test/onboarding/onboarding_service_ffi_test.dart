@@ -41,6 +41,9 @@ class FakeNative implements OnboardingNative {
 
   @override
   void endSupport() => _call('end');
+
+  @override
+  void sendChat(String text) => _call('chat $text');
 }
 
 FfiOnboardingService serviceOf(FakeNative native,
@@ -254,6 +257,39 @@ void main() {
       'support betterdesk://support/desk.lan/7KQ4M2XD',
       'join betterdesk://join/desk.lan:5000/7KQ4M2XD?http=1',
     ]);
+  });
+
+  test('chat lines come from the core and go to it', () async {
+    final native = FakeNative()
+      ..stateMap = {
+        'phase': 'supportInSession',
+        'messages': [
+          {'fromSupporter': true, 'text': 'Which printer?', 'time': 1000},
+        ],
+      };
+    final service = serviceOf(native);
+    expect(service.current.messages.single.fromSupporter, isTrue);
+    expect(service.current.messages.single.text, 'Which printer?');
+    expect(service.current.messages.single.time,
+        DateTime.fromMillisecondsSinceEpoch(1000));
+
+    native.onCall = (call) => native.stateMap = {
+          'phase': 'supportInSession',
+          'messages': [
+            {'fromSupporter': true, 'text': 'Which printer?', 'time': 1000},
+            {'fromSupporter': false, 'text': 'The one upstairs', 'time': 2000},
+          ],
+        };
+    final seen = <OnboardingState>[];
+    service.states.listen(seen.add);
+    await service.sendChat('   ');
+    await service.sendChat('The one upstairs');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(native.calls, ['chat The one upstairs']);
+    expect(seen.single.messages.map((m) => m.text),
+        ['Which printer?', 'The one upstairs']);
+    expect(seen.single.messages.last.fromSupporter, isFalse);
   });
 
   test('the quick support build comes from the core', () {

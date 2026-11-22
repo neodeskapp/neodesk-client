@@ -645,8 +645,8 @@ pub async fn start(postfix: &str) -> ResultType<()> {
     }
 }
 
-/// Config name under which a client that joined a server hands the device
-/// token to the server process, which keeps it.
+/// Config name under which a client that joined or paired with a server
+/// hands the device token to the server process, which keeps it.
 pub const IPC_JOINED_DEVICE_TOKEN: &str = "betterdesk-joined-device-token";
 
 /// The IPC path of `postfix` for this process. A quick support process uses
