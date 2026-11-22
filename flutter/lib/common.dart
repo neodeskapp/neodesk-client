@@ -42,6 +42,7 @@ import 'desktop/pages/view_camera_page.dart' as desktop_view_camera;
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'models/model.dart';
 import 'models/platform_model.dart';
+import 'onboarding/onboarding_service_bind.dart';
 
 import 'package:flutter_hbb/native/win32.dart'
     if (dart.library.html) 'package:flutter_hbb/web/win32.dart';
@@ -2174,6 +2175,11 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     // For compatibility
     command = '--connect';
     id = uri.path.substring("/new/".length);
+  } else if (isDesktop &&
+      (uri.authority == "join" || uri.authority == "support")) {
+    // betterdesk://join/<server>/<code> and betterdesk://support/...
+    onboardingService.handleLink(uri.toString());
+    return null;
   } else if (uri.authority == "config") {
     if (isAndroid || isIOS) {
       final allowDeepLinkServerSettings =
