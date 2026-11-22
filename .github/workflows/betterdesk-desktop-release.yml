@@ -1,8 +1,15 @@
-# BetterDesk Client (full / clean desktop) — build + GitHub Release.
+# BetterDesk Client (full desktop client): build, and release on tags.
 #
-# Builds the official BetterDesk desktop client after each update on master
-# (and on desktop/* tags / manual dispatch). Publishes installers with a
-# RustDesk-style download table in the release notes.
+# Every push to master or launch-ci builds the client for all six desktop
+# targets and keeps the packages as workflow artifacts of the run. Nothing is
+# published.
+#
+# A desktop/* tag builds the same and publishes a GitHub Release on this
+# repository with a download table in the release notes.
+#
+# Manual runs (workflow_dispatch) build one platform or all of them, as
+# artifacts only:
+#   gh workflow run betterdesk-desktop-release.yml --ref launch-ci -f platforms=linux-x86_64
 #
 # Incoming-only Support Agent packages are a separate workflow:
 #   betterdesk-support-generic-release.yml (tags support-v*).
@@ -13,6 +20,7 @@ on:
   push:
     branches:
       - master
+      - launch-ci
     tags:
       - "desktop/*"
     paths-ignore:
@@ -23,13 +31,24 @@ on:
       - "PRIVACY"
   workflow_dispatch:
     inputs:
-      tag_name:
-        description: "Release tag (e.g. desktop/1.5.0 or desktop/dev-manual)"
+      platforms:
+        description: "Platform to build (artifacts only, no release)"
+        type: choice
         required: true
-        default: "desktop/dev-manual"
+        default: all
+        options:
+          - all
+          - windows-x86_64
+          - windows-aarch64
+          - linux-x86_64
+          - linux-aarch64
+          - macos-x86_64
+          - macos-aarch64
 
+# A newer push ends the older run of the same branch; a manual run only ends
+# an older manual run, so rerunning one platform leaves a push run alone.
 concurrency:
-  group: betterdesk-desktop-release-${{ github.workflow }}-${{ github.ref }}
+  group: betterdesk-desktop-release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
@@ -43,6 +62,9 @@ jobs:
     name: Prepare release metadata
     runs-on: ubuntu-22.04
     outputs:
+      publish: ${{ steps.meta.outputs.publish }}
+      platforms: ${{ steps.meta.outputs.platforms }}
+      dist_name: ${{ steps.meta.outputs.dist_name }}
       tag_name: ${{ steps.meta.outputs.tag_name }}
       release_name: ${{ steps.meta.outputs.release_name }}
       is_dev: ${{ steps.meta.outputs.is_dev }}
@@ -56,16 +78,18 @@ jobs:
       - name: Compute tag and changelog range
         id: meta
         shell: bash
+        env:
+          INPUT_PLATFORMS: ${{ github.event.inputs.platforms }}
         run: |
           set -euo pipefail
           VERSION="${VERSION}"
           SHORT_SHA="$(echo "${GITHUB_SHA}" | cut -c1-7)"
           RUN_N="${GITHUB_RUN_NUMBER}"
 
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            TAG_NAME="${{ github.event.inputs.tag_name }}"
-            IS_DEV=true
-          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            # Only a desktop/* tag publishes a release, always with every platform.
+            PUBLISH=true
+            PLATFORMS=all
             TAG_NAME="${GITHUB_REF_NAME}"
             # Tagged desktop/* releases are still prereleases unless name omits "dev"
             if echo "${TAG_NAME}" | grep -Eqi 'dev|nightly|snapshot'; then
@@ -74,8 +98,10 @@ jobs:
               IS_DEV=false
             fi
           else
-            # Push to master → development prerelease per update
-            TAG_NAME="desktop/${VERSION}-dev.${RUN_N}-${SHORT_SHA}"
+            # Branch pushes and manual runs keep the packages as run artifacts.
+            PUBLISH=false
+            PLATFORMS="${INPUT_PLATFORMS:-all}"
+            TAG_NAME="dev-${RUN_N}-${SHORT_SHA}"
             IS_DEV=true
           fi
 
@@ -92,16 +118,14 @@ jobs:
           fi
 
           {
+            echo "publish=${PUBLISH}"
+            echo "platforms=${PLATFORMS}"
+            echo "dist_name=betterdesk-desktop-${VERSION}-${SHORT_SHA}"
             echo "tag_name=${TAG_NAME}"
             echo "release_name=${RELEASE_NAME}"
             echo "is_dev=${IS_DEV}"
             echo "previous_tag=${PREV}"
-          } >> "${GITHUB_OUTPUT}"
-
-          echo "tag_name=${TAG_NAME}"
-          echo "release_name=${RELEASE_NAME}"
-          echo "is_dev=${IS_DEV}"
-          echo "previous_tag=${PREV}"
+          } | tee -a "${GITHUB_OUTPUT}"
 
   build:
     needs: prepare
@@ -109,19 +133,25 @@ jobs:
     with:
       upload-artifact: true
       upload-tag: ${{ needs.prepare.outputs.tag_name }}
+      platforms: ${{ needs.prepare.outputs.platforms }}
     secrets: inherit
 
-  package-clean-and-release:
-    name: Package clean BetterDesk Client + release notes
+  package:
+    name: Package clean BetterDesk Client
     needs: [prepare, build]
+    # A release needs every build. Artifact-only runs package whatever built,
+    # so one broken platform does not hide the others.
+    if: >-
+      always() && needs.prepare.result == 'success' &&
+      (needs.build.result == 'success' ||
+       (needs.prepare.outputs.publish != 'true' && needs.build.result == 'failure'))
     runs-on: ubuntu-22.04
     permissions:
-      contents: write
+      contents: read
+      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
       - name: Validate release metadata
         run: python3 scripts/validate_release_metadata.py --version "${VERSION}"
@@ -168,122 +198,46 @@ jobs:
           path: dist-raw/windows-installers
           merge-multiple: true
 
-      - name: Normalize BetterDesk layout (full client only)
+      - name: Collect packages under their published names
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist/{windows-x86_64,windows-aarch64,linux-x86_64,linux-aarch64,macos-x86_64,macos-aarch64,msi-template,clean}
-
-          # Windows folders from CI still named rustdesk-unsigned-windows-*
-          for arch in x86_64 aarch64; do
-            src=$(find dist-raw -maxdepth 2 -type d -name "rustdesk-unsigned-windows-${arch}" | head -n1 || true)
-            if [ -n "${src}" ]; then
-              cp -a "${src}/." "dist/windows-${arch}/"
-              # Prefer betterdesk.exe; fall back to rename rustdesk.exe
-              if [ -f "dist/windows-${arch}/rustdesk.exe" ] && [ ! -f "dist/windows-${arch}/betterdesk.exe" ]; then
-                mv "dist/windows-${arch}/rustdesk.exe" "dist/windows-${arch}/betterdesk.exe"
-              fi
-              # Never ship Support Agent bake-in from CI
-              rm -f "dist/windows-${arch}/custom.txt"
-              tar -C "dist/windows-${arch}" -czf "dist/clean/betterdesk-${VERSION}-windows-${arch}.tar.gz" .
-            fi
-          done
-
-          # Portable EXE + MSI installers (standard full client, not incoming-only)
-          if [ -d dist-raw/windows-installers ]; then
-            find dist-raw/windows-installers -type f \( -name 'betterdesk-*.exe' -o -name 'betterdesk-*.msi' \) \
-              -exec cp {} dist/clean/ \;
-          fi
-
-          if [ -d dist-raw/msi-template-arts ]; then
-            find dist-raw/msi-template-arts -name '*.msi' -exec cp {} dist/msi-template/ \;
-            for f in dist/msi-template/rustdesk-template-*.msi; do
-              [ -f "$f" ] || continue
-              base=$(basename "$f" | sed 's/rustdesk-template/betterdesk-template/')
-              mv "$f" "dist/msi-template/${base}"
-            done
-          fi
-
-          for arch in x86_64 aarch64; do
-            src=$(find dist-raw -maxdepth 2 -type d -name "betterdesk-unsigned-macos-${arch}" | head -n1 || true)
-            if [ -n "${src}" ]; then
-              cp -a "${src}/." "dist/macos-${arch}/"
-              app_archive=$(find "dist/macos-${arch}" -maxdepth 1 -name '*-app.tar.gz' | head -n1 || true)
-              if [ -n "${app_archive}" ]; then
-                tar -xzf "${app_archive}" -C "dist/macos-${arch}"
-              fi
-              find "dist/macos-${arch}" -name custom.txt -delete || true
-              # Prefer a named DMG in clean/ when present
-              dmg=$(find "dist/macos-${arch}" -maxdepth 1 -name '*.dmg' | head -n1 || true)
-              if [ -n "${dmg}" ]; then
-                cp "${dmg}" "dist/clean/betterdesk-${VERSION}-macos-${arch}.dmg"
-              fi
-              tar -C "dist/macos-${arch}" -czf "dist/clean/betterdesk-${VERSION}-macos-${arch}.tar.gz" .
-            fi
-          done
-
-          for arch in x86_64 aarch64; do
-            deb=$(find dist-raw/linux-debs -name "*${arch}*.deb" 2>/dev/null | head -n1 || true)
-            if [ -n "${deb}" ]; then
-              cp "${deb}" "dist/clean/betterdesk-${VERSION}-linux-${arch}.deb"
-              mkdir -p "dist/linux-${arch}"
-              if command -v dpkg-deb >/dev/null; then
-                dpkg-deb -x "${deb}" "dist/linux-${arch}/root"
-                bin=$(find "dist/linux-${arch}/root" -type f \( -name betterdesk -o -name rustdesk \) | head -n1 || true)
-                if [ -n "${bin}" ]; then
-                  stage="dist/linux-${arch}/portable"
-                  mkdir -p "${stage}"
-                  cp -a "$(dirname "${bin}")/." "${stage}/"
-                  if [ -f "${stage}/rustdesk" ] && [ ! -f "${stage}/betterdesk" ]; then
-                    mv "${stage}/rustdesk" "${stage}/betterdesk"
-                  fi
-                  rm -f "${stage}/custom.txt"
-                  tar -C "${stage}" -czf "dist/clean/betterdesk-${VERSION}-linux-${arch}-portable.tar.gz" .
-                fi
-              else
-                echo "placeholder" > "dist/linux-${arch}/README.txt"
-              fi
-            fi
-            # Fedora / openSUSE RPMs when present
-            if [ -d dist-raw/linux-rpms ]; then
-              rpm=$(find dist-raw/linux-rpms -name "*${arch}*.rpm" ! -name '*-suse.rpm' 2>/dev/null | head -n1 || true)
-              suse=$(find dist-raw/linux-rpms -name "*${arch}*-suse.rpm" 2>/dev/null | head -n1 || true)
-              [ -n "${rpm}" ] && cp "${rpm}" "dist/clean/betterdesk-${VERSION}-linux-${arch}.rpm"
-              [ -n "${suse}" ] && cp "${suse}" "dist/clean/betterdesk-${VERSION}-linux-${arch}-suse.rpm"
-            fi
-          done
-
-          # Guard: never publish Support Agent bake-ins from CI
-          if find dist/clean dist/msi-template dist/generator-templates* \
-              \( -iname '*betterdesk-support*' -o -iname '*incoming-only*' -o -name 'custom.txt' \) \
-              2>/dev/null | grep -q .; then
-            echo "Refusing to publish Support Agent / bake-in artifacts from CI:" >&2
-            find dist/clean dist/msi-template dist/generator-templates* \
-              \( -iname '*betterdesk-support*' -o -iname '*incoming-only*' -o -name 'custom.txt' \) \
-              2>/dev/null >&2 || true
-            exit 1
-          fi
-
+          python3 scripts/test_collect_desktop_dist.py
+          bash scripts/collect_desktop_dist.sh collect dist-raw dist "${VERSION}"
+          ls -la dist/clean
           ls -laR dist > dist-layout.txt
           head -n 200 dist-layout.txt
 
       - name: Pack generator templates (clean binaries only)
         shell: bash
+        env:
+          PUBLISH: ${{ needs.prepare.outputs.publish }}
         run: |
+          set -euo pipefail
           python3 scripts/test_generator_contract.py
           # Templates are clean trees for the console Generator — not a Support build.
           # Support Agent custom.txt is applied by the panel, never in this workflow.
+          # Artifact-only runs check the templates but do not keep the archive.
+          if [ "${PUBLISH}" = "true" ]; then
+            pack_args=(--archive)
+          else
+            pack_args=(--allow-missing)
+          fi
           python3 scripts/pack_generator_templates.py \
             --dist-root dist \
             --out dist/generator-templates \
             --version "${VERSION}" \
-            --archive
-          python3 scripts/validate_generator_templates.py --root dist/generator-templates
-          cp dist/generator-templates-*.tar.gz dist/clean/
-          cp dist/generator-templates-*.tar.gz.sha256 dist/clean/
-          cp dist/generator-templates/manifest.json dist/clean/betterdesk-${VERSION}-generator-manifest.json
+            "${pack_args[@]}"
+          python3 scripts/validate_generator_templates.py --root dist/generator-templates \
+            $([ "${PUBLISH}" = "true" ] || echo --allow-missing)
+          if [ "${PUBLISH}" = "true" ]; then
+            cp dist/generator-templates-*.tar.gz dist/clean/
+            cp dist/generator-templates-*.tar.gz.sha256 dist/clean/
+            cp dist/generator-templates/manifest.json dist/clean/betterdesk-${VERSION}-generator-manifest.json
+          fi
 
       - name: Write clean desktop manifest
+        if: needs.prepare.outputs.publish == 'true'
         shell: bash
         run: |
           python3 - <<'PY'
@@ -312,6 +266,48 @@ jobs:
           Path("dist/clean/betterdesk-desktop-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
           print(json.dumps(manifest, indent=2))
           PY
+
+      - name: Add MSI templates to the release assets
+        if: needs.prepare.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d dist/msi-template ]; then
+            cp -a dist/msi-template/. dist/clean/
+          fi
+
+      - name: Write SHA256SUMS
+        shell: bash
+        run: |
+          bash scripts/collect_desktop_dist.sh sums dist/clean
+          cat dist/clean/SHA256SUMS
+
+      - name: Upload packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ needs.prepare.outputs.dist_name }}
+          path: dist/clean/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    needs: [prepare, package]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.prepare.outputs.dist_name }}
+          path: dist/clean
 
       - name: Build release notes
         id: notes
@@ -345,23 +341,13 @@ jobs:
             echo "- Configure servers in Settings → Network, or import a deploy string from the BetterDesk panel."
             echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             if [ "${IS_DEV}" = "true" ]; then
-              echo "- This is a **development prerelease** published after an update on \`master\`."
+              echo "- This is a **development prerelease**."
             fi
           } > changelog-extra.md
 
-          # Include MSI templates + generator archives next to clean/ so the table
-          # and "Other assets" section can link them from one scan directory.
-          mkdir -p dist/notes-assets
-          cp -a dist/clean/. dist/notes-assets/
-          if [ -d dist/msi-template ]; then
-            cp -a dist/msi-template/. dist/notes-assets/ || true
-          fi
-          cp -f dist/generator-templates-*.tar.gz dist/notes-assets/ 2>/dev/null || true
-          cp -f dist/generator-templates-*.tar.gz.sha256 dist/notes-assets/ 2>/dev/null || true
-
           python3 scripts/generate_release_download_table.py \
             --product desktop \
-            --asset-dir dist/notes-assets \
+            --asset-dir dist/clean \
             --repo "${GITHUB_REPOSITORY}" \
             --tag "${TAG_NAME}" \
             --release-name "${RELEASE_NAME}" \
@@ -382,8 +368,5 @@ jobs:
           make_latest: ${{ needs.prepare.outputs.is_dev != 'true' }}
           files: |
             dist/clean/*
-            dist/msi-template/*
-            dist/generator-templates-*.tar.gz
-            dist/generator-templates-*.tar.gz.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

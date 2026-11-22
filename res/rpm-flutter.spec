@@ -3,7 +3,7 @@ Version:    1.5.0
 Release:    0
 Summary:    BetterDesk remote desktop client
 License:    GPL-3.0
-URL:        https://github.com/UNITRONIX/BetterDesk-Client
+URL:        https://github.com/trybetterdesk/betterdesk-client
 Vendor:     rustdesk <info@rustdesk.com>
 Provides:   rustdesk
 Obsoletes:  rustdesk

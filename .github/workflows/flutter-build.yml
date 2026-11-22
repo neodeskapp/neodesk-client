@@ -24,6 +24,12 @@ on:
         description: "Exact source commit for an embedded Support build"
         type: string
         default: ""
+      platforms:
+        description: >-
+          Space-separated targets to build, or "all": windows-x86_64 windows-aarch64
+          linux-x86_64 linux-aarch64 macos-x86_64 macos-aarch64
+        type: string
+        default: "all"
 
 env:
   # Keep 1.75 on desktop Flutter/Windows (ABI / historical constraints from upstream).
@@ -34,7 +40,10 @@ env:
   # Windows arm64 only: first stable Flutter with native arm64 Windows engine.
   FLUTTER_WINDOWS_ARM_VERSION: "3.44.9"
   TAG_NAME: "${{ inputs.upload-tag }}"
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  # vcpkg keeps built ports as zip files in VCPKG_BINCACHE; actions/cache
+  # carries that folder from run to run (vcpkg's own x-gha backend is gone).
+  VCPKG_BINCACHE: "${{ github.workspace }}/vcpkg-bincache"
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/vcpkg-bincache,readwrite"
   # vcpkg version: 2026.07.29 — if changed, run `$VCPKG_ROOT/vcpkg x-update-baseline`.
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   VCPKG_CMAKE_VERSION: "4.3.0"
@@ -43,26 +52,158 @@ env:
   UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
   BETTERDESK_SUPPORT_CONFIG_B64: "${{ inputs.support-config-b64 }}"
   BETTERDESK_GENERIC_SUPPORT: "${{ inputs.generic-support && '1' || '' }}"
-  SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}-2"
 
 jobs:
+  # Turns the platforms input into the matrices of the jobs below. A family
+  # with nothing to build gets "[]" and its job is skipped.
+  plan:
+    name: Plan desktop builds
+    runs-on: ubuntu-22.04
+    outputs:
+      bridge: ${{ steps.plan.outputs.bridge }}
+      topmost: ${{ steps.plan.outputs.topmost }}
+      windows: ${{ steps.plan.outputs.windows }}
+      macos: ${{ steps.plan.outputs.macos }}
+      linux: ${{ steps.plan.outputs.linux }}
+    steps:
+      - name: Plan
+        id: plan
+        shell: python
+        env:
+          PLATFORMS: ${{ inputs.platforms }}
+        run: |
+          import json, os
+
+          windows = {
+              "x86_64": {
+                  "target": "x86_64-pc-windows-msvc",
+                  "os": "windows-2022",
+                  "arch": "x86_64",
+                  "flutter-arch": "x64",
+                  "vcpkg-triplet": "x64-windows-static",
+                  "rust-target-cache": True,
+                  "build-args": "--vram",
+              },
+              "aarch64": {
+                  "target": "aarch64-pc-windows-msvc",
+                  "os": "windows-11-arm",
+                  "arch": "aarch64",
+                  "flutter-arch": "arm64",
+                  "vcpkg-triplet": "arm64-windows-static",
+                  "rust-target-cache": False,
+                  # vram is x86/x64-only (NVENC needs CUDA, Intel MediaSDK needs __rdtsc);
+                  # no NV/Intel/AMD hardware exists on Windows-on-ARM, so vram stays disabled here.
+                  "build-args": "",
+              },
+          }
+          topmost = {
+              "x86_64": {"target": "windows-2022", "platform": "x64"},
+              "aarch64": {"target": "windows-11-arm", "platform": "ARM64"},
+          }
+          macos = {
+              "x86_64": {
+                  "target": "x86_64-apple-darwin",
+                  "os": "macos-15-intel",
+                  "extra-build-args": "",
+                  "arch": "x86_64",
+                  "vcpkg-triplet": "x64-osx",
+                  "rust-target-cache": True,
+              },
+              "aarch64": {
+                  "target": "aarch64-apple-darwin",
+                  "os": "macos-15",
+                  # "--disable-flutter-texture-render" stays off on mac: users report flickering
+                  # on both arm and x64, https://github.com/rustdesk/rustdesk/issues/6296
+                  "extra-build-args": "--screencapturekit",
+                  "arch": "aarch64",
+                  "vcpkg-triplet": "arm64-osx",
+                  "rust-target-cache": True,
+              },
+          }
+          linux = {
+              "x86_64": {
+                  "arch": "x86_64",
+                  "target": "x86_64-unknown-linux-gnu",
+                  "distro": "ubuntu18.04",
+                  "on": "ubuntu-22.04",
+                  "deb_arch": "amd64",
+                  "vcpkg-triplet": "x64-linux",
+                  "rust-target-cache": True,
+              },
+              "aarch64": {
+                  "arch": "aarch64",
+                  "target": "aarch64-unknown-linux-gnu",
+                  "distro": "ubuntu18.04",
+                  "on": "ubuntu-22.04-arm",
+                  "deb_arch": "arm64",
+                  "vcpkg-triplet": "arm64-linux",
+                  "rust-target-cache": False,
+              },
+          }
+          # Flutter 3.22.3 makes the bridge for every build except Windows arm64,
+          # which builds with Flutter 3.44 and needs a bridge made with it.
+          bridge = {
+              "default": {
+                  "target": "x86_64-unknown-linux-gnu",
+                  "os": "ubuntu-22.04",
+                  "extra-build-args": "",
+                  "flutter-version": "3.22.3",
+                  "artifact-name": "bridge-artifact",
+              },
+              "flutter-3.44": {
+                  "target": "x86_64-unknown-linux-gnu",
+                  "os": "ubuntu-22.04",
+                  "extra-build-args": "",
+                  "flutter-version": "3.44.8",
+                  "artifact-name": "bridge-artifact-flutter-3.44",
+              },
+          }
+
+          # The repository has 10 GB of cache. A Rust target cache takes 1.3 to
+          # 2.1 GB, so only the builds the console serves first keep one
+          # ("rust-target-cache" above); Windows and Linux arm64 build from scratch.
+          families = {"windows": windows, "linux": linux, "macos": macos}
+          known = [f"{family}-{arch}" for family, table in families.items() for arch in table]
+          requested = os.environ.get("PLATFORMS", "").split() or ["all"]
+          if requested == ["all"]:
+              requested = known
+          unknown = sorted(set(requested) - set(known))
+          if unknown:
+              raise SystemExit(f"unknown platforms: {' '.join(unknown)}; known: {' '.join(known)}")
+
+          def pick(family):
+              return [arch for arch in families[family] if f"{family}-{arch}" in requested]
+
+          out = {
+              "windows": [windows[arch] for arch in pick("windows")],
+              "topmost": [topmost[arch] for arch in pick("windows")],
+              "macos": [macos[arch] for arch in pick("macos")],
+              "linux": [linux[arch] for arch in pick("linux")],
+              "bridge": [],
+          }
+          if pick("linux") or pick("macos") or "x86_64" in pick("windows"):
+              out["bridge"].append(bridge["default"])
+          if "aarch64" in pick("windows"):
+              out["bridge"].append(bridge["flutter-3.44"])
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              for key, value in out.items():
+                  fh.write(f"{key}={json.dumps(value)}\n")
+                  print(f"{key}: {json.dumps(value, indent=2)}")
+
   generate-bridge:
+    needs: [plan]
     uses: ./.github/workflows/bridge.yml
+    with:
+      matrix: ${{ needs.plan.outputs.bridge }}
 
   build-RustDeskTempTopMostWindow:
+    needs: [plan]
+    if: needs.plan.outputs.topmost != '[]'
     uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
     strategy:
       fail-fast: false
       matrix:
-        job:
-          - {
-              target: windows-2022,
-              platform: x64,
-            }
-          - {
-              target: windows-11-arm,
-              platform: ARM64,
-            }
+        job: ${{ fromJSON(needs.plan.outputs.topmost) }}
     with:
       upload-artifact: ${{ inputs.upload-artifact }}
       target: ${{ matrix.job.target }}
@@ -72,40 +213,19 @@ jobs:
 
   build-for-windows-flutter:
     name: ${{ matrix.job.target }}
-    needs: [build-RustDeskTempTopMostWindow, generate-bridge]
+    needs: [plan, build-RustDeskTempTopMostWindow, generate-bridge]
+    if: needs.plan.outputs.windows != '[]'
     runs-on: ${{ matrix.job.os }}
+    env:
+      # Windows files are signed through Azure Artifact Signing as "Rath & Blume GbR"
+      # when the repository has the AZURE_* secrets (forks and PRs have none, and
+      # build unsigned).
+      WINDOWS_SIGNING: ${{ secrets.AZURE_CLIENT_SECRET != '' && 'true' || 'false' }}
     strategy:
       fail-fast: false
       matrix:
-        job:
-          # - { target: i686-pc-windows-msvc        , os: windows-2022                  }
-          # - { target: x86_64-pc-windows-gnu       , os: windows-2022                  }
-          - {
-              target: x86_64-pc-windows-msvc,
-              os: windows-2022,
-              arch: x86_64,
-              flutter-arch: x64,
-              vcpkg-triplet: x64-windows-static,
-              build-args: "--vram",
-            }
-          - {
-              target: aarch64-pc-windows-msvc,
-              os: windows-11-arm,
-              arch: aarch64,
-              flutter-arch: arm64,
-              vcpkg-triplet: arm64-windows-static,
-              # vram is x86/x64-only (NVENC needs CUDA, Intel MediaSDK needs __rdtsc);
-              # no NV/Intel/AMD hardware exists on Windows-on-ARM, so vram stays disabled here.
-              build-args: "",
-            }
+        job: ${{ fromJSON(needs.plan.outputs.windows) }}
     steps:
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - name: Checkout source code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -214,9 +334,24 @@ jobs:
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
-          prefix-key: ${{ matrix.job.os }}
+          # A different key without the targets, so no run keeps restoring an
+          # older entry that has them.
+          prefix-key: ${{ matrix.job.os }}${{ !matrix.job.rust-target-cache && '-registry' || '' }}
+          cache-targets: ${{ matrix.job.rust-target-cache }}
+          cache-on-failure: true
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-
+
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
           vcpkgDirectory: C:\vcpkg
@@ -224,13 +359,24 @@ jobs:
           doNotCache: false
 
       - name: Install vcpkg dependencies
+        id: vcpkg-install
         env:
           VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.job.vcpkg-triplet }}
         run: |
-          if ! $VCPKG_ROOT/vcpkg \
+          bincache="${VCPKG_BINCACHE}"
+          if command -v cygpath >/dev/null; then bincache="$(cygpath -u "${bincache}")"; fi
+          cached_before="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
+          status=0
+          $VCPKG_ROOT/vcpkg \
             install \
             --triplet ${{ matrix.job.vcpkg-triplet }} \
-            --x-install-root="$VCPKG_ROOT/installed"; then
+            --x-install-root="$VCPKG_ROOT/installed" || status=$?
+          cached_after="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
+          echo "vcpkg binary cache: ${cached_before} -> ${cached_after} packages"
+          if [ "${cached_after}" -gt "${cached_before}" ]; then
+            echo "built=true" >> "${GITHUB_OUTPUT}"
+          fi
+          if [ "${status}" -ne 0 ]; then
             find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
               echo "$_1:"
               echo "======"
@@ -242,6 +388,15 @@ jobs:
           fi
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
         shell: bash
+
+      # Saved right away whenever vcpkg built something, also when a port
+      # failed, so the next run starts from the ports that did build.
+      - name: Save vcpkg binary cache
+        if: ${{ !cancelled() && steps.vcpkg-install.outputs.built == 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Set SODIUM_LIB_DIR (arm64)
         # libsodium-sys ships no arm64 Windows prebuilt lib; point it at the vcpkg-built one
@@ -322,19 +477,27 @@ jobs:
           name: ${{ matrix.job.arch == 'aarch64' && 'topmostwindow-artifacts-ARM64' || 'topmostwindow-artifacts-x64' }}
           path: "./rustdesk"
 
+      # The app's own exe and dll files, before the portable packer and the MSI
+      # wrap them. Driver packages keep their files as they are: their catalog
+      # signature covers the file hashes.
+      - name: Sign the app files
+        if: env.UPLOAD_ARTIFACT == 'true' && env.WINDOWS_SIGNING == 'true'
+        uses: ./.github/actions/sign-windows
+        with:
+          paths: ${{ github.workspace }}\rustdesk
+          exclude: '\\(drivers|usbmmidd_v2)\\'
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      # Named "unsigned" for the packaging jobs that read it; with signing on, the
+      # files in it are signed.
       - name: Upload unsigned
         if: env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rustdesk-unsigned-windows-${{ matrix.job.arch }}
           path: rustdesk
-
-      - name: Sign rustdesk files
-        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
-        shell: bash
-        run: |
-          pip3 install requests argparse
-          BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./rustdesk/
 
       - name: Build self-extracted executable
         shell: bash
@@ -370,6 +533,15 @@ jobs:
           mv $msi.FullName ../../SignOutput/betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi
           Copy-Item ../../SignOutput/betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi ../../SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi
           sha256sum ../../SignOutput/betterdesk-*.msi
+
+      - name: Sign the portable exe and the MSI
+        if: env.UPLOAD_ARTIFACT == 'true' && env.WINDOWS_SIGNING == 'true'
+        uses: ./.github/actions/sign-windows
+        with:
+          paths: ${{ github.workspace }}\SignOutput
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
 
       - name: Build pre-built MSI template
         # Two things this works around: preprocess.py rewrites res/msi in place, so the
@@ -425,11 +597,25 @@ jobs:
           name: rustdesk-unsigned-msi-template-${{ matrix.job.arch }}
           path: ./msi-template
 
-      - name: Sign rustdesk self-extracted file
-        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
-        shell: bash
+      # With signing on, every exe and msi this job ships has to carry a valid,
+      # timestamped signature by the publisher. The MSI template is left out: the console
+      # generator rewrites it, which would break any signature.
+      - name: Check the signatures
+        if: env.UPLOAD_ARTIFACT == 'true'
+        shell: pwsh
         run: |
-          BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput
+          $files = @(Get-ChildItem -Recurse -File ./rustdesk, ./SignOutput |
+            Where-Object { $_.Extension -in '.exe', '.msi' -and $_.FullName -notmatch '\\(drivers|usbmmidd_v2)\\' })
+          $bad = 0
+          foreach ($f in $files) {
+            $s = Get-AuthenticodeSignature -LiteralPath $f.FullName
+            Write-Host "$($f.FullName): $($s.Status) $($s.SignerCertificate.Subject) timestamp: $($s.TimeStamperCertificate.Subject)"
+            if ($env:WINDOWS_SIGNING -eq 'true') {
+              if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch '^CN="?Rath & Blume GbR' -or -not $s.TimeStamperCertificate) { $bad++ }
+            }
+          }
+          if ($files.Count -eq 0) { throw "no exe or msi found to check" }
+          if ($bad) { throw "$bad file(s) without a valid, timestamped Rath & Blume GbR signature" }
 
       - name: Upload Windows installers
         if: env.UPLOAD_ARTIFACT == 'true'
@@ -445,34 +631,13 @@ jobs:
   build-for-macOS:
     name: ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.os }}
-    needs: [generate-bridge]
+    needs: [plan, generate-bridge]
+    if: needs.plan.outputs.macos != '[]'
     strategy:
       fail-fast: false
       matrix:
-        job:
-          - {
-              target: x86_64-apple-darwin,
-              os: macos-15-intel, #macos-latest or macos-14 use M1 now, https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#:~:text=14%20GB-,macos%2Dlatest%20or%20macos%2D14,-The%20macos%2Dlatestlabel
-              extra-build-args: "",
-              arch: x86_64,
-              vcpkg-triplet: x64-osx,
-            }
-          - {
-              target: aarch64-apple-darwin,
-              os: macos-14,
-              # extra-build-args: "--disable-flutter-texture-render", # disable this for mac, because we see a lot of users reporting flickering both on arm and x64, and we can not confirm if texture rendering has better performance if htere is no vram, https://github.com/rustdesk/rustdesk/issues/6296
-              extra-build-args: "--screencapturekit",
-              arch: aarch64,
-              vcpkg-triplet: arm64-osx,
-            }
+        job: ${{ fromJSON(needs.plan.outputs.macos) }}
     steps:
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - name: Checkout source code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -563,7 +728,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
-          prefix-key: ${{ matrix.job.os }}
+          # A different key without the targets, so no run keeps restoring an
+          # older entry that has them.
+          prefix-key: ${{ matrix.job.os }}${{ !matrix.job.rust-target-cache && '-registry' || '' }}
+          cache-targets: ${{ matrix.job.rust-target-cache }}
+          cache-on-failure: true
 
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -571,17 +740,39 @@ jobs:
           name: bridge-artifact
           path: ./
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-
+
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
       - name: Install vcpkg dependencies
+        id: vcpkg-install
         run: |
-          if ! $VCPKG_ROOT/vcpkg \
+          bincache="${VCPKG_BINCACHE}"
+          if command -v cygpath >/dev/null; then bincache="$(cygpath -u "${bincache}")"; fi
+          cached_before="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
+          status=0
+          $VCPKG_ROOT/vcpkg \
             install \
-            --x-install-root="$VCPKG_ROOT/installed"; then
+            --x-install-root="$VCPKG_ROOT/installed" || status=$?
+          cached_after="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
+          echo "vcpkg binary cache: ${cached_before} -> ${cached_after} packages"
+          if [ "${cached_after}" -gt "${cached_before}" ]; then
+            echo "built=true" >> "${GITHUB_OUTPUT}"
+          fi
+          if [ "${status}" -ne 0 ]; then
             find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
               echo "$_1:"
               echo "======"
@@ -592,6 +783,15 @@ jobs:
             exit 1
           fi
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
+
+      # Saved right away whenever vcpkg built something, also when a port
+      # failed, so the next run starts from the ports that did build.
+      - name: Save vcpkg binary cache
+        if: ${{ !cancelled() && steps.vcpkg-install.outputs.built == 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Show version information (Rust, cargo, Clang)
         shell: bash
@@ -628,6 +828,10 @@ jobs:
           tar -C "./flutter/build/macos/Build/Products/Release" \
             -czf "betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.tar.gz" \
             "BetterDesk Client.app"
+          # The app alone in a zip, to run it from the Downloads folder without
+          # installing. ditto keeps the symlinks and attributes of the bundle.
+          ditto -c -k --keepParent "./flutter/build/macos/Build/Products/Release/BetterDesk Client.app" \
+            "betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.zip"
 
       - name: Upload unsigned macOS app artifacts
         if: env.UPLOAD_ARTIFACT == 'true'
@@ -637,6 +841,7 @@ jobs:
           path: |
             betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg
             betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.tar.gz
+            betterdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-app.zip
 
       - name: Codesign app and create signed dmg
         if: env.MACOS_P12_BASE64 != null && env.UPLOAD_ARTIFACT == 'true'
@@ -664,38 +869,15 @@ jobs:
           done
 
   build-rustdesk-linux:
-    needs: [generate-bridge]
+    needs: [plan, generate-bridge]
+    if: needs.plan.outputs.linux != '[]'
     name: build rustdesk linux ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.on }}
     strategy:
       fail-fast: false
       matrix:
-        # use a high level qemu-user-static
-        job:
-          - {
-              arch: x86_64,
-              target: x86_64-unknown-linux-gnu,
-              distro: ubuntu18.04,
-              on: ubuntu-22.04,
-              deb_arch: amd64,
-              vcpkg-triplet: x64-linux,
-            }
-          - {
-              arch: aarch64,
-              target: aarch64-unknown-linux-gnu,
-              distro: ubuntu18.04,
-              on: ubuntu-22.04-arm,
-              deb_arch: arm64,
-              vcpkg-triplet: arm64-linux,
-            }
+        job: ${{ fromJSON(needs.plan.outputs.linux) }}
     steps:
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - name: Maximize build space
         run: |
           sudo rm -rf /opt/ghc
@@ -737,6 +919,17 @@ jobs:
           RUST_TOOLCHAIN_VERSION=$(cargo --version | awk '{print $2}')
           echo "RUST_TOOLCHAIN_VERSION=$RUST_TOOLCHAIN_VERSION" >> $GITHUB_ENV
 
+      # cargo runs inside the build container on /workspace, which is this
+      # checkout, so target/ outlives the container and this cache keeps it.
+      # The container's crate registry is not kept; cargo downloads it again.
+      - name: Cache Rust build
+        if: matrix.job.rust-target-cache
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          prefix-key: linux-${{ matrix.job.target }}
+          cache-targets: true
+          cache-on-failure: true
+
       - name: Disable rust bridge build
         run: |
           # only build cdylib
@@ -758,7 +951,19 @@ jobs:
           "${user_base}/bin/cmake" --version
           echo "${user_base}/bin" >> "${GITHUB_PATH}"
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: vcpkg-${{ matrix.job.on }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-${{ matrix.job.on }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-
+            vcpkg-${{ matrix.job.on }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-
+            vcpkg-${{ matrix.job.on }}-${{ matrix.job.vcpkg-triplet }}-
+
+      - name: Setup vcpkg
         if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
@@ -767,13 +972,24 @@ jobs:
           doNotCache: false
 
       - name: Install vcpkg dependencies
+        id: vcpkg-install
         if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
         run: |
           sudo apt install -y libva-dev && apt show libva-dev
-          if ! $VCPKG_ROOT/vcpkg \
+          bincache="${VCPKG_BINCACHE}"
+          if command -v cygpath >/dev/null; then bincache="$(cygpath -u "${bincache}")"; fi
+          cached_before="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
+          status=0
+          $VCPKG_ROOT/vcpkg \
             install \
             --triplet ${{ matrix.job.vcpkg-triplet }} \
-            --x-install-root="$VCPKG_ROOT/installed"; then
+            --x-install-root="$VCPKG_ROOT/installed" || status=$?
+          cached_after="$({ find "${bincache}" -name '*.zip' 2>/dev/null || true; } | wc -l)"
+          echo "vcpkg binary cache: ${cached_before} -> ${cached_after} packages"
+          if [ "${cached_after}" -gt "${cached_before}" ]; then
+            echo "built=true" >> "${GITHUB_OUTPUT}"
+          fi
+          if [ "${status}" -ne 0 ]; then
             find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
               echo "$_1:"
               echo "======"
@@ -785,6 +1001,15 @@ jobs:
           fi
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
         shell: bash
+
+      # Saved right away whenever vcpkg built something, also when a port
+      # failed, so the next run starts from the ports that did build.
+      - name: Save vcpkg binary cache
+        if: ${{ !cancelled() && steps.vcpkg-install.outputs.built == 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Restore bridge files
         if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
@@ -875,8 +1100,8 @@ jobs:
             fi
             echo $JOBS
             cargo build --locked --lib $JOBS --features hwcodec,flutter,unix-file-copy-paste --release
-            rm -rf target/release/deps target/release/build
-            rm -rf ~/.cargo
+            # target/release/{deps,build} stay for the Rust cache step.
+            du -sh /workspace/target || true
 
             # Setup Flutter
             # disable git safe.directory

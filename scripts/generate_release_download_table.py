@@ -37,8 +37,9 @@ def _link(label: str, repo: str, tag: str, name: str | None) -> str:
 
 def _classify_desktop(name: str) -> tuple[str, str, str] | None:
     """Return (platform, arch, kind) for full desktop assets."""
-    # betterdesk-1.5.0-x86_64.exe / .msi
-    m = re.match(r"^betterdesk-[^-]+-(x86_64|aarch64)\.(exe|msi)$", name)
+    # betterdesk-1.5.0-windows-x86_64.exe / .msi (older releases: betterdesk-1.5.0-x86_64.exe).
+    # The version starts with a digit, so betterdesk-template-x86_64.msi is not taken for the MSI.
+    m = re.match(r"^betterdesk-\d[^-]*-(?:windows-)?(x86_64|aarch64)\.(exe|msi)$", name)
     if m:
         return "windows", m.group(1), m.group(2)
     # betterdesk-1.5.0-windows-x86_64.tar.gz
@@ -62,10 +63,10 @@ def _classify_desktop(name: str) -> tuple[str, str, str] | None:
             return "linux", arch, "rpm"
         if ext == "-portable.tar.gz":
             return "linux", arch, "portable"
-    # betterdesk-1.5.0-macos-x86_64.dmg / .tar.gz
-    m = re.match(r"^betterdesk-[^-]+-macos-(x86_64|aarch64)\.(dmg|tar\.gz)$", name)
+    # betterdesk-1.5.0-macos-x86_64.dmg / -portable.zip (older releases: .tar.gz)
+    m = re.match(r"^betterdesk-[^-]+-macos-(x86_64|aarch64)(\.dmg|-portable\.zip|\.tar\.gz)$", name)
     if m:
-        kind = "dmg" if m.group(2) == "dmg" else "portable"
+        kind = "dmg" if m.group(2) == ".dmg" else "portable"
         return "macos", m.group(1), kind
     return None
 
@@ -212,6 +213,8 @@ def render_notes(
                 other.append(f"- [{name}]({_url(repo, tag, name)}) — clean Generator templates")
             elif name == "betterdesk-desktop-manifest.json":
                 other.append(f"- [{name}]({_url(repo, tag, name)}) — desktop release manifest")
+            elif name == "SHA256SUMS":
+                other.append(f"- [{name}]({_url(repo, tag, name)}) — checksums of every file in this release")
         else:
             if name in ("manifest.json", "manifest.sig", "SHA256SUMS"):
                 other.append(f"- [{name}]({_url(repo, tag, name)})")
@@ -254,7 +257,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--product", choices=("desktop", "support"), required=True)
     parser.add_argument("--asset-dir", type=Path, required=True)
-    parser.add_argument("--repo", default="UNITRONIX/BetterDesk-Client")
+    parser.add_argument("--repo", default="trybetterdesk/betterdesk-client")
     parser.add_argument("--tag", required=True)
     parser.add_argument("--release-name", required=True)
     parser.add_argument("--commit", default="")
