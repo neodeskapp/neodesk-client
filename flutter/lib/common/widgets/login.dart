@@ -11,6 +11,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import './dialog.dart';
 import './oidc_auth_status.dart';
 
@@ -881,7 +882,7 @@ Future<bool?> _openLoginDialog() async {
                 if (!inProgress)
                   SelectableText(
                     error.toString(),
-                    style: const TextStyle(fontSize: 11, color: Colors.red),
+                    style: TextStyle(fontSize: 11, color: context.bd.danger),
                     textAlign: TextAlign.center,
                   ),
               ],
@@ -949,7 +950,7 @@ Future<bool?> _openLoginDialog() async {
               // No need to handle the branch of null.
               // Because we can ensure the color is not null when debug.
               color: isCloseHovered
-                  ? Colors.white
+                  ? context.bd.onWindowCloseHover
                   : Theme.of(context)
                       .textTheme
                       .titleLarge
@@ -957,7 +958,7 @@ Future<bool?> _openLoginDialog() async {
                       ?.withOpacity(0.55),
             ),
             onTap: onDialogCancel,
-            hoverColor: Colors.red,
+            hoverColor: context.bd.windowCloseHover,
             borderRadius: BorderRadius.circular(5),
           ),
         ).marginOnly(top: 10, right: 15),

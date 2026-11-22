@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import './material_mod_popup_menu.dart' as mod_menu;
 
 // https://stackoverflow.com/questions/68318314/flutter-popup-menu-inside-popup-menu
@@ -126,7 +127,7 @@ abstract class MenuEntryBase<T> {
       fontSize: MenuConfig.fontSize,
       fontWeight: FontWeight.normal);
   disabledStyle() => TextStyle(
-      color: Colors.grey,
+      color: bdColors.textMuted,
       fontSize: MenuConfig.fontSize,
       fontWeight: FontWeight.normal);
 }
@@ -248,7 +249,7 @@ class MenuEntryRadios<T> extends MenuEntryBase<T> {
                               Icons.check,
                               color: (opt.enabled ?? true.obs).isTrue
                                   ? conf.commonColor
-                                  : Colors.grey,
+                                  : context.bd.textMuted,
                             ))
                         : const SizedBox.shrink()),
                   ))),
@@ -680,7 +681,9 @@ class MenuEntrySubMenu<T> extends MenuEntryBase<T> {
             alignment: Alignment.centerRight,
             child: Obx(() => Icon(
                   Icons.keyboard_arrow_right,
-                  color: super.enabled!.value ? conf.commonColor : Colors.grey,
+                  color: super.enabled!.value
+                      ? conf.commonColor
+                      : context.bd.textMuted,
                 )),
           ))
         ]),
@@ -748,7 +751,7 @@ class MenuEntryButton<T> extends MenuEntryBase<T> {
 }
 
 class CustomPopupMenuTheme {
-  static const Color commonColor = MyTheme.accent;
+  static Color get commonColor => MyTheme.accent;
   // kMinInteractiveDimension
   static const double height = 20.0;
   static const double dividerHeight = 3.0;

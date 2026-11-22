@@ -1,6 +1,7 @@
 import 'package:dash_chat_2/dash_chat_2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
@@ -58,7 +59,7 @@ class ChatPage extends StatelessWidget implements PageShape {
                       height: 10,
                       decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Color.fromARGB(255, 46, 205, 139)),
+                          color: context.bd.success),
                     ).marginSymmetric(horizontal: 2),
                   if (client != null)
                     unreadMessageCountBuilder(client.unreadChatMessageCount)
@@ -133,21 +134,23 @@ class ChatPage extends StatelessWidget implements PageShape {
                     messageOptions: MessageOptions(
                       showOtherUsersAvatar: false,
                       showOtherUsersName: false,
-                      textColor: Colors.white,
+                      textColor: context.bd.text,
                       maxWidth: constraints.maxWidth * 0.7,
                       messageTextBuilder: (message, _, __) {
                         final isOwnMessage = message.user.id.isBlank!;
+                        final textColor =
+                            isOwnMessage ? context.bd.onAccent : context.bd.text;
                         return Column(
                           crossAxisAlignment: isOwnMessage
                               ? CrossAxisAlignment.end
                               : CrossAxisAlignment.start,
                           children: <Widget>[
                             Text(message.text,
-                                style: TextStyle(color: Colors.white)),
+                                style: TextStyle(color: textColor)),
                             Text(
                               "${message.createdAt.hour}:${message.createdAt.minute.toString().padLeft(2, '0')}",
                               style: TextStyle(
-                                color: Colors.white,
+                                color: textColor,
                                 fontSize: 8,
                               ),
                             ).marginOnly(top: 3),
@@ -159,7 +162,7 @@ class ChatPage extends StatelessWidget implements PageShape {
                         final isOwnMessage = message.user.id.isBlank!;
                         return defaultMessageDecoration(
                           color:
-                              isOwnMessage ? MyTheme.accent : Colors.blueGrey,
+                              isOwnMessage ? MyTheme.accent : context.bd.bgSubtle,
                           borderTopLeft: 8,
                           borderTopRight: 8,
                           borderBottomRight: isOwnMessage ? 2 : 8,

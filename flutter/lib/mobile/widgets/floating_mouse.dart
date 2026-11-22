@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/utils/image.dart';
@@ -11,9 +12,9 @@ import 'package:provider/provider.dart';
 
 const int _kDotCount = 60;
 const double _kDotAngle = 2 * pi / _kDotCount;
-final Color _kDefaultColor = Colors.grey.withOpacity(0.7);
-final Color _kDefaultHighlightColor = Colors.white24.withOpacity(0.7);
-final Color _kTapDownColor = Colors.blue.withOpacity(0.7);
+Color get _kDefaultColor => bdColors.border.withOpacity(0.7);
+Color get _kDefaultHighlightColor => bdColors.onCanvas.withOpacity(0.7);
+Color get _kTapDownColor => bdColors.accent.withOpacity(0.7);
 const double _baseMouseWidth = 112.0;
 const double _baseMouseHeight = 138.0;
 const double _kShowPressedScale = 1.2;
@@ -698,13 +699,14 @@ class _FloatingMouseState extends State<FloatingMouse> {
                       child: Container(
                         width: 14 * _mouseScale,
                         height: 14 * _mouseScale,
-                        decoration: const BoxDecoration(
-                          color: Colors.grey,
+                        decoration: BoxDecoration(
+                          color: context.bd.border,
                           shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,
                         child: Icon(Icons.close,
-                            color: Colors.white, size: 12 * _mouseScale),
+                            color: context.bd.onCanvas,
+                            size: 12 * _mouseScale),
                       ),
                     ),
                   ),
@@ -987,7 +989,7 @@ class _MouseBodyState extends State<MouseBody> {
                           width: 22 * s,
                           height: 67 * s,
                           decoration: BoxDecoration(
-                            color: Colors.grey.withOpacity(0.7),
+                            color: _kDefaultColor,
                             borderRadius: BorderRadius.vertical(
                               top: Radius.circular(12 * s),
                               bottom: Radius.circular(16 * s),
@@ -1083,10 +1085,10 @@ class DottedCirclePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final radius = 48.0 * scale;
     final circlePaint = Paint()
-      ..color = Colors.grey.shade400
+      ..color = bdColors.border
       ..style = PaintingStyle.fill;
     final pointerPaint = Paint()
-      ..color = Colors.blue
+      ..color = bdColors.accent
       ..style = PaintingStyle.fill;
 
     const dotRadius = 2.5;
@@ -1116,7 +1118,7 @@ class BottomIndentPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.grey.withOpacity(0.7)
+      ..color = _kDefaultColor
       ..style = PaintingStyle.fill;
     // Draw bottom semicircle
     final center = Offset(size.width / 2, size.height);

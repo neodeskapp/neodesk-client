@@ -6,6 +6,7 @@ import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/common/widgets/overlay.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/pages/install_page.dart';
@@ -357,6 +358,7 @@ void _runApp(
   ThemeMode themeMode,
 ) {
   final botToastBuilder = BotToastInit();
+  BdTheme.setServerAccent(BrandingModel.current.accentColor.value);
   runApp(RefreshWrapper(
     builder: (context) => GetMaterialApp(
       navigatorKey: globalKey,
@@ -377,6 +379,7 @@ void _runApp(
         BotToastNavigatorObserver(),
       ],
       builder: (context, child) {
+        BdTheme.track(context);
         child = _keepScaleBuilder(context, child);
         child = botToastBuilder(context, child);
         return child;
@@ -483,6 +486,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // final analytics = FirebaseAnalytics.instance;
     final botToastBuilder = BotToastInit();
     return RefreshWrapper(builder: (context) {
+      // The server's accent colour applies to the whole app; a change from
+      // the server rebuilds it with the new theme.
+      return Obx(() {
+      BdTheme.setServerAccent(BrandingModel.current.accentColor.value);
       return MultiProvider(
         providers: [
           // global configuration
@@ -527,6 +534,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                     ),
                   )
               : (context, child) {
+                  BdTheme.track(context);
                   child = _keepScaleBuilder(context, child);
                   child = botToastBuilder(context, child);
                   if ((isDesktop && desktopType == DesktopType.main) ||
@@ -541,6 +549,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                 },
         ),
       );
+      });
     });
   }
 }

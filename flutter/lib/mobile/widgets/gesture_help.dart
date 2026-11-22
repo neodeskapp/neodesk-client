@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:get/get.dart';
@@ -96,10 +97,10 @@ class _GestureHelpState extends State<GestureHelp> {
                     children: [
                       ToggleSwitch(
                         initialLabelIndex: _selectedIndex,
-                        activeFgColor: Colors.white,
-                        inactiveFgColor: Colors.white60,
-                        activeBgColor: [MyTheme.accent],
-                        inactiveBgColor: Theme.of(context).hintColor,
+                        activeFgColor: context.bd.onAccent,
+                        inactiveFgColor: context.bd.textMuted,
+                        activeBgColor: [context.bd.accent],
+                        inactiveBgColor: context.bd.bgSubtle,
                         totalSwitches: 2,
                         minWidth: 150,
                         fontSize: 15,
@@ -361,7 +362,7 @@ class GestureInfo extends StatelessWidget {
   final double width;
 
   final iconSize = 35.0;
-  final iconColor = MyTheme.accent;
+  Color get iconColor => MyTheme.accent;
 
   @override
   Widget build(BuildContext context) {

@@ -1,6 +1,7 @@
 // https://github.com/rodrigobastosv/fancy_password_field
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:get/get.dart';
 import 'package:password_strength/password_strength.dart';
 
@@ -84,14 +85,14 @@ class PasswordStrengthIndicator extends StatelessWidget {
         children: [
           Expanded(
               child: _indicator(
-                  password.isEmpty ? Colors.grey : _getColor(strength))),
+                  password.isEmpty ? context.bd.rule : _getColor(strength))),
           Expanded(
               child: _indicator(password.isEmpty || strength < weakMedium
-                  ? Colors.grey
+                  ? context.bd.rule
                   : _getColor(strength))),
           Expanded(
               child: _indicator(password.isEmpty || strength < mediumStrong
-                  ? Colors.grey
+                  ? context.bd.rule
                   : _getColor(strength))),
           Text(password.isEmpty ? '' : translate(_getLabel(strength)))
               .marginOnly(left: password.isEmpty ? 0 : 8),
@@ -118,12 +119,13 @@ class PasswordStrengthIndicator extends StatelessWidget {
   }
 
   Color _getColor(double strength) {
+    final c = bdColors;
     if (strength < weakMedium) {
-      return Colors.yellow;
+      return c.warning;
     } else if (strength < mediumStrong) {
-      return Colors.blue;
+      return c.accent;
     } else {
-      return Colors.green;
+      return c.success;
     }
   }
 }

@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import '../../common/widgets/dialog.dart';
 import '../../consts.dart';
 import '../../models/platform_model.dart';
@@ -236,14 +237,12 @@ class ServiceNotRunningNotification extends StatelessWidget {
 
     return PaddingCard(
         title: translate("Service is not running"),
-        titleIcon:
-            const Icon(Icons.warning_amber_sharp, color: Colors.redAccent),
+        titleIcon: Icon(Icons.warning_amber_sharp, color: context.bd.danger),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(translate("android_start_service_tip"),
-                    style:
-                        const TextStyle(fontSize: 12, color: MyTheme.darkGray))
+                    style: TextStyle(fontSize: 12, color: MyTheme.darkGray))
                 .marginOnly(bottom: 8),
             ElevatedButton.icon(
                 icon: const Icon(Icons.play_arrow),
@@ -316,8 +315,8 @@ class ScamWarningDialogState extends State<ScamWarningDialog> {
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
                 colors: [
-                  Color(0xffe242bc),
-                  Color(0xfff4727c),
+                  context.bd.danger,
+                  context.bd.dangerHover,
                 ],
               ),
             ),
@@ -330,13 +329,13 @@ class ScamWarningDialogState extends State<ScamWarningDialog> {
                   children: [
                     Icon(
                       Icons.warning_amber_sharp,
-                      color: Colors.white,
+                      color: context.bd.onDanger,
                     ),
                     SizedBox(width: 10),
                     Text(
                       translate("Warning"),
                       style: TextStyle(
-                        color: Colors.white,
+                        color: context.bd.onDanger,
                         fontWeight: FontWeight.bold,
                         fontSize: 20.0,
                       ),
@@ -355,7 +354,7 @@ class ScamWarningDialogState extends State<ScamWarningDialog> {
                   translate("scam_title"),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white,
+                    color: context.bd.onDanger,
                     fontWeight: FontWeight.bold,
                     fontSize: 22.0,
                   ),
@@ -364,7 +363,7 @@ class ScamWarningDialogState extends State<ScamWarningDialog> {
                 Text(
                   "${translate("scam_text1")}\n\n${translate("scam_text2")}\n",
                   style: TextStyle(
-                    color: Colors.white,
+                    color: context.bd.onDanger,
                     fontWeight: FontWeight.bold,
                     fontSize: 16.0,
                   ),
@@ -382,7 +381,7 @@ class ScamWarningDialogState extends State<ScamWarningDialog> {
                     Text(
                       translate("Don't show again"),
                       style: TextStyle(
-                        color: Colors.white,
+                        color: context.bd.onDanger,
                         fontWeight: FontWeight.bold,
                         fontSize: 15.0,
                       ),
@@ -406,7 +405,7 @@ class ScamWarningDialogState extends State<ScamWarningDialog> {
                                 }
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
+                          backgroundColor: context.bd.accent,
                         ),
                         child: Text(
                           isButtonLocked
@@ -429,7 +428,7 @@ class ScamWarningDialogState extends State<ScamWarningDialog> {
                           Navigator.of(context).pop();
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
+                          backgroundColor: context.bd.accent,
                         ),
                         child: Text(
                           translate("Decline"),
@@ -464,12 +463,12 @@ class ServerInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     final serverModel = Provider.of<ServerModel>(context);
 
-    const Color colorPositive = Colors.green;
-    const Color colorNegative = Colors.red;
+    final Color colorPositive = context.bd.success;
+    final Color colorNegative = context.bd.danger;
     const double iconMarginRight = 15;
     const double iconSize = 24;
-    const TextStyle textStyleHeading = TextStyle(
-        fontSize: 16.0, fontWeight: FontWeight.bold, color: Colors.grey);
+    final TextStyle textStyleHeading = TextStyle(
+        fontSize: 16.0, fontWeight: FontWeight.bold, color: context.bd.textMuted);
     const TextStyle textStyleValue =
         TextStyle(fontSize: 25.0, fontWeight: FontWeight.bold);
 
@@ -481,8 +480,7 @@ class ServerInfo extends StatelessWidget {
     Widget ConnectionStateNotification() {
       if (serverModel.connectStatus == -1) {
         return Row(children: [
-          const Icon(Icons.warning_amber_sharp,
-                  color: colorNegative, size: iconSize)
+          Icon(Icons.warning_amber_sharp, color: colorNegative, size: iconSize)
               .marginOnly(right: iconMarginRight),
           Expanded(child: Text(translate('not_ready_status')))
         ]);
@@ -494,7 +492,7 @@ class ServerInfo extends StatelessWidget {
         ]);
       } else {
         return Row(children: [
-          const Icon(Icons.check, color: colorPositive, size: iconSize)
+          Icon(Icons.check, color: colorPositive, size: iconSize)
               .marginOnly(right: iconMarginRight),
           Expanded(child: Text(translate('Ready')))
         ]);
@@ -509,8 +507,8 @@ class ServerInfo extends StatelessWidget {
           // ID
           children: [
             Row(children: [
-              const Icon(Icons.perm_identity,
-                      color: Colors.grey, size: iconSize)
+              Icon(Icons.perm_identity,
+                      color: context.bd.textMuted, size: iconSize)
                   .marginOnly(right: iconMarginRight),
               Text(
                 translate('ID'),
@@ -531,7 +529,8 @@ class ServerInfo extends StatelessWidget {
             ]).marginOnly(left: 39, bottom: 10),
             // Password
             Row(children: [
-              const Icon(Icons.lock_outline, color: Colors.grey, size: iconSize)
+              Icon(Icons.lock_outline,
+                      color: context.bd.textMuted, size: iconSize)
                   .marginOnly(right: iconMarginRight),
               Text(
                 translate('One-time Password'),
@@ -594,7 +593,9 @@ class _PermissionCheckerState extends State<PermissionChecker> {
               ? ElevatedButton.icon(
                       style: ButtonStyle(
                           backgroundColor:
-                              MaterialStateProperty.all(Colors.red)),
+                              WidgetStateProperty.all(context.bd.danger),
+                          foregroundColor:
+                              WidgetStateProperty.all(context.bd.onDanger)),
                       icon: const Icon(Icons.stop),
                       onPressed: serverModel.toggleService,
                       label: Text(translate("Stop service")))
@@ -629,7 +630,7 @@ class _PermissionCheckerState extends State<PermissionChecker> {
                   Expanded(
                       child: Text(
                     translate("android_version_audio_tip"),
-                    style: const TextStyle(color: MyTheme.darkGray),
+                    style: TextStyle(color: MyTheme.darkGray),
                   ))
                 ]),
           PermissionRow(
@@ -721,7 +722,9 @@ class ConnectionManager extends StatelessWidget {
 
   Widget _buildDisconnectButton(Client client) {
     final disconnectButton = ElevatedButton.icon(
-      style: ButtonStyle(backgroundColor: MaterialStatePropertyAll(Colors.red)),
+      style: ButtonStyle(
+          backgroundColor: WidgetStatePropertyAll(bdColors.danger),
+          foregroundColor: WidgetStatePropertyAll(bdColors.onDanger)),
       icon: const Icon(Icons.close),
       onPressed: () {
         bind.cmCloseConnection(connId: client.id);
@@ -735,7 +738,8 @@ class ConnectionManager extends StatelessWidget {
         0,
         ElevatedButton.icon(
           style: ButtonStyle(
-              backgroundColor: MaterialStatePropertyAll(Colors.red)),
+              backgroundColor: WidgetStatePropertyAll(bdColors.danger),
+              foregroundColor: WidgetStatePropertyAll(bdColors.onDanger)),
           icon: const Icon(Icons.phone),
           label: Text(translate("Stop")),
           onPressed: () {

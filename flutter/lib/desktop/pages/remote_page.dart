@@ -12,6 +12,7 @@ import '../../consts.dart';
 import '../../common/widgets/overlay.dart';
 import '../../common/widgets/remote_input.dart';
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/toolbar.dart';
 import '../../models/model.dart';
@@ -1324,7 +1325,7 @@ class _ImagePaintState extends State<ImagePaint> {
     if (layoutSize.width < size.width) {
       widget = RawScrollbar(
         thickness: kScrollbarThickness,
-        thumbColor: Colors.grey,
+        thumbColor: context.bd.border,
         controller: horizontal,
         thumbVisibility: false,
         trackVisibility: false,
@@ -1337,7 +1338,7 @@ class _ImagePaintState extends State<ImagePaint> {
     if (layoutSize.height < size.height) {
       widget = RawScrollbar(
         thickness: kScrollbarThickness,
-        thumbColor: Colors.grey,
+        thumbColor: context.bd.border,
         controller: vertical,
         thumbVisibility: false,
         trackVisibility: false,

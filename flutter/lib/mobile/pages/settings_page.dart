@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/login.dart';
 import '../../consts.dart';
@@ -391,8 +392,8 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           Expanded(child: Text(translate('Use IP Whitelisting'))),
           Offstage(
                   offstage: !_onlyWhiteList,
-                  child: const Icon(Icons.warning_amber_rounded,
-                      color: Color.fromARGB(255, 255, 204, 0)))
+                  child: Icon(Icons.warning_amber_rounded,
+                      color: context.bd.warning))
               .marginOnly(left: 5)
         ]),
         initialValue: _onlyWhiteList,
@@ -414,8 +415,8 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           Expanded(child: Text(translate('Use ID whitelisting'))),
           Offstage(
                   offstage: !_onlyIdWhiteList,
-                  child: const Icon(Icons.warning_amber_rounded,
-                      color: Color.fromARGB(255, 255, 204, 0)))
+                  child: Icon(Icons.warning_amber_rounded,
+                      color: context.bd.warning))
               .marginOnly(left: 5)
         ]),
         initialValue: _onlyIdWhiteList,
@@ -1304,7 +1305,7 @@ class __ManageTrustedDevicesState extends State<_ManageTrustedDevices> {
         centerTitle: true,
         actions: [
           Obx(() => IconButton(
-              icon: Icon(Icons.delete, color: Colors.white),
+              icon: Icon(Icons.delete, color: context.bd.text),
               onPressed: selectedDevices.isEmpty
                   ? null
                   : () {
