@@ -6,7 +6,9 @@ Needs bash, dpkg-deb, tar, zip and sha256sum (all on the Ubuntu runners).
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import os
 import subprocess
 import sys
 import tarfile
@@ -63,8 +65,9 @@ def fake_raw(raw: Path, platforms: set[str]) -> None:
             write(raw / "linux-rpms" / f"betterdesk-{VERSION}-0.{arch}-suse.rpm", b"suse")
 
 
-def run(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["bash", str(SCRIPT), *args], capture_output=True, text=True)
+def run(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
+    return subprocess.run(["bash", str(SCRIPT), *args], capture_output=True, text=True,
+                          env={**os.environ, **(env or {})})
 
 
 def expect(condition: bool, message: str) -> None:
@@ -180,8 +183,57 @@ def check_empty(tmp: Path) -> None:
     expect(result.returncode != 0, "collect succeeded without any packages")
 
 
+def openssl(*args: str, data: bytes | None = None) -> bytes:
+    return subprocess.run(["openssl", *args], input=data, capture_output=True, check=True).stdout
+
+
+def check_signature(tmp: Path) -> None:
+    dist = tmp / "dist"
+    write(dist / f"betterdesk-{VERSION}-linux-x86_64.deb", b"deb")
+    write(dist / f"betterdesk-{VERSION}-windows-x86_64.exe", b"exe")
+    key = tmp / "key.pem"
+    openssl("genpkey", "-algorithm", "ed25519", "-out", str(key))
+    public_pem = tmp / "public.pem"
+    openssl("pkey", "-in", str(key), "-pubout", "-out", str(public_pem))
+    raw_public = openssl("pkey", "-pubin", "-in", str(public_pem), "-outform", "DER")[-32:]
+    env = {"RELEASE_SIGNING_KEY": key.read_text(), "RELEASE_SIGNING_PUBLIC_KEY": base64.b64encode(raw_public).decode()}
+
+    expect(run("sums", str(dist)).returncode == 0, "sums failed")
+    result = run("sign", str(dist), env=env)
+    expect(result.returncode == 0, f"sign failed: {result.stderr}")
+    signature = base64.b64decode((dist / "SHA256SUMS.sig").read_text().strip(), validate=True)
+    expect(len(signature) == 64, f"signature has {len(signature)} bytes, not 64")
+    sig_file = tmp / "sig.bin"
+    sig_file.write_bytes(signature)
+    verify = subprocess.run(
+        ["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", str(public_pem), "-rawin",
+         "-in", str(dist / "SHA256SUMS"), "-sigfile", str(sig_file)],
+        capture_output=True, text=True,
+    )
+    expect(verify.returncode == 0, f"signature does not verify over SHA256SUMS: {verify.stdout}{verify.stderr}")
+    tampered = tmp / "tampered"
+    tampered.write_bytes((dist / "SHA256SUMS").read_bytes() + b"x")
+    verify = subprocess.run(
+        ["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", str(public_pem), "-rawin",
+         "-in", str(tampered), "-sigfile", str(sig_file)],
+        capture_output=True, text=True,
+    )
+    expect(verify.returncode != 0, "signature verifies over changed bytes")
+
+    expect(run("sums", str(dist)).returncode == 0, "second sums failed")
+    expect("SHA256SUMS.sig" not in (dist / "SHA256SUMS").read_text(), "SHA256SUMS lists its own signature")
+    expect(not (dist / "SHA256SUMS.sig").exists(), "sums left a signature of the old SHA256SUMS behind")
+
+    (dist / "SHA256SUMS.sig").unlink(missing_ok=True)
+    result = run("sign", str(dist), env={"RELEASE_SIGNING_KEY": key.read_text(), "RELEASE_SIGNING_PUBLIC_KEY": ""})
+    expect(result.returncode != 0 and not (dist / "SHA256SUMS.sig").exists(),
+           "sign accepted a key that is not the release key")
+    result = run("sign", str(dist), env={"RELEASE_SIGNING_KEY": ""})
+    expect(result.returncode != 0, "sign ran without a key")
+
+
 def main() -> int:
-    for check in (check_full, check_partial, check_empty):
+    for check in (check_full, check_partial, check_empty, check_signature):
         with tempfile.TemporaryDirectory(prefix="betterdesk-collect-") as value:
             check(Path(value))
         print(f"{check.__name__}: OK")

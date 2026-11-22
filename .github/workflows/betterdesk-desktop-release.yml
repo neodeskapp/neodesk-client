@@ -282,6 +282,26 @@ jobs:
           bash scripts/collect_desktop_dist.sh sums dist/clean
           cat dist/clean/SHA256SUMS
 
+      # SHA256SUMS.sig, which the console checks before it serves a package.
+      # Without the key (forks) the packages stay unsigned; a release needs it.
+      - name: Sign SHA256SUMS
+        shell: bash
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          PUBLISH: ${{ needs.prepare.outputs.publish }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RELEASE_SIGNING_KEY}" ]; then
+            if [ "${PUBLISH}" = "true" ]; then
+              echo "::error::RELEASE_SIGNING_KEY is not set; a release without SHA256SUMS.sig cannot be served."
+              exit 1
+            fi
+            echo "::notice::RELEASE_SIGNING_KEY is not set; SHA256SUMS stays unsigned."
+            exit 0
+          fi
+          bash scripts/collect_desktop_dist.sh sign dist/clean
+          cat dist/clean/SHA256SUMS.sig
+
       - name: Upload packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

@@ -3,6 +3,7 @@
 #
 #   collect_desktop_dist.sh collect <raw dir> <dist dir> <version>
 #   collect_desktop_dist.sh sums <dir>
+#   collect_desktop_dist.sh sign <dir>
 #
 # <raw dir> holds the build artifacts as the release workflow downloads them:
 #   rustdesk-unsigned-windows-<arch>/   Windows build folder (betterdesk.exe, DLLs)
@@ -29,10 +30,18 @@
 #
 # "sums" writes <dir>/SHA256SUMS over every other file in <dir>, in the
 # format of `sha256sum` (check with `sha256sum -c SHA256SUMS`).
+#
+# "sign" writes <dir>/SHA256SUMS.sig: the ed25519 signature of the
+# SHA256SUMS bytes in base64, with the release key (DECISIONS A152) given
+# as a PKCS#8 PEM in RELEASE_SIGNING_KEY. The console checks it against the
+# public key compiled into it (console/clientrelease/keys.go). It refuses a
+# key whose public half is not RELEASE_SIGNING_PUBLIC_KEY (base64 of the
+# raw key, the release key when unset).
 
 set -euo pipefail
 
 ARCHES="x86_64 aarch64"
+RELEASE_PUBLIC_KEY="iwissiXvSjeFFsG8SdKEZq11uAtRLWCrD7Ky1vfY2n4="
 
 first() {
   # Prints the first file or folder find reports, or nothing.
@@ -148,9 +157,34 @@ sums() {
   local dir="$1" names
   (
     cd "${dir}"
-    rm -f SHA256SUMS
+    rm -f SHA256SUMS SHA256SUMS.sig
     names="$(find . -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)"
     printf '%s\n' "${names}" | while IFS= read -r name; do sha256sum -- "${name}"; done > SHA256SUMS
+  )
+}
+
+sign() {
+  local dir="$1"
+  if [ -z "${RELEASE_SIGNING_KEY:-}" ]; then
+    echo "RELEASE_SIGNING_KEY is empty" >&2
+    exit 2
+  fi
+  [ -f "${dir}/SHA256SUMS" ] || { echo "no SHA256SUMS in ${dir}" >&2; exit 1; }
+  (
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "${tmp}"' EXIT
+    umask 077
+    printf '%s\n' "${RELEASE_SIGNING_KEY}" > "${tmp}/key.pem"
+    openssl pkey -in "${tmp}/key.pem" -pubout -out "${tmp}/public.pem"
+    public="$(openssl pkey -pubin -in "${tmp}/public.pem" -outform DER | tail -c 32 | base64 -w0)"
+    if [ "${public}" != "${RELEASE_SIGNING_PUBLIC_KEY:-${RELEASE_PUBLIC_KEY}}" ]; then
+      echo "RELEASE_SIGNING_KEY is not the release key (its public key is ${public})" >&2
+      exit 1
+    fi
+    openssl pkeyutl -sign -inkey "${tmp}/key.pem" -rawin -in "${dir}/SHA256SUMS" -out "${tmp}/sig"
+    openssl pkeyutl -verify -pubin -inkey "${tmp}/public.pem" -rawin \
+      -in "${dir}/SHA256SUMS" -sigfile "${tmp}/sig" > /dev/null
+    printf '%s\n' "$(base64 -w0 "${tmp}/sig")" > "${dir}/SHA256SUMS.sig"
   )
 }
 
@@ -163,8 +197,12 @@ case "${1:-}" in
     [ "$#" -eq 2 ] || { echo "usage: $0 sums <dir>" >&2; exit 2; }
     sums "$2"
     ;;
+  sign)
+    [ "$#" -eq 2 ] || { echo "usage: $0 sign <dir>" >&2; exit 2; }
+    sign "$2"
+    ;;
   *)
-    echo "usage: $0 collect <raw dir> <dist dir> <version> | sums <dir>" >&2
+    echo "usage: $0 collect <raw dir> <dist dir> <version> | sums <dir> | sign <dir>" >&2
     exit 2
     ;;
 esac
