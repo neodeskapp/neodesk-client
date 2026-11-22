@@ -1,0 +1,387 @@
+//! Key proof and device token for BetterDesk enrollment requests.
+//!
+//! Register, status and pairing requests carry a short-lived proof made with
+//! the device's Ed25519 key, the same key the client registers with the
+//! signal server. When a request proves the key and presents no working device
+//! token, the server answers with a new `device_token`. The client keeps it in
+//! LocalConfig, together with the device id and API base it was issued for,
+//! and sends it as a bearer token on later enrollment requests to that server.
+//! The token is never put in a URL or a log line.
+
+use hbb_common::{
+    base64::{engine::general_purpose::STANDARD, Engine as _},
+    config::LocalConfig,
+    sodiumoxide::{crypto::sign, randombytes},
+};
+use serde_json::Value;
+
+pub const HEADER_TIMESTAMP: &str = "X-BD-Enrollment-Timestamp";
+pub const HEADER_NONCE: &str = "X-BD-Enrollment-Nonce";
+pub const HEADER_SIGNATURE: &str = "X-BD-Enrollment-Signature";
+const HEADER_AUTHORIZATION: &str = "Authorization";
+const PROOF_VERSION: &str = "bd-enrollment-v1";
+const NONCE_BYTES: usize = 32;
+
+const OPTION_DEVICE_TOKEN: &str = "betterdesk-device-token";
+const OPTION_DEVICE_TOKEN_ID: &str = "betterdesk-device-token-id";
+const OPTION_DEVICE_TOKEN_API: &str = "betterdesk-device-token-api";
+
+/// The text the device signs for one enrollment request.
+pub fn proof_payload(
+    method: &str,
+    path: &str,
+    device_id: &str,
+    public_key_b64: &str,
+    timestamp: &str,
+    nonce: &str,
+) -> String {
+    format!(
+        "{PROOF_VERSION}\n{method}\n{path}\n{device_id}\n{public_key_b64}\n{timestamp}\n{nonce}"
+    )
+}
+
+/// Proof headers for one request, or None when the key pair is not an
+/// Ed25519 pair. `path` is the request path as sent, without the query.
+pub fn proof_headers(
+    method: &str,
+    path: &str,
+    device_id: &str,
+    public_key: &[u8],
+    secret_key: &[u8],
+    timestamp: &str,
+    nonce: &str,
+) -> Option<Vec<(&'static str, String)>> {
+    if public_key.len() != sign::PUBLICKEYBYTES {
+        return None;
+    }
+    let secret_key = sign::SecretKey::from_slice(secret_key)?;
+    let payload = proof_payload(
+        method,
+        path,
+        device_id,
+        &STANDARD.encode(public_key),
+        timestamp,
+        nonce,
+    );
+    let signature = sign::sign_detached(payload.as_bytes(), &secret_key);
+    Some(vec![
+        (HEADER_TIMESTAMP, timestamp.to_owned()),
+        (HEADER_NONCE, nonce.to_owned()),
+        (HEADER_SIGNATURE, STANDARD.encode(signature.to_bytes())),
+    ])
+}
+
+/// The path of `url` as reqwest sends it, without the query.
+pub fn request_path(url: &str) -> Option<String> {
+    url::Url::parse(url).ok().map(|url| url.path().to_owned())
+}
+
+/// The key proof plus, when given, the device token as a bearer token.
+pub fn request_headers(
+    proof: Vec<(&'static str, String)>,
+    token: Option<&str>,
+) -> Vec<(&'static str, String)> {
+    let mut headers = proof;
+    if let Some(token) = token.filter(|token| !token.is_empty()) {
+        headers.push((HEADER_AUTHORIZATION, format!("Bearer {token}")));
+    }
+    headers
+}
+
+/// Adds the key proof (current time, fresh nonce) and the device token to a
+/// request for `url`. The request goes out without proof when the device has
+/// no usable key pair.
+pub fn sign_request(
+    request: reqwest::RequestBuilder,
+    method: &str,
+    url: &str,
+    device_id: &str,
+    token: Option<&str>,
+) -> reqwest::RequestBuilder {
+    let (secret_key, public_key) = hbb_common::config::Config::get_key_pair();
+    let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let nonce = hex::encode(randombytes::randombytes(NONCE_BYTES));
+    let proof = request_path(url)
+        .and_then(|path| {
+            proof_headers(
+                method,
+                &path,
+                device_id,
+                &public_key,
+                &secret_key,
+                &timestamp,
+                &nonce,
+            )
+        })
+        .unwrap_or_default();
+    request_headers(proof, token)
+        .into_iter()
+        .fold(request, |request, (name, value)| {
+            request.header(name, value)
+        })
+}
+
+/// Base64 of the device's public key for the `public_key` body field, when
+/// the key has the Ed25519 size.
+pub fn public_key_b64() -> Option<String> {
+    let (_, public_key) = hbb_common::config::Config::get_key_pair();
+    (public_key.len() == sign::PUBLICKEYBYTES).then(|| STANDARD.encode(public_key))
+}
+
+/// URL-encodes a query value.
+pub fn query_value(value: &str) -> String {
+    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
+}
+
+/// The device token as stored, with the device id and API base it was issued for.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct StoredToken {
+    pub token: String,
+    pub device_id: String,
+    pub api: String,
+}
+
+impl StoredToken {
+    pub fn load() -> Self {
+        Self {
+            token: LocalConfig::get_option(OPTION_DEVICE_TOKEN),
+            device_id: LocalConfig::get_option(OPTION_DEVICE_TOKEN_ID),
+            api: LocalConfig::get_option(OPTION_DEVICE_TOKEN_API),
+        }
+    }
+
+    /// The token when it was issued for this device id and API base. The
+    /// server ends a device token when the id changes, and a token is never
+    /// sent to another server. Its age does not matter.
+    pub fn usable_for(&self, device_id: &str, api: &str) -> Option<&str> {
+        if self.token.is_empty()
+            || device_id.is_empty()
+            || self.device_id != device_id
+            || self.api != api
+        {
+            None
+        } else {
+            Some(&self.token)
+        }
+    }
+}
+
+pub fn store_token(token: &str, device_id: &str, api: &str) {
+    LocalConfig::set_option(OPTION_DEVICE_TOKEN.to_owned(), token.to_owned());
+    LocalConfig::set_option(OPTION_DEVICE_TOKEN_ID.to_owned(), device_id.to_owned());
+    LocalConfig::set_option(OPTION_DEVICE_TOKEN_API.to_owned(), api.to_owned());
+}
+
+pub fn clear_token() {
+    LocalConfig::set_option(OPTION_DEVICE_TOKEN.to_owned(), "".to_owned());
+    LocalConfig::set_option(OPTION_DEVICE_TOKEN_ID.to_owned(), "".to_owned());
+    LocalConfig::set_option(OPTION_DEVICE_TOKEN_API.to_owned(), "".to_owned());
+}
+
+fn non_empty_str<'a>(value: Option<&'a Value>) -> Option<&'a str> {
+    value
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+}
+
+/// `status` of a register or status answer.
+pub fn answer_status(answer: &Value) -> &str {
+    non_empty_str(answer.get("status")).unwrap_or("")
+}
+
+/// `device_token` of a register or status answer.
+pub fn answer_token(answer: &Value) -> Option<&str> {
+    non_empty_str(answer.get("device_token"))
+}
+
+/// The enrollment part of a pairing redeem answer, which has the same shape
+/// as a register answer.
+pub fn redeem_enrollment(answer: &Value) -> &Value {
+    answer.get("enrollment").unwrap_or(&Value::Null)
+}
+
+/// What an enrollment answer means for the stored device token.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TokenChange {
+    Keep,
+    Replace(String),
+    Clear,
+}
+
+pub fn token_change(status: &str, token: Option<&str>) -> TokenChange {
+    if status == "rejected" {
+        TokenChange::Clear
+    } else if let Some(token) = token.filter(|token| !token.is_empty()) {
+        TokenChange::Replace(token.to_owned())
+    } else {
+        TokenChange::Keep
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    const TIMESTAMP: &str = "2026-11-22T10:00:00Z";
+    const NONCE: &str = "6e6f6e6365";
+
+    fn key_pair() -> (sign::PublicKey, sign::SecretKey) {
+        sign::keypair_from_seed(&sign::Seed([7; 32]))
+    }
+
+    fn header<'a>(headers: &'a [(&'static str, String)], name: &str) -> Option<&'a str> {
+        headers
+            .iter()
+            .find(|(key, _)| *key == name)
+            .map(|(_, value)| value.as_str())
+    }
+
+    #[test]
+    fn proof_payload_has_the_exact_bytes() {
+        let payload = proof_payload(
+            "POST",
+            "/api/devices/register",
+            "123456789",
+            "cHVibGljLWtleQ==",
+            TIMESTAMP,
+            NONCE,
+        );
+        assert_eq!(
+            payload.as_bytes(),
+            b"bd-enrollment-v1\nPOST\n/api/devices/register\n123456789\ncHVibGljLWtleQ==\n2026-11-22T10:00:00Z\n6e6f6e6365"
+        );
+    }
+
+    #[test]
+    fn proof_signature_verifies_and_binds_the_path() {
+        let (pk, sk) = key_pair();
+        let headers = proof_headers(
+            "GET",
+            "/api/devices/register/status",
+            "123456789",
+            &pk.0,
+            &sk.0,
+            TIMESTAMP,
+            NONCE,
+        )
+        .unwrap();
+        assert_eq!(header(&headers, HEADER_TIMESTAMP), Some(TIMESTAMP));
+        assert_eq!(header(&headers, HEADER_NONCE), Some(NONCE));
+        let decoded = STANDARD
+            .decode(header(&headers, HEADER_SIGNATURE).unwrap())
+            .unwrap();
+        let mut bytes = [0u8; 64];
+        bytes.copy_from_slice(&decoded);
+        let signature = sign::Signature::from_bytes(&bytes).unwrap();
+        let public_key_b64 = STANDARD.encode(pk.0);
+        let signed = proof_payload(
+            "GET",
+            "/api/devices/register/status",
+            "123456789",
+            &public_key_b64,
+            TIMESTAMP,
+            NONCE,
+        );
+        assert!(sign::verify_detached(&signature, signed.as_bytes(), &pk));
+        let other_path = proof_payload(
+            "GET",
+            "/api/devices/register",
+            "123456789",
+            &public_key_b64,
+            TIMESTAMP,
+            NONCE,
+        );
+        assert!(!sign::verify_detached(
+            &signature,
+            other_path.as_bytes(),
+            &pk
+        ));
+    }
+
+    #[test]
+    fn proof_needs_an_ed25519_key_pair() {
+        let (pk, sk) = key_pair();
+        assert!(proof_headers("POST", "/", "1", &pk.0[..31], &sk.0, TIMESTAMP, NONCE).is_none());
+        assert!(proof_headers("POST", "/", "1", &pk.0, &sk.0[..32], TIMESTAMP, NONCE).is_none());
+    }
+
+    #[test]
+    fn request_path_keeps_the_prefix_and_drops_the_query() {
+        assert_eq!(
+            request_path("https://bd.example.com/desk/api/devices/register/status?device_id=1")
+                .as_deref(),
+            Some("/desk/api/devices/register/status")
+        );
+        assert_eq!(
+            request_path("http://10.0.0.5:21114/api/pairing/redeem").as_deref(),
+            Some("/api/pairing/redeem")
+        );
+    }
+
+    #[test]
+    fn bearer_only_for_a_token_of_this_device_and_server() {
+        let stored = StoredToken {
+            token: "tok".to_owned(),
+            device_id: "123456789".to_owned(),
+            api: "http://bd:21114".to_owned(),
+        };
+        let headers = request_headers(vec![], stored.usable_for("123456789", "http://bd:21114"));
+        assert_eq!(header(&headers, "Authorization"), Some("Bearer tok"));
+
+        let other_id = request_headers(vec![], stored.usable_for("987654321", "http://bd:21114"));
+        assert_eq!(header(&other_id, "Authorization"), None);
+
+        let other_server =
+            request_headers(vec![], stored.usable_for("123456789", "http://other:21114"));
+        assert_eq!(header(&other_server, "Authorization"), None);
+
+        let empty = StoredToken::default();
+        assert_eq!(empty.usable_for("", ""), None);
+    }
+
+    #[test]
+    fn token_is_read_from_register_status_and_redeem_answers() {
+        let register = json!({"status": "approved", "device_id": "1", "device_token": "reg-token"});
+        assert_eq!(answer_status(&register), "approved");
+        assert_eq!(answer_token(&register), Some("reg-token"));
+
+        let status = json!({"status": "approved", "device_token": " status-token "});
+        assert_eq!(answer_token(&status), Some("status-token"));
+
+        let redeem = json!({
+            "success": true,
+            "device_token": "not-here",
+            "enrollment": {"status": "approved", "device_token": "redeem-token"},
+        });
+        let enrollment = redeem_enrollment(&redeem);
+        assert_eq!(answer_status(enrollment), "approved");
+        assert_eq!(answer_token(enrollment), Some("redeem-token"));
+
+        let pending = json!({"status": "pending", "device_token": ""});
+        assert_eq!(answer_token(&pending), None);
+        assert_eq!(
+            answer_token(redeem_enrollment(&json!({"success": false}))),
+            None
+        );
+    }
+
+    #[test]
+    fn rejected_clears_and_a_new_token_replaces() {
+        assert_eq!(token_change("rejected", None), TokenChange::Clear);
+        assert_eq!(token_change("rejected", Some("t")), TokenChange::Clear);
+        assert_eq!(
+            token_change("approved", Some("new")),
+            TokenChange::Replace("new".to_owned())
+        );
+        assert_eq!(token_change("approved", None), TokenChange::Keep);
+        assert_eq!(token_change("pending", None), TokenChange::Keep);
+    }
+
+    #[test]
+    fn device_id_is_url_encoded() {
+        assert_eq!(query_value("a b&c=d/é"), "a+b%26c%3Dd%2F%C3%A9");
+        assert_eq!(query_value("123456789"), "123456789");
+    }
+}
