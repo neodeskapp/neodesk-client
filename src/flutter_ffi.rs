@@ -1193,6 +1193,26 @@ pub fn main_pair_with_code(server: String, code: String) -> String {
     crate::hbbs_http::pairing::pair_and_apply(server, code).to_json()
 }
 
+/// The state of Add a computer, as JSON: `phase`, `server`, `error`,
+/// `errorText`, `joinStep`, `deviceId`, `deviceName`, `folderId`, `link`,
+/// `hasServer`.
+pub fn main_onboard_state() -> SyncReturn<String> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let state = crate::onboard::state_json();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let state = "{}".to_owned();
+    SyncReturn(state)
+}
+
+/// Joins the server of an invite link or code; the state follows.
+pub fn main_onboard_redeem_join(text: String) -> SyncReturn<()> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::onboard::redeem_join(text);
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let _ = text;
+    SyncReturn(())
+}
+
 pub fn main_get_local_option(key: String) -> SyncReturn<String> {
     SyncReturn(get_local_option(key))
 }

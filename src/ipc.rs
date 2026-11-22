@@ -645,6 +645,10 @@ pub async fn start(postfix: &str) -> ResultType<()> {
     }
 }
 
+/// Config name under which a client that joined a server hands the device
+/// token to the server process, which keeps it.
+pub const IPC_JOINED_DEVICE_TOKEN: &str = "betterdesk-joined-device-token";
+
 pub async fn new_listener(postfix: &str) -> ResultType<Incoming> {
     let path = Config::ipc_path(postfix);
     #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -988,6 +992,9 @@ async fn handle(data: Data, stream: &mut Connection) {
                     crate::audio_service::set_voice_call_input_device(Some(value), true);
                 } else if name == "unlock-pin" {
                     Config::set_unlock_pin(&value);
+                } else if name == IPC_JOINED_DEVICE_TOKEN {
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    crate::onboard::store_device_token(&value);
                 } else {
                     return;
                 }

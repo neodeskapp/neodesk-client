@@ -46,6 +46,7 @@ pub fn core_main() -> Option<CoreMainAction> {
         return None;
     }
     crate::load_custom_client();
+    crate::onboard::init_process_mode();
     crate::hbbs_http::betterdesk::log_client_identity();
     #[cfg(windows)]
     if !crate::platform::windows::bootstrap() {
@@ -133,7 +134,9 @@ pub fn core_main() -> Option<CoreMainAction> {
     if _is_flutter_invoke_new_connection {
         return core_main_invoke_new_connection(std::env::args()).map(CoreMainAction::StartUi);
     }
-    let click_setup = cfg!(windows) && args.is_empty() && crate::common::is_setup(&arg_exe);
+    let click_setup = cfg!(windows)
+        && args.is_empty()
+        && (crate::common::is_setup(&arg_exe) || crate::onboard::is_setup_file(&arg_exe));
     if click_setup && !config::is_disable_installation() {
         args.push("--install".to_owned());
         flutter_args.push("--install".to_string());
@@ -180,6 +183,9 @@ pub fn core_main() -> Option<CoreMainAction> {
         }
     }
     hbb_common::init_log(false, &log_name);
+    if let Some(action) = crate::onboard::core_main_hook(&args) {
+        return action;
+    }
 
     // linux uni (url) go here.
     #[cfg(all(target_os = "linux", feature = "flutter"))]
@@ -216,6 +222,7 @@ pub fn core_main() -> Option<CoreMainAction> {
             hbb_common::config::PeerConfig::preload_peers();
         }
         std::thread::spawn(move || crate::start_server(false, no_server));
+        crate::onboard::start_pending();
     } else {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         // Root CLI management commands must talk to the user `--server` main IPC.

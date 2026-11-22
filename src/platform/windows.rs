@@ -4001,8 +4001,15 @@ fn run_after_run_cmds(silent: bool) {
     let (_, _, _, exe) = get_install_info();
     if !silent {
         log::debug!("Spawn new window");
+        let exe = format!("{exe}");
+        let mut args = vec!["/c", "timeout", "/t", "2", "&", exe.as_str()];
+        // A setup file that carries an invite hands it to the installed client.
+        let join_link = crate::onboard::pending_join_deep_link();
+        if let Some(link) = join_link.as_deref() {
+            args.push(link);
+        }
         allow_err!(std::process::Command::new("cmd")
-            .args(&["/c", "timeout", "/t", "2", "&", &format!("{exe}")])
+            .args(&args)
             .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
             .spawn());
     }

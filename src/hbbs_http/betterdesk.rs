@@ -322,7 +322,7 @@ lazy_static::lazy_static! {
 /// Stores the status and device token from an enrollment answer for the
 /// device id and API base the request went to. A "rejected" answer clears the
 /// token.
-pub(super) fn record_enrollment_answer(
+pub(crate) fn record_enrollment_answer(
     status: &str,
     token: Option<&str>,
     device_id: &str,
