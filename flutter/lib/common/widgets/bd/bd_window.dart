@@ -298,11 +298,13 @@ class _TitleTabState extends State<_TitleTab> {
   }
 }
 
-/// A text button in the title bar (Settings).
+/// A text button in the title bar (Settings, Back).
 class BdTitleBarText extends StatefulWidget {
-  const BdTitleBarText({super.key, required this.label, required this.onTap});
+  const BdTitleBarText(
+      {super.key, required this.label, required this.onTap, this.icon});
   final String label;
   final VoidCallback onTap;
+  final IconData? icon;
 
   @override
   State<BdTitleBarText> createState() => _BdTitleBarTextState();
@@ -329,8 +331,14 @@ class _BdTitleBarTextState extends State<BdTitleBarText> {
               color: _hover ? c.hover : Colors.transparent,
               borderRadius: BdSize.r,
             ),
-            child: Text(widget.label,
-                style: t.label.copyWith(fontSize: 13, height: 18 / 13)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (widget.icon != null) ...[
+                Icon(widget.icon, size: 16, color: c.text),
+                const SizedBox(width: 6),
+              ],
+              Text(widget.label,
+                  style: t.label.copyWith(fontSize: 13, height: 18 / 13)),
+            ]),
           ),
         ),
       ),

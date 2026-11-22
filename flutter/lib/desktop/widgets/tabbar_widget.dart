@@ -598,7 +598,8 @@ class _DesktopTabState extends State<DesktopTab>
   }
 
   /// The start of the title bar: the server's logo and name when the
-  /// branding has them, the wordmark while only Home is open, else the mark.
+  /// branding has them, else the wordmark in the main window and the mark
+  /// in the others.
   Widget _brand() {
     if (tabType == DesktopTabType.cm) {
       return BdTitleBrand(title: bind.mainGetAppNameSync());
@@ -611,7 +612,6 @@ class _DesktopTabState extends State<DesktopTab>
     }
     return Obx(() {
       final branding = BrandingModel.current;
-      final single = controller.state.value.tabs.length <= 1;
       if (branding.hasCompanyName) {
         return BdTitleBrand(
           serverName: branding.companyName.value.trim(),
@@ -628,7 +628,7 @@ class _DesktopTabState extends State<DesktopTab>
                   : null,
         );
       }
-      return BdTitleBrand(wordmark: single);
+      return const BdTitleBrand();
     });
   }
 
@@ -685,8 +685,12 @@ class _DesktopTabState extends State<DesktopTab>
                         child: showLogo ? _brand() : const SizedBox.shrink(),
                       ),
                     ),
+                    // The main window shows Settings in place of Home, with
+                    // Back in the title bar, so it draws no tabs.
                     Expanded(
-                        child: Listener(
+                        child: Offstage(
+                            offstage: tabType == DesktopTabType.main,
+                            child: Listener(
                             // handle mouse wheel
                             onPointerSignal: (e) {
                               if (e is PointerScrollEvent) {
@@ -714,7 +718,7 @@ class _DesktopTabState extends State<DesktopTab>
                               unSelectedTabBackgroundColor:
                                   unSelectedTabBackgroundColor,
                               selectedBorderColor: selectedBorderColor,
-                            ))),
+                            )))),
                   ],
                 ))),
         // hide simulated action buttons when we in compatible ui mode, because of reusing system title bar.

@@ -113,17 +113,25 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
               backgroundColor: context.bd.bg,
               body: DesktopTab(
                 controller: tabController,
-                // Settings as a text button while it is not open as a tab.
-                tail: Obx(() => Offstage(
-                      offstage: isIncomingOnly ||
-                          bind.isDisableSettings() ||
-                          tabController.state.value.tabs
-                              .any((t) => t.key == kTabLabelSettingPage),
-                      child: BdTitleBarText(
-                        label: translate('Settings'),
-                        onTap: DesktopTabPage.onAddSetting,
-                      ),
-                    )),
+                // Settings opens in place of Home; Back closes it again.
+                tail: Obx(() {
+                  final settingsIndex = tabController.state.value.tabs
+                      .indexWhere((t) => t.key == kTabLabelSettingPage);
+                  if (settingsIndex >= 0) {
+                    return BdTitleBarText(
+                      icon: BdIcons.arrowBack,
+                      label: translate('Back'),
+                      onTap: () => tabController.remove(settingsIndex),
+                    );
+                  }
+                  return Offstage(
+                    offstage: isIncomingOnly || bind.isDisableSettings(),
+                    child: BdTitleBarText(
+                      label: translate('Settings'),
+                      onTap: DesktopTabPage.onAddSetting,
+                    ),
+                  );
+                }),
               )));
       return isMacOS || kUseCompatibleUiMode
           ? tabWidget
