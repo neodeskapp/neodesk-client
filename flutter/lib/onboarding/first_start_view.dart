@@ -28,6 +28,16 @@ String onboardingErrorText(OnboardingError kind, String? server) {
   }
 }
 
+/// The join link for a bare [code] and the [server] typed next to it. The
+/// scheme and port stay as typed; a server without scheme gets https.
+String joinLinkFor(String server, String code) {
+  final typed = server.trim().replaceAll(RegExp(r'/+$'), '');
+  final base = RegExp(r'^https?://', caseSensitive: false).hasMatch(typed)
+      ? typed
+      : 'https://$typed';
+  return '$base/join/$code';
+}
+
 /// First start without a server: one task, paste the invite.
 class FirstStartView extends StatefulWidget {
   const FirstStartView({
@@ -130,9 +140,8 @@ class _FirstStartViewState extends State<FirstStartView> {
     if (p.kind == InviteKind.supportLink) {
       await widget.service.redeemSupport(_input.text.trim());
     } else if (p.needsServer) {
-      final host = _server.text.trim().replaceFirst(RegExp(r'^https?://'), '')
-          .replaceAll(RegExp(r'/+$'), '');
-      await widget.service.redeemJoin('https://$host/join/${p.displayCode}');
+      await widget.service
+          .redeemJoin(joinLinkFor(_server.text, p.displayCode ?? ''));
     } else {
       await widget.service.redeemJoin(_input.text.trim());
     }
