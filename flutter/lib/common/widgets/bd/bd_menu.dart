@@ -102,6 +102,7 @@ class BdMenuItem extends StatelessWidget {
     this.danger = false,
     this.reason,
     this.closeOnActivate = true,
+    this.prefix,
   });
 
   final String label;
@@ -112,6 +113,9 @@ class BdMenuItem extends StatelessWidget {
   final bool danger;
   final String? reason;
   final bool closeOnActivate;
+
+  /// Shown between the lead column and the label, such as a language's flag.
+  final Widget? prefix;
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +131,13 @@ class BdMenuItem extends StatelessWidget {
               padding: const EdgeInsets.only(left: 24),
               child: Text(trailing!, style: t.small),
             ),
-      child: Text(label),
+      child: prefix == null
+          ? Text(label)
+          : Row(mainAxisSize: MainAxisSize.min, children: [
+              prefix!,
+              const SizedBox(width: 8),
+              Text(label),
+            ]),
     );
     if (onPressed == null && reason != null && reason!.isNotEmpty) {
       item = Tooltip(message: reason!, child: item);

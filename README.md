@@ -95,6 +95,8 @@ Short checklist:
 
 BetterDesk Client is a fork of [RustDesk](https://github.com/rustdesk/rustdesk). The About UI and sysinfo keep upstream attribution and source links as required by the project policy ([docs/OFFICIAL_CLIENT.md](docs/OFFICIAL_CLIENT.md)).
 
+The language flags in `flutter/assets/flags` are from [Twemoji](https://github.com/jdecked/twemoji) (`@twemoji/svg` 15.0.0), licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 [AGPL-3.0](LICENSE) · Source: [UNITRONIX/BetterDesk-Client](https://github.com/UNITRONIX/BetterDesk-Client) · Upstream: [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk)
 
 ---

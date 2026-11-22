@@ -747,7 +747,8 @@ class _GeneralState extends State<_General> {
       return BdSelect<String>(
         width: 240,
         options: [
-          for (var i = 0; i < keys.length; i++) BdOption(keys[i], values[i]),
+          for (var i = 0; i < keys.length; i++)
+            BdOption(keys[i], values[i], prefix: BdLangFlag(keys[i])),
         ],
         value: currentKey,
         onChanged: isOptFixed

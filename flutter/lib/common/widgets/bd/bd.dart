@@ -5,6 +5,7 @@ export 'bd_button.dart';
 export 'bd_controls.dart';
 export 'bd_field.dart';
 export 'bd_icons.dart';
+export 'bd_lang_flag.dart';
 export 'bd_menu.dart';
 export 'bd_misc.dart';
 export 'bd_window.dart';

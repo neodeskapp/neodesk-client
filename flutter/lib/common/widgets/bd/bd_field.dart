@@ -250,9 +250,13 @@ class BdSearchField extends StatelessWidget {
 }
 
 class BdOption<T> {
-  const BdOption(this.value, this.label);
+  const BdOption(this.value, this.label, {this.prefix});
   final T value;
   final String label;
+
+  /// Shown before the label in the menu and in the closed field, such as a
+  /// language's flag.
+  final Widget? prefix;
 }
 
 /// A field with expand_more that opens a menu of choices.
@@ -286,8 +290,12 @@ class _BdSelectState<T> extends State<BdSelect<T>> {
     final t = context.bdText;
     final enabled = widget.onChanged != null;
     String label = widget.placeholder ?? '';
+    Widget? prefix;
     for (final o in widget.options) {
-      if (o.value == widget.value) label = o.label;
+      if (o.value == widget.value) {
+        label = o.label;
+        prefix = o.prefix;
+      }
     }
     return MenuAnchor(
       controller: _controller,
@@ -297,6 +305,7 @@ class _BdSelectState<T> extends State<BdSelect<T>> {
         for (final o in widget.options)
           BdMenuItem(
             label: o.label,
+            prefix: o.prefix,
             leading: o.value == widget.value
                 ? BdMenuLead.check
                 : BdMenuLead.none,
@@ -326,6 +335,7 @@ class _BdSelectState<T> extends State<BdSelect<T>> {
               ),
               child: Row(
                 children: [
+                  if (prefix != null) ...[prefix, const SizedBox(width: 8)],
                   Expanded(
                     child: Text(label,
                         style: t.body,
