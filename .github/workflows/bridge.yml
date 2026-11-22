@@ -70,7 +70,10 @@ jobs:
         with:
           channel: "stable"
           flutter-version: ${{ matrix.job.flutter-version }}
-          cache: true
+          # No cache: the two SDKs and their pub caches take about 2.8 GB of the
+          # repository's 10 GB, which the vcpkg and Rust caches need more.
+          # Downloading Flutter takes about a minute.
+          cache: false
 
       - name: Install flutter rust bridge deps
         shell: bash
