@@ -725,7 +725,9 @@ pub fn core_main() -> Option<CoreMainAction> {
     }
     //_async_logger_holder.map(|x| x.flush());
     #[cfg(windows)]
-    crate::platform::ensure_user_uri_schemes();
+    if !crate::onboard::is_quick_support() {
+        crate::platform::ensure_user_uri_schemes();
+    }
     #[cfg(feature = "flutter")]
     return Some(CoreMainAction::StartUi(flutter_args));
     #[cfg(not(feature = "flutter"))]

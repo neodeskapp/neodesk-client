@@ -195,6 +195,12 @@ impl Http {
         }
     }
 
+    pub async fn get(&self, path: &str, bearer: Option<&str>) -> Result<Answer, OnboardError> {
+        let url = format!("{}{path}", self.console.base());
+        let client = self.client().await?;
+        self.send(client.get(&url), bearer).await
+    }
+
     pub async fn post(
         &self,
         path: &str,

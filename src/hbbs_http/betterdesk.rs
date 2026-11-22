@@ -362,6 +362,11 @@ pub async fn sync_device_enrollment() {
     if base.is_empty() || crate::is_public(&base) {
         return;
     }
+    // A quick support device is admitted for its session only.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if crate::onboard::is_quick_support() {
+        return;
+    }
 
     let device_id = Config::get_id();
     if device_id.is_empty() {

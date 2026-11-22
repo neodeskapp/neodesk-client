@@ -649,8 +649,20 @@ pub async fn start(postfix: &str) -> ResultType<()> {
 /// token to the server process, which keeps it.
 pub const IPC_JOINED_DEVICE_TOKEN: &str = "betterdesk-joined-device-token";
 
-pub async fn new_listener(postfix: &str) -> ResultType<Incoming> {
+/// The IPC path of `postfix` for this process. A quick support process uses
+/// names of its own, so it never reaches an installed client's server,
+/// connection manager or service.
+pub(crate) fn ipc_path(postfix: &str) -> String {
     let path = Config::ipc_path(postfix);
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if crate::onboard::is_quick_support() {
+        return crate::onboard::namespaced_ipc_path(&path);
+    }
+    path
+}
+
+pub async fn new_listener(postfix: &str) -> ResultType<Incoming> {
+    let path = ipc_path(postfix);
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     let should_scrub_parent_entries = ensure_secure_ipc_parent_dir(&path, postfix)?;
     #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -828,7 +840,7 @@ async fn handle(data: Data, stream: &mut Connection) {
                 if crate::is_main() {
                     // below part is for main windows can be reopen during rustdesk installation and installing service from UI
                     // this make new ipc server (domain socket) can be created.
-                    std::fs::remove_file(&Config::ipc_path("")).ok();
+                    std::fs::remove_file(&ipc_path("")).ok();
                     #[cfg(target_os = "linux")]
                     {
                         hbb_common::sleep((crate::platform::SERVICE_INTERVAL * 2) as f32 / 1000.0)
@@ -1441,12 +1453,12 @@ pub async fn connect(ms_timeout: u64, postfix: &str) -> ResultType<ConnectionTmp
             let path = Config::ipc_path_for_uid(uid, postfix);
             return connect_with_path(ms_timeout, &path).await;
         }
-        let path = Config::ipc_path(postfix);
+        let path = ipc_path(postfix);
         return connect_with_path(ms_timeout, &path).await;
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
-        let path = Config::ipc_path(postfix);
+        let path = ipc_path(postfix);
         connect_with_path(ms_timeout, &path).await
     }
 }

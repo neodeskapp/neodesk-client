@@ -2398,6 +2398,7 @@ impl Connection {
         simulate: bool,
         show_cursor: bool,
     ) {
+        crate::onboard::note_input();
         self.tx_input
             .send(MessageInput::Mouse(InputMouse {
                 msg,
@@ -2413,6 +2414,7 @@ impl Connection {
     #[inline]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn input_pointer(&self, msg: PointerDeviceEvent, conn_id: i32) {
+        crate::onboard::note_input();
         self.tx_input
             .send(MessageInput::Pointer((msg, conn_id)))
             .ok();
@@ -2423,6 +2425,7 @@ impl Connection {
     fn input_key(&self, msg: KeyEvent, press: bool) {
         // to-do: if is the legacy mode, and the key is function key "LockScreen".
         // Switch to the primary display.
+        crate::onboard::note_input();
         self.tx_input.send(MessageInput::Key((msg, press))).ok();
     }
 

@@ -1,20 +1,24 @@
-//! The join flow against a small fake console.
+//! The join and quick support flows against a small fake console.
 
 use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
-    sync::{Arc, Mutex},
-    time::Duration,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc, Mutex,
+    },
+    time::{Duration, Instant},
 };
 
 use serde_json::{json, Value};
 
 use super::{
     http::{Http, OnboardError},
-    join::{redeem_join, DeviceIdentity},
+    join::{redeem_join, DeviceIdentity, ServerSettings},
     link::Console,
-    Phase, State,
+    support::{self, Command, SupportHost, Timing},
+    Phase, SharedState, State,
 };
 
 #[derive(Debug, Clone)]
@@ -171,6 +175,14 @@ fn server_answer() -> Value {
     })
 }
 
+fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
+    let start = Instant::now();
+    while !done() {
+        assert!(start.elapsed() < Duration::from_secs(10), "timed out: {what}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
 #[test]
 fn join_sends_the_device_and_reads_the_answer() {
     let console = FakeConsole::start(|request| match (request.method.as_str(), request.path.as_str()) {
@@ -266,17 +278,274 @@ fn a_link_without_http_1_never_talks_plain_http() {
     assert!(!plain.console.unwrap().https);
 }
 
+/// A quick support app with a password the test sets and a switch for
+/// "the supporter is connected".
+#[derive(Default)]
+struct FakeHost {
+    applied: Mutex<Vec<ServerSettings>>,
+    password: Mutex<String>,
+    in_session: AtomicBool,
+    shut_down: AtomicBool,
+}
+
+impl SupportHost for FakeHost {
+    fn device(&self) -> DeviceIdentity {
+        DeviceIdentity {
+            public_key: None,
+            ..device()
+        }
+    }
+
+    fn apply_server(&self, server: &ServerSettings) {
+        self.applied.lock().unwrap().push(server.clone());
+    }
+
+    fn password(&self) -> String {
+        self.password.lock().unwrap().clone()
+    }
+
+    fn in_session(&self) -> bool {
+        self.in_session.load(Ordering::SeqCst)
+    }
+
+    fn shut_down(&self) {
+        self.shut_down.store(true, Ordering::SeqCst);
+    }
+}
+
+/// The session routes of a console with one support code, ABCDEF23.
+struct SupportConsole {
+    fake: FakeConsole,
+    ended: Arc<AtomicBool>,
+}
+
+fn support_console(device_answer: (u16, Value)) -> SupportConsole {
+    let ended = Arc::new(AtomicBool::new(false));
+    let status = Arc::new(Mutex::new("opened".to_owned()));
+    let over = ended.clone();
+    let fake = FakeConsole::start(move |request| {
+        let session = |status: &str| json!({"success": true, "session": {"id": "s1", "status": status}});
+        if request.path == "/api/support/redeem" {
+            return if request.body["code"] == "ABCDEF23" {
+                (
+                    200,
+                    json!({
+                        "success": true,
+                        "session_token": "tok",
+                        "session": {"id": "s1", "status": "opened", "expires_at": "", "device_id": ""},
+                        "supporter": "Mara Jensen",
+                        "company": "Fernhill IT",
+                        "server": server_answer(),
+                        "console": "http://127.0.0.1",
+                    }),
+                )
+            } else {
+                (404, json!({"success": false, "error": "invalid_or_expired"}))
+            };
+        }
+        if request.bearer() != Some("tok") || over.load(Ordering::SeqCst) {
+            return (401, json!({"success": false, "error": "invalid_session"}));
+        }
+        let mut status = status.lock().unwrap();
+        match request.path.as_str() {
+            "/api/support/session/device" => {
+                if device_answer.0 == 200 {
+                    *status = "asking".to_owned();
+                }
+                (device_answer.0, device_answer.1.clone())
+            }
+            "/api/support/session/consent" => {
+                *status = if request.body["allowed"] == true {
+                    "allowed"
+                } else {
+                    "declined"
+                }
+                .to_owned();
+                (200, session(&status))
+            }
+            "/api/support/session/password" => (200, json!({"success": true})),
+            "/api/support/session" => (200, session(&status)),
+            "/api/support/session/end" => {
+                over.store(true, Ordering::SeqCst);
+                (200, json!({"success": true}))
+            }
+            _ => (404, Value::Null),
+        }
+    });
+    SupportConsole { fake, ended }
+}
+
+struct Running {
+    state: SharedState,
+    host: Arc<FakeHost>,
+    commands: mpsc::Sender<Command>,
+    thread: std::thread::JoinHandle<()>,
+}
+
+fn run_support(console: &SupportConsole, code: &str) -> Running {
+    let state = SharedState::default();
+    let host = Arc::new(FakeHost::default());
+    *host.password.lock().unwrap() = "pw-1".to_owned();
+    let (commands, rx) = mpsc::channel();
+    let thread = std::thread::spawn({
+        let (state, host, console, code) = (
+            state.clone(),
+            host.clone(),
+            console.fake.console(),
+            code.to_owned(),
+        );
+        move || {
+            let timing = Timing {
+                poll: Duration::from_millis(50),
+                tick: Duration::from_millis(10),
+            };
+            support::run(console, code, &*host, &state, &rx, timing);
+        }
+    });
+    Running {
+        state,
+        host,
+        commands,
+        thread,
+    }
+}
+
+fn passwords(console: &SupportConsole) -> Vec<Value> {
+    console
+        .fake
+        .requests_to("/api/support/session/password")
+        .into_iter()
+        .map(|r| r.body["password"].clone())
+        .collect()
+}
+
+#[test]
+fn quick_support_reports_the_device_waits_for_consent_and_hands_over_the_password() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ABCDEF23");
+
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    let state = run.state.get();
+    assert_eq!(state.supporter_name.as_deref(), Some("Mara Jensen"));
+    assert_eq!(state.company.as_deref(), Some("Fernhill IT"));
+    assert_eq!(state.server.as_deref(), Some("127.0.0.1"));
+    // The device is reported before the app reaches the ID server.
+    let device = console.fake.requests_to("/api/support/session/device");
+    assert_eq!(device.len(), 1);
+    assert_eq!(device[0].body["device_id"], "123456789");
+    assert_eq!(device[0].body.get("public_key"), None);
+    assert_eq!(run.host.applied.lock().unwrap()[0].id_server, "desk.example.com");
+    // The session waits for the person: no answer and no password go out
+    // on their own.
+    std::thread::sleep(Duration::from_millis(200));
+    assert_eq!(run.state.get().phase, Phase::SupportConsent);
+    assert!(console.fake.requests_to("/api/support/session/consent").is_empty());
+    assert!(passwords(&console).is_empty());
+
+    run.commands.send(Command::Consent(true)).unwrap();
+    wait_for("password", || passwords(&console) == vec![json!("pw-1")]);
+    assert_eq!(run.state.get().phase, Phase::SupportWaiting);
+    let consent = console.fake.requests_to("/api/support/session/consent");
+    assert_eq!(consent[0].body, json!({"allowed": true}));
+
+    // The same password goes over once; a new one goes again.
+    std::thread::sleep(Duration::from_millis(150));
+    assert_eq!(passwords(&console).len(), 1);
+    *run.host.password.lock().unwrap() = "pw-2".to_owned();
+    wait_for("new password", || passwords(&console).len() == 2);
+    assert_eq!(passwords(&console)[1], json!("pw-2"));
+
+    run.host.in_session.store(true, Ordering::SeqCst);
+    wait_for("in session", || run.state.get().phase == Phase::SupportInSession);
+    assert!(!console.fake.requests_to("/api/support/session").is_empty());
+
+    // The supporter ends the session in the console: the next poll gets 401.
+    console.ended.store(true, Ordering::SeqCst);
+    run.thread.join().unwrap();
+    assert_eq!(run.state.get().phase, Phase::SupportEnded);
+    assert_eq!(run.state.get().error, None);
+    assert!(run.host.shut_down.load(Ordering::SeqCst));
+    assert!(console.fake.requests_to("/api/support/session/end").is_empty());
+}
+
+#[test]
+fn quick_support_declined_tells_the_console_and_hands_over_nothing() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ABCDEF23");
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    run.commands.send(Command::Consent(false)).unwrap();
+    run.thread.join().unwrap();
+
+    let state = run.state.get();
+    assert_eq!(state.phase, Phase::SupportEnded);
+    assert_eq!(state.error.as_deref(), Some("declined"));
+    let consent = console.fake.requests_to("/api/support/session/consent");
+    assert_eq!(consent.len(), 1);
+    assert_eq!(consent[0].body, json!({"allowed": false}));
+    assert!(passwords(&console).is_empty());
+    assert!(run.host.shut_down.load(Ordering::SeqCst));
+}
+
+#[test]
+fn quick_support_ended_by_the_person_calls_end() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ABCDEF23");
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    run.commands.send(Command::Consent(true)).unwrap();
+    wait_for("password", || !passwords(&console).is_empty());
+    run.commands.send(Command::End).unwrap();
+    run.thread.join().unwrap();
+
+    assert_eq!(run.state.get().phase, Phase::SupportEnded);
+    let end = console.fake.requests_to("/api/support/session/end");
+    assert_eq!(end.len(), 1);
+    assert_eq!(end[0].bearer(), Some("tok"));
+    assert!(run.host.shut_down.load(Ordering::SeqCst));
+}
+
+#[test]
+fn an_expired_support_code_changes_nothing() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ZZZZZZZZ");
+    run.thread.join().unwrap();
+
+    assert_eq!(run.state.get().phase, Phase::SupportExpired);
+    assert_eq!(console.fake.requests().len(), 1);
+    assert!(run.host.applied.lock().unwrap().is_empty());
+    assert!(!run.host.shut_down.load(Ordering::SeqCst));
+}
+
+#[test]
+fn a_refused_device_never_reaches_the_id_server() {
+    let console = support_console((
+        403,
+        json!({"success": false, "error": "device_refused", "message": "Device is banned"}),
+    ));
+    let run = run_support(&console, "ABCDEF23");
+    run.thread.join().unwrap();
+
+    let state = run.state.get();
+    assert_eq!(state.phase, Phase::SupportEnded);
+    assert_eq!(state.error.as_deref(), Some("refused"));
+    assert_eq!(
+        state.error_text.as_deref(),
+        Some("127.0.0.1 did not accept this computer: Device is banned")
+    );
+    assert!(run.host.applied.lock().unwrap().is_empty());
+    assert_eq!(console.fake.requests_to("/api/support/session/end").len(), 1);
+}
+
 #[test]
 fn the_state_has_the_ui_names() {
     let state = State {
-        phase: Phase::Joining,
+        phase: Phase::SupportInSession,
         server: Some("desk.example.com".to_owned()),
-        join_step: 1,
+        supporter_name: Some("Mara Jensen".to_owned()),
         ..State::default()
     };
     let value = serde_json::to_value(&state).unwrap();
-    assert_eq!(value["phase"], "joining");
-    assert_eq!(value["joinStep"], 1);
+    assert_eq!(value["phase"], "supportInSession");
+    assert_eq!(value["supporterName"], "Mara Jensen");
     assert_eq!(value["server"], "desk.example.com");
     assert_eq!(value["error"], Value::Null);
     assert_eq!(serde_json::to_value(Phase::NotSetUp).unwrap(), "notSetUp");
@@ -284,11 +553,31 @@ fn the_state_has_the_ui_names() {
 }
 
 #[test]
-fn join_links_are_read_from_the_arguments() {
+fn quick_support_uses_its_own_ipc_names() {
+    assert_eq!(
+        super::namespaced_ipc_path("/tmp/betterdesk-1000/ipc"),
+        "/tmp/betterdesk-qs-1000/ipc"
+    );
+    assert_eq!(
+        super::namespaced_ipc_path("/tmp/betterdesk-service/ipc_service"),
+        "/tmp/betterdesk-qs-service/ipc_service"
+    );
+    assert_eq!(
+        super::namespaced_ipc_path(r"\\.\pipe\betterdesk\query_cm"),
+        r"\\.\pipe\betterdesk-qs\query_cm"
+    );
+}
+
+#[test]
+fn join_and_support_links_are_read_from_the_arguments() {
     let args = |values: &[&str]| values.iter().map(|v| v.to_string()).collect::<Vec<_>>();
     assert_eq!(
         super::invite_argument(&args(&["--join", "https://desk.example.com/join/ABCDEF23"])),
         Some("https://desk.example.com/join/ABCDEF23")
+    );
+    assert_eq!(
+        super::invite_argument(&args(&["betterdesk://support/desk.example.com/ABCDEF23"])),
+        Some("betterdesk://support/desk.example.com/ABCDEF23")
     );
     assert_eq!(super::invite_argument(&args(&["--join"])), None);
     assert_eq!(super::invite_argument(&args(&["--server"])), None);
