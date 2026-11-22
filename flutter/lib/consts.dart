@@ -1,13 +1,15 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 
 const int kMaxVirtualDisplayCount = 4;
 const int kAllVirtualDisplay = -1;
 
-const double kDesktopRemoteTabBarHeight = 28.0;
+/// The title bar of every desktop window (DESIGN.md, Title bar).
+const double kDesktopRemoteTabBarHeight = 40.0;
 const int kInvalidWindowId = -1;
 const int kMainWindowId = 0;
 
@@ -266,8 +268,8 @@ const String kMsgboxTextWaitingForImage = 'Connected, waiting for image...';
 // the executable name of the portable version
 const String kEnvPortableExecutable = "RUSTDESK_APPNAME";
 
-const Color kColorWarn = Color.fromARGB(255, 245, 133, 59);
-const Color kColorCanvas = Colors.black;
+Color get kColorWarn => bdColors.warning;
+Color get kColorCanvas => bdColors.canvas;
 
 const int kMobileDefaultDisplayWidth = 720;
 const int kMobileDefaultDisplayHeight = 1280;
@@ -353,8 +355,8 @@ extension StringExtension on String {
   String get nonBreaking => replaceAll(' ', String.fromCharCode($nbsp));
 }
 
-const Size kConnectionManagerWindowSizeClosedChat = Size(300, 490);
-const Size kConnectionManagerWindowSizeOpenChat = Size(700, 490);
+const Size kConnectionManagerWindowSizeClosedChat = Size(380, 600);
+const Size kConnectionManagerWindowSizeOpenChat = Size(780, 600);
 // Tabbar transition duration, now we remove the duration
 const Duration kTabTransitionDuration = Duration.zero;
 const double kEmptyMarginTop = 50;

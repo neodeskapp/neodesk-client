@@ -1,0 +1,30 @@
+name: Colour tokens
+
+# Every colour of the Flutter client comes from the tokens in
+# flutter/lib/common/theme/bd_theme.dart; the check lists colour values
+# written anywhere else.
+
+on:
+  push:
+    paths:
+      - "flutter/lib/**"
+      - "flutter/tool/check_colours.py"
+      - ".github/workflows/colour-tokens.yml"
+  pull_request:
+    paths:
+      - "flutter/lib/**"
+      - "flutter/tool/check_colours.py"
+      - ".github/workflows/colour-tokens.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: colours come from the theme
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Check for colour values outside the theme file
+        run: python3 flutter/tool/check_colours.py

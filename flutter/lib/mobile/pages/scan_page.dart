@@ -8,6 +8,7 @@ import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'package:zxing2/qrcode.dart';
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import '../widgets/dialog.dart';
 
 class ScanPage extends StatefulWidget {
@@ -54,7 +55,7 @@ class _ScanPageState extends State<ScanPage> {
       key: qrKey,
       onQRViewCreated: _onQRViewCreated,
       overlay: QrScannerOverlayShape(
-        borderColor: Colors.red,
+        borderColor: context.bd.accent,
         borderRadius: 10,
         borderLength: 30,
         borderWidth: 10,
@@ -109,7 +110,7 @@ class _ScanPageState extends State<ScanPage> {
 
   Widget _buildImagePickerButton() {
     return IconButton(
-      color: Colors.white,
+      color: context.bd.text,
       icon: Icon(Icons.image_search),
       iconSize: 32.0,
       onPressed: _pickImage,
@@ -118,7 +119,7 @@ class _ScanPageState extends State<ScanPage> {
 
   Widget _buildFlashToggleButton() {
     return IconButton(
-      color: Colors.yellow,
+      color: context.bd.warning,
       icon: Icon(Icons.flash_on),
       iconSize: 32.0,
       onPressed: () async {
@@ -129,7 +130,7 @@ class _ScanPageState extends State<ScanPage> {
 
   Widget _buildCameraSwitchButton() {
     return IconButton(
-      color: Colors.white,
+      color: context.bd.text,
       icon: Icon(Icons.switch_camera),
       iconSize: 32.0,
       onPressed: () async {

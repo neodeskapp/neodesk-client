@@ -2,6 +2,7 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:debounce_throttle/debounce_throttle.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
@@ -84,8 +85,8 @@ class DraggableChatWindow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 15),
               child: Text(
                 translate("Chat"),
-                style: const TextStyle(
-                    color: Colors.white,
+                style: TextStyle(
+                    color: context.bd.onAccent,
                     fontFamily: 'WorkSans',
                     fontWeight: FontWeight.bold,
                     fontSize: 20),
@@ -97,18 +98,18 @@ class DraggableChatWindow extends StatelessWidget {
                   onPressed: () {
                     chatModel.hideChatWindowOverlay();
                   },
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.keyboard_arrow_down,
-                    color: Colors.white,
+                    color: context.bd.onAccent,
                   )),
               IconButton(
                   onPressed: () {
                     chatModel.hideChatWindowOverlay();
                     chatModel.hideChatIconOverlay();
                   },
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.close,
-                    color: Colors.white,
+                    color: context.bd.onAccent,
                   ))
             ],
           )
@@ -211,19 +212,19 @@ class DraggableMobileActions extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         IconButton(
-                            color: Colors.white,
+                            color: bdColors.onCanvas,
                             onPressed: onBackPressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
                             icon: const Icon(Icons.arrow_back),
                             iconSize: 24 * scale),
                         IconButton(
-                            color: Colors.white,
+                            color: bdColors.onCanvas,
                             onPressed: onHomePressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
                             icon: const Icon(Icons.home),
                             iconSize: 24 * scale),
                         IconButton(
-                            color: Colors.white,
+                            color: bdColors.onCanvas,
                             onPressed: onRecentPressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
                             icon: const Icon(Icons.more_horiz),
@@ -235,7 +236,7 @@ class DraggableMobileActions extends StatelessWidget {
                           endIndent: 10,
                         ),
                         IconButton(
-                            color: Colors.white,
+                            color: bdColors.onCanvas,
                             onPressed: onHidePressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
                             icon: const Icon(Icons.keyboard_arrow_down),
@@ -568,14 +569,14 @@ class QualityMonitor extends StatelessWidget {
         Expanded(
             flex: 8,
             child: AutoSizeText(info,
-                style: TextStyle(color: Color.fromARGB(255, 210, 210, 210)),
+                style: TextStyle(color: bdColors.onCanvas.withOpacity(0.82)),
                 textAlign: TextAlign.right,
                 maxLines: 1)),
         Spacer(flex: 1),
         Expanded(
             flex: 8,
             child: AutoSizeText(value ?? '',
-                style: TextStyle(color: rightColor ?? Colors.white),
+                style: TextStyle(color: rightColor ?? bdColors.onCanvas),
                 maxLines: 1)),
       ],
     );
@@ -600,7 +601,8 @@ class QualityMonitor extends StatelessWidget {
                       _row(
                           "Delay",
                           "${qualityMonitorModel.data.delay == null ? '-' : (qualityMonitorModel.data.fps ?? "").replaceAll(' ', '').replaceAll('0', '').isEmpty ? 0 : qualityMonitorModel.data.delay}ms",
-                          rightColor: Colors.green),
+                          // The canvas is dark in both themes.
+                          rightColor: BdTheme.darkColors.success),
                       _row("Target Bitrate",
                           "${qualityMonitorModel.data.targetBitrate ?? '-'}kb"),
                       _row(

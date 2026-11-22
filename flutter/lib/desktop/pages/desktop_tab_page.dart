@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
@@ -25,8 +26,8 @@ class DesktopTabPage extends StatefulWidget {
       tabController.add(TabInfo(
           key: kTabLabelSettingPage,
           label: kTabLabelSettingPage,
-          selectedIcon: Icons.build_sharp,
-          unselectedIcon: Icons.build_outlined,
+          selectedIcon: BdIcons.settings,
+          unselectedIcon: BdIcons.settings,
           page: DesktopSettingPage(
             key: const ValueKey(kTabLabelSettingPage),
             initialTabkey: initialPage,
@@ -46,8 +47,8 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
     tabController.add(TabInfo(
         key: kTabLabelHomePage,
         label: kTabLabelHomePage,
-        selectedIcon: Icons.home_sharp,
-        unselectedIcon: Icons.home_outlined,
+        selectedIcon: BdIcons.home,
+        unselectedIcon: BdIcons.home,
         closable: false,
         page: DesktopHomePage(
           key: const ValueKey(kTabLabelHomePage),
@@ -109,18 +110,20 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
       final tabWidget = Container(
           key: ValueKey(stateGlobal.connectionModeRevision.value),
           child: Scaffold(
-              backgroundColor: Theme.of(context).colorScheme.background,
+              backgroundColor: context.bd.bg,
               body: DesktopTab(
                 controller: tabController,
-                tail: Offstage(
-                  offstage: isIncomingOnly || bind.isDisableSettings(),
-                  child: ActionIcon(
-                    message: 'Settings',
-                    icon: IconFont.menu,
-                    onTap: DesktopTabPage.onAddSetting,
-                    isClose: false,
-                  ),
-                ),
+                // Settings as a text button while it is not open as a tab.
+                tail: Obx(() => Offstage(
+                      offstage: isIncomingOnly ||
+                          bind.isDisableSettings() ||
+                          tabController.state.value.tabs
+                              .any((t) => t.key == kTabLabelSettingPage),
+                      child: BdTitleBarText(
+                        label: translate('Settings'),
+                        onTap: DesktopTabPage.onAddSetting,
+                      ),
+                    )),
               )));
       return isMacOS || kUseCompatibleUiMode
           ? tabWidget

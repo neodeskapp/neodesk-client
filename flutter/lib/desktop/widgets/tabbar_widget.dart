@@ -6,6 +6,9 @@ import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide TabBarTheme;
+import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/branding_logo.dart';
+import 'package:flutter_hbb/models/branding_model.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/remote_page.dart';
@@ -23,7 +26,6 @@ import '../../utils/multi_window_manager.dart';
 
 const double _kTabBarHeight = kDesktopRemoteTabBarHeight;
 const double _kIconSize = 18;
-const double _kDividerIndent = 10;
 const double _kActionIconSize = 12;
 
 class TabInfo {
@@ -87,7 +89,7 @@ CancelFunc showRightMenu(ToastBuilder builder,
     onlyOne: true,
     allowClick: true,
     enableSafeArea: true,
-    backgroundColor: Color(0x00000000),
+    backgroundColor: Colors.transparent,
     attachedBuilder: builder,
   );
 }
@@ -589,11 +591,54 @@ class _DesktopTabState extends State<DesktopTab>
   bool isHideSingleItem() {
     return state.value.tabs.length == 1 &&
         (controller.tabType == DesktopTabType.main ||
-            controller.tabType == DesktopTabType.install);
+            controller.tabType == DesktopTabType.install ||
+            controller.tabType == DesktopTabType.cm);
+  }
+
+  /// The start of the title bar: the server's logo and name when the
+  /// branding has them, the wordmark while only Home is open, else the mark.
+  Widget _brand() {
+    if (tabType == DesktopTabType.cm) {
+      return BdTitleBrand(title: bind.mainGetAppNameSync());
+    }
+    if (tabType == DesktopTabType.install) {
+      return BdTitleBrand(title: tr('bd-install-title'));
+    }
+    if (tabType != DesktopTabType.main && tabType != DesktopTabType.install) {
+      return const BdLogoMark(size: 18);
+    }
+    return Obx(() {
+      final branding = BrandingModel.current;
+      final single = controller.state.value.tabs.length <= 1;
+      if (branding.hasCompanyName) {
+        return BdTitleBrand(
+          serverName: branding.companyName.value.trim(),
+          serverLogo:
+              branding.hasLogo.value && branding.logoPath.value.isNotEmpty
+                  ? BrandingLogoImage(
+                      path: branding.logoPath.value,
+                      cacheKey:
+                          'branding-title-${branding.logoPath.value}-${branding.logoEpoch.value}',
+                      maxHeight: 18,
+                      fit: BoxFit.contain,
+                      alignment: Alignment.center,
+                    )
+                  : null,
+        );
+      }
+      return BdTitleBrand(wordmark: single);
+    });
   }
 
   Widget _buildBar() {
     final isIncomingHomePage = bind.isIncomingOnly() && isInHomePage();
+    return ColoredBox(
+      color: context.bd.titlebar,
+      child: _buildBarRow(isIncomingHomePage),
+    );
+  }
+
+  Widget _buildBarRow(bool isIncomingHomePage) {
     return Row(
       children: [
         Expanded(
@@ -632,21 +677,10 @@ class _DesktopTabState extends State<DesktopTab>
                           width: 78,
                         )),
                     Offstage(
-                      offstage: kUseCompatibleUiMode || isMacOS,
-                      child: Row(children: [
-                        Offstage(
-                          offstage: !showLogo,
-                          child: loadIcon(20),
-                        ),
-                        Offstage(
-                            offstage: !showTitle,
-                            child: Text(
-                              bind.mainGetAppNameSync(),
-                              style: const TextStyle(fontSize: 13),
-                            ).marginOnly(left: 2))
-                      ]).marginOnly(
-                        left: 5,
-                        right: 10,
+                      offstage: kUseCompatibleUiMode,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 14, right: 12),
+                        child: showLogo ? _brand() : const SizedBox.shrink(),
                       ),
                     ),
                     Expanded(
@@ -770,9 +804,10 @@ class WindowActionPanelState extends State<WindowActionPanel> {
           Row(
             children: [
               if (widget.showMinimize && !isMacOS)
-                ActionIcon(
-                  message: 'Minimize',
-                  icon: IconFont.min,
+                BdWinButton(
+                  icon: BdIcons.remove,
+                  tooltip: translate('Minimize'),
+                  height: _kTabBarHeight - 1,
                   onTap: () {
                     if (widget.isMainWindow) {
                       windowManager.minimize();
@@ -780,25 +815,26 @@ class WindowActionPanelState extends State<WindowActionPanel> {
                       WindowController.fromWindowId(kWindowId!).minimize();
                     }
                   },
-                  isClose: false,
                 ),
               if (widget.showMaximize && !isMacOS)
-                Obx(() => ActionIcon(
-                      message: stateGlobal.isMaximized.isTrue
-                          ? 'Restore'
-                          : 'Maximize',
+                Obx(() => BdWinButton(
                       icon: stateGlobal.isMaximized.isTrue
-                          ? IconFont.restore
-                          : IconFont.max,
+                          ? BdIcons.filterNone
+                          : BdIcons.cropSquare,
+                      tooltip: translate(stateGlobal.isMaximized.isTrue
+                          ? 'Restore'
+                          : 'Maximize'),
+                      height: _kTabBarHeight - 1,
                       onTap: bind.isIncomingOnly() && isInHomePage()
                           ? null
                           : _toggleMaximize,
-                      isClose: false,
                     )),
               if (widget.showClose && !isMacOS)
-                ActionIcon(
-                  message: 'Close',
-                  icon: IconFont.close,
+                BdWinButton(
+                  icon: BdIcons.close,
+                  tooltip: translate('Close'),
+                  height: _kTabBarHeight - 1,
+                  isClose: true,
                   onTap: () async {
                     final res = await widget.onClose?.call() ?? true;
                     if (res) {
@@ -814,8 +850,7 @@ class WindowActionPanelState extends State<WindowActionPanel> {
                       });
                     }
                   },
-                  isClose: true,
-                )
+                ),
             ],
           ),
       ],
@@ -881,8 +916,8 @@ Future<bool> closeConfirmDialog() async {
 
     return CustomAlertDialog(
       title: Row(children: [
-        const Icon(Icons.warning_amber_sharp,
-            color: Colors.redAccent, size: 28),
+        Icon(Icons.warning_amber_sharp,
+            color: context.bd.danger, size: 28),
         const SizedBox(width: 10),
         Text(translate("Warning")),
       ]),
@@ -949,7 +984,8 @@ class _ListView extends StatelessWidget {
   /// - hide single item when only has one item (home) on [DesktopTabPage].
   bool isHideSingleItem() {
     return state.value.tabs.length == 1 &&
-            controller.tabType == DesktopTabType.main ||
+            (controller.tabType == DesktopTabType.main ||
+                controller.tabType == DesktopTabType.cm) ||
         controller.tabType == DesktopTabType.install;
   }
 
@@ -1076,11 +1112,9 @@ class _TabState extends State<_Tab> with RestorationMixin {
         offstage: !showIcon,
         child: Icon(
           isSelected ? widget.selectedIcon : widget.unselectedIcon,
-          size: _kIconSize,
-          color: isSelected
-              ? MyTheme.tabbar(context).selectedTabIconColor
-              : MyTheme.tabbar(context).unSelectedTabIconColor,
-        ).paddingOnly(right: 5));
+          size: 16,
+          color: context.bd.textMuted,
+        ).paddingOnly(right: 8));
     final labelWidget = Obx(() {
       return ConstrainedBox(
           constraints: BoxConstraints(maxWidth: widget.maxLabelWidth ?? 200),
@@ -1092,10 +1126,10 @@ class _TabState extends State<_Tab> with RestorationMixin {
                   ? translate(widget.label.value)
                   : widget.label.value,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: isSelected
-                      ? MyTheme.tabbar(context).selectedTextColor
-                      : MyTheme.tabbar(context).unSelectedTextColor),
+              style: context.bdText.label.copyWith(
+                  fontSize: 13,
+                  height: 18 / 13,
+                  color: isSelected ? context.bd.text : context.bd.textMuted),
               overflow: TextOverflow.ellipsis,
             ),
           ));
@@ -1142,58 +1176,52 @@ class _TabState extends State<_Tab> with RestorationMixin {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.bd;
     bool isSelected = widget.index == widget.selected;
-    bool showDivider =
-        widget.index != widget.selected - 1 && widget.index != widget.selected;
     RxBool hover = restoreHover.value.obs;
-    return Ink(
-      child: InkWell(
-        onHover: (value) {
-          hover.value = value;
-          restoreHover.value = value;
-        },
+    return MouseRegion(
+      onEnter: (_) {
+        hover.value = true;
+        restoreHover.value = true;
+      },
+      onExit: (_) {
+        hover.value = false;
+        restoreHover.value = false;
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () => widget.onTap(),
-        child: Container(
-            decoration: isSelected && widget.selectedBorderColor != null
-                ? BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: widget.selectedBorderColor!,
-                        width: 1,
-                      ),
-                    ),
-                  )
-                : null,
-            child: Container(
-              color: isSelected
-                  ? widget.selectedTabBackgroundColor
-                  : widget.unSelectedTabBackgroundColor,
+        child: Obx(() => Container(
+              constraints: const BoxConstraints(minWidth: 120),
+              height: _kTabBarHeight,
+              padding: const EdgeInsets.only(left: 14, right: 10),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? (widget.selectedTabBackgroundColor ?? c.bg)
+                    : (hover.value
+                        ? c.hover
+                        : (widget.unSelectedTabBackgroundColor ??
+                            Colors.transparent)),
+                border: Border(
+                  left: widget.index == 0
+                      ? BorderSide(color: c.rule)
+                      : BorderSide.none,
+                  right: BorderSide(color: c.rule),
+                ),
+              ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  SizedBox(
-                      // _kTabBarHeight also displays normally
-                      height: _showTabBarBottomDivider(widget.tabType)
-                          ? _kTabBarHeight - 1
-                          : _kTabBarHeight,
-                      child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            _buildTabContent(),
-                            Obx((() => _CloseButton(
-                                  visible: hover.value && widget.closable,
-                                  tabSelected: isSelected,
-                                  onClose: () => widget.onClose(),
-                                )))
-                          ])).paddingOnly(left: 10, right: 5),
-                  Offstage(
-                    offstage: !showDivider,
-                    child: VerticalDivider(
-                      width: 1,
-                      indent: _kDividerIndent,
-                      endIndent: _kDividerIndent,
-                      color: MyTheme.tabbar(context).dividerColor,
-                    ),
-                  )
+                  _buildTabContent(),
+                  _CloseButton(
+                    visible: widget.closable &&
+                        (hover.value ||
+                            isSelected ||
+                            widget.tabType == DesktopTabType.main),
+                    tabSelected: isSelected,
+                    onClose: () => widget.onClose(),
+                  ),
                 ],
               ),
             )),
@@ -1225,26 +1253,20 @@ class _CloseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-            width: _kIconSize,
-            child: () {
-              if (visible) {
-                return InkWell(
-                  hoverColor: MyTheme.tabbar(context).closeHoverColor,
-                  customBorder: const CircleBorder(),
-                  onTap: () => onClose(),
-                  child: Icon(
-                    Icons.close,
-                    size: _kIconSize,
-                    color: tabSelected
-                        ? MyTheme.tabbar(context).selectedIconColor
-                        : MyTheme.tabbar(context).unSelectedIconColor,
-                  ),
-                );
-              } else {
-                return Offstage();
-              }
-            }())
-        .paddingOnly(left: 10);
+      width: 16 + 12,
+      child: visible
+          ? Align(
+              alignment: Alignment.centerRight,
+              child: BdIconButton(
+                icon: BdIcons.close,
+                tooltip: translate('Close'),
+                size: 20,
+                iconSize: 16,
+                onPressed: () => onClose(),
+              ),
+            )
+          : null,
+    );
   }
 }
 
@@ -1282,7 +1304,7 @@ class _ActionIconState extends State<ActionIcon> {
       waitDuration: const Duration(seconds: 1),
       child: InkWell(
         hoverColor: widget.isClose
-            ? const Color.fromARGB(255, 196, 43, 28)
+            ? context.bd.windowCloseHover
             : MyTheme.tabbar(context).hoverColor,
         onHover: (value) => hover.value = value,
         onTap: widget.onTap,
@@ -1293,14 +1315,14 @@ class _ActionIconState extends State<ActionIcon> {
           child: widget.onTap == null
               ? Icon(
                   widget.icon,
-                  color: Colors.grey,
+                  color: context.bd.textMuted,
                   size: widget.iconSize,
                 )
               : Obx(
                   () => Icon(
                     widget.icon,
                     color: hover.value && widget.isClose
-                        ? Colors.white
+                        ? context.bd.onWindowCloseHover
                         : MyTheme.tabbar(context).unSelectedIconColor,
                     size: widget.iconSize,
                   ),
@@ -1410,7 +1432,7 @@ class _TabDropDownButtonState extends State<_TabDropDownButton> {
                                       setState(() => btnHover.value = false),
                                   child: Icon(Icons.close,
                                       color:
-                                          btnHover.value ? Colors.red : null)));
+                                          btnHover.value ? context.bd.danger : null)));
                         } else {
                           return Offstage();
                         }
@@ -1455,29 +1477,21 @@ class TabbarTheme extends ThemeExtension<TabbarTheme> {
       required this.closeHoverColor,
       required this.selectedTabBackgroundColor});
 
-  static const light = TabbarTheme(
-      selectedTabIconColor: MyTheme.accent,
-      unSelectedTabIconColor: Color.fromARGB(255, 162, 203, 241),
-      selectedTextColor: Colors.black,
-      unSelectedTextColor: Color.fromARGB(255, 112, 112, 112),
-      selectedIconColor: Color.fromARGB(255, 26, 26, 26),
-      unSelectedIconColor: Color.fromARGB(255, 96, 96, 96),
-      dividerColor: Color.fromARGB(255, 238, 238, 238),
-      hoverColor: Colors.white54,
-      closeHoverColor: Colors.white,
-      selectedTabBackgroundColor: Colors.white54);
+  /// Tab colours drawn from the BetterDesk tokens.
+  factory TabbarTheme.from(BdColors c) => TabbarTheme(
+      selectedTabIconColor: c.accent,
+      unSelectedTabIconColor: c.textMuted,
+      selectedTextColor: c.text,
+      unSelectedTextColor: c.textMuted,
+      selectedIconColor: c.text,
+      unSelectedIconColor: c.textMuted,
+      dividerColor: c.rule,
+      hoverColor: c.hover,
+      closeHoverColor: c.hover,
+      selectedTabBackgroundColor: c.bg);
 
-  static const dark = TabbarTheme(
-      selectedTabIconColor: MyTheme.accent,
-      unSelectedTabIconColor: Color.fromARGB(255, 30, 65, 98),
-      selectedTextColor: Colors.white,
-      unSelectedTextColor: Color.fromARGB(255, 192, 192, 192),
-      selectedIconColor: Color.fromARGB(255, 192, 192, 192),
-      unSelectedIconColor: Color.fromARGB(255, 255, 255, 255),
-      dividerColor: Color.fromARGB(255, 64, 64, 64),
-      hoverColor: Colors.black26,
-      closeHoverColor: Colors.black,
-      selectedTabBackgroundColor: Colors.black26);
+  static TabbarTheme get light => TabbarTheme.from(BdTheme.lightColors);
+  static TabbarTheme get dark => TabbarTheme.from(BdTheme.darkColors);
 
   @override
   ThemeExtension<TabbarTheme> copyWith({

@@ -2,6 +2,8 @@ import 'dart:ui' as ui;
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
 import 'package:flutter_hbb/common/widgets/address_book.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/common/widgets/my_group.dart';
@@ -105,6 +107,17 @@ class _PeerTabPageState extends State<PeerTabPage>
       return model.multiSelectionMode ? createMultiSelectionBar(model) : widget;
     }
 
+    if ((isDesktop || isWebDesktop) && stateGlobal.isPortrait.isFalse) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          model.multiSelectionMode
+              ? SizedBox(height: 42, child: createMultiSelectionBar(model))
+              : visibleContextMenuListener(_desktopHeader(context)),
+          _createPeersView(),
+        ],
+      );
+    }
     return Column(
       textBaseline: TextBaseline.ideographic,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,6 +143,59 @@ class _PeerTabPageState extends State<PeerTabPage>
               ),
             ).paddingOnly(right: stateGlobal.isPortrait.isTrue ? 0 : 12)),
         _createPeersView(),
+      ],
+    );
+  }
+
+  String _tabLabel(int t) {
+    switch (t) {
+      case 0:
+        return tr('bd-tab-recent');
+      case 1:
+        return tr('bd-tab-favourites');
+      case 2:
+        return tr('bd-tab-network');
+      case 3:
+        return tr('bd-tab-address-book');
+      case 4:
+        return tr('bd-tab-devices');
+      default:
+        return gFFI.peerTabModel.tabTooltip(t);
+    }
+  }
+
+  /// Text tabs with the search field and the list actions (desktop).
+  Widget _desktopHeader(BuildContext context) {
+    final model = Provider.of<PeerTabModel>(context);
+    final fixed = isOptionFixed(kOptionPeerTabIndex);
+    return PeerListHeader<int>(
+      tabs: [
+        for (final t in model.visibleEnabledOrderedIndexs)
+          BdTab(t, _tabLabel(t)),
+      ],
+      value: model.currentTab,
+      onChanged: (t) async {
+        if (fixed) return;
+        await handleTabSelection(t);
+        await bind.setLocalFlutterOption(
+            k: kOptionPeerTabIndex, v: t.toString());
+      },
+      search: BdSearchField(
+        placeholder: tr('bd-search'),
+        controller: peerSearchTextController,
+        width: 170,
+        height: BdSize.controlSm,
+        onChanged: (v) => peerSearchText.value = v,
+      ),
+      actions: [
+        _createRefresh(
+            index: PeerTabIndex.ab, loading: gFFI.abModel.currentAbLoading),
+        _createRefresh(
+            index: PeerTabIndex.group, loading: gFFI.groupModel.groupLoading),
+        if (model.currentTabCachedPeers.isNotEmpty) _createMultiSelection(),
+        _createPeerViewTypeSwitch(context),
+        if (model.currentTab != PeerTabIndex.recent.index) PeerSortDropdown(),
+        if (model.currentTab == PeerTabIndex.ab.index) _toggleTags(),
       ],
     );
   }
@@ -205,7 +271,7 @@ class _PeerTabPageState extends State<PeerTabPage>
     }
     return Expanded(
         child: child.marginSymmetric(
-            vertical: (isDesktop || isWebDesktop) ? 12.0 : 6.0));
+            vertical: (isDesktop || isWebDesktop) ? 0.0 : 6.0));
   }
 
   Widget _createRefresh(
@@ -347,7 +413,7 @@ class _PeerTabPageState extends State<PeerTabPage>
         items: menu
             .map((entry) => entry.build(
                 context,
-                const MenuConfig(
+                MenuConfig(
                   commonColor: MyTheme.accent,
                   height: 20.0,
                   dividerHeight: 12.0,
@@ -426,7 +492,7 @@ class _PeerTabPageState extends State<PeerTabPage>
 
           deleteConfirmDialog(onSubmit, translate('Delete'));
         },
-        child: Icon(Icons.delete, color: Colors.red));
+        child: Icon(Icons.delete, color: bdColors.danger));
   }
 
   Widget addSelectionToFav() {

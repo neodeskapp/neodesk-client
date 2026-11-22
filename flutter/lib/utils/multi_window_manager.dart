@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/main.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 
@@ -153,7 +154,7 @@ class RustDeskMultiWindowManager {
   ) async {
     final windowController = await DesktopMultiWindow.createWindow(msg);
     if (isWindows) {
-      windowController.setInitBackgroundColor(Colors.black);
+      windowController.setInitBackgroundColor(bdColors.canvas);
     }
     final windowId = windowController.windowId;
     if (!withScreenRect) {

@@ -19,6 +19,7 @@ cert.pfx
 *png
 !flutter/assets/icon.png
 *svg
+!flutter/assets/bd-*.svg
 *jpg
 sciter.dll
 **pdb

@@ -23,6 +23,7 @@ import 'package:flutter_hbb/web/dummy.dart'
 import '../../consts.dart';
 import '../../desktop/widgets/material_mod_popup_menu.dart' as mod_menu;
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import '../widgets/popup_menu.dart';
@@ -284,7 +285,7 @@ class _FileManagerPageState extends State<FileManagerPage>
                                       shaderCallback: (bounds) =>
                                           LinearGradient(
                                         colors: [
-                                          Colors.white,
+                                          context.bd.onAccent,
                                           Colors.transparent,
                                         ],
                                         stops: [item.percent, item.percent],
@@ -333,7 +334,7 @@ class _FileManagerPageState extends State<FileManagerPage>
                                 },
                                 child: SvgPicture.asset(
                                   "assets/refresh.svg",
-                                  colorFilter: svgColor(Colors.white),
+                                  colorFilter: svgColor(context.bd.onAccent),
                                 ),
                                 color: MyTheme.accent,
                                 hoverColor: MyTheme.accent80,
@@ -343,7 +344,7 @@ class _FileManagerPageState extends State<FileManagerPage>
                               tooltip: translate("Delete"),
                               child: SvgPicture.asset(
                                 "assets/close.svg",
-                                colorFilter: svgColor(Colors.white),
+                                colorFilter: svgColor(context.bd.onAccent),
                               ),
                               onPressed: () {
                                 jobController.jobTable.removeAt(index);
@@ -922,7 +923,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                             : 'Upload files'),
                         textAlign: TextAlign.right,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: context.bd.onAccent,
                         ),
                       ).marginOnly(left: 8),
                     )).marginOnly(left: 16),
@@ -956,7 +957,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                           Brightness.light
                                       ? MyTheme.grayBg
                                       : MyTheme.darkGray
-                                  : Colors.white,
+                                  : context.bd.onAccent,
                             ),
                           )
                         : isWeb
@@ -971,7 +972,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                                   Brightness.light
                                               ? MyTheme.grayBg
                                               : MyTheme.darkGray
-                                          : Colors.white),
+                                          : context.bd.onAccent),
                                   alignment: Alignment.bottomRight,
                                 ),
                               ),
@@ -983,7 +984,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                         Brightness.light
                                     ? MyTheme.grayBg
                                     : MyTheme.darkGray
-                                : Colors.white),
+                                : context.bd.onAccent),
                           )
                         : Text(
                             translate(isWeb ? 'Download' : 'Receive'),
@@ -993,7 +994,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                           Brightness.light
                                       ? MyTheme.grayBg
                                       : MyTheme.darkGray
-                                  : Colors.white,
+                                  : context.bd.onAccent,
                             ),
                           ),
                   )),
@@ -1238,7 +1239,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                                 style: TextStyle(
                                                     color: selectedItems.items
                                                             .contains(entry)
-                                                        ? Colors.white
+                                                        ? context.bd.onAccent
                                                         : null),
                                                 overflow:
                                                     TextOverflow.ellipsis))
@@ -1266,7 +1267,8 @@ class _FileManagerViewState extends State<FileManagerView> {
                                           fontSize: 12,
                                           color: selectedItems.items
                                                   .contains(entry)
-                                              ? Colors.white70
+                                              ? context.bd.onAccent
+                                                  .withOpacity(0.7)
                                               : MyTheme.darkGray,
                                         ),
                                       )),
@@ -1293,7 +1295,8 @@ class _FileManagerViewState extends State<FileManagerView> {
                                         fontSize: 10,
                                         color:
                                             selectedItems.items.contains(entry)
-                                                ? Colors.white70
+                                                ? context.bd.onAccent
+                                                    .withOpacity(0.7)
                                                 : MyTheme.darkGray),
                                   ),
                                 ),

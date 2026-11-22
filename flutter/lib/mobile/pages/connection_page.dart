@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import '../../common/widgets/peer_tab_page.dart';
 import '../../common/widgets/autocomplete.dart';
 import '../../consts.dart';
@@ -138,11 +139,12 @@ class _ConnectionPageState extends State<ConnectionPage> {
             child: Container(
                 alignment: AlignmentDirectional.center,
                 width: double.infinity,
-                color: Colors.pinkAccent,
+                color: context.bd.accent,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(translate('Download new version'),
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold))));
+                    style: TextStyle(
+                        color: context.bd.onAccent,
+                        fontWeight: FontWeight.bold))));
   }
 
   /// UI for the remote ID TextField.
@@ -230,7 +232,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
                         onChanged: (String text) {
                           _idController.id = text;
                         },
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'WorkSans',
                           fontWeight: FontWeight.bold,
                           fontSize: 30,
@@ -240,12 +242,12 @@ class _ConnectionPageState extends State<ConnectionPage> {
                           labelText: translate('Remote ID'),
                           // hintText: 'Enter your remote ID',
                           border: InputBorder.none,
-                          helperStyle: const TextStyle(
+                          helperStyle: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                             color: MyTheme.darkGray,
                           ),
-                          labelStyle: const TextStyle(
+                          labelStyle: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 16,
                             letterSpacing: 0.2,
@@ -283,7 +285,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
                               decoration: BoxDecoration(
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.3),
+                                    color: context.bd.shadowFar,
                                     blurRadius: 5,
                                     spreadRadius: 1,
                                   ),
@@ -338,7 +340,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
                 width: 60,
                 height: 60,
                 child: IconButton(
-                  icon: const Icon(Icons.arrow_forward,
+                  icon: Icon(Icons.arrow_forward,
                       color: MyTheme.darkGray, size: 45),
                   onPressed: onConnect,
                 ),

@@ -2,12 +2,11 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/connection_page_title.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
 import 'package:flutter_hbb/consts.dart';
-import 'package:flutter_hbb/desktop/widgets/popup_menu.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 import 'package:window_manager/window_manager.dart';
@@ -18,7 +17,6 @@ import '../../common/formatter/id_formatter.dart';
 import '../../common/widgets/peer_tab_page.dart';
 import '../../common/widgets/autocomplete.dart';
 import '../../models/platform_model.dart';
-import '../../desktop/widgets/material_mod_popup_menu.dart' as mod_menu;
 import 'desktop_setting_page.dart';
 
 class OnlineStatusWidget extends StatefulWidget {
@@ -60,115 +58,56 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isIncomingOnly = bind.isIncomingOnly();
-    startServiceWidget() => Offstage(
-          offstage: !_svcStopped.value,
-          child: InkWell(
-                  onTap: () async {
-                    await start_service(true);
-                  },
-                  child: Text(translate("Start service"),
-                      style: TextStyle(
-                          decoration: TextDecoration.underline, fontSize: em)))
-              .marginOnly(left: em),
-        );
-
-    setupServerWidget() => Flexible(
-          child: Offstage(
-            offstage: !(!_svcStopped.value &&
-                stateGlobal.svcStatus.value == SvcStatus.ready &&
-                _svcIsUsingPublicServer.value),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(', ', style: TextStyle(fontSize: em)),
-                Flexible(
-                  child: InkWell(
-                    onTap: onUsePublicServerGuide,
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            translate('setup_server_tip'),
-                            style: TextStyle(
-                                decoration: TextDecoration.underline,
-                                fontSize: em),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              ],
-            ),
-          ),
-        );
-
-    basicWidget() => Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              height: 8,
-              width: 8,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                color: _svcStopped.value ||
-                        stateGlobal.svcStatus.value == SvcStatus.connecting
-                    ? kColorWarn
-                    : (stateGlobal.svcStatus.value == SvcStatus.ready
-                        ? Color.fromARGB(255, 50, 190, 166)
-                        : Color.fromARGB(255, 224, 79, 95)),
-              ),
-            ).marginSymmetric(horizontal: em),
-            Container(
-              width: isIncomingOnly ? 226 : null,
-              child: _buildConnStatusMsg(),
-            ),
-            // stop
-            if (!isIncomingOnly) startServiceWidget(),
-            // ready && public
-            // No need to show the guide if is custom client.
-            if (!isIncomingOnly) setupServerWidget(),
-          ],
-        );
-
-    return Container(
-      height: height,
-      child: Obx(() => isIncomingOnly
-          ? Column(
-              children: [
-                basicWidget(),
-                Align(
-                        child: startServiceWidget(),
-                        alignment: Alignment.centerLeft)
-                    .marginOnly(top: 2.0, left: 22.0),
-              ],
-            )
-          : basicWidget()),
-    ).paddingOnly(right: isIncomingOnly ? 8 : 0);
+  /// The server this computer reports to, as people know it.
+  static String serverName() {
+    var host = bind.mainGetOptionSync(key: 'custom-rendezvous-server').trim();
+    if (host.isEmpty) {
+      host = bind.mainGetOptionSync(key: 'api-server').trim();
+    }
+    host = host.replaceFirst(RegExp(r'^[a-z]+://'), '');
+    final slash = host.indexOf('/');
+    if (slash > 0) host = host.substring(0, slash);
+    final colon = host.lastIndexOf(':');
+    if (colon > 0 && !host.contains(']')) host = host.substring(0, colon);
+    return host;
   }
 
-  _buildConnStatusMsg() {
-    widget.onSvcStatusChanged?.call();
-    final statusMessage = _svcStopped.value
-        ? translate("Service is not running")
-        : stateGlobal.svcStatus.value == SvcStatus.connecting
-            ? translate("connecting_status")
-            : stateGlobal.svcStatus.value == SvcStatus.notReady &&
-                    _statusReason.value == 'deployment_required'
-                ? translate("server_requires_deployment_tip")
-                : stateGlobal.svcStatus.value == SvcStatus.notReady &&
-                        _statusReason.value == 'no_rendezvous_server'
-                    ? translate("Failed to connect to rendezvous server")
-                    : stateGlobal.svcStatus.value == SvcStatus.notReady
-                        ? translate("not_ready_status")
-                        : translate('Ready');
-    return Text(
-      statusMessage,
-      style: TextStyle(fontSize: em),
-    );
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      widget.onSvcStatusChanged?.call();
+      final server = serverName();
+      final st = stateGlobal.svcStatus.value;
+      final HomeStatus status;
+      if (_svcStopped.value) {
+        status = HomeStatus(
+            BdStatusKind.offline, tr('bd-home-status-service-off'),
+            linkLabel: tr('bd-home-turn-on'),
+            onLink: () => start_service(true));
+      } else if (server.isEmpty && _svcIsUsingPublicServer.value) {
+        status = HomeStatus(BdStatusKind.bad, tr('bd-home-status-no-server'),
+            linkLabel: tr('bd-set-up-by-hand'),
+            onLink: onUsePublicServerGuide);
+      } else if (st == SvcStatus.connecting) {
+        status = HomeStatus(
+            BdStatusKind.wait, tr('bd-home-status-connecting', [server]));
+      } else if (st == SvcStatus.notReady &&
+          _statusReason.value == 'deployment_required') {
+        status =
+            HomeStatus(BdStatusKind.wait, tr('bd-home-status-approval'));
+      } else if (st == SvcStatus.notReady) {
+        status = HomeStatus(
+            BdStatusKind.bad, tr('bd-home-status-offline', [server]),
+            linkLabel: tr('bd-home-try-now'), onLink: () async {
+          await bind.mainCheckConnectStatus();
+          updateStatus();
+        });
+      } else {
+        status = HomeStatus(
+            BdStatusKind.good, tr('bd-home-status-ready', [server]));
+      }
+      return HomeStatusLine(status: status);
+    });
   }
 
   updateStatus() async {
@@ -219,7 +158,6 @@ class _ConnectionPageState extends State<ConnectionPage>
   // https://github.com/flutter/flutter/issues/157244
   Iterable<Peer> _autocompleteOpts = [];
 
-  final _menuOpen = false.obs;
 
   @override
   void initState() {
@@ -308,24 +246,21 @@ class _ConnectionPageState extends State<ConnectionPage>
 
   @override
   Widget build(BuildContext context) {
-    final isOutgoingOnly = bind.isOutgoingOnly();
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-            child: Column(
-          children: [
-            Row(
-              children: [
-                Flexible(child: _buildRemoteIDTextField(context)),
-              ],
-            ).marginOnly(top: 22),
-            SizedBox(height: 12),
-            Divider().paddingOnly(right: 12),
-            Expanded(child: PeerTabPage()),
+        ConnectHeader(
+          field: _buildRemoteIDTextField(context),
+          onConnect: onConnect,
+          moreWays: [
+            (tr('bd-home-files-only'), () => onConnect(isFileTransfer: true)),
+            (tr('bd-home-camera'), () => onConnect(isViewCamera: true)),
+            (tr('bd-home-terminal'), () => onConnect(isTerminal: true)),
+            (tr('bd-home-tunnel'), () => onConnect(isTcpTunneling: true)),
           ],
-        ).paddingOnly(left: 12.0)),
-        if (!isOutgoingOnly) const Divider(height: 1),
-        if (!isOutgoingOnly) OnlineStatusWidget()
+        ),
+        const SizedBox(height: 22),
+        Expanded(child: PeerTabPage()),
       ],
     );
   }
@@ -335,31 +270,22 @@ class _ConnectionPageState extends State<ConnectionPage>
   void onConnect(
       {bool isFileTransfer = false,
       bool isViewCamera = false,
-      bool isTerminal = false}) {
+      bool isTerminal = false,
+      bool isTcpTunneling = false}) {
     var id = _idController.id;
     connect(context, id,
         isFileTransfer: isFileTransfer,
         isViewCamera: isViewCamera,
-        isTerminal: isTerminal);
+        isTerminal: isTerminal,
+        isTcpTunneling: isTcpTunneling);
   }
 
   /// UI for the remote ID TextField.
   /// Search for a peer.
   Widget _buildRemoteIDTextField(BuildContext context) {
-    var w = Container(
-      width: 320 + 20 * 2,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
-      decoration: BoxDecoration(
-          borderRadius: const BorderRadius.all(Radius.circular(13)),
-          border: Border.all(color: Theme.of(context).colorScheme.background)),
-      child: Ink(
-        child: Column(
-          children: [
-            getConnectionPageTitle(context, false).marginOnly(bottom: 15),
-            Row(
-              children: [
-                Expanded(
-                    child: RawAutocomplete<Peer>(
+    final c = context.bd;
+    final t = context.bdText;
+    return RawAutocomplete<Peer>(
                   optionsBuilder: (TextEditingValue textEditingValue) {
                     if (textEditingValue.text == '') {
                       _autocompleteOpts = const Iterable<Peer>.empty();
@@ -422,22 +348,30 @@ class _ConnectionPageState extends State<ConnectionPage>
                           enableSuggestions: false,
                           keyboardType: TextInputType.visiblePassword,
                           focusNode: fieldFocusNode,
-                          style: const TextStyle(
-                            fontFamily: 'WorkSans',
-                            fontSize: 22,
-                            height: 1.4,
-                          ),
+                          style: t.mono.copyWith(fontSize: 16, height: 1.25),
                           maxLines: 1,
-                          cursorColor:
-                              Theme.of(context).textTheme.titleLarge?.color,
+                          cursorColor: c.text,
+                          cursorWidth: 1,
                           decoration: InputDecoration(
                               filled: false,
                               counterText: '',
+                              constraints: const BoxConstraints(
+                                  minHeight: BdSize.controlLg,
+                                  maxHeight: BdSize.controlLg),
+                              enabledBorder: OutlineInputBorder(
+                                  borderRadius: BdSize.r,
+                                  borderSide: BorderSide(color: c.border)),
+                              focusedBorder: OutlineInputBorder(
+                                  borderRadius: BdSize.r,
+                                  borderSide:
+                                      BorderSide(color: c.accent, width: 2)),
                               hintText: _idInputFocused.value
                                   ? null
                                   : translate('Enter Remote ID'),
+                              hintStyle: t.body
+                                  .copyWith(fontSize: 16, color: c.textMuted),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 15, vertical: 13)),
+                                  horizontal: 12, vertical: 12)),
                           controller: fieldTextEditingController,
                           inputFormatters: [IDTextInputFormatter()],
                           onChanged: (v) {
@@ -474,9 +408,8 @@ class _ConnectionPageState extends State<ConnectionPage>
                           decoration: BoxDecoration(
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 5,
-                                spreadRadius: 1,
+                                color: c.shadowFar,
+                                blurRadius: 12,
                               ),
                             ],
                           ),
@@ -487,7 +420,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                                 child: ConstrainedBox(
                                   constraints: BoxConstraints(
                                     maxHeight: maxHeight,
-                                    maxWidth: 319,
+                                    maxWidth: 480,
                                   ),
                                   child: _allPeersLoader.peers.isEmpty &&
                                           !_allPeersLoader.isPeersLoaded
@@ -514,108 +447,6 @@ class _ConnectionPageState extends State<ConnectionPage>
                                 ),
                               ))),
                     );
-                  },
-                )),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 13.0),
-              child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                SizedBox(
-                  height: 28.0,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      onConnect();
-                    },
-                    child: Text(translate("Connect")),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  height: 28.0,
-                  width: 28.0,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Theme.of(context).dividerColor),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: StatefulBuilder(
-                      builder: (context, setState) {
-                        var offset = Offset(0, 0);
-                        return Obx(() => InkWell(
-                              child: _menuOpen.value
-                                  ? Transform.rotate(
-                                      angle: pi,
-                                      child: Icon(IconFont.more, size: 14),
-                                    )
-                                  : Icon(IconFont.more, size: 14),
-                              onTapDown: (e) {
-                                offset = e.globalPosition;
-                              },
-                              onTap: () async {
-                                _menuOpen.value = true;
-                                final x = offset.dx;
-                                final y = offset.dy;
-                                await mod_menu
-                                    .showMenu(
-                                  context: context,
-                                  position: RelativeRect.fromLTRB(x, y, x, y),
-                                  items: [
-                                    (
-                                      'Transfer file',
-                                      () => onConnect(isFileTransfer: true)
-                                    ),
-                                    (
-                                      'View camera',
-                                      () => onConnect(isViewCamera: true)
-                                    ),
-                                    (
-                                      '${translate('Terminal')} (beta)',
-                                      () => onConnect(isTerminal: true)
-                                    ),
-                                  ]
-                                      .map((e) => MenuEntryButton<String>(
-                                            childBuilder: (TextStyle? style) =>
-                                                Text(
-                                              translate(e.$1),
-                                              style: style,
-                                            ),
-                                            proc: () => e.$2(),
-                                            padding: EdgeInsets.symmetric(
-                                                horizontal:
-                                                    kDesktopMenuPadding.left),
-                                            dismissOnClicked: true,
-                                          ))
-                                      .map((e) => e.build(
-                                          context,
-                                          const MenuConfig(
-                                              commonColor: CustomPopupMenuTheme
-                                                  .commonColor,
-                                              height:
-                                                  CustomPopupMenuTheme.height,
-                                              dividerHeight:
-                                                  CustomPopupMenuTheme
-                                                      .dividerHeight)))
-                                      .expand((i) => i)
-                                      .toList(),
-                                  elevation: 8,
-                                )
-                                    .then((_) {
-                                  _menuOpen.value = false;
-                                });
-                              },
-                            ));
-                      },
-                    ),
-                  ),
-                ),
-              ]),
-            ),
-          ],
-        ),
-      ),
-    );
-    return Container(
-        constraints: const BoxConstraints(maxWidth: 600), child: w);
+                  },);
   }
 }

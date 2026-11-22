@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
@@ -132,18 +133,20 @@ class _PortForwardPageState extends State<PortForwardPage>
           offstage: pfs.isEmpty && !widget.isRDP,
           child: Container(
               height: 45,
-              color: const Color(0xFF007F00),
+              color: context.bd.noticeBg(context.bd.success),
               child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       translate('Listening ...'),
-                      style: const TextStyle(fontSize: 16, color: Colors.white),
+                      style: TextStyle(fontSize: 16, color: context.bd.success),
                     ),
                     Text(
                       translate('not_close_tcp_tip'),
-                      style: const TextStyle(
-                          fontSize: 10, color: Color(0xFFDDDDDD), height: 1.2),
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: context.bd.textMuted,
+                          height: 1.2),
                     )
                   ])).marginOnly(bottom: 8),
         ));
@@ -258,9 +261,7 @@ class _PortForwardPageState extends State<PortForwardPage>
       height: _kRowHeight,
       decoration: BoxDecoration(
           color: index % 2 == 0
-              ? MyTheme.currentThemeMode() == ThemeMode.dark
-                  ? const Color(0xFF202020)
-                  : const Color(0xFFF4F5F6)
+              ? context.bd.bgSubtle
               : Theme.of(context).colorScheme.background),
       child: Row(children: [
         text(pf.localPort.toString()),

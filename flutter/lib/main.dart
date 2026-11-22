@@ -4,8 +4,10 @@ import 'dart:io';
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/common/widgets/overlay.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/pages/install_page.dart';
@@ -30,6 +32,10 @@ import 'mobile/pages/server_page.dart';
 import 'mobile/widgets/deploy_dialog.dart';
 import 'models/branding_model.dart';
 import 'models/platform_model.dart';
+import 'onboarding/onboarding_demo.dart';
+import 'onboarding/onboarding_service.dart';
+import 'onboarding/onboarding_service_bind.dart';
+import 'onboarding/quick_support_app.dart';
 
 /// Basic window and launch properties.
 int? kWindowId;
@@ -110,6 +116,14 @@ Future<void> main(List<String> args) async {
   } else {
     desktopType = DesktopType.main;
     await windowManager.ensureInitialized();
+    // The onboarding service reads the client core, so the core is loaded
+    // first; runMainApp and runQuickSupportApp then skip that step.
+    await initEnv(kAppTypeMain);
+    _registerOnboarding();
+    if (OnboardingService.instance.isQuickSupportBuild) {
+      runQuickSupportApp();
+      return;
+    }
     windowManager.setPreventClose(true);
     if (isMacOS) {
       disableWindowMovable(kWindowId);
@@ -118,7 +132,11 @@ Future<void> main(List<String> args) async {
   }
 }
 
+bool _envReady = false;
+
 Future<void> initEnv(String appType) async {
+  if (_envReady) return;
+  _envReady = true;
   // global shared preference
   await platformFFI.init(appType);
   // global FFI, use this **ONLY** for global configuration
@@ -151,8 +169,11 @@ void runMainApp(bool startService) async {
   }
 
   // Set window option.
+  // 1100 x 720 on the first start; a saved size and place win after that.
   WindowOptions windowOptions = getHiddenTitleBarWindowOptions(
-      isMainWindow: true, alwaysOnTop: alwaysOnTop);
+      isMainWindow: true,
+      alwaysOnTop: alwaysOnTop,
+      size: bind.isIncomingOnly() ? null : const Size(1100, 720));
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     // Restore the location of the main window before window hide or show.
     await restoreWindowPosition(WindowType.Main);
@@ -171,6 +192,56 @@ void runMainApp(bool startService) async {
     windowManager.setTitle(getWindowName());
     // Do not use `windowManager.setResizable()` here.
     setResizable(!bind.isIncomingOnly());
+    if (!bind.isIncomingOnly()) {
+      windowManager.setMinimumSize(const Size(900, 600));
+    }
+  });
+}
+
+/// Picks the onboarding implementation: the one on the client core
+/// (onboarding_service_bind.dart); the pair-with-code fallback only applies
+/// when nothing registered. Debug and profile builds can
+/// walk through the screens with BETTERDESK_DEMO_ONBOARDING (onboarding_demo.dart).
+void _registerOnboarding() {
+  registerOnboardingService();
+  if (!kReleaseMode) {
+    final demo = Platform.environment['BETTERDESK_DEMO_ONBOARDING'] ?? '';
+    if (demo == 'first-start') {
+      OnboardingService.registered = DemoOnboardingService.firstStart();
+    } else if (demo == 'quick-support') {
+      OnboardingService.registered = DemoOnboardingService.quickSupport();
+    }
+  }
+  OnboardingService.registered ??= PairingOnboardingService(
+    pair: (server, code) => bind.mainPairWithCode(server: server, code: code),
+    hasServer: () =>
+        bind.isIncomingOnly() ||
+        bind.isOutgoingOnly() ||
+        bind.isCustomClient() ||
+        bind.mainGetOptionSync(key: 'custom-rendezvous-server')
+            .trim()
+            .isNotEmpty,
+  );
+}
+
+/// The quick support app: one 480 x 560 window that is not resizable.
+void runQuickSupportApp() async {
+  await initEnv(kAppTypeMain);
+  await bind.mainCheckConnectStatus();
+  gFFI.serverModel.startService();
+  _runApp(
+    translate('bd-qs-window-title'),
+    QuickSupportWindow(service: OnboardingService.instance),
+    MyTheme.currentThemeMode(),
+  );
+  final options = getHiddenTitleBarWindowOptions(
+      size: kQuickSupportWindowSize, center: true);
+  windowManager.waitUntilReadyToShow(options, () async {
+    await windowManager.show();
+    await windowManager.focus();
+    await windowManager.setOpacity(1);
+    await windowManager.setTitle(translate('bd-qs-window-title'));
+    setResizable(false);
   });
 }
 
@@ -358,7 +429,11 @@ void _runApp(
 ) {
   final botToastBuilder = BotToastInit();
   runApp(RefreshWrapper(
-    builder: (context) => GetMaterialApp(
+    // A changed server accent (branding, or a redeem in quick support)
+    // rebuilds the window with the new theme.
+    builder: (context) => Obx(() {
+      BdTheme.setServerAccent(BrandingModel.current.accentColor.value);
+      return GetMaterialApp(
       navigatorKey: globalKey,
       debugShowCheckedModeBanner: false,
       title: title,
@@ -377,20 +452,23 @@ void _runApp(
         BotToastNavigatorObserver(),
       ],
       builder: (context, child) {
+        BdTheme.track(context);
         child = _keepScaleBuilder(context, child);
         child = botToastBuilder(context, child);
         return child;
       },
-    ),
+    );
+    }),
   ));
 }
 
 void runInstallPage() async {
   await windowManager.ensureInitialized();
   await initEnv(kAppTypeMain);
+  _registerOnboarding();
   _runApp('', const InstallPage(), MyTheme.currentThemeMode());
   WindowOptions windowOptions =
-      getHiddenTitleBarWindowOptions(size: Size(800, 600), center: true);
+      getHiddenTitleBarWindowOptions(size: Size(680, 560), center: true);
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     windowManager.show();
     windowManager.focus();
@@ -483,6 +561,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // final analytics = FirebaseAnalytics.instance;
     final botToastBuilder = BotToastInit();
     return RefreshWrapper(builder: (context) {
+      // The server's accent colour applies to the whole app; a change from
+      // the server rebuilds it with the new theme.
+      return Obx(() {
+      BdTheme.setServerAccent(BrandingModel.current.accentColor.value);
       return MultiProvider(
         providers: [
           // global configuration
@@ -527,6 +609,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                     ),
                   )
               : (context, child) {
+                  BdTheme.track(context);
                   child = _keepScaleBuilder(context, child);
                   child = botToastBuilder(context, child);
                   if ((isDesktop && desktopType == DesktopType.main) ||
@@ -541,6 +624,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                 },
         ),
       );
+      });
     });
   }
 }

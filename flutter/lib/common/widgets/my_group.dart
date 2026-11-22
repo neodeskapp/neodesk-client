@@ -8,6 +8,7 @@ import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 
 class MyGroup extends StatefulWidget {
   final EdgeInsets? menuPadding;
@@ -236,7 +237,7 @@ class _MyGroupState extends State<MyGroup> {
                     child: Center(
                       child: Text(
                         displayName.characters.first.toUpperCase(),
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: BdPalette.onDataColor),
                         textAlign: TextAlign.center,
                       ),
                     ),

@@ -4,6 +4,12 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/desktop/pages/settings/settings_index.dart';
+import 'package:flutter_hbb/desktop/pages/settings/settings_widgets.dart';
+import 'package:flutter_hbb/onboarding/onboarding_flow.dart';
+import 'package:flutter_hbb/onboarding/onboarding_service.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
@@ -13,7 +19,6 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
-import 'package:flutter_hbb/mobile/widgets/dialog.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/printer_model.dart';
@@ -27,28 +32,13 @@ import 'package:url_launcher/url_launcher_string.dart';
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/login.dart';
 
-const double _kTabWidth = 200;
-const double _kTabHeight = 42;
-const double _kCardFixedWidth = 540;
 const double _kCardLeftMargin = 15;
 const double _kContentHMargin = 15;
 const double _kContentHSubMargin = _kContentHMargin + 33;
 const double _kCheckBoxLeftMargin = 10;
-const double _kRadioLeftMargin = 10;
-const double _kListViewBottomMargin = 15;
-const double _kTitleFontSize = 20;
 const double _kContentFontSize = 15;
-const Color _accentColor = MyTheme.accent;
 const String _kSettingPageControllerTag = 'settingPageController';
 const String _kSettingPageTabKeyTag = 'settingPageTabKey';
-
-class _TabInfo {
-  late final SettingsTabKey key;
-  late final String label;
-  late final IconData unselected;
-  late final IconData selected;
-  _TabInfo(this.key, this.label, this.unselected, this.selected);
-}
 
 enum SettingsTabKey {
   general,
@@ -74,15 +64,24 @@ class DesktopSettingPage extends StatefulWidget {
     if (!bind.isDisableSettings() &&
         bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
       SettingsTabKey.network,
-    if (!bind.isIncomingOnly()) SettingsTabKey.display,
-    if (!bind.isDisableAccount()) SettingsTabKey.account,
-    if (isWindows &&
-        !bind.isDisableSettings() &&
-        bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y')
-      SettingsTabKey.printer,
-    if (!bind.isDisableSettings()) SettingsTabKey.branding,
+    // Advanced holds the session defaults, printing and branding.
+    SettingsTabKey.display,
     SettingsTabKey.about,
   ];
+
+  /// Where the old tabs live now: Account is in General, Printer and
+  /// Branding in Advanced.
+  static SettingsTabKey groupOf(SettingsTabKey key) {
+    switch (key) {
+      case SettingsTabKey.account:
+        return SettingsTabKey.general;
+      case SettingsTabKey.printer:
+      case SettingsTabKey.branding:
+        return SettingsTabKey.display;
+      default:
+        return key;
+    }
+  }
 
   DesktopSettingPage({Key? key, required this.initialTabkey}) : super(key: key);
 
@@ -91,6 +90,7 @@ class DesktopSettingPage extends StatefulWidget {
       _DesktopSettingPageState(initialTabkey);
 
   static void switch2page(SettingsTabKey page) {
+    page = groupOf(page);
     try {
       int index = tabKeys.indexOf(page);
       if (index == -1) {
@@ -130,7 +130,8 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
   Timer? _videoConnTimer;
 
   _DesktopSettingPageState(SettingsTabKey initialTabkey) {
-    var initialIndex = DesktopSettingPage.tabKeys.indexOf(initialTabkey);
+    var initialIndex = DesktopSettingPage.tabKeys
+        .indexOf(DesktopSettingPage.groupOf(initialTabkey));
     if (initialIndex == -1) {
       initialIndex = 0;
     }
@@ -184,45 +185,44 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
     super.dispose();
   }
 
-  List<_TabInfo> _settingTabs() {
-    final List<_TabInfo> settingTabs = <_TabInfo>[];
-    for (final tab in DesktopSettingPage.tabKeys) {
-      switch (tab) {
-        case SettingsTabKey.general:
-          settingTabs.add(_TabInfo(
-              tab, 'General', Icons.settings_outlined, Icons.settings));
-          break;
-        case SettingsTabKey.safety:
-          settingTabs.add(_TabInfo(tab, 'Security',
-              Icons.enhanced_encryption_outlined, Icons.enhanced_encryption));
-          break;
-        case SettingsTabKey.network:
-          settingTabs
-              .add(_TabInfo(tab, 'Network', Icons.link_outlined, Icons.link));
-          break;
-        case SettingsTabKey.display:
-          settingTabs.add(_TabInfo(tab, 'Display',
-              Icons.desktop_windows_outlined, Icons.desktop_windows));
-          break;
-        case SettingsTabKey.account:
-          settingTabs.add(
-              _TabInfo(tab, 'Account', Icons.person_outline, Icons.person));
-          break;
-        case SettingsTabKey.printer:
-          settingTabs
-              .add(_TabInfo(tab, 'Printer', Icons.print_outlined, Icons.print));
-          break;
-        case SettingsTabKey.branding:
-          settingTabs.add(_TabInfo(
-              tab, 'Branding', Icons.business_outlined, Icons.business));
-          break;
-        case SettingsTabKey.about:
-          settingTabs
-              .add(_TabInfo(tab, 'About', Icons.info_outline, Icons.info));
-          break;
-      }
+  final _search = TextEditingController();
+  final _query = ''.obs;
+
+  String _groupLabel(SettingsTabKey key) {
+    switch (key) {
+      case SettingsTabKey.general:
+        return tr('bd-set-general');
+      case SettingsTabKey.safety:
+        return tr('bd-set-security');
+      case SettingsTabKey.network:
+        return tr('bd-set-server');
+      case SettingsTabKey.display:
+        return tr('bd-set-advanced');
+      default:
+        return tr('bd-set-about');
     }
-    return settingTabs;
+  }
+
+  SettingsTabKey? _keyOfGroup(String group) {
+    switch (group) {
+      case 'general':
+        return SettingsTabKey.general;
+      case 'security':
+        return SettingsTabKey.safety;
+      case 'server':
+        return SettingsTabKey.network;
+      default:
+        return SettingsTabKey.display;
+    }
+  }
+
+  void _select(SettingsTabKey key) {
+    final index = DesktopSettingPage.tabKeys.indexOf(key);
+    if (index == -1) return;
+    _search.clear();
+    _query.value = '';
+    selectedTab.value = key;
+    controller.jumpToPage(index);
   }
 
   List<Widget> _children() {
@@ -230,32 +230,77 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
     for (final tab in DesktopSettingPage.tabKeys) {
       switch (tab) {
         case SettingsTabKey.general:
-          children.add(const _General());
+          children.add(SettingsGroupPage(
+            title: tr('bd-set-general'),
+            lead: tr('bd-set-general-lead'),
+            children: [
+              const _General(part: _GeneralPart.general),
+              if (!bind.isDisableAccount()) const _Account(),
+              const _General(part: _GeneralPart.recording),
+            ],
+          ));
           break;
         case SettingsTabKey.safety:
-          children.add(const _Safety());
+          children.add(SettingsGroupPage(
+            title: tr('bd-set-security'),
+            lead: tr('bd-set-security-lead'),
+            children: const [_Safety()],
+          ));
           break;
         case SettingsTabKey.network:
-          children.add(const _Network());
+          children.add(SettingsGroupPage(
+            title: tr('bd-set-server'),
+            lead: tr('bd-set-server-lead'),
+            children: const [_Network()],
+          ));
           break;
         case SettingsTabKey.display:
-          children.add(const _Display());
+          final showPrinter = isWindows &&
+              !bind.isDisableSettings() &&
+              bind.mainGetBuildinOption(
+                      key: kOptionHideRemotePrinterSetting) !=
+                  'Y';
+          children.add(SettingsGroupPage(
+            title: tr('bd-set-advanced'),
+            lead: tr('bd-set-advanced-lead'),
+            children: [
+              if (!bind.isIncomingOnly()) const _Display(),
+              const _General(part: _GeneralPart.toolbar),
+              const _General(part: _GeneralPart.thisComputer),
+              const _General(part: _GeneralPart.network),
+              const _General(part: _GeneralPart.drawing),
+              if (showPrinter) const _Printer(),
+              if (!bind.isDisableSettings()) const _Branding(),
+            ],
+          ));
           break;
-        case SettingsTabKey.account:
-          children.add(const _Account());
-          break;
-        case SettingsTabKey.printer:
-          children.add(const _Printer());
-          break;
-        case SettingsTabKey.branding:
-          children.add(const _Branding());
-          break;
-        case SettingsTabKey.about:
+        default:
           children.add(const _About());
-          break;
       }
     }
     return children;
+  }
+
+  List<SettingsSearchHit> _hits(String q) {
+    final query = q.trim().toLowerCase();
+    final hits = <SettingsSearchHit>[];
+    for (final e in kSettingsIndex) {
+      final key = _keyOfGroup(e.group);
+      if (key == null || !DesktopSettingPage.tabKeys.contains(key)) continue;
+      final label = translate(e.label);
+      final desc = translateOrNull(e.desc) ?? '';
+      if (!label.toLowerCase().contains(query) &&
+          !desc.toLowerCase().contains(query)) {
+        continue;
+      }
+      hits.add(SettingsSearchHit(
+        label: label,
+        description: desc,
+        path: '${_groupLabel(key)}, ${translate(e.section)}',
+        onTap: () => _select(key),
+      ));
+    }
+    return hits;
   }
 
   Widget _buildBlock({required List<Widget> children}) {
@@ -273,10 +318,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
             block: videoConnBlock,
           ),
         ),
-        if (videoConnBlock)
-          Container(
-            color: Colors.black.withOpacity(0.5),
-          )
+        if (videoConnBlock) Container(color: context.bd.scrim)
       ]);
     });
   }
@@ -284,128 +326,67 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final nav = Obx(() => SettingsNav<SettingsTabKey>(
+          items: [
+            for (final k in DesktopSettingPage.tabKeys)
+              SettingsNavItem(k, _groupLabel(k),
+                  dividerBefore: k == SettingsTabKey.about),
+          ],
+          value: _query.value.isEmpty ? selectedTab.value : null,
+          onChanged: _select,
+          search: BdSearchField(
+            placeholder: tr('bd-set-search'),
+            controller: _search,
+            height: 32,
+            onChanged: (v) => _query.value = v,
+          ),
+        ));
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: context.bd.bg,
       body: _buildBlock(
         children: <Widget>[
-          SizedBox(
-            width: _kTabWidth,
-            child: Column(
-              children: [
-                _header(context),
-                Flexible(child: _listView(tabs: _settingTabs())),
-              ],
+          if (isWeb)
+            IconButton(
+              onPressed: () {
+                if (Navigator.canPop(context)) Navigator.pop(context);
+              },
+              icon: Icon(BdIcons.arrowBack),
             ),
-          ),
-          const VerticalDivider(width: 1),
+          nav,
           Expanded(
             child: Container(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              child: PageView(
-                controller: controller,
-                physics: NeverScrollableScrollPhysics(),
-                children: _children(),
-              ),
+              color: context.bd.bg,
+              child: Obx(() => Stack(children: [
+                    Offstage(
+                      offstage: _query.value.isNotEmpty,
+                      child: PageView(
+                        controller: controller,
+                        physics: NeverScrollableScrollPhysics(),
+                        children: _children(),
+                      ),
+                    ),
+                    if (_query.value.isNotEmpty)
+                      SettingsSearchResults(
+                          query: _query.value, hits: _hits(_query.value)),
+                  ])),
             ),
           )
         ],
       ),
     );
   }
-
-  Widget _header(BuildContext context) {
-    final settingsText = Text(
-      translate('Settings'),
-      textAlign: TextAlign.left,
-      style: const TextStyle(
-        color: _accentColor,
-        fontSize: _kTitleFontSize,
-        fontWeight: FontWeight.w400,
-      ),
-    );
-    return Row(
-      children: [
-        if (isWeb)
-          IconButton(
-            onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              }
-            },
-            icon: Icon(Icons.arrow_back),
-          ).marginOnly(left: 5),
-        if (isWeb)
-          SizedBox(
-            height: 62,
-            child: Align(
-              alignment: Alignment.center,
-              child: settingsText,
-            ),
-          ).marginOnly(left: 20),
-        if (!isWeb)
-          SizedBox(
-            height: 62,
-            child: settingsText,
-          ).marginOnly(left: 20, top: 10),
-        const Spacer(),
-      ],
-    );
-  }
-
-  Widget _listView({required List<_TabInfo> tabs}) {
-    final scrollController = ScrollController();
-    return ListView(
-      controller: scrollController,
-      children: tabs.map((tab) => _listItem(tab: tab)).toList(),
-    );
-  }
-
-  Widget _listItem({required _TabInfo tab}) {
-    return Obx(() {
-      bool selected = tab.key == selectedTab.value;
-      return SizedBox(
-        width: _kTabWidth,
-        height: _kTabHeight,
-        child: InkWell(
-          onTap: () {
-            if (selectedTab.value != tab.key) {
-              int index = DesktopSettingPage.tabKeys.indexOf(tab.key);
-              if (index == -1) {
-                return;
-              }
-              controller.jumpToPage(index);
-            }
-            selectedTab.value = tab.key;
-          },
-          child: Row(children: [
-            Container(
-              width: 4,
-              height: _kTabHeight * 0.7,
-              color: selected ? _accentColor : null,
-            ),
-            Icon(
-              selected ? tab.selected : tab.unselected,
-              color: selected ? _accentColor : null,
-              size: 20,
-            ).marginOnly(left: 13, right: 10),
-            Text(
-              translate(tab.label),
-              style: TextStyle(
-                  color: selected ? _accentColor : null,
-                  fontWeight: FontWeight.w400,
-                  fontSize: _kContentFontSize),
-            ),
-          ]),
-        ),
-      );
-    });
-  }
 }
 
 //#region pages
 
+/// Which part of today's General tab to show; the settings now live in
+/// General and Advanced.
+enum _GeneralPart { general, recording, toolbar, thisComputer, network, drawing }
+
 class _General extends StatefulWidget {
-  const _General({Key? key}) : super(key: key);
+  final _GeneralPart part;
+  const _General({Key? key, this.part = _GeneralPart.general})
+      : super(key: key);
 
   @override
   State<_General> createState() => _GeneralState();
@@ -419,20 +400,155 @@ class _GeneralState extends State<_General> {
 
   @override
   Widget build(BuildContext context) {
-    final scrollController = ScrollController();
-    return ListView(
-      controller: scrollController,
-      children: [
-        if (!isWeb) service(),
-        theme(),
-        _Card(title: 'Language', children: [language()]),
-        if (!isWeb) hwcodec(),
-        if (!isWeb) audio(context),
-        if (!isWeb) record(context),
-        if (!isWeb) WaylandCard(),
-        other()
-      ],
-    ).marginOnly(bottom: _kListViewBottomMargin);
+    final incomingOnly = bind.isIncomingOnly();
+    final outgoingOnly = bind.isOutgoingOnly();
+    final children = <Widget>[];
+    switch (widget.part) {
+      case _GeneralPart.general:
+        children.add(_Card(title: 'bd-sec-language-and-look', children: [
+          SettingsRow(
+            label: translate('Language'),
+            description: translateOrNull('bd-desc:Language'),
+            control: language(),
+          ),
+          theme(),
+        ]));
+        final updates = <Widget>[
+          if (!isWeb && !bind.isCustomClient())
+            _OptionCheckBox(context, 'Check for software update on startup',
+                kOptionEnableCheckUpdate,
+                isServer: false),
+          if ((isWindows && bind.mainIsInstalled()) ||
+              (isMacOS &&
+                  bind.mainIsInstalled() &&
+                  bind.mainIsInstalledDaemon(prompt: false) &&
+                  !bind.isCustomClient()))
+            _OptionCheckBox(context, 'Auto update', kOptionAllowAutoUpdate,
+                isServer: true),
+        ];
+        if (updates.isNotEmpty) {
+          children.add(_Card(title: 'bd-sec-updates', children: updates));
+        }
+        if (!incomingOnly) {
+          children.add(_Card(title: 'bd-sec-sessions-you-start', children: [
+            if (!isWeb)
+              _OptionCheckBox(context, 'Open connection in new tab',
+                  kOptionOpenNewConnInTabs,
+                  isServer: false),
+            if (!isWeb)
+              _OptionCheckBox(context, 'Confirm before closing multiple tabs',
+                  kOptionEnableConfirmClosingTabs,
+                  isServer: false),
+            _OptionCheckBox(context, 'keep-awake-during-outgoing-sessions-label',
+                kOptionKeepAwakeDuringOutgoingSessions,
+                isServer: false),
+            if (!bind.isDisableAccount())
+              _OptionCheckBox(
+                context,
+                'note-at-conn-end-tip',
+                kOptionAllowAskForNoteAtEndOfConnection,
+                isServer: false,
+                optSetter: (key, value) async {
+                  if (value && !gFFI.userModel.isLogin) {
+                    final res = await loginDialog();
+                    if (res != true) return;
+                  }
+                  await mainSetLocalBoolOption(key, value);
+                },
+              ),
+          ]));
+        }
+        break;
+      case _GeneralPart.recording:
+        if (!isWeb) children.add(record(context));
+        break;
+      case _GeneralPart.toolbar:
+        if (incomingOnly) break;
+        children.add(_Card(title: 'bd-sec-toolbar', children: [
+          _OptionCheckBox(
+            context,
+            'allow-remote-toolbar-docking-any-edge',
+            kOptionAllowMultiEdgeToolbarDock,
+            isServer: false,
+            update: (_) => reloadAllWindows(),
+          ),
+          _OptionCheckBox(
+            context,
+            'Show monitor switch button on the main toolbar',
+            kOptionAllowMonitorSwitchMainToolbar,
+            isServer: false,
+            update: (enabled) async {
+              if (!enabled) {
+                await mainSetLocalBoolOption(
+                    kOptionAllowMonitorSwitchMinToolbar, false);
+              }
+              if (mounted) setState(() {});
+              reloadAllWindows();
+            },
+          ),
+          if (mainGetLocalBoolOptionSync(kOptionAllowMonitorSwitchMainToolbar))
+            KeyedSubtree(
+              key: _minToolbarOptionKey,
+              child: _OptionCheckBox(
+                context,
+                'Show on the minimized toolbar',
+                kOptionAllowMonitorSwitchMinToolbar,
+                isServer: false,
+                update: (_) => reloadAllWindows(),
+              ),
+            ),
+        ]));
+        break;
+      case _GeneralPart.thisComputer:
+        if (isWeb) break;
+        children.add(_Card(title: 'bd-sec-this-computer-during-sessions', children: [
+          if (!outgoingOnly) wallpaper(),
+          if (!outgoingOnly)
+            _OptionCheckBox(context, 'Adaptive bitrate', kOptionEnableAbr),
+          if (isWindows && !outgoingOnly)
+            _OptionCheckBox(context, 'Capture screen using DirectX',
+                kOptionDirectxCapture),
+          hwcodec(),
+          audio(context),
+          const WaylandCard(),
+        ]));
+        break;
+      case _GeneralPart.network:
+        if (isWeb || incomingOnly) break;
+        children.add(_Card(title: 'bd-sec-network', children: [
+          _OptionCheckBox(context, 'Enable UDP hole punching',
+              kOptionEnableUdpPunch,
+              isServer: false),
+          _OptionCheckBox(context, 'Enable IPv6 P2P connection',
+              kOptionEnableIpv6Punch,
+              isServer: false),
+          _OptionCheckBox(context, 'Sync clipboard between sessions',
+              kOptionAllowSyncClipboardBetweenSessions,
+              isServer: false),
+        ]));
+        break;
+      case _GeneralPart.drawing:
+        if (isWeb || incomingOnly) break;
+        children.add(_Card(title: 'bd-sec-drawing', children: [
+          if (isLinux)
+            _OptionCheckBox(context, 'Always use software rendering',
+                kOptionAllowAlwaysSoftwareRender),
+          _OptionCheckBox(
+            context,
+            'Use texture rendering',
+            kOptionTextureRender,
+            optGetter: bind.mainGetUseTextureRender,
+            optSetter: (k, v) async =>
+                await bind.mainSetLocalOption(key: k, value: v ? 'Y' : 'N'),
+          ),
+          if (isWindows)
+            _OptionCheckBox(context, 'Use D3D rendering', kOptionD3DRender,
+                isServer: false),
+        ]));
+        break;
+    }
+    return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
   }
 
   Widget theme() {
@@ -443,228 +559,19 @@ class _GeneralState extends State<_General> {
     }
 
     final isOptFixed = isOptionFixed(kCommConfKeyTheme);
-    return _Card(title: 'Theme', children: [
-      _Radio<String>(context,
-          value: 'light',
-          groupValue: current,
-          label: 'Light',
-          onChanged: isOptFixed ? null : onChanged),
-      _Radio<String>(context,
-          value: 'dark',
-          groupValue: current,
-          label: 'Dark',
-          onChanged: isOptFixed ? null : onChanged),
-      _Radio<String>(context,
-          value: 'system',
-          groupValue: current,
-          label: 'Follow System',
-          onChanged: isOptFixed ? null : onChanged),
-    ]);
-  }
-
-  Widget service() {
-    if (bind.isOutgoingOnly()) {
-      return const Offstage();
-    }
-
-    final hideStopService =
-        bind.mainGetBuildinOption(key: kOptionHideStopService) == 'Y';
-
-    return Obx(() {
-      if (hideStopService && !serviceStop.value) {
-        return const Offstage();
-      }
-
-      return _Card(title: 'Service', children: [
-        _Button(serviceStop.value ? 'Start' : 'Stop', () {
-          () async {
-            serviceBtnEnabled.value = false;
-            await start_service(serviceStop.value);
-            // enable the button after 1 second
-            Future.delayed(const Duration(seconds: 1), () {
-              serviceBtnEnabled.value = true;
-            });
-          }();
-        }, enabled: serviceBtnEnabled.value)
-      ]);
-    });
-  }
-
-  Widget other() {
-    final incomingOnly = bind.isIncomingOnly();
-    final outgoingOnly = bind.isOutgoingOnly();
-    final showAutoUpdate = (isWindows && bind.mainIsInstalled()) ||
-    (isMacOS && bind.mainIsInstalled() && bind.mainIsInstalledDaemon(prompt: false) && !bind.isCustomClient());
-    final children = <Widget>[
-      if (!isWeb && !incomingOnly)
-        _OptionCheckBox(context, 'Confirm before closing multiple tabs',
-            kOptionEnableConfirmClosingTabs,
-            isServer: false),
-      if (!incomingOnly)
-        _OptionCheckBox(
-          context,
-          'allow-remote-toolbar-docking-any-edge',
-          kOptionAllowMultiEdgeToolbarDock,
-          isServer: false,
-          update: (_) {
-            reloadAllWindows();
-          },
-        ),
-      if (!isWeb && !outgoingOnly)
-        _OptionCheckBox(context, 'Adaptive bitrate', kOptionEnableAbr),
-      if (!isWeb) wallpaper(),
-      if (!isWeb && !incomingOnly) ...[
-        _OptionCheckBox(
-          context,
-          'Open connection in new tab',
-          kOptionOpenNewConnInTabs,
-          isServer: false,
-        ),
-        // though this is related to GUI, but opengl problem affects all users, so put in config rather than local
-        if (isLinux)
-          Tooltip(
-            message: translate('software_render_tip'),
-            child: _OptionCheckBox(
-              context,
-              "Always use software rendering",
-              kOptionAllowAlwaysSoftwareRender,
-            ),
-          ),
-        if (!isWeb)
-          Tooltip(
-            message: translate('texture_render_tip'),
-            child: _OptionCheckBox(
-              context,
-              "Use texture rendering",
-              kOptionTextureRender,
-              optGetter: bind.mainGetUseTextureRender,
-              optSetter: (k, v) async =>
-                  await bind.mainSetLocalOption(key: k, value: v ? 'Y' : 'N'),
-            ),
-          ),
-        if (isWindows)
-          Tooltip(
-            message: translate('d3d_render_tip'),
-            child: _OptionCheckBox(
-              context,
-              "Use D3D rendering",
-              kOptionD3DRender,
-              isServer: false,
-            ),
-          ),
-      ],
-      if (!isWeb && !bind.isCustomClient())
-        _OptionCheckBox(
-          context,
-          'Check for software update on startup',
-          kOptionEnableCheckUpdate,
-          isServer: false,
-        ),
-      if (showAutoUpdate)
-        _OptionCheckBox(
-          context,
-          'Auto update',
-          kOptionAllowAutoUpdate,
-          isServer: true,
-        ),
-      if (isWindows && !outgoingOnly)
-        _OptionCheckBox(
-          context,
-          'Capture screen using DirectX',
-          kOptionDirectxCapture,
-        ),
-      if (!isWeb && !incomingOnly) ...[
-        _OptionCheckBox(
-          context,
-          'Enable UDP hole punching',
-          kOptionEnableUdpPunch,
-          isServer: false,
-        ),
-        _OptionCheckBox(
-          context,
-          'Enable IPv6 P2P connection',
-          kOptionEnableIpv6Punch,
-          isServer: false,
-        ),
-        Tooltip(
-          message: translate('sync-clipboard-between-sessions-tip'),
-          child: _OptionCheckBox(
-            context,
-            'Sync clipboard between sessions',
-            kOptionAllowSyncClipboardBetweenSessions,
-            isServer: false,
-          ),
-        ),
-      ],
-    ];
-
-    // Add client-side wakelock option for desktop platforms
-    if (!bind.isIncomingOnly()) {
-      children.add(_OptionCheckBox(
-        context,
-        'keep-awake-during-outgoing-sessions-label',
-        kOptionKeepAwakeDuringOutgoingSessions,
-        isServer: false,
-      ));
-    }
-
-    if (!bind.isDisableAccount()) {
-      children.add(_OptionCheckBox(
-        context,
-        'note-at-conn-end-tip',
-        kOptionAllowAskForNoteAtEndOfConnection,
-        isServer: false,
-        optSetter: (key, value) async {
-          if (value && !gFFI.userModel.isLogin) {
-            final res = await loginDialog();
-            if (res != true) return;
-          }
-          await mainSetLocalBoolOption(key, value);
-        },
-      ));
-    }
-    children.add(_OptionCheckBox(
-      context,
-      'Show monitor switch button on the main toolbar',
-      kOptionAllowMonitorSwitchMainToolbar,
-      isServer: false,
-      update: (enabled) async {
-        if (!enabled) {
-          await mainSetLocalBoolOption(
-              kOptionAllowMonitorSwitchMinToolbar, false);
-        }
-        if (mounted) setState(() {});
-        reloadAllWindows();
-        if (enabled) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final ctx = _minToolbarOptionKey.currentContext;
-            if (ctx != null) {
-              Scrollable.ensureVisible(
-                ctx,
-                alignment: 0.5,
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOut,
-              );
-            }
-          });
-        }
-      },
-    ));
-    if (mainGetLocalBoolOptionSync(kOptionAllowMonitorSwitchMainToolbar)) {
-      children.add(KeyedSubtree(
-        key: _minToolbarOptionKey,
-        child: _OptionCheckBox(
-          context,
-          'Show on the minimized toolbar',
-          kOptionAllowMonitorSwitchMinToolbar,
-          isServer: false,
-          update: (_) {
-            reloadAllWindows();
-          },
-        ).marginOnly(left: _kCheckBoxLeftMargin * 3),
-      ));
-    }
-    return _Card(title: 'Other', children: children);
+    return SettingsRow(
+      label: tr('bd-set-appearance'),
+      description: translateOrNull('bd-desc:Theme'),
+      control: BdSegmented<String>(
+        segments: [
+          BdSegment('light', tr('bd-set-light')),
+          BdSegment('dark', tr('bd-set-dark')),
+          BdSegment('system', tr('bd-set-system')),
+        ],
+        value: current,
+        onChanged: isOptFixed ? null : onChanged,
+      ),
+    );
   }
 
   Widget wallpaper() {
@@ -678,27 +585,22 @@ class _GeneralState extends State<_General> {
     }(), hasData: (data) {
       if (data is bool && data == true) {
         bool value = mainGetBoolOptionSync(kOptionAllowRemoveWallpaper);
-        return Row(
-          children: [
-            Flexible(
-              child: _OptionCheckBox(
-                context,
-                'Remove wallpaper during incoming sessions',
-                kOptionAllowRemoveWallpaper,
-                update: (bool v) {
-                  setState(() {});
-                },
-              ),
-            ),
-            if (value)
-              _CountDownButton(
-                text: 'Test',
-                second: 5,
-                onPressed: () {
-                  bind.mainTestWallpaper(second: 5);
-                },
-              )
-          ],
+        return _OptionCheckBox(
+          context,
+          'Remove wallpaper during incoming sessions',
+          kOptionAllowRemoveWallpaper,
+          update: (bool v) {
+            setState(() {});
+          },
+          extra: value
+              ? _CountDownButton(
+                  text: 'Test',
+                  second: 5,
+                  onPressed: () {
+                    bind.mainTestWallpaper(second: 5);
+                  },
+                )
+              : null,
         );
       }
 
@@ -711,18 +613,16 @@ class _GeneralState extends State<_General> {
     final vram = bind.mainHasVram();
     return Offstage(
       offstage: !(hwcodec || vram),
-      child: _Card(title: 'Hardware Codec', children: [
-        _OptionCheckBox(
-          context,
-          'Enable hardware codec',
-          kOptionEnableHwcodec,
-          update: (bool v) {
-            if (v) {
-              bind.mainCheckHwcodec();
-            }
-          },
-        )
-      ]),
+      child: _OptionCheckBox(
+        context,
+        'Enable hardware codec',
+        kOptionEnableHwcodec,
+        update: (bool v) {
+          if (v) {
+            bind.mainCheckHwcodec();
+          }
+        },
+      ),
     );
   }
 
@@ -732,16 +632,21 @@ class _GeneralState extends State<_General> {
     }
 
     builder(devices, currentDevice, setDevice) {
-      final child = ComboBox(
-        keys: devices,
-        values: devices,
-        initialKey: currentDevice,
-        onChanged: (key) async {
-          setDevice(key);
-          setState(() {});
-        },
-      ).marginOnly(left: _kContentHMargin);
-      return _Card(title: 'Audio Input Device', children: [child]);
+      return SettingsRow(
+        label: translate('Audio Input Device'),
+        description: translateOrNull('bd-desc:Audio Input Device'),
+        control: BdSelect<String>(
+          width: 240,
+          options: [
+            for (final d in devices) BdOption<String>(d as String, d),
+          ],
+          value: currentDevice,
+          onChanged: (key) async {
+            setDevice(key);
+            setState(() {});
+          },
+        ),
+      );
     }
 
     return AudioInput(builder: builder, isCm: false, isVoiceCall: false);
@@ -768,78 +673,56 @@ class _GeneralState extends State<_General> {
       String root_dir = map['root_dir']!;
       bool root_dir_exists = map['root_dir_exists']!;
       bool user_dir_exists = map['user_dir_exists']!;
-      return _Card(title: 'Recording', children: [
-        if (!bind.isOutgoingOnly())
-          _OptionCheckBox(context, 'Automatically record incoming sessions',
-              kOptionAllowAutoRecordIncoming),
+      Widget folder(String labelKey, String dir, bool exists,
+          {bool change = false}) {
+        return SettingsRow(
+          label: tr(labelKey),
+          below: GestureDetector(
+            onTap: exists ? () => launchUrl(Uri.file(dir)) : null,
+            child: Text(dir,
+                style: context.bdText.mono.copyWith(
+                    fontSize: 13,
+                    decoration: exists ? TextDecoration.underline : null)),
+          ),
+          control: change
+              ? BdButton(
+                  label: translate('Change'),
+                  size: BdButtonSize.sm,
+                  onPressed: isOptionFixed(kOptionVideoSaveDirectory)
+                      ? null
+                      : () async {
+                          String? initialDirectory;
+                          if (await Directory.fromUri(Uri.directory(user_dir))
+                              .exists()) {
+                            initialDirectory = user_dir;
+                          }
+                          String? selectedDirectory = await FilePicker.platform
+                              .getDirectoryPath(
+                                  initialDirectory: initialDirectory);
+                          if (selectedDirectory != null) {
+                            await bind.mainSetLocalOption(
+                                key: kOptionVideoSaveDirectory,
+                                value: selectedDirectory);
+                            setState(() {});
+                          }
+                        })
+              : null,
+        );
+      }
+
+      return _Card(title: 'bd-sec-recording', children: [
         if (!bind.isIncomingOnly())
           _OptionCheckBox(context, 'Automatically record outgoing sessions',
               kOptionAllowAutoRecordOutgoing,
               isServer: false),
+        if (!bind.isOutgoingOnly())
+          _OptionCheckBox(context, 'Automatically record incoming sessions',
+              kOptionAllowAutoRecordIncoming),
         if (showRootDir && !bind.isOutgoingOnly())
-          Row(
-            children: [
-              Text(
-                  '${translate(bind.isIncomingOnly() ? "Directory" : "Incoming")}:'),
-              Expanded(
-                child: GestureDetector(
-                    onTap: root_dir_exists
-                        ? () => launchUrl(Uri.file(root_dir))
-                        : null,
-                    child: Text(
-                      root_dir,
-                      softWrap: true,
-                      style: root_dir_exists
-                          ? const TextStyle(
-                              decoration: TextDecoration.underline)
-                          : null,
-                    )).marginOnly(left: 10),
-              ),
-            ],
-          ).marginOnly(left: _kContentHMargin),
+          folder('bd-set-recordings-incoming', root_dir, root_dir_exists),
         if (!(showRootDir && bind.isIncomingOnly()))
-          Row(
-            children: [
-              Text(
-                  '${translate((showRootDir && !bind.isOutgoingOnly()) ? "Outgoing" : "Directory")}:'),
-              Expanded(
-                child: GestureDetector(
-                    onTap: user_dir_exists
-                        ? () => launchUrl(Uri.file(user_dir))
-                        : null,
-                    child: Text(
-                      user_dir,
-                      softWrap: true,
-                      style: user_dir_exists
-                          ? const TextStyle(
-                              decoration: TextDecoration.underline)
-                          : null,
-                    )).marginOnly(left: 10),
-              ),
-              ElevatedButton(
-                      onPressed: isOptionFixed(kOptionVideoSaveDirectory)
-                          ? null
-                          : () async {
-                              String? initialDirectory;
-                              if (await Directory.fromUri(
-                                      Uri.directory(user_dir))
-                                  .exists()) {
-                                initialDirectory = user_dir;
-                              }
-                              String? selectedDirectory =
-                                  await FilePicker.platform.getDirectoryPath(
-                                      initialDirectory: initialDirectory);
-                              if (selectedDirectory != null) {
-                                await bind.mainSetLocalOption(
-                                    key: kOptionVideoSaveDirectory,
-                                    value: selectedDirectory);
-                                setState(() {});
-                              }
-                            },
-                      child: Text(translate('Change')))
-                  .marginOnly(left: 5),
-            ],
-          ).marginOnly(left: _kContentHMargin),
+          folder('bd-set-recordings-folder', user_dir, user_dir_exists,
+              change: true),
       ]);
     });
   }
@@ -861,18 +744,21 @@ class _GeneralState extends State<_General> {
         currentKey = defaultOptionLang;
       }
       final isOptFixed = isOptionFixed(kCommConfKeyLang);
-      return ComboBox(
-        keys: keys,
-        values: values,
-        initialKey: currentKey,
-        onChanged: (key) async {
-          await bind.mainSetLocalOption(key: kCommConfKeyLang, value: key);
-          if (isWeb) reloadCurrentWindow();
-          if (!isWeb) reloadAllWindows();
-          if (!isWeb) bind.mainChangeLanguage(lang: key);
-        },
-        enabled: !isOptFixed,
-      ).marginOnly(left: _kContentHMargin);
+      return BdSelect<String>(
+        width: 240,
+        options: [
+          for (var i = 0; i < keys.length; i++) BdOption(keys[i], values[i]),
+        ],
+        value: currentKey,
+        onChanged: isOptFixed
+            ? null
+            : (key) async {
+                await bind.mainSetLocalOption(key: kCommConfKeyLang, value: key);
+                if (isWeb) reloadCurrentWindow();
+                if (!isWeb) reloadAllWindows();
+                if (!isWeb) bind.mainChangeLanguage(lang: key);
+              },
+      );
     });
   }
 }
@@ -899,9 +785,8 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return SingleChildScrollView(
-        controller: scrollController,
-        child: Column(
+    return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _lock(locked, 'Unlock Security Settings', () {
               locked = false;
@@ -909,7 +794,10 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
             }),
             preventMouseKeyBuilder(
               block: locked,
-              child: Column(children: [
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                if (!isWeb && !bind.isOutgoingOnly()) _serviceCard(),
                 permissions(context),
                 password(context),
                 _Card(title: '2FA', children: [tfa()]),
@@ -919,7 +807,31 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               ]),
             ),
           ],
-        )).marginOnly(bottom: _kListViewBottomMargin);
+        );
+  }
+
+  final RxBool _serviceStop =
+      isWeb ? RxBool(false) : Get.find<RxBool>(tag: 'stop-service');
+
+  /// Allow connections to this computer: today's Service Start / Stop.
+  Widget _serviceCard() {
+    final hideStopService =
+        bind.mainGetBuildinOption(key: kOptionHideStopService) == 'Y';
+    return Obx(() {
+      if (hideStopService && !_serviceStop.value) return const Offstage();
+      return _Card(title: 'bd-sec-connections-to-this-computer', children: [
+        SettingsRow(
+          label: tr('bd-set-allow-connections'),
+          description: translateOrNull('bd-desc:bd-set-allow-connections'),
+          control: BdSwitch(
+            value: !_serviceStop.value,
+            onChanged: (v) async {
+              await start_service(v);
+            },
+          ),
+        ),
+      ]);
+    });
   }
 
   Widget tfa() {
@@ -1449,8 +1361,8 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                   Offstage(
                     offstage: !hasWhitelist.value,
                     child: MouseRegion(
-                      child: const Icon(Icons.warning_amber_rounded,
-                              color: Color.fromARGB(255, 255, 204, 0))
+                      child: Icon(Icons.warning_amber_rounded,
+                              color: context.bd.warning)
                           .marginOnly(right: 5),
                       cursor: SystemMouseCursors.click,
                     ),
@@ -1499,8 +1411,8 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                 Offstage(
                   offstage: !hasIdWhitelist.value,
                   child: MouseRegion(
-                    child: const Icon(Icons.warning_amber_rounded,
-                            color: Color.fromARGB(255, 255, 204, 0))
+                    child: Icon(Icons.warning_amber_rounded,
+                            color: context.bd.warning)
                         .marginOnly(right: 5),
                     cursor: SystemMouseCursors.click,
                   ),
@@ -1673,18 +1585,70 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return ListView(controller: scrollController, children: [
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      serverSummary(),
       _lock(locked, 'Unlock Network Settings', () {
         locked = false;
         setState(() => {});
       }),
       preventMouseKeyBuilder(
         block: locked,
-        child: Column(children: [
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           network(context),
         ]),
       ),
-    ]).marginOnly(bottom: _kListViewBottomMargin);
+    ]);
+  }
+
+  /// Status, addresses and key, with Join a server and Set up by hand.
+  Widget serverSummary() {
+    final hideServer =
+        bind.mainGetBuildinOption(key: kOptionHideServerSetting) == 'Y';
+    return futureBuilder(
+      future: bind.mainGetOptions(),
+      hasData: (raw) {
+        Map<String, dynamic> options = {};
+        try {
+          options = jsonDecode(raw as String) as Map<String, dynamic>;
+        } catch (_) {}
+        final config = ServerConfig.fromOptions(options);
+        return Obx(() => ServerSummary(
+              connected: stateGlobal.svcStatus.value == SvcStatus.ready,
+              server: config.idServer,
+              relay: config.relayServer,
+              api: config.apiServer,
+              keyText: config.key,
+              actions: hideServer
+                  ? const []
+                  : [
+                      BdButton(
+                        label: tr('bd-join-a-server'),
+                        onPressed: () => showJoinServerDialog(
+                            OnboardingService.instance,
+                            currentServer: config.idServer),
+                      ),
+                      BdButton(
+                        label: tr('bd-set-up-by-hand'),
+                        onPressed: () async {
+                          await showSetupByHand();
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                      BdButton(
+                        label: tr('bd-set-pair-code'),
+                        onPressed: showPairWithCodeDialog,
+                      ),
+                      if (config.key.isNotEmpty)
+                        BdButton(
+                          label: tr('bd-set-copy-key'),
+                          kind: BdButtonKind.ghost,
+                          onPressed: () => Clipboard.setData(
+                              ClipboardData(text: config.key)),
+                        ),
+                    ],
+            ));
+      },
+    );
   }
 
   Widget network(BuildContext context) {
@@ -1699,164 +1663,61 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
       return Offstage();
     }
 
-    // Helper function to create network setting ListTiles
-    Widget listTile({
-      required IconData icon,
-      required String title,
-      VoidCallback? onTap,
-      Widget? trailing,
-      bool showTooltip = false,
-      String tooltipMessage = '',
-    }) {
-      final titleWidget = showTooltip
-          ? Row(
-              children: [
-                Tooltip(
-                  waitDuration: Duration(milliseconds: 1000),
-                  message: translate(tooltipMessage),
-                  child: Row(
-                    children: [
-                      Text(
-                        translate(title),
-                        style: TextStyle(fontSize: _kContentFontSize),
-                      ),
-                      SizedBox(width: 5),
-                      Icon(
-                        Icons.help_outline,
-                        size: 14,
-                        color: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.color
-                            ?.withOpacity(0.7),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            )
-          : Text(
-              translate(title),
-              style: TextStyle(fontSize: _kContentFontSize),
-            );
-
-      return ListTile(
-        leading: Icon(icon, color: _accentColor),
-        title: titleWidget,
-        enabled: !locked,
-        onTap: onTap,
-        trailing: trailing,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        contentPadding: EdgeInsets.symmetric(horizontal: 16),
-        minLeadingWidth: 0,
-        horizontalTitleGap: 10,
-      );
-    }
-
-    Widget switchWidget(IconData icon, String title, String tooltipMessage,
-            String optionKey) =>
-        listTile(
-          icon: icon,
-          title: title,
-          showTooltip: true,
-          tooltipMessage: tooltipMessage,
-          trailing: Switch(
-            value: mainGetBoolOptionSync(optionKey),
+    final outgoingOnly = bind.isOutgoingOnly();
+    Widget switchRow(String label, String optionKey,
+            {bool Function()? get, Future<void> Function(bool)? set}) =>
+        SettingsRow(
+          label: translate(label),
+          description: translateOrNull('bd-desc:$label'),
+          control: BdSwitch(
+            value: get != null ? get() : mainGetBoolOptionSync(optionKey),
             onChanged: locked || isOptionFixed(optionKey)
                 ? null
-                : (value) {
-                    mainSetBoolOption(optionKey, value);
+                : (value) async {
+                    if (set != null) {
+                      await set(value);
+                    } else {
+                      await mainSetBoolOption(optionKey, value);
+                    }
                     setState(() {});
                   },
           ),
         );
 
-    final outgoingOnly = bind.isOutgoingOnly();
-
-    final divider = const Divider(height: 1, indent: 16, endIndent: 16);
     return _Card(
-      title: 'Network',
+      title: 'bd-sec-connection',
       children: [
-        Container(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!hideServer)
-                listTile(
-                  icon: Icons.dns_outlined,
-                  title: 'ID/Relay Server',
-                  onTap: () => showServerSettings(gFFI.dialogManager, setState),
-                ),
-              if (!hideServer) divider,
-              if (!hideServer)
-                listTile(
-                  icon: Icons.link,
-                  title: 'Pair with code',
-                  onTap: showPairWithCodeDialog,
-                ),
-              if (!hideProxy && !hideServer) divider,
-              if (!hideProxy)
-                listTile(
-                  icon: Icons.network_ping_outlined,
-                  title: 'Socks5/Http(s) Proxy',
-                  onTap: changeSocks5Proxy,
-                ),
-              if (!hideWebSocket && (!hideServer || !hideProxy)) divider,
-              if (!hideWebSocket)
-                switchWidget(
-                    Icons.web_asset_outlined,
-                    'Use WebSocket',
-                    '${translate('websocket_tip')}\n\n${translate('server-oss-not-support-tip')}',
-                    kOptionAllowWebSocket),
-              if (!isWeb)
-                futureBuilder(
-                  future: bind.mainIsUsingPublicServer(),
-                  hasData: (isUsingPublicServer) {
-                    if (isUsingPublicServer) {
-                      return Offstage();
-                    } else {
-                      return Column(
-                        children: [
-                          if (!hideServer || !hideProxy || !hideWebSocket)
-                            divider,
-                          switchWidget(
-                              Icons.no_encryption_outlined,
-                              'Allow insecure TLS fallback',
-                              'allow-insecure-tls-fallback-tip',
-                              kOptionAllowInsecureTLSFallback),
-                          if (!outgoingOnly) divider,
-                          if (!outgoingOnly)
-                            listTile(
-                              icon: Icons.lan_outlined,
-                              title: 'Disable UDP',
-                              showTooltip: true,
-                              tooltipMessage:
-                                  '${translate('disable-udp-tip')}\n\n${translate('server-oss-not-support-tip')}',
-                              trailing: Switch(
-                                value: bind.mainGetOptionSync(
-                                        key: kOptionDisableUdp) ==
-                                    'Y',
-                                onChanged:
-                                    locked || isOptionFixed(kOptionDisableUdp)
-                                        ? null
-                                        : (value) async {
-                                            await bind.mainSetOption(
-                                                key: kOptionDisableUdp,
-                                                value: value ? 'Y' : 'N');
-                                            setState(() {});
-                                          },
-                              ),
-                            ),
-                        ],
-                      );
-                    }
-                  },
-                ),
-            ],
+        if (!hideProxy)
+          SettingsRow(
+            label: translate('Socks5/Http(s) Proxy'),
+            description: translateOrNull('bd-desc:Socks5/Http(s) Proxy'),
+            control: BdButton(
+                label: tr('bd-set-up'),
+                size: BdButtonSize.sm,
+                onPressed: locked ? null : changeSocks5Proxy),
           ),
-        ),
+        if (!hideWebSocket) switchRow('Use WebSocket', kOptionAllowWebSocket),
+        if (!isWeb)
+          futureBuilder(
+            future: bind.mainIsUsingPublicServer(),
+            hasData: (isUsingPublicServer) {
+              if (isUsingPublicServer) return Offstage();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!outgoingOnly)
+                    switchRow('Disable UDP', kOptionDisableUdp,
+                        get: () =>
+                            bind.mainGetOptionSync(key: kOptionDisableUdp) ==
+                            'Y',
+                        set: (v) => bind.mainSetOption(
+                            key: kOptionDisableUdp, value: v ? 'Y' : 'N')),
+                  switchRow('Allow insecure TLS fallback',
+                      kOptionAllowInsecureTLSFallback),
+                ],
+              );
+            },
+          ),
       ],
     );
   }
@@ -1872,8 +1733,7 @@ class _Display extends StatefulWidget {
 class _DisplayState extends State<_Display> {
   @override
   Widget build(BuildContext context) {
-    final scrollController = ScrollController();
-    return ListView(controller: scrollController, children: [
+    return _Card(title: 'bd-sec-new-sessions-you-start', children: [
       viewStyle(context),
       scrollStyle(context),
       imageQuality(context),
@@ -1881,7 +1741,7 @@ class _DisplayState extends State<_Display> {
       if (isDesktop) trackpadSpeed(context),
       if (!isWeb) privacyModeImpl(context),
       other(context),
-    ]).marginOnly(bottom: _kListViewBottomMargin);
+    ]);
   }
 
   Widget viewStyle(BuildContext context) {
@@ -2147,13 +2007,8 @@ class _Account extends StatefulWidget {
 class _AccountState extends State<_Account> {
   @override
   Widget build(BuildContext context) {
-    final scrollController = ScrollController();
-    return ListView(
-      controller: scrollController,
-      children: [
-        _Card(title: 'Account', children: [accountAction(), useInfo()]),
-      ],
-    ).marginOnly(bottom: _kListViewBottomMargin);
+    return _Card(
+        title: 'bd-sec-account', children: [accountAction(), useInfo()]);
   }
 
   Widget accountAction() {
@@ -2291,11 +2146,10 @@ class _Printer extends StatefulWidget {
 class __PrinterState extends State<_Printer> {
   @override
   Widget build(BuildContext context) {
-    final scrollController = ScrollController();
-    return ListView(controller: scrollController, children: [
+    return _Card(title: 'bd-sec-printing', children: [
       outgoing(context),
       incoming(context),
-    ]).marginOnly(bottom: _kListViewBottomMargin);
+    ]);
   }
 
   Widget outgoing(BuildContext context) {
@@ -2345,7 +2199,7 @@ class __PrinterState extends State<_Printer> {
                   child: Text(failedMsg.value,
                           style: DefaultTextStyle.of(context)
                               .style
-                              .copyWith(color: Colors.red))
+                              .copyWith(color: context.bd.danger))
                       .marginOnly(bottom: 10.0)),
         ),
         _Button('Install {$appName} Printer', () {
@@ -2678,12 +2532,11 @@ class _BrandingState extends State<_Branding> {
 
   @override
   Widget build(BuildContext context) {
-    final scrollController = ScrollController();
     final managed = BrandingModel.current.isManagedByServer;
-    return ListView(
-      controller: scrollController,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Card(title: 'Branding', children: [
+        _Card(title: 'bd-sec-reports-and-branding', children: [
           if (managed)
             Text(
               translate('Managed by BetterDesk server'),
@@ -2700,12 +2553,7 @@ class _BrandingState extends State<_Branding> {
           _field('Website', kOptionBrandingWebsite, _websiteController,
               hint: 'https://'),
           _colorField('Accent color', kOptionBrandingAccentColor,
-              _accentController, MyTheme.accent),
-          _colorField(
-              'Background color',
-              kOptionBrandingBackgroundColor,
-              _backgroundController,
-              Theme.of(context).colorScheme.background),
+              _accentController, BdColors.light.accent),
           if (!managed)
             Row(
               children: [
@@ -2721,9 +2569,8 @@ class _BrandingState extends State<_Branding> {
               ],
             ).marginOnly(left: _kContentHMargin, top: 6),
         ]),
-        const SizedBox(height: _kListViewBottomMargin),
       ],
-    ).marginOnly(bottom: _kListViewBottomMargin);
+    );
   }
 }
 
@@ -2735,185 +2582,51 @@ class _About extends StatefulWidget {
 }
 
 class _AboutState extends State<_About> {
+  String? _result;
+
   @override
   Widget build(BuildContext context) {
     return futureBuilder(future: () async {
-      final license = await bind.mainGetLicense();
-      final version = await bind.mainGetVersion();
-      final buildDate = await bind.mainGetBuildDate();
-      final fingerprint = await bind.mainGetFingerprint();
-      final myId = await bind.mainGetMyId();
       return {
-        'license': license,
-        'version': version,
-        'buildDate': buildDate,
-        'fingerprint': fingerprint,
-        'myId': myId
+        'version': await bind.mainGetVersion(),
+        'buildDate': await bind.mainGetBuildDate(),
+        'fingerprint': await bind.mainGetFingerprint(),
+        'myId': await bind.mainGetMyId(),
       };
     }(), hasData: (data) {
-      final license = data['license'].toString();
-      final version = data['version'].toString();
-      final buildDate = data['buildDate'].toString();
-      final fingerprint = data['fingerprint'].toString();
-      final myId = data['myId'].toString();
-      const linkStyle = TextStyle(decoration: TextDecoration.underline);
-      final scrollController = ScrollController();
-      return SingleChildScrollView(
-        controller: scrollController,
-        child: _Card(
-            title: 'About',
-            title_suffix: [
-              Text(
-                ' $kBetterDeskDisplayName',
-                style: const TextStyle(fontSize: _kTitleFontSize),
-              ),
-            ],
-            children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(
-                height: 8.0,
-              ),
-              SelectionArea(
-                  child: Text('${translate('Version')}: $version')
-                      .marginSymmetric(vertical: 4.0)),
-              SelectionArea(
-                  child: Text('${translate('Build Date')}: $buildDate')
-                      .marginSymmetric(vertical: 4.0)),
-              if (!isWeb)
-                SelectionArea(
-                    child: Text('${translate('Fingerprint')}: $fingerprint')
-                        .marginSymmetric(vertical: 4.0)),
-              SelectionArea(
-                  child: Text('${translate('ID')}: $myId')
-                      .marginSymmetric(vertical: 4.0)),
-              SelectionArea(
-                  child: Text(
-                '${translate('License')}: $kBetterDeskLicenseName ($kBetterDeskLicenseSpdx)',
-              ).marginSymmetric(vertical: 4.0)),
-              const SizedBox(height: 8.0),
-              SelectionArea(
-                  child: Text(
-                () {
-                  final tip = translate('betterdesk_fork_attribution_tip');
-                  if (tip == 'betterdesk_fork_attribution_tip' || tip.isEmpty) {
-                    return localeName.startsWith('pl')
-                        ? kBetterDeskForkAttributionTipPl
-                        : kBetterDeskForkAttributionTip;
-                  }
-                  return tip;
-                }(),
-              ).marginSymmetric(vertical: 4.0)),
-              InkWell(
-                  onTap: () {
-                    launchUrlString(kBetterDeskClientRepoUrl);
-                  },
-                  child: Text(
-                    '${translate('Source code')}: $kBetterDeskClientRepoUrl',
-                    style: linkStyle,
-                  ).marginSymmetric(vertical: 4.0)),
-              InkWell(
-                  onTap: () {
-                    launchUrlString(kUpstreamRepoUrl);
-                  },
-                  child: Text(
-                    '${translate('Upstream')} ($kUpstreamProjectName): $kUpstreamRepoUrl',
-                    style: linkStyle,
-                  ).marginSymmetric(vertical: 4.0)),
-              InkWell(
-                  onTap: () {
-                    launchUrlString(
-                        'https://www.gnu.org/licenses/agpl-3.0.html');
-                  },
-                  child: Text(
-                    translate('View license'),
-                    style: linkStyle,
-                  ).marginSymmetric(vertical: 4.0)),
-              InkWell(
-                  onTap: () {
-                    launchUrlString(kBetterDeskClientRepoUrl);
-                  },
-                  child: Text(
-                    translate('Website'),
-                    style: linkStyle,
-                  ).marginSymmetric(vertical: 4.0)),
-              Container(
-                decoration: const BoxDecoration(color: Color(0xFF2c8cff)),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
-                child: SelectionArea(
-                    child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Copyright © ${DateTime.now().toString().substring(0, 4)} UNITRONIX\n'
-                            'Based on $kUpstreamProjectName — Copyright © Purslane Ltd. / RustDesk contributors\n'
-                            'Licensed under $kBetterDeskLicenseSpdx\n'
-                            '${license.isEmpty ? '' : license}',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          Text(
-                            translate('Slogan_tip'),
-                            style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white),
-                          )
-                        ],
-                      ),
-                    ),
-                  ],
-                )),
-              ).marginSymmetric(vertical: 4.0)
-            ],
-          ).marginOnly(left: _kContentHMargin)
-        ]),
+      return AboutView(
+        facts: AboutFacts(
+          version: data['version'].toString(),
+          buildDate: data['buildDate'].toString(),
+          id: data['myId'].toString(),
+          fingerprint: data['fingerprint'].toString(),
+        ),
+        onViewLicence: () =>
+            launchUrlString('https://www.gnu.org/licenses/agpl-3.0.html'),
+        onSource: () => launchUrlString(kBetterDeskClientRepoUrl),
+        onUpstream: () => launchUrlString(kUpstreamRepoUrl),
+        // Update checks are off in this build; the releases page shows
+        // the newest version.
+        onCheckUpdates: () {
+          launchUrlString('$kBetterDeskClientRepoUrl/releases');
+          setState(() => _result = null);
+        },
+        updateResult: _result,
+        sourceLabel: kBetterDeskClientRepoUrl.replaceFirst('https://', ''),
       );
     });
   }
 }
 
-//#endregion
-
-//#region components
-
-// ignore: non_constant_identifier_names
 Widget _Card(
     {required String title,
     required List<Widget> children,
     List<Widget>? title_suffix}) {
-  return Row(
-    children: [
-      Flexible(
-        child: SizedBox(
-          width: _kCardFixedWidth,
-          child: Card(
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                        child: Text(
-                      translate(title),
-                      textAlign: TextAlign.start,
-                      style: const TextStyle(
-                        fontSize: _kTitleFontSize,
-                      ),
-                    )),
-                    ...?title_suffix
-                  ],
-                ).marginOnly(left: _kContentHMargin, top: 10, bottom: 10),
-                ...children
-                    .map((e) => e.marginOnly(top: 4, right: _kContentHMargin)),
-              ],
-            ).marginOnly(bottom: 10),
-          ).marginOnly(left: _kCardLeftMargin, top: 15),
-        ),
-      ),
-    ],
+  return SettingsSection(
+    title: translate(title),
+    lead: translateOrNull('$title-lead'),
+    trailing: title_suffix,
+    children: children,
   );
 }
 
@@ -2930,6 +2643,7 @@ Widget _OptionCheckBox(
   bool isServer = true,
   bool Function()? optGetter,
   Future<void> Function(String, bool)? optSetter,
+  Widget? extra,
 }) {
   getOpt() => optGetter != null
       ? optGetter()
@@ -2961,32 +2675,27 @@ Widget _OptionCheckBox(
     enabled = false;
   }
 
-  return GestureDetector(
-    child: Obx(
-      () => Row(
-        children: [
-          Checkbox(
-                  value: ref.value,
-                  onChanged: enabled && !isOptFixed ? onChanged : null)
-              .marginOnly(right: 5),
-          Offstage(
-            offstage: !ref.value || checkedIcon == null,
-            child: checkedIcon?.marginOnly(right: 5),
+  final canChange = enabled && !isOptFixed;
+  return Obx(() => SettingsRow(
+        label: translate(label),
+        description: isOptFixed && BrandingModel.current.hasCompanyName
+            ? tr('bd-set-fixed-by',
+                [BrandingModel.current.companyName.value.trim()])
+            : translateOrNull('bd-desc:$label'),
+        enabled: canChange || !enabled,
+        control: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (extra != null) ...[extra, const SizedBox(width: 12)],
+          if (ref.value && checkedIcon != null) ...[
+            checkedIcon,
+            const SizedBox(width: 8),
+          ],
+          BdSwitch(
+            value: ref.value,
+            semanticLabel: translate(label),
+            onChanged: canChange ? (v) => onChanged(v) : null,
           ),
-          Expanded(
-              child: Text(
-            translate(label),
-            style: TextStyle(color: disabledTextColor(context, enabled)),
-          ))
-        ],
-      ),
-    ).marginOnly(left: _kCheckBoxLeftMargin),
-    onTap: enabled && !isOptFixed
-        ? () {
-            onChanged(!ref.value);
-          }
-        : null,
-  );
+        ]),
+      ));
 }
 
 // ignore: non_constant_identifier_names
@@ -2996,28 +2705,28 @@ Widget _Radio<T>(BuildContext context,
     required String label,
     required Function(T value)? onChanged,
     bool autoNewLine = true}) {
-  final onChange2 = onChanged != null
-      ? (T? value) {
-          if (value != null) {
-            onChanged(value);
-          }
-        }
-      : null;
-  return GestureDetector(
-    child: Row(
-      children: [
-        Radio<T>(value: value, groupValue: groupValue, onChanged: onChange2),
-        Expanded(
-          child: Text(translate(label),
+  final enabled = onChanged != null;
+  return MouseRegion(
+    cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? () => onChanged(value) : null,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.45,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(children: [
+            BdRadioMark(selected: value == groupValue),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(translate(label),
                   overflow: autoNewLine ? null : TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: _kContentFontSize,
-                      color: disabledTextColor(context, onChange2 != null)))
-              .marginOnly(left: 5),
+                  style: context.bdText.body),
+            ),
+          ]),
         ),
-      ],
-    ).marginOnly(left: _kRadioLeftMargin),
-    onTap: () => onChange2?.call(value),
+      ),
+    ),
   );
 }
 
@@ -3129,7 +2838,7 @@ class _WaylandCardState extends State<WaylandCard> {
       showConfirmMsgBox,
       tip: 'clear_Wayland_screen_selection_tip',
       style: ButtonStyle(
-        backgroundColor: MaterialStateProperty.all<Color>(
+        backgroundColor: WidgetStateProperty.all<Color>(
             Theme.of(context).colorScheme.error.withOpacity(0.75)),
       ),
     );
@@ -3164,7 +2873,7 @@ class _WaylandCardState extends State<WaylandCard> {
                 child: Text(_clearShortcutsInhibitorFailedMsg.value,
                         style: DefaultTextStyle.of(context)
                             .style
-                            .copyWith(color: Colors.red))
+                            .copyWith(color: context.bd.danger))
                     .marginOnly(bottom: 10.0)),
       ),
       _Button(
@@ -3172,7 +2881,7 @@ class _WaylandCardState extends State<WaylandCard> {
         showConfirmMsgBox,
         tip: 'clear-shortcuts-inhibitor-permission-tip',
         style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.all<Color>(
+          backgroundColor: WidgetStateProperty.all<Color>(
               Theme.of(context).colorScheme.error.withOpacity(0.75)),
         ),
       ),
@@ -3183,53 +2892,51 @@ class _WaylandCardState extends State<WaylandCard> {
 // ignore: non_constant_identifier_names
 Widget _Button(String label, Function() onPressed,
     {bool enabled = true, String? tip, ButtonStyle? style}) {
-  var button = ElevatedButton(
+  Widget button = BdButton(
+    label: translate(label),
+    size: BdButtonSize.sm,
     onPressed: enabled ? onPressed : null,
-    child: Text(
-      translate(label),
-    ).marginSymmetric(horizontal: 15),
-    style: style,
   );
-  StatefulWidget child;
-  if (tip == null) {
-    child = button;
-  } else {
-    child = Tooltip(message: translate(tip), child: button);
+  if (tip != null) {
+    button = Tooltip(message: translate(tip), child: button);
   }
-  return Row(children: [
-    child,
-  ]).marginOnly(left: _kContentHMargin);
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(children: [button]),
+  );
 }
 
 // ignore: non_constant_identifier_names
 Widget _SubButton(String label, Function() onPressed, [bool enabled = true]) {
-  return Row(
-    children: [
-      ElevatedButton(
+  return Padding(
+    padding: const EdgeInsets.only(left: 26, top: 4, bottom: 4),
+    child: Row(children: [
+      BdButton(
+        label: translate(label),
+        size: BdButtonSize.sm,
         onPressed: enabled ? onPressed : null,
-        child: Text(
-          translate(label),
-        ).marginSymmetric(horizontal: 15),
       ),
-    ],
-  ).marginOnly(left: _kContentHSubMargin);
+    ]),
+  );
 }
 
 // ignore: non_constant_identifier_names
 Widget _SubLabeledWidget(BuildContext context, String label, Widget child,
     {bool enabled = true}) {
-  return Row(
-    children: [
-      Text(
-        '${translate(label)}: ',
-        style: TextStyle(color: disabledTextColor(context, enabled)),
-      ),
-      SizedBox(
-        width: 10,
-      ),
-      child,
-    ],
-  ).marginOnly(left: _kContentHSubMargin);
+  return Padding(
+    padding: const EdgeInsets.only(left: 26, top: 4, bottom: 4),
+    child: Row(
+      children: [
+        Text(
+          translate(label),
+          style: context.bdText.body.copyWith(
+              color: enabled ? context.bd.text : context.bd.textMuted),
+        ),
+        const SizedBox(width: 12),
+        child,
+      ],
+    ),
+  );
 }
 
 Widget _lock(
@@ -3238,87 +2945,19 @@ Widget _lock(
   Function() onUnlock,
 ) {
   return Offstage(
-      offstage: !locked,
-      child: Row(
-        children: [
-          Flexible(
-            child: SizedBox(
-              width: _kCardFixedWidth,
-              child: Card(
-                child: ElevatedButton(
-                  child: SizedBox(
-                      height: 25,
-                      child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.security_sharp,
-                              size: 20,
-                            ),
-                            Text(translate(label)).marginOnly(left: 5),
-                          ]).marginSymmetric(vertical: 2)),
-                  onPressed: () async {
-                    final unlockPin = bind.mainGetUnlockPin();
-                    if (unlockPin.isEmpty || isUnlockPinDisabled()) {
-                      bool checked = await callMainCheckSuperUserPermission();
-                      if (checked) {
-                        onUnlock();
-                      }
-                    } else {
-                      checkUnlockPinDialog(unlockPin, onUnlock);
-                    }
-                  },
-                ).marginSymmetric(horizontal: 2, vertical: 4),
-              ).marginOnly(left: _kCardLeftMargin),
-            ).marginOnly(top: 10),
-          ),
-        ],
-      ));
-}
-
-_LabeledTextField(
-    BuildContext context,
-    String label,
-    TextEditingController controller,
-    String errorText,
-    bool enabled,
-    bool secure) {
-  return Table(
-    columnWidths: const {
-      0: FixedColumnWidth(150),
-      1: FlexColumnWidth(),
-    },
-    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-    children: [
-      TableRow(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: Text(
-              '${translate(label)}:',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 16,
-                color: disabledTextColor(context, enabled),
-              ),
-            ),
-          ),
-          TextField(
-            controller: controller,
-            enabled: enabled,
-            obscureText: secure,
-            autocorrect: false,
-            decoration: InputDecoration(
-              errorText: errorText.isNotEmpty ? errorText : null,
-            ),
-            style: TextStyle(
-              color: disabledTextColor(context, enabled),
-            ),
-          ).workaroundFreezeLinuxMint(),
-        ],
-      ),
-    ],
-  ).marginOnly(bottom: 8);
+    offstage: !locked,
+    child: SettingsLockNotice(onUnlock: () async {
+      final unlockPin = bind.mainGetUnlockPin();
+      if (unlockPin.isEmpty || isUnlockPinDisabled()) {
+        bool checked = await callMainCheckSuperUserPermission();
+        if (checked) {
+          onUnlock();
+        }
+      } else {
+        checkUnlockPinDialog(unlockPin, onUnlock);
+      }
+    }),
+  );
 }
 
 class _CountDownButton extends StatefulWidget {

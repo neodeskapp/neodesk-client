@@ -16,6 +16,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter_hbb/utils/http_service.dart' as http;
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import 'address_book.dart';
@@ -135,7 +136,8 @@ void changeIdDialog() {
                 labelText: translate('Your new ID'),
                 errorText: msg.isEmpty ? null : translate(msg),
                 suffixText: '${rxId.value.length}/16',
-                suffixStyle: const TextStyle(fontSize: 12, color: Colors.grey)),
+                suffixStyle:
+                    TextStyle(fontSize: 12, color: context.bd.textMuted)),
             inputFormatters: [
               LengthLimitingTextInputFormatter(16),
               // FilteringTextInputFormatter(RegExp(r"[a-zA-z][a-zA-z0-9\_]*"), allow: true)
@@ -163,12 +165,12 @@ void changeIdDialog() {
                             e.name,
                             style: TextStyle(
                                 color: checked
-                                    ? const Color(0xFF0A9471)
-                                    : Color.fromARGB(255, 198, 86, 157)),
+                                    ? context.bd.success
+                                    : context.bd.danger),
                           ),
                           backgroundColor: checked
-                              ? const Color(0xFFD0F7ED)
-                              : Color.fromARGB(255, 247, 205, 232));
+                              ? context.bd.noticeBg(context.bd.success)
+                              : context.bd.noticeBg(context.bd.danger));
                     }).toList(),
                   )).marginOnly(bottom: 8)
               : SizedBox.shrink(),
@@ -1232,11 +1234,9 @@ void showRequestElevationDialog(
   Widget UacNote = Container(
     padding: EdgeInsets.fromLTRB(10, 8, 8, 8),
     decoration: BoxDecoration(
-      color: MyTheme.currentThemeMode() == ThemeMode.dark
-          ? Color.fromARGB(135, 87, 87, 90)
-          : Colors.grey[100],
+      color: bdColors.bgSubtle,
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: Colors.grey),
+      border: Border.all(color: bdColors.rule),
     ),
     child: Row(
       children: [
@@ -1405,7 +1405,7 @@ void showRestartRemoteDevice(PeerInfo pi, String id, SessionID sessionId,
   final res = await dialogManager
       .show<bool>((setState, close, context) => CustomAlertDialog(
             title: Row(children: [
-              Icon(Icons.warning_rounded, color: Colors.redAccent, size: 28),
+              Icon(Icons.warning_rounded, color: context.bd.danger, size: 28),
               Flexible(
                   child: Text(translate("Restart remote device"))
                       .paddingOnly(left: 10)),
@@ -1903,10 +1903,9 @@ int? _validateTrackpadSpeed(String text) {
   final speed = int.tryParse(text);
   if (speed == null || speed < kMinTrackpadSpeed || speed > kMaxTrackpadSpeed) {
     BotToast.showText(
-      text:
-          '${translate('Invalid format')}: $kMinTrackpadSpeed-$kMaxTrackpadSpeed',
-      contentColor: Colors.red,
-    );
+        text: '${translate('Invalid format')}: $kMinTrackpadSpeed-$kMaxTrackpadSpeed',
+        contentColor: bdColors.danger,
+        textStyle: toastTextStyle(bdColors.onDanger));
     return null;
   }
   return speed;
@@ -1929,9 +1928,9 @@ void _showTrackpadSpeedSaveError(Object error, StackTrace stackTrace) {
   debugPrint('Failed to save trackpad speed: $error');
   debugPrintStack(stackTrace: stackTrace);
   BotToast.showText(
-    text: translate('Failed'),
-    contentColor: Colors.red,
-  );
+      text: translate('Failed'),
+      contentColor: bdColors.danger,
+      textStyle: toastTextStyle(bdColors.onDanger));
 }
 
 List<Widget> _trackpadSpeedDialogActions({
@@ -2019,7 +2018,7 @@ void deleteConfirmDialog(Function onSubmit, String title) async {
           children: [
             Icon(
               Icons.delete_rounded,
-              color: Colors.red,
+              color: context.bd.danger,
             ),
             Expanded(
               child: Text(title, overflow: TextOverflow.ellipsis).paddingOnly(
@@ -2261,7 +2260,7 @@ void changeBot({Function()? callback}) async {
               .marginOnly(bottom: 12),
           Row(children: [Expanded(child: codeField)]),
           if (errorText != '')
-            Text(errorText, style: TextStyle(color: Colors.red))
+            Text(errorText, style: TextStyle(color: context.bd.danger))
                 .marginOnly(top: 12),
         ],
       ),
@@ -2323,7 +2322,7 @@ void change2fa({Function()? callback}) async {
               width: 160,
               height: 160,
               child: QrImageView(
-                backgroundColor: Colors.white,
+                backgroundColor: context.bd.white,
                 data: new2fa,
                 version: QrVersions.auto,
                 size: 160,
@@ -2476,7 +2475,10 @@ void addPeersToAbDialog(
       showToast(translate('Successful'));
       return true;
     } else {
-      BotToast.showText(text: errMsg, contentColor: Colors.red);
+      BotToast.showText(
+          text: errMsg,
+          contentColor: bdColors.danger,
+          textStyle: toastTextStyle(bdColors.onDanger));
       return false;
     }
   }
@@ -2507,7 +2509,8 @@ void addPeersToAbDialog(
       if (controller.text != gFFI.abModel.translatedName(currentName.value)) {
         BotToast.showText(
             text: 'illegal address book name: ${controller.text}',
-            contentColor: Colors.red);
+            contentColor: bdColors.danger,
+            textStyle: toastTextStyle(bdColors.onDanger));
         return;
       }
       isInProgress.value = true;
@@ -2627,7 +2630,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
             ).workaroundFreezeLinuxMint(),
             if (!gFFI.abModel.current.isPersonal())
               Row(children: [
-                Icon(Icons.info, color: Colors.amber).marginOnly(right: 4),
+                Icon(Icons.info, color: context.bd.warning).marginOnly(right: 4),
                 Text(
                   translate('share_warning_tip'),
                   style: TextStyle(fontSize: 12),
@@ -2649,7 +2652,8 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
             icon: Icon(Icons.delete_outline_rounded),
             onPressed: () => change(''),
             buttonStyle: ButtonStyle(
-                backgroundColor: MaterialStatePropertyAll(Colors.red)),
+                backgroundColor: WidgetStatePropertyAll(context.bd.danger),
+                foregroundColor: WidgetStatePropertyAll(context.bd.onDanger)),
           ),
         Obx(() => dialogButton(
               "OK",

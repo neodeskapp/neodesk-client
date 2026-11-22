@@ -11,6 +11,7 @@ import 'package:get/get.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../common.dart';
+import '../common/theme/bd_theme.dart';
 import '../common/formatter/id_formatter.dart';
 import '../desktop/pages/server_page.dart' as desktop;
 import '../desktop/widgets/tabbar_widget.dart';
@@ -392,8 +393,8 @@ class ServerModel with ChangeNotifier {
         submit() => close(true);
         return CustomAlertDialog(
           title: Row(children: [
-            const Icon(Icons.warning_amber_sharp,
-                color: Colors.redAccent, size: 28),
+            Icon(Icons.warning_amber_sharp,
+                color: context.bd.danger, size: 28),
             const SizedBox(width: 10),
             Text(translate("Warning")),
           ]),
@@ -419,8 +420,8 @@ class ServerModel with ChangeNotifier {
         submit() => close(true);
         return CustomAlertDialog(
           title: Row(children: [
-            const Icon(Icons.warning_amber_sharp,
-                color: Colors.redAccent, size: 28),
+            Icon(Icons.warning_amber_sharp,
+                color: context.bd.danger, size: 28),
             const SizedBox(width: 10),
             Text(translate("Warning")),
           ]),

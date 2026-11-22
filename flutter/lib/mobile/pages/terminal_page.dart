@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/models/input_modifier_utils.dart';
 import 'package:flutter_hbb/models/model.dart';
@@ -346,7 +347,7 @@ class _TerminalPageState extends State<TerminalPage>
             width: 44, // iOS standard tap target size
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5), // Half transparency
+              color: context.bd.canvas.withOpacity(0.5), // Half transparency
               shape: BoxShape.circle,
             ),
             child: Material(
@@ -360,9 +361,9 @@ class _TerminalPageState extends State<TerminalPage>
                 },
                 child: Tooltip(
                   message: translate('Close'),
-                  child: const Icon(
+                  child: Icon(
                     Icons.chevron_left, // iOS-style back arrow
-                    color: Colors.white,
+                    color: context.bd.onCanvas,
                     size: 28,
                   ),
                 ),
@@ -521,10 +522,10 @@ class _TerminalPageState extends State<TerminalPage>
           padding: EdgeInsets.zero,
           textStyle: const TextStyle(fontSize: 12),
           backgroundColor: isLocked
-              ? Colors.blue
+              ? context.bd.accent
               : Theme.of(context).colorScheme.surfaceContainerHighest,
           foregroundColor: isLocked
-              ? Colors.white
+              ? context.bd.onAccent
               : Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),

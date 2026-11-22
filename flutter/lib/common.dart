@@ -1,14 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:back_button_interceptor/back_button_interceptor.dart';
+import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/formatter/id_formatter.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/desktop/widgets/refresh_wrapper.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/main.dart';
@@ -40,6 +41,7 @@ import 'desktop/pages/view_camera_page.dart' as desktop_view_camera;
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'models/model.dart';
 import 'models/platform_model.dart';
+import 'onboarding/onboarding_flow.dart' show confirmOnboardingLink;
 import 'onboarding/onboarding_service_bind.dart';
 
 import 'package:flutter_hbb/native/win32.dart'
@@ -167,33 +169,23 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
   final Color? toastText;
   final Color? divider;
 
-  static final light = ColorThemeExtension(
-    border: Color(0xFFCCCCCC),
-    border2: Color(0xFFBBBBBB),
-    border3: Colors.black26,
-    highlight: Color(0xFFE5E5E5),
-    drag_indicator: Colors.grey[800],
-    shadow: Colors.black,
-    errorBannerBg: Color(0xFFFDEEEB),
-    me: Colors.green,
-    toastBg: Colors.black.withOpacity(0.6),
-    toastText: Colors.white,
-    divider: Colors.black38,
-  );
+  /// The old colour roles, drawn from the BetterDesk tokens.
+  factory ColorThemeExtension.from(BdColors c) => ColorThemeExtension(
+        border: c.rule,
+        border2: c.border,
+        border3: c.border,
+        highlight: c.hover,
+        drag_indicator: c.textMuted,
+        shadow: c.shadowFar,
+        errorBannerBg: c.noticeBg(c.danger),
+        me: c.success,
+        toastBg: c.text,
+        toastText: c.bg,
+        divider: c.rule,
+      );
 
-  static final dark = ColorThemeExtension(
-    border: Color(0xFF555555),
-    border2: Color(0xFFE5E5E5),
-    border3: Colors.white24,
-    highlight: Color(0xFF3F3F3F),
-    drag_indicator: Colors.grey,
-    shadow: Colors.grey,
-    errorBannerBg: Color(0xFF470F2D),
-    me: Colors.greenAccent,
-    toastBg: Colors.white.withOpacity(0.6),
-    toastText: Colors.black,
-    divider: Colors.white38,
-  );
+  static ColorThemeExtension get light => ColorThemeExtension.from(BdTheme.lightColors);
+  static ColorThemeExtension get dark => ColorThemeExtension.from(BdTheme.darkColors);
 
   @override
   ThemeExtension<ColorThemeExtension> copyWith({
@@ -249,18 +241,19 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
 class MyTheme {
   MyTheme._();
 
-  static const Color grayBg = Color(0xFFEFEFF2);
-  static const Color accent = Color(0xFF0071FF);
-  static const Color accent50 = Color(0x770071FF);
-  static const Color accent80 = Color(0xAA0071FF);
-  static const Color canvasColor = Color(0xFF212121);
-  static const Color border = Color(0xFFCCCCCC);
-  static const Color idColor = Color(0xFF00B6F0);
-  static const Color darkGray = Color.fromARGB(255, 148, 148, 148);
-  static const Color cmIdColor = Color(0xFF21790B);
-  static const Color dark = Colors.black87;
-  static const Color button = Color(0xFF2C8CFF);
-  static const Color hoverBorder = Color(0xFF999999);
+  // Old colour names, now read from the BetterDesk tokens (bd_theme.dart).
+  static Color get grayBg => bdColors.bgSubtle;
+  static Color get accent => bdColors.accent;
+  static Color get accent50 => bdColors.accent.withOpacity(0.47);
+  static Color get accent80 => bdColors.accent.withOpacity(0.67);
+  static Color get canvasColor => bdColors.canvas;
+  static Color get border => bdColors.rule;
+  static Color get idColor => bdColors.accent;
+  static Color get darkGray => bdColors.textMuted;
+  static Color get cmIdColor => bdColors.success;
+  static Color get dark => bdColors.text;
+  static Color get button => bdColors.accent;
+  static Color get hoverBorder => bdColors.border;
 
   // ListTile
   static const ListTileThemeData listTileTheme = ListTileThemeData(
@@ -344,238 +337,14 @@ class MyTheme {
       ? EdgeInsets.only(left: dialogPadding)
       : EdgeInsets.only(left: dialogPadding / 3);
 
-  static ScrollbarThemeData scrollbarTheme = ScrollbarThemeData(
-    thickness: MaterialStateProperty.all(6),
-    thumbColor: MaterialStateProperty.resolveWith<Color?>((states) {
-      if (states.contains(MaterialState.dragged)) {
-        return Colors.grey[900];
-      } else if (states.contains(MaterialState.hovered)) {
-        return Colors.grey[700];
-      } else {
-        return Colors.grey[500];
-      }
-    }),
-    crossAxisMargin: 4,
-  );
+  static ThemeData get lightTheme => _theme(Brightness.light);
+  static ThemeData get darkTheme => _theme(Brightness.dark);
 
-  static ScrollbarThemeData scrollbarThemeDark = scrollbarTheme.copyWith(
-    thumbColor: MaterialStateProperty.resolveWith<Color?>((states) {
-      if (states.contains(MaterialState.dragged)) {
-        return Colors.grey[100];
-      } else if (states.contains(MaterialState.hovered)) {
-        return Colors.grey[300];
-      } else {
-        return Colors.grey[500];
-      }
-    }),
-  );
-
-  static ThemeData lightTheme = ThemeData(
-    // https://stackoverflow.com/questions/77537315/after-upgrading-to-flutter-3-16-the-app-bar-background-color-button-size-and
-    useMaterial3: false,
-    brightness: Brightness.light,
-    hoverColor: Color.fromARGB(255, 224, 224, 224),
-    scaffoldBackgroundColor: Colors.white,
-    dialogBackgroundColor: Colors.white,
-    appBarTheme: AppBarTheme(
-      shadowColor: Colors.transparent,
-    ),
-    dialogTheme: DialogTheme(
-      elevation: 15,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18.0),
-        side: BorderSide(
-          width: 1,
-          color: grayBg,
-        ),
-      ),
-    ),
-    scrollbarTheme: scrollbarTheme,
-    inputDecorationTheme: isDesktop
-        ? InputDecorationTheme(
-            fillColor: grayBg,
-            filled: true,
-            isDense: true,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          )
-        : null,
-    textTheme: const TextTheme(
-        titleLarge: TextStyle(fontSize: 19, color: Colors.black87),
-        titleSmall: TextStyle(fontSize: 14, color: Colors.black87),
-        bodySmall: TextStyle(fontSize: 12, color: Colors.black87, height: 1.25),
-        bodyMedium:
-            TextStyle(fontSize: 14, color: Colors.black87, height: 1.25),
-        labelLarge: TextStyle(fontSize: 16.0, color: MyTheme.accent80)),
-    cardColor: grayBg,
-    hintColor: Color(0xFFAAAAAA),
-    visualDensity: VisualDensity.adaptivePlatformDensity,
-    tabBarTheme: const TabBarTheme(
-      labelColor: Colors.black87,
-    ),
-    tooltipTheme: tooltipTheme(),
-    splashColor: (isDesktop || isWebDesktop) ? Colors.transparent : null,
-    highlightColor: (isDesktop || isWebDesktop) ? Colors.transparent : null,
-    splashFactory: (isDesktop || isWebDesktop) ? NoSplash.splashFactory : null,
-    textButtonTheme: (isDesktop || isWebDesktop)
-        ? TextButtonThemeData(
-            style: TextButton.styleFrom(
-              splashFactory: NoSplash.splashFactory,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18.0),
-              ),
-            ),
-          )
-        : mobileTextButtonTheme,
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: MyTheme.accent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: grayBg,
-        foregroundColor: Colors.black87,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-      ),
-    ),
-    switchTheme: switchTheme(),
-    radioTheme: radioTheme(),
-    checkboxTheme: checkboxTheme,
-    listTileTheme: listTileTheme,
-    menuBarTheme: MenuBarThemeData(
-        style:
-            MenuStyle(backgroundColor: MaterialStatePropertyAll(Colors.white))),
-    colorScheme: ColorScheme.light(
-        primary: Colors.blue, secondary: accent, background: grayBg),
-    popupMenuTheme: PopupMenuThemeData(
-        color: Colors.white,
-        shape: RoundedRectangleBorder(
-          side: BorderSide(
-              color: (isDesktop || isWebDesktop)
-                  ? Color(0xFFECECEC)
-                  : Colors.transparent),
-          borderRadius: BorderRadius.all(Radius.circular(8.0)),
-        )),
-  ).copyWith(
-    extensions: <ThemeExtension<dynamic>>[
-      ColorThemeExtension.light,
-      TabbarTheme.light,
-    ],
-  );
-  static ThemeData darkTheme = ThemeData(
-    useMaterial3: false,
-    brightness: Brightness.dark,
-    hoverColor: Color.fromARGB(255, 45, 46, 53),
-    scaffoldBackgroundColor: Color(0xFF18191E),
-    dialogBackgroundColor: Color(0xFF18191E),
-    appBarTheme: AppBarTheme(
-      shadowColor: Colors.transparent,
-    ),
-    dialogTheme: DialogTheme(
-      elevation: 15,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18.0),
-        side: BorderSide(
-          width: 1,
-          color: Color(0xFF24252B),
-        ),
-      ),
-    ),
-    scrollbarTheme: scrollbarThemeDark,
-    inputDecorationTheme: (isDesktop || isWebDesktop)
-        ? InputDecorationTheme(
-            fillColor: Color(0xFF24252B),
-            filled: true,
-            isDense: true,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          )
-        : null,
-    textTheme: const TextTheme(
-      titleLarge: TextStyle(fontSize: 19),
-      titleSmall: TextStyle(fontSize: 14),
-      bodySmall: TextStyle(fontSize: 12, height: 1.25),
-      bodyMedium: TextStyle(fontSize: 14, height: 1.25),
-      labelLarge: TextStyle(
-        fontSize: 16.0,
-        fontWeight: FontWeight.bold,
-        color: accent80,
-      ),
-    ),
-    cardColor: Color(0xFF24252B),
-    visualDensity: VisualDensity.adaptivePlatformDensity,
-    tabBarTheme: const TabBarTheme(
-      labelColor: Colors.white70,
-    ),
-    tooltipTheme: tooltipTheme(),
-    splashColor: (isDesktop || isWebDesktop) ? Colors.transparent : null,
-    highlightColor: (isDesktop || isWebDesktop) ? Colors.transparent : null,
-    splashFactory: (isDesktop || isWebDesktop) ? NoSplash.splashFactory : null,
-    textButtonTheme: (isDesktop || isWebDesktop)
-        ? TextButtonThemeData(
-            style: TextButton.styleFrom(
-              splashFactory: NoSplash.splashFactory,
-              disabledForegroundColor: Colors.white70,
-              foregroundColor: Colors.white70,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18.0),
-              ),
-            ),
-          )
-        : mobileTextButtonTheme,
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: MyTheme.accent,
-        foregroundColor: Colors.white,
-        disabledForegroundColor: Colors.white70,
-        disabledBackgroundColor: Colors.white10,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: Color(0xFF24252B),
-        side: BorderSide(color: Colors.white12, width: 0.5),
-        disabledForegroundColor: Colors.white70,
-        foregroundColor: Colors.white70,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-      ),
-    ),
-    switchTheme: switchTheme(),
-    radioTheme: radioTheme(),
-    checkboxTheme: checkboxTheme,
-    listTileTheme: listTileTheme,
-    menuBarTheme: MenuBarThemeData(
-        style: MenuStyle(
-            backgroundColor: MaterialStatePropertyAll(Color(0xFF121212)))),
-    colorScheme: ColorScheme.dark(
-      primary: Colors.blue,
-      secondary: accent,
-      background: Color(0xFF24252B),
-    ),
-    popupMenuTheme: PopupMenuThemeData(
-        shape: RoundedRectangleBorder(
-      side: BorderSide(color: Colors.white24),
-      borderRadius: BorderRadius.all(Radius.circular(8.0)),
-    )),
-  ).copyWith(
-    extensions: <ThemeExtension<dynamic>>[
-      ColorThemeExtension.dark,
-      TabbarTheme.dark,
-    ],
-  );
+  static ThemeData _theme(Brightness b) => BdTheme.theme(
+        b,
+        desktop: isDesktop || isWebDesktop,
+        extra: (c) => [ColorThemeExtension.from(c), TabbarTheme.from(c)],
+      );
 
   static ThemeMode getThemeModePreference() {
     return themeModeFromString(bind.mainGetLocalOption(key: kCommConfKeyTheme));
@@ -869,9 +638,7 @@ class OverlayDialogManager {
             innerClicked = false;
           },
           child: Container(
-              color: Theme.of(context).brightness == Brightness.light
-                  ? Colors.black12
-                  : Colors.black45,
+              color: context.bd.scrim,
               child: StatefulBuilder(builder: (context, setState) {
                 return Listener(
                   onPointerUp: (_) => innerClicked = true,
@@ -929,8 +696,8 @@ class OverlayDialogManager {
                                   style: flatButtonStyle,
                                   onPressed: cancel,
                                   child: Text(translate('Cancel'),
-                                      style: const TextStyle(
-                                          color: MyTheme.accent)))))
+                                      style: TextStyle(
+                                          color: context.bd.accent)))))
                 ])),
         onCancel: showCancel ? cancel : null,
       );
@@ -1150,8 +917,8 @@ Widget createDialogContent(String text) {
     }
     spans.add(TextSpan(
       text: match.group(0) ?? '',
-      style: const TextStyle(
-        color: Colors.blue,
+      style: TextStyle(
+        color: bdColors.accent,
         decoration: TextDecoration.underline,
       ),
       recognizer: TapGestureRecognizer()
@@ -1313,16 +1080,17 @@ void msgBox(SessionID sessionId, String type, String title, String text,
 }
 
 Color? _msgboxColor(String type) {
+  final c = bdColors;
   if (type == "input-password" || type == "custom-os-password") {
-    return Color(0xFFAD448E);
+    return c.accent;
   }
   if (type.contains("success")) {
-    return Color(0xFF32bea6);
+    return c.success;
   }
   if (type.contains("error") || type == "re-input-password") {
-    return Color(0xFFE04F5F);
+    return c.danger;
   }
-  return Color(0xFF2C8CFF);
+  return c.accent;
 }
 
 Widget msgboxIcon(String type) {
@@ -1415,26 +1183,13 @@ Color str2color(String str, [alpha = 0xFF]) {
 }
 
 Color str2color2(String str, {List<int> existing = const []}) {
-  Map<String, Color> colorMap = {
-    "red": Colors.red,
-    "green": Colors.green,
-    "blue": Colors.blue,
-    "orange": Colors.orange,
-    "purple": Colors.purple,
-    "grey": Colors.grey,
-    "cyan": Colors.cyan,
-    "lime": Colors.lime,
-    "teal": Colors.teal,
-    "pink": Colors.pink[200]!,
-    "indigo": Colors.indigo,
-    "brown": Colors.brown,
-  };
+  const colorMap = BdPalette.tagColorsByName;
   final color = colorMap[str.toLowerCase()];
   if (color != null) {
     return color.withAlpha(0xFF);
   }
   if (str.toLowerCase() == 'yellow') {
-    return Colors.yellow.withAlpha(0xFF);
+    return BdPalette.tagYellow.withAlpha(0xFF);
   }
   var hash = 0;
   for (var i = 0; i < str.length; i++) {
@@ -1604,7 +1359,12 @@ Future<void> initGlobalFFI() async {
   Get.put<FFI>(_globalFFI, permanent: true);
 }
 
+/// Widget tests set this to translate without the Rust library.
+@visibleForTesting
+String Function(String name)? translateForTest;
+
 String translate(String name) {
+  if (translateForTest != null) return translateForTest!(name);
   if (name.startsWith('Failed to') && name.contains(': ')) {
     return name.split(': ').map((x) => translate(x)).join(': ');
   }
@@ -2418,7 +2178,8 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
   } else if (isDesktop &&
       (uri.authority == "join" || uri.authority == "support")) {
     // betterdesk://join/<server>/<code> and betterdesk://support/...
-    onboardingService.handleLink(uri.toString());
+    // A join link asks first, naming the server.
+    confirmOnboardingLink(uri.toString(), onboardingService.handleLink);
     return null;
   } else if (uri.authority == "config") {
     if (isAndroid || isIOS) {
@@ -3207,7 +2968,7 @@ Widget buildRemoteBlock(
             Offstage(
                 offstage: !block.value,
                 child: Container(
-                  color: Colors.black.withOpacity(0.5),
+                  color: bdColors.scrim,
                 )),
         ]),
       ));
@@ -3226,13 +2987,14 @@ Widget unreadMessageCountBuilder(RxInt? count,
         width: size ?? 16,
         height: size ?? 16,
         decoration: BoxDecoration(
-          color: Colors.red,
+          color: bdColors.danger,
           shape: BoxShape.circle,
         ),
         child: Center(
           child: Text("${count?.value ?? 0}",
               maxLines: 1,
-              style: TextStyle(color: Colors.white, fontSize: fontSize ?? 10)),
+              style: TextStyle(
+                  color: bdColors.onDanger, fontSize: fontSize ?? 10)),
         ),
       )));
 }
@@ -3273,7 +3035,7 @@ Widget buildErrorBanner(BuildContext context,
               FittedBox(
                 child: Icon(
                   Icons.info,
-                  color: Color.fromARGB(255, 249, 81, 81),
+                  color: context.bd.danger,
                 ),
               ).marginAll(4),
               Flexible(
@@ -3654,6 +3416,11 @@ Future<bool> setServerConfig(
   return true;
 }
 
+/// BotToast's text style with the text in [color], for a text toast on a
+/// coloured fill (danger, accent).
+TextStyle toastTextStyle(Color color) =>
+    BotToast.defaultOption.text.textStyle.copyWith(color: color);
+
 ColorFilter? svgColor(Color? color) {
   if (color == null) {
     return null;
@@ -3868,15 +3635,16 @@ Widget _buildPresetPasswordWarning() {
       'N') {
     return SizedBox.shrink();
   }
+  final c = bdColors;
   return Container(
-    color: Colors.yellow,
+    color: c.noticeBg(c.warning),
     child: Column(
       children: [
         Align(
             child: Text(
           translate("Security Alert"),
           style: TextStyle(
-            color: Colors.red,
+            color: c.danger,
             fontSize:
                 18, // https://github.com/rustdesk/rustdesk-server-pro/issues/261
             fontWeight: FontWeight.bold,
@@ -3884,7 +3652,7 @@ Widget _buildPresetPasswordWarning() {
         )).paddingOnly(bottom: 8),
         Text(
           translate("preset_password_warning"),
-          style: TextStyle(color: Colors.red),
+          style: TextStyle(color: c.danger),
         )
       ],
     ).paddingAll(8),
@@ -3924,7 +3692,7 @@ Widget buildVirtualWindowFrame(BuildContext context, Widget child) {
       ? <BoxShadow>[
           if (stateGlobal.fullscreen.isFalse || stateGlobal.isMaximized.isFalse)
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: context.bd.shadowNear,
               offset: Offset(
                   0.0,
                   stateGlobal.isFocused.isTrue
@@ -4054,7 +3822,7 @@ Widget netWorkErrorWidget() {
               child: Text(translate("Retry")))
           .marginSymmetric(vertical: 16),
       SelectableText(gFFI.userModel.networkError.value,
-          style: TextStyle(fontSize: 11, color: Colors.red)),
+          style: TextStyle(fontSize: 11, color: bdColors.danger)),
     ],
   ));
 }
@@ -4103,7 +3871,7 @@ Widget workaroundWindowBorder(BuildContext context, Widget child) {
   }
 
   final isLight = Theme.of(context).brightness == Brightness.light;
-  final borderColor = isLight ? Colors.black87 : Colors.grey;
+  final borderColor = context.bd.border;
   final width = isLight ? 0.5 : 0.1;
 
   getBorderWidget(Widget child) {

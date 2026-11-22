@@ -211,7 +211,8 @@ class InviteInput {
 
   final InviteKind kind;
 
-  /// The link uses http://, not https://; the screen warns first.
+  /// The link uses http:// or carries ?http=1 (the console runs on plain
+  /// HTTP); the screen warns first.
   final bool isPlainHttp;
 
   /// The console host (with port), when the text names one.
@@ -234,6 +235,8 @@ class InviteInput {
     }
     final uri = Uri.tryParse(s);
     if (uri != null && uri.scheme.isNotEmpty) {
+      // The console adds ?http=1 when it is served over plain HTTP.
+      final httpFlag = uri.queryParameters['http'] == '1';
       final segs = uri.pathSegments.where((p) => p.isNotEmpty).toList();
       if (uri.scheme == 'betterdesk') {
         // betterdesk://join/<host>/<code>: the host part is "join".
@@ -241,8 +244,8 @@ class InviteInput {
             ? InviteKind.joinLink
             : (uri.host == 'support' ? InviteKind.supportLink : null);
         if (kind != null && segs.length >= 2 && _code.hasMatch(segs[1])) {
-          return InviteInput._(
-              kind, segs[0], segs[1].replaceAll('-', '').toUpperCase());
+          return InviteInput._(kind, segs[0],
+              segs[1].replaceAll('-', '').toUpperCase(), httpFlag);
         }
       } else if ((uri.scheme == 'https' || uri.scheme == 'http') &&
           uri.host.isNotEmpty &&
@@ -254,7 +257,8 @@ class InviteInput {
         final code = segs.last;
         if (kind != null && _code.hasMatch(code)) {
           return InviteInput._(kind, host,
-              code.replaceAll('-', '').toUpperCase(), uri.scheme == 'http');
+              code.replaceAll('-', '').toUpperCase(),
+              uri.scheme == 'http' || httpFlag);
         }
       }
     }

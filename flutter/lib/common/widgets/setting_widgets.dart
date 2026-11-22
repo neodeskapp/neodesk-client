@@ -2,6 +2,7 @@ import 'package:debounce_throttle/debounce_throttle.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:get/get.dart';
@@ -204,12 +205,12 @@ List<Widget> ServerConfigImportExportWidgets(
     Tooltip(
       message: translate('Import server config'),
       child: IconButton(
-          icon: Icon(Icons.paste, color: Colors.grey), onPressed: import),
+          icon: Icon(Icons.paste, color: bdColors.textMuted), onPressed: import),
     ),
     Tooltip(
         message: translate('Export Server Config'),
         child: IconButton(
-            icon: Icon(Icons.copy, color: Colors.grey), onPressed: export))
+            icon: Icon(Icons.copy, color: bdColors.textMuted), onPressed: export))
   ];
 }
 

@@ -38,6 +38,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:vector_math/vector_math.dart' show Vector2;
 
 import '../common.dart';
+import '../common/theme/bd_theme.dart';
 import '../utils/image.dart' as img;
 import '../common/widgets/dialog.dart';
 import 'input_model.dart';
@@ -1041,7 +1042,8 @@ class FfiModel with ChangeNotifier {
     } else {
       if (type.contains('error')) {
         BotToast.showText(
-          contentColor: Colors.red,
+          contentColor: bdColors.danger,
+          textStyle: toastTextStyle(bdColors.onDanger),
           text: translate(text),
           duration: duration,
           clickClose: true,
@@ -1154,7 +1156,7 @@ class FfiModel with ChangeNotifier {
       }
 
       final style =
-          ElevatedButton.styleFrom(backgroundColor: Colors.green[700]);
+          ElevatedButton.styleFrom(backgroundColor: context.bd.success);
 
       return CustomAlertDialog(
         title: null,

@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/desktop/pages/install_view.dart';
+import 'package:flutter_hbb/onboarding/onboarding_service.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
@@ -19,7 +22,8 @@ class InstallPage extends StatefulWidget {
 }
 
 class _InstallPageState extends State<InstallPage> {
-  final tabController = DesktopTabController(tabType: DesktopTabType.main);
+  final tabController =
+      DesktopTabController(tabType: DesktopTabType.install);
 
   _InstallPageState() {
     Get.put<DesktopTabController>(tabController);
@@ -46,8 +50,11 @@ class _InstallPageState extends State<InstallPage> {
       enableResizeEdges: windowManagerEnableResizeEdges,
       child: Container(
         child: Scaffold(
-            backgroundColor: Theme.of(context).colorScheme.background,
-            body: DesktopTab(controller: tabController)),
+            backgroundColor: context.bd.bg,
+            body: DesktopTab(
+                controller: tabController,
+                showMinimize: false,
+                showMaximize: false)),
       ),
     );
   }
@@ -68,12 +75,6 @@ class _InstallPageBodyState extends State<_InstallPageBody>
   final RxBool printer = false.obs;
   final RxBool showProgress = false.obs;
   final RxBool btnEnabled = true.obs;
-
-  // todo move to theme.
-  final buttonStyle = OutlinedButton.styleFrom(
-    textStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
-    padding: EdgeInsets.symmetric(vertical: 15, horizontal: 12),
-  );
 
   _InstallPageBodyState() {
     controller = TextEditingController(text: bind.installInstallPath());
@@ -103,150 +104,41 @@ class _InstallPageBodyState extends State<_InstallPageBody>
     windowManager.close();
   }
 
-  InkWell Option(RxBool option, {String label = ''}) {
-    return InkWell(
-      // todo mouseCursor: "SystemMouseCursors.forbidden" or no cursor on btnEnabled == false
-      borderRadius: BorderRadius.circular(6),
-      onTap: () => btnEnabled.value ? option.value = !option.value : null,
-      child: Row(
-        children: [
-          Obx(
-            () => Checkbox(
-              visualDensity: VisualDensity(horizontal: -4, vertical: -4),
-              value: option.value,
-              onChanged: (v) =>
-                  btnEnabled.value ? option.value = !option.value : null,
-            ).marginOnly(right: 8),
-          ),
-          Expanded(
-            child: Text(translate(label)),
-          ),
-        ],
-      ),
-    );
+  final RxBool _optionsOpen = false.obs;
+
+  /// After installing, a join file's computer joins its server.
+  String _lead() {
+    final st = OnboardingService.instance.current;
+    final company = (st.company ?? '').trim();
+    final server = (st.server ?? '').trim();
+    if (server.isNotEmpty && st.phase != OnboardingPhase.joined) {
+      return tr('bd-install-lead-join',
+          [company.isNotEmpty ? company : server, server]);
+    }
+    return tr('bd-install-lead');
   }
 
   @override
   Widget build(BuildContext context) {
-    final double em = 13;
-    final isDarkTheme = MyTheme.currentThemeMode() == ThemeMode.dark;
-    return Scaffold(
-        backgroundColor: null,
-        body: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(translate('Installation'),
-                  style: Theme.of(context).textTheme.headlineMedium),
-              Row(
-                children: [
-                  Text('${translate('Installation Path')}:')
-                      .marginOnly(right: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      readOnly: true,
-                      decoration: InputDecoration(
-                        contentPadding: EdgeInsets.all(0.75 * em),
-                      ),
-                    ).workaroundFreezeLinuxMint().marginOnly(right: 10),
-                  ),
-                  Obx(
-                    () => OutlinedButton.icon(
-                      icon: Icon(Icons.folder_outlined, size: 16),
-                      onPressed: btnEnabled.value ? selectInstallPath : null,
-                      style: buttonStyle,
-                      label: Text(translate('Change Path')),
-                    ),
-                  )
-                ],
-              ).marginSymmetric(vertical: 2 * em),
-              Option(startmenu, label: 'Create start menu shortcuts')
-                  .marginOnly(bottom: 7),
-              Option(desktopicon, label: 'Create desktop icon')
-                  .marginOnly(bottom: 7),
-              Option(printer, label: 'Install {$appName} Printer'),
-              Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDarkTheme
-                        ? Color.fromARGB(135, 87, 87, 90)
-                        : Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline_rounded, size: 32)
-                          .marginOnly(right: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(translate('agreement_tip'))
-                              .marginOnly(bottom: em),
-                          InkWell(
-                            hoverColor: Colors.transparent,
-                            onTap: () => launchUrlString(
-                                'https://rustdesk.com/privacy.html'),
-                            child: Tooltip(
-                              message: 'https://rustdesk.com/privacy.html',
-                              child: Row(children: [
-                                Icon(Icons.launch_outlined, size: 16)
-                                    .marginOnly(right: 5),
-                                Text(
-                                  translate('End-user license agreement'),
-                                  style: const TextStyle(
-                                      decoration: TextDecoration.underline),
-                                )
-                              ]),
-                            ),
-                          ),
-                        ],
-                      )
-                    ],
-                  )).marginSymmetric(vertical: 2 * em),
-              Row(
-                children: [
-                  Expanded(
-                    // NOT use Offstage to wrap LinearProgressIndicator
-                    child: Obx(() => showProgress.value
-                        ? LinearProgressIndicator().marginOnly(right: 10)
-                        : Offstage()),
-                  ),
-                  Obx(
-                    () => OutlinedButton.icon(
-                      icon: Icon(Icons.close_rounded, size: 16),
-                      label: Text(translate('Cancel')),
-                      onPressed:
-                          btnEnabled.value ? () => windowManager.close() : null,
-                      style: buttonStyle,
-                    ).marginOnly(right: 10),
-                  ),
-                  Obx(
-                    () => ElevatedButton.icon(
-                      icon: Icon(Icons.done_rounded, size: 16),
-                      label: Text(translate('Accept and Install')),
-                      onPressed: btnEnabled.value ? install : null,
-                      style: buttonStyle,
-                    ),
-                  ),
-                  Offstage(
-                    offstage: bind.installShowRunWithoutInstall(),
-                    child: Obx(
-                      () => OutlinedButton.icon(
-                        icon: Icon(Icons.screen_share_outlined, size: 16),
-                        label: Text(translate('Run without install')),
-                        onPressed: btnEnabled.value
-                            ? () => bind.installRunWithoutInstall()
-                            : null,
-                        style: buttonStyle,
-                      ).marginOnly(left: 10),
-                    ),
-                  ),
-                ],
-              )
-            ],
-          ).paddingSymmetric(horizontal: 4 * em, vertical: 3 * em),
+    return Obx(() => InstallView(
+          lead: _lead(),
+          pathController: controller,
+          startMenu: startmenu.value,
+          desktopIcon: desktopicon.value,
+          printer: printer.value,
+          onStartMenu: (v) => startmenu.value = v,
+          onDesktopIcon: (v) => desktopicon.value = v,
+          onPrinter: (v) => printer.value = v,
+          showPrinter: isWindows,
+          optionsOpen: _optionsOpen.value,
+          onToggleOptions: () => _optionsOpen.value = !_optionsOpen.value,
+          installing: showProgress.value,
+          onInstall: install,
+          onChangePath: selectInstallPath,
+          onLicence: () => launchUrlString('https://www.gnu.org/licenses/agpl-3.0.html'),
+          onRunWithout: bind.installShowRunWithoutInstall()
+              ? null
+              : () => bind.installRunWithoutInstall(),
         ));
   }
 

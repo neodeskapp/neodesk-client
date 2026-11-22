@@ -13,6 +13,7 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import '../../common/widgets/overlay.dart';
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/remote_input.dart';
@@ -208,7 +209,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                     (keyboardIsVisible || _showGestureHelp)
                         ? Icons.expand_more
                         : Icons.expand_less,
-                    color: Colors.white,
+                    color: context.bd.onAccent,
                   ),
                   backgroundColor: MyTheme.accent,
                   onPressed: () {
@@ -302,14 +303,14 @@ class _ViewCameraPageState extends State<ViewCameraPage>
           Row(
               children: <Widget>[
                     IconButton(
-                      color: Colors.white,
+                      color: context.bd.onAccent,
                       icon: Icon(Icons.clear),
                       onPressed: () {
                         clientClose(sessionId, gFFI);
                       },
                     ),
                     IconButton(
-                      color: Colors.white,
+                      color: context.bd.onAccent,
                       icon: Icon(Icons.tv),
                       onPressed: () {
                         setState(() => _showEdit = false);
@@ -324,11 +325,11 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                               future: gFFI.invokeMethod(
                                   "get_value", "KEY_IS_SUPPORT_VOICE_CALL"),
                               hasData: (isSupportVoiceCall) => IconButton(
-                                    color: Colors.white,
+                                    color: context.bd.onAccent,
                                     icon: isAndroid && isSupportVoiceCall
                                         ? SvgPicture.asset('assets/chat.svg',
                                             colorFilter: ColorFilter.mode(
-                                                Colors.white, BlendMode.srcIn))
+                                                context.bd.onAccent, BlendMode.srcIn))
                                         : Icon(Icons.message),
                                     onPressed: () =>
                                         isAndroid && isSupportVoiceCall
@@ -338,7 +339,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                         ]) +
                   [
                     IconButton(
-                      color: Colors.white,
+                      color: context.bd.onAccent,
                       icon: Icon(Icons.more_vert),
                       onPressed: () {
                         setState(() => _showEdit = false);
@@ -347,7 +348,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                     ),
                   ]),
           Obx(() => IconButton(
-                color: Colors.white,
+                color: context.bd.onAccent,
                 icon: Icon(Icons.expand_more),
                 onPressed: gFFI.ffiModel.waitForFirstImage.isTrue
                     ? null
@@ -525,10 +526,10 @@ class _ViewCameraPageState extends State<ViewCameraPage>
               SvgPicture.asset(
                 'assets/call_wait.svg',
                 colorFilter:
-                    ColorFilter.mode(Colors.redAccent, BlendMode.srcIn),
+                    ColorFilter.mode(context.bd.danger, BlendMode.srcIn),
               ),
               onPressEndVoiceCall,
-              labelStyle: TextStyle(color: Colors.redAccent))
+              labelStyle: TextStyle(color: context.bd.danger))
           : makeTextMenu(
               'Voice call',
               SvgPicture.asset(
@@ -585,9 +586,8 @@ void showOptions(
   if (pi.displays.length > 1 && pi.currentDisplay != kAllDisplayValue) {
     final cur = pi.currentDisplay;
     final children = <Widget>[];
-    final isDarkTheme = MyTheme.currentThemeMode() == ThemeMode.dark;
-    final numColorSelected = Colors.white;
-    final numColorUnselected = isDarkTheme ? Colors.grey : Colors.black87;
+    final numColorSelected = context.bd.onAccent;
+    final numColorUnselected = context.bd.text;
     // We can't use `Theme.of(context).primaryColor` here, the color is:
     // - light theme: 0xff2196f3 (Colors.blue)
     // - dark theme: 0xff212121 (the canvas color?)
@@ -623,7 +623,7 @@ void showOptions(
         )));
   }
   if (displays.isNotEmpty) {
-    displays.add(const Divider(color: MyTheme.border));
+    displays.add(Divider(color: MyTheme.border));
   }
 
   List<TRadioMenu<String>> viewStyleRadios =
@@ -653,7 +653,7 @@ void showOptions(
                     if (v != null) viewStyle.value = v;
                   }
                 : null)),
-      const Divider(color: MyTheme.border),
+      Divider(color: MyTheme.border),
       for (var e in imageQualityRadios)
         Obx(() => getRadio<String>(
             e.child,
@@ -665,7 +665,7 @@ void showOptions(
                     if (v != null) imageQuality.value = v;
                   }
                 : null)),
-      const Divider(color: MyTheme.border),
+      Divider(color: MyTheme.border),
       for (var e in codecRadios)
         Obx(() => getRadio<String>(
             e.child,
@@ -677,7 +677,7 @@ void showOptions(
                     if (v != null) codec.value = v;
                   }
                 : null)),
-      if (codecRadios.isNotEmpty) const Divider(color: MyTheme.border),
+      if (codecRadios.isNotEmpty) Divider(color: MyTheme.border),
     ];
 
     final rxToggleValues = displayToggles.map((e) => e.value.obs).toList();
@@ -702,7 +702,7 @@ void showOptions(
 
     var popupDialogMenus = List<Widget>.empty(growable: true);
     if (popupDialogMenus.isNotEmpty) {
-      popupDialogMenus.add(const Divider(color: MyTheme.border));
+      popupDialogMenus.add(Divider(color: MyTheme.border));
     }
 
     return CustomAlertDialog(

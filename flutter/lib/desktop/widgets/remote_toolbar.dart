@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/desktop/widgets/bd_toolbar_button.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
@@ -324,66 +326,39 @@ class ToolbarState {
 }
 
 class _ToolbarTheme {
-  static const Color blueColor = MyTheme.button;
-  static const Color hoverBlueColor = MyTheme.accent;
-  static Color inactiveColor = Colors.grey[800]!;
-  static Color hoverInactiveColor = Colors.grey[850]!;
+  static Color get blueColor => bdColors.accent;
+  static Color get hoverBlueColor => bdColors.accentHover;
+  static Color get inactiveColor => bdColors.textMuted;
+  static Color get hoverInactiveColor => bdColors.text;
 
-  static const Color redColor = Colors.redAccent;
-  static const Color hoverRedColor = Colors.red;
+  static Color get redColor => bdColors.danger;
+  static Color get hoverRedColor => bdColors.dangerHover;
   // kMinInteractiveDimension
   static const double height = 20.0;
   static const double dividerHeight = 12.0;
 
-  static const double buttonSize = 32;
+  static const double buttonSize = 36;
   static const double buttonHMargin = 2;
-  static const double buttonVMargin = 6;
-  static const double iconRadius = 8;
-  static const double elevation = 3;
+  static const double buttonVMargin = 4;
+  static const double iconRadius = 4;
+  static const double elevation = 0;
 
-  static double dividerSpaceToAction = isWindows ? 8 : 14;
+  static double dividerSpaceToAction = 8;
 
-  static double menuBorderRadius = isWindows ? 5.0 : 7.0;
-  static EdgeInsets menuPadding = isWindows
-      ? EdgeInsets.fromLTRB(4, 12, 4, 12)
-      : EdgeInsets.fromLTRB(6, 14, 6, 14);
-  static const double menuButtonBorderRadius = 3.0;
+  static const double menuButtonBorderRadius = 4.0;
 
-  static Color borderColor(BuildContext context) =>
-      MyTheme.color(context).border3 ?? MyTheme.border;
+  static Color borderColor(BuildContext context) => context.bd.rule;
 
-  static Color? dividerColor(BuildContext context) =>
-      MyTheme.color(context).divider;
+  static Color? dividerColor(BuildContext context) => context.bd.rule;
 
-  static MenuStyle defaultMenuStyle(BuildContext context) => MenuStyle(
-        side: MaterialStateProperty.all(BorderSide(
-          width: 1,
-          color: borderColor(context),
-        )),
-        shape: MaterialStatePropertyAll(RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(_ToolbarTheme.menuBorderRadius))),
-        padding: MaterialStateProperty.all(_ToolbarTheme.menuPadding),
-      );
+  static MenuStyle defaultMenuStyle(BuildContext context) =>
+      bdMenuStyle(context);
   static final defaultMenuButtonStyle = ButtonStyle(
-    backgroundColor: MaterialStatePropertyAll(Colors.transparent),
-    padding: MaterialStatePropertyAll(EdgeInsets.zero),
-    overlayColor: MaterialStatePropertyAll(Colors.transparent),
+    backgroundColor: WidgetStatePropertyAll(Colors.transparent),
+    padding: WidgetStatePropertyAll(EdgeInsets.zero),
+    overlayColor: WidgetStatePropertyAll(Colors.transparent),
   );
 
-  static Widget borderWrapper(
-      BuildContext context, Widget child, BorderRadius borderRadius) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: borderColor(context),
-          width: 1,
-        ),
-        borderRadius: borderRadius,
-      ),
-      child: child,
-    );
-  }
 }
 
 typedef DismissFunc = void Function();
@@ -801,56 +776,81 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
 
   Widget _buildToolbar(
       BuildContext context, _ToolbarEdge edge, bool isHorizontal) {
+    // Five actions up front with labels, the rest under More
+    // (DESIGN.md, Remote session). Docked to a side: icons only.
     final List<Widget> toolbarItems = [];
-    toolbarItems.add(_PinMenu(state: widget.state));
-    toolbarItems.add(Obx(() {
-      final privacyModeState = PrivacyModeState.find(widget.id);
-      if ((privacyModeState.isEmpty ||
-              allowDisplaySwitchInPrivacyMode(pi, privacyModeState.value)) &&
-          pi.displaysCount.value > 1 &&
-          mainGetLocalBoolOptionSync(kOptionAllowMonitorSwitchMainToolbar)) {
-        return _MainMonitorSwitchButton(id: widget.id, ffi: widget.ffi);
-      } else {
-        return const Offstage();
-      }
-    }));
-    if (!isWebDesktop) {
-      toolbarItems.add(_MobileActionMenu(ffi: widget.ffi));
-    }
-
+    final isDefaultConn = widget.ffi.connType == ConnType.defaultConn;
+    final narrow = MediaQuery.of(context).size.width < 700;
+    final labels = isHorizontal;
     toolbarItems.add(Obx(() {
       final privacyModeState = PrivacyModeState.find(widget.id);
       if ((privacyModeState.isEmpty ||
               allowDisplaySwitchInPrivacyMode(pi, privacyModeState.value)) &&
           pi.displaysCount.value > 1) {
-        return _MonitorMenu(
-            id: widget.id,
-            ffi: widget.ffi,
-            edge: edge,
-            setRemoteState: widget.setRemoteState);
+        return Row(mainAxisSize: MainAxisSize.min, children: [
+          if (mainGetLocalBoolOptionSync(kOptionAllowMonitorSwitchMainToolbar))
+            _MainMonitorSwitchButton(id: widget.id, ffi: widget.ffi),
+          _MonitorMenu(
+              id: widget.id,
+              ffi: widget.ffi,
+              edge: edge,
+              setRemoteState: widget.setRemoteState),
+        ]);
       } else {
-        return Offstage();
+        return const Offstage();
       }
     }));
-
-    toolbarItems
-        .add(_ControlMenu(id: widget.id, ffi: widget.ffi, state: widget.state));
+    if (isDefaultConn) {
+      toolbarItems.add(_KeyboardMenu(
+          id: widget.id, ffi: widget.ffi, showLabel: labels));
+    }
+    final controls = toolbarControls(context, widget.id, widget.ffi);
+    final transfer = _findControl(controls, ['Transfer file']);
+    if (isDefaultConn && transfer != null) {
+      toolbarItems.add(BdToolbarButton(
+        icon: BdIcons.folder,
+        label: tr('bd-tb-files'),
+        showLabel: labels && !narrow,
+        onPressed: transfer.onPressed,
+      ));
+    }
+    toolbarItems.add(BdToolbarButton(
+      icon: BdIcons.chat,
+      label: translate('Chat'),
+      showLabel: labels && !narrow,
+      onPressed: () {
+        widget.ffi.chatModel
+            .changeCurrentKey(MessageKey(widget.ffi.id, ChatModel.clientModeID));
+        widget.ffi.chatModel.toggleChatOverlay();
+      },
+    ));
+    toolbarItems.add(Obx(() {
+      final full = stateGlobal.fullscreen.isTrue;
+      return BdToolbarButton(
+        icon: full ? BdIcons.fullscreenExit : BdIcons.fullscreen,
+        label: full ? tr('bd-tb-exit-full-screen') : tr('bd-tb-full-screen'),
+        showLabel: labels && !narrow,
+        onPressed: () => _setFullscreen(!full),
+      );
+    }));
+    if (!isWeb) {
+      toolbarItems.add(_VoiceCallMenu(id: widget.id, ffi: widget.ffi));
+      toolbarItems.add(_RecordMenu(showLabel: labels));
+    }
     toolbarItems.add(_DisplayMenu(
       id: widget.id,
       ffi: widget.ffi,
       state: widget.state,
       setFullscreen: _setFullscreen,
+      showLabel: labels,
     ));
-    // Do not show keyboard for camera connection type.
-    if (widget.ffi.connType == ConnType.defaultConn) {
-      toolbarItems.add(_KeyboardMenu(id: widget.id, ffi: widget.ffi));
-    }
-    toolbarItems.add(_ChatMenu(id: widget.id, ffi: widget.ffi));
-    if (!isWeb) {
-      toolbarItems.add(_VoiceCallMenu(id: widget.id, ffi: widget.ffi));
-    }
-    if (!isWeb) toolbarItems.add(_RecordMenu());
-    toolbarItems.add(_CloseMenu(id: widget.id, ffi: widget.ffi));
+    toolbarItems.add(Container(
+      width: isHorizontal ? 1 : 24,
+      height: isHorizontal ? 24 : 1,
+      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      color: context.bd.rule,
+    ));
+    toolbarItems.add(_CloseMenu(id: widget.id, ffi: widget.ffi, showLabel: labels));
     final toolbarBorderRadius = BorderRadius.all(Radius.circular(4.0));
     // innerAxis: how the toolbar icons themselves flow.
     // outerAxis: how the toolbar block and the handle stack against each other
@@ -860,31 +860,28 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     final spacer = isHorizontal
         ? SizedBox(width: _ToolbarTheme.buttonHMargin * 2)
         : SizedBox(height: _ToolbarTheme.buttonHMargin * 2);
-    final toolbarMaterial = Material(
-      elevation: _ToolbarTheme.elevation,
-      shadowColor: MyTheme.color(context).shadow,
-      borderRadius: toolbarBorderRadius,
-      color: Theme.of(context)
-          .menuBarTheme
-          .style
-          ?.backgroundColor
-          ?.resolve(MaterialState.values.toSet()),
+    final toolbarMaterial = Container(
+      margin: EdgeInsets.only(top: edge == _ToolbarEdge.top ? 8 : 0),
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: context.bd.bgFloat,
+        borderRadius: toolbarBorderRadius,
+        border: Border.all(color: context.bd.rule),
+        boxShadow: context.bd.shadowFloat,
+      ),
       child: SingleChildScrollView(
         scrollDirection: innerAxis,
         child: Theme(
           data: themeData(),
-          child: _ToolbarTheme.borderWrapper(
-              context,
-              Flex(
-                direction: innerAxis,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  spacer,
-                  ...toolbarItems,
-                  spacer,
-                ],
-              ),
-              toolbarBorderRadius),
+          child: Flex(
+            direction: innerAxis,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              spacer,
+              ...toolbarItems,
+              spacer,
+            ],
+          ),
         ),
       ),
     );
@@ -906,11 +903,11 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     return Theme.of(context).copyWith(
       menuButtonTheme: MenuButtonThemeData(
         style: ButtonStyle(
-          minimumSize: MaterialStatePropertyAll(Size(64, 32)),
-          textStyle: MaterialStatePropertyAll(
+          minimumSize: WidgetStatePropertyAll(Size(64, 32)),
+          textStyle: WidgetStatePropertyAll(
             TextStyle(fontWeight: FontWeight.normal),
           ),
-          shape: MaterialStatePropertyAll(RoundedRectangleBorder(
+          shape: WidgetStatePropertyAll(RoundedRectangleBorder(
               borderRadius:
                   BorderRadius.circular(_ToolbarTheme.menuButtonBorderRadius))),
         ),
@@ -921,56 +918,13 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       ),
       menuBarTheme: MenuBarThemeData(
           style: MenuStyle(
-        padding: MaterialStatePropertyAll(EdgeInsets.zero),
-        elevation: MaterialStatePropertyAll(0),
-        shape: MaterialStatePropertyAll(BeveledRectangleBorder()),
+        padding: WidgetStatePropertyAll(EdgeInsets.zero),
+        elevation: WidgetStatePropertyAll(0),
+        shape: WidgetStatePropertyAll(BeveledRectangleBorder()),
       ).copyWith(
               backgroundColor:
                   Theme.of(context).menuBarTheme.style?.backgroundColor)),
     );
-  }
-}
-
-class _PinMenu extends StatelessWidget {
-  final ToolbarState state;
-  const _PinMenu({Key? key, required this.state}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(
-      () => _IconMenuButton(
-        assetName: state.pin ? "assets/pinned.svg" : "assets/unpinned.svg",
-        tooltip: state.pin ? 'Unpin Toolbar' : 'Pin Toolbar',
-        onPressed: state.switchPin,
-        color:
-            state.pin ? _ToolbarTheme.blueColor : _ToolbarTheme.inactiveColor,
-        hoverColor: state.pin
-            ? _ToolbarTheme.hoverBlueColor
-            : _ToolbarTheme.hoverInactiveColor,
-      ),
-    );
-  }
-}
-
-class _MobileActionMenu extends StatelessWidget {
-  final FFI ffi;
-  const _MobileActionMenu({Key? key, required this.ffi}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    if (!ffi.ffiModel.isPeerAndroid) return Offstage();
-    return Obx(() => _IconMenuButton(
-          assetName: 'assets/actions_mobile.svg',
-          tooltip: 'Mobile Actions',
-          onPressed: () => ffi.dialogManager.setMobileActionsOverlayVisible(
-              !ffi.dialogManager.mobileActionsOverlayVisible.value),
-          color: ffi.dialogManager.mobileActionsOverlayVisible.isTrue
-              ? _ToolbarTheme.blueColor
-              : _ToolbarTheme.inactiveColor,
-          hoverColor: ffi.dialogManager.mobileActionsOverlayVisible.isTrue
-              ? _ToolbarTheme.hoverBlueColor
-              : _ToolbarTheme.hoverInactiveColor,
-        ));
   }
 }
 
@@ -1034,15 +988,15 @@ class _MainMonitorSwitchButton extends StatelessWidget {
               SvgPicture.asset(
                 'assets/display_switcher.svg',
                 colorFilter:
-                    const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                    ColorFilter.mode(bdColors.onAccent, BlendMode.srcIn),
                 width: _ToolbarTheme.buttonSize,
                 height: _ToolbarTheme.buttonSize,
               ),
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.black,
+                style: TextStyle(
+                  color: bdColors.accent,
                   fontSize: 11,
                   height: 1,
                   fontWeight: FontWeight.bold,
@@ -1091,7 +1045,7 @@ class _MonitorMenu extends StatelessWidget {
   Widget buildMonitorMenu(BuildContext context) {
     final width = SimpleWrapper<double>(0);
     final monitorsIcon =
-        globalMonitorsWidget(width, Colors.white, Colors.black38);
+        globalMonitorsWidget(width, bdColors.onAccent, bdColors.text.withOpacity(0.38));
     return _IconSubmenuButton(
         tooltip: 'Select Monitor',
         icon: monitorsIcon,
@@ -1101,7 +1055,7 @@ class _MonitorMenu extends StatelessWidget {
         hoverColor: _ToolbarTheme.hoverBlueColor,
         menuStyle: MenuStyle(
             padding:
-                MaterialStatePropertyAll(EdgeInsets.symmetric(horizontal: 6))),
+                WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 6))),
         menuChildrenGetter: (_) => [buildMonitorSubmenuWidget(context)]);
   }
 
@@ -1158,7 +1112,7 @@ class _MonitorMenu extends StatelessWidget {
           Widget? monitorsIcon;
           if (isAllMonitors) {
             monitorsIcon = globalMonitorsWidget(
-                width, Colors.white, _ToolbarTheme.blueColor);
+                width, bdColors.onAccent, _ToolbarTheme.blueColor);
           }
           return _IconMenuButton(
             tooltip: isMulti
@@ -1188,7 +1142,7 @@ class _MonitorMenu extends StatelessWidget {
                         SvgPicture.asset(
                           "assets/screen.svg",
                           colorFilter:
-                              ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                              ColorFilter.mode(bdColors.onAccent, BlendMode.srcIn),
                         ),
                         Obx(() => buildOneMonitorButton(i, display.value)),
                       ],
@@ -1240,10 +1194,10 @@ class _MonitorMenu extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(
-                color: Colors.grey,
+                color: bdColors.border,
                 width: 1.0,
               ),
-              color: display.value == i ? activeBgColor : Colors.white,
+              color: display.value == i ? activeBgColor : bdColors.onAccent,
             ),
             child: Center(
                 child: Text(
@@ -1295,36 +1249,6 @@ class _MonitorMenu extends StatelessWidget {
         openMonitorInTheSameTab(i, ffi, pi, updateCursorPos: !isMulti);
       }
     }
-  }
-}
-
-class _ControlMenu extends StatelessWidget {
-  final String id;
-  final FFI ffi;
-  final ToolbarState state;
-  _ControlMenu(
-      {Key? key, required this.id, required this.ffi, required this.state})
-      : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return _IconSubmenuButton(
-        tooltip: 'Control Actions',
-        svg: "assets/actions.svg",
-        color: _ToolbarTheme.blueColor,
-        hoverColor: _ToolbarTheme.hoverBlueColor,
-        ffi: ffi,
-        menuChildrenGetter: (_) => toolbarControls(context, id, ffi).map((e) {
-              if (e.divider) {
-                return Divider();
-              } else {
-                return MenuButton(
-                    child: e.child,
-                    onPressed: e.onPressed,
-                    ffi: ffi,
-                    trailingIcon: e.trailingIcon);
-              }
-            }).toList());
   }
 }
 
@@ -1687,11 +1611,13 @@ class _DisplayMenu extends StatefulWidget {
   final FFI ffi;
   final ToolbarState state;
   final Function(bool) setFullscreen;
+  final bool showLabel;
   const _DisplayMenu(
       {required this.id,
       required this.ffi,
       required this.state,
-      required this.setFullscreen});
+      required this.setFullscreen,
+      this.showLabel = true});
 
   @override
   State<_DisplayMenu> createState() => _DisplayMenuState();
@@ -1729,70 +1655,200 @@ class _DisplayMenuState extends State<_DisplayMenu> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    menuChildrenGetter(_IconSubmenuButtonState state) {
-      final menuChildren = <Widget>[
-        _screenAdjustor.adjustWindow(context),
-        viewStyle(customPercent: _customPercent),
-        scrollStyle(state, colorScheme),
-        imageQuality(),
-        fpsMode(),
-        codec(),
-        if (ffi.connType == ConnType.defaultConn)
-          _ResolutionsMenu(
-            id: widget.id,
-            ffi: widget.ffi,
-            screenAdjustor: _screenAdjustor,
-          ),
-        if (showVirtualDisplayMenu(ffi) && ffi.connType == ConnType.defaultConn)
-          _SubmenuButton(
-            ffi: widget.ffi,
-            menuChildren: getVirtualDisplayMenuChildren(ffi, id, null),
-            child: Text(translate("Virtual display")),
-          ),
-        if (ffi.connType == ConnType.defaultConn) cursorToggles(),
-        Divider(),
-        toggles(),
-      ];
-      // privacy mode
-      final privacyModeState = PrivacyModeState.find(id);
-      if (ffi.connType == ConnType.defaultConn &&
-          (pi.features.privacyMode || privacyModeState.isNotEmpty) &&
-          (ffiModel.keyboard || privacyModeState.isNotEmpty)) {
-        final privacyModeList =
-            toolbarPrivacyMode(privacyModeState, context, id, ffi);
-        if (privacyModeList.length == 1) {
-          menuChildren.add(CkbMenuButton(
-              value: privacyModeList[0].value,
-              onChanged: privacyModeList[0].onChanged,
-              child: privacyModeList[0].child,
-              ffi: ffi));
-        } else if (privacyModeList.length > 1) {
-          menuChildren.addAll([
-            Divider(),
-            _SubmenuButton(
-                ffi: widget.ffi,
-                child: Text(translate('Privacy mode')),
-                menuChildren: privacyModeList
-                    .map((e) => CkbMenuButton(
-                        value: e.value,
-                        onChanged: e.onChanged,
-                        child: e.child,
-                        ffi: ffi))
-                    .toList()),
-          ]);
-        }
+    final isDefaultConn = ffi.connType == ConnType.defaultConn;
+
+    // The More menu (DESIGN.md, Remote session, More menu).
+    menuChildrenGetter(_BdToolbarSubmenuState state) {
+      final controls = toolbarControls(context, id, ffi);
+      final used = <TTextMenu>{};
+      TTextMenu? take(List<String> keys) {
+        final c = _findControl(controls, keys);
+        if (c != null) used.add(c);
+        return c;
       }
-      return menuChildren;
+
+      Widget item(TTextMenu e, {String? label}) => MenuButton(
+          child: label != null ? Text(label) : e.child,
+          onPressed: e.onPressed,
+          ffi: ffi,
+          trailingIcon: e.trailingIcon);
+
+      // Controls that the Keyboard menu or the Files button show.
+      take(['Transfer file']);
+      for (final l in _keyboardControlLabels) {
+        take([l]);
+      }
+      final screenshot = take(['Take screenshot', 'Taking screenshot']);
+      final switchSides = take(['Switch Sides']);
+      final note = take(['Note']);
+      final refresh = take(['Refresh']);
+      final openAs = _openAsLabels
+          .map((l) => take([l]))
+          .whereType<TTextMenu>()
+          .toList();
+      final theirs = _theirComputerLabels
+          .map((l) => take([l]))
+          .whereType<TTextMenu>()
+          .toList();
+      final rest =
+          controls.where((c) => !c.divider && !used.contains(c)).toList();
+
+      final recordingModel =
+          Provider.of<RecordingModel>(context, listen: false);
+      final hideRecording =
+          bind.mainGetLocalOption(key: kOptionHideRecordingButton) == 'Y';
+      final canRecord = !hideRecording &&
+          (recordingModel.start || perms['recording'] != false);
+
+      final privacyModeState = PrivacyModeState.find(id);
+      final privacyModeList = isDefaultConn &&
+              (pi.features.privacyMode || privacyModeState.isNotEmpty) &&
+              (ffiModel.keyboard || privacyModeState.isNotEmpty)
+          ? toolbarPrivacyMode(privacyModeState, context, id, ffi)
+          : <TToggleMenu>[];
+
+      return <Widget>[
+        if (!isWeb && isDefaultConn)
+          MenuButton(
+            child: Text(tr('bd-tb-voice-call')),
+            ffi: ffi,
+            onPressed: () => bind.sessionRequestVoiceCall(sessionId: ffi.sessionId),
+          ),
+        if (!isWeb && canRecord && !recordingModel.start)
+          MenuButton(
+            child: Text(tr('bd-tb-record')),
+            ffi: ffi,
+            onPressed: () => recordingModel.toggle(),
+          ),
+        if (screenshot != null) item(screenshot),
+        if (switchSides != null) item(switchSides),
+        Divider(),
+        _SubmenuButton(
+          ffi: ffi,
+          child: Text(tr('bd-tb-display')),
+          menuChildren: [
+            _screenAdjustor.adjustWindow(context),
+            viewStyle(customPercent: _customPercent),
+            scrollStyle(state, colorScheme),
+            if (isDefaultConn)
+              _ResolutionsMenu(
+                id: widget.id,
+                ffi: widget.ffi,
+                screenAdjustor: _screenAdjustor,
+              ),
+            if (showVirtualDisplayMenu(ffi) && isDefaultConn)
+              _SubmenuButton(
+                ffi: widget.ffi,
+                menuChildren: getVirtualDisplayMenuChildren(ffi, id, null),
+                child: Text(translate("Virtual display")),
+              ),
+            toggles(only: const [
+              'Show displays as individual windows',
+              'Use all my displays for the remote session',
+              'Show quality monitor',
+            ]),
+          ],
+        ),
+        _SubmenuButton(
+          ffi: ffi,
+          child: Text(tr('bd-tb-image-quality')),
+          menuChildren: [
+            imageQualityItems(),
+            fpsMode(),
+            codec(),
+            toggles(only: const ['True color (4:4:4)']),
+          ],
+        ),
+        if (isDefaultConn)
+          _SubmenuButton(
+            ffi: ffi,
+            child: Text(tr('bd-tb-cursor')),
+            menuChildren: [cursorToggles()],
+          ),
+        _SubmenuButton(
+          ffi: ffi,
+          child: Text(tr('bd-tb-sound-clipboard')),
+          menuChildren: [
+            toggles(only: const [
+              'Mute',
+              'Enable file copy and paste',
+              'Disable clipboard',
+            ]),
+          ],
+        ),
+        _SubmenuButton(
+          ffi: ffi,
+          child: Text(tr('bd-tb-their-computer')),
+          menuChildren: [
+            ...theirs.map((e) => item(e)),
+            toggles(only: const ['Lock after session end']),
+            if (privacyModeList.length == 1)
+              CkbMenuButton(
+                  value: privacyModeList[0].value,
+                  onChanged: privacyModeList[0].onChanged,
+                  child: privacyModeList[0].child,
+                  ffi: ffi),
+            if (privacyModeList.length > 1)
+              _SubmenuButton(
+                  ffi: widget.ffi,
+                  child: Text(translate('Privacy mode')),
+                  menuChildren: privacyModeList
+                      .map((e) => CkbMenuButton(
+                          value: e.value,
+                          onChanged: e.onChanged,
+                          child: e.child,
+                          ffi: ffi))
+                      .toList()),
+          ],
+        ),
+        if (openAs.isNotEmpty)
+          _SubmenuButton(
+            ffi: ffi,
+            child: Text(tr('bd-tb-open-as')),
+            menuChildren: openAs.map((e) => item(e)).toList(),
+          ),
+        Divider(),
+        if (note != null) item(note, label: tr('bd-tb-note')),
+        if (refresh != null) item(refresh, label: tr('bd-tb-refresh')),
+        if (isDefaultConn) _KeyboardMenu(id: id, ffi: ffi).viewMode(),
+        Obx(() => CkbMenuButton(
+              value: widget.state.pin,
+              onChanged: (_) => widget.state.switchPin(),
+              ffi: ffi,
+              child: Text(tr('bd-tb-keep-open')),
+            )),
+        if (rest.isNotEmpty) ...[
+          Divider(),
+          ...rest.map((e) => item(e)),
+        ],
+      ];
     }
 
-    return _IconSubmenuButton(
-      tooltip: 'Display Settings',
-      svg: "assets/display.svg",
+    return _BdToolbarSubmenu(
+      icon: BdIcons.moreHoriz,
+      label: tr('bd-tb-more'),
+      showLabel: widget.showLabel,
       ffi: widget.ffi,
-      color: _ToolbarTheme.blueColor,
-      hoverColor: _ToolbarTheme.hoverBlueColor,
       menuChildrenGetter: menuChildrenGetter,
     );
+  }
+
+  imageQualityItems() {
+    return futureBuilder(
+        future: toolbarImageQuality(context, widget.id, widget.ffi),
+        hasData: (data) {
+          final v = data as List<TRadioMenu<String>>;
+          return Column(
+            children: v
+                .map((e) => RdoMenuButton<String>(
+                    value: e.value,
+                    groupValue: e.groupValue,
+                    onChanged: e.onChanged,
+                    child: e.child,
+                    ffi: ffi))
+                .toList(),
+          );
+        });
   }
 
   viewStyle({required RxInt customPercent}) {
@@ -1855,7 +1911,7 @@ class _DisplayMenuState extends State<_DisplayMenu> {
     });
   }
 
-  scrollStyle(_IconSubmenuButtonState state, ColorScheme colorScheme) {
+  scrollStyle(dynamic state, ColorScheme colorScheme) {
     return futureBuilder(future: () async {
       final viewStyle =
           await bind.sessionGetViewStyle(sessionId: ffi.sessionId) ?? '';
@@ -2006,7 +2062,6 @@ class _DisplayMenuState extends State<_DisplayMenu> {
           final v = data as List<TToggleMenu>;
           if (v.isEmpty) return Offstage();
           return Column(children: [
-            Divider(),
             ...v
                 .map((e) => CkbMenuButton(
                     value: e.value,
@@ -2018,11 +2073,14 @@ class _DisplayMenuState extends State<_DisplayMenu> {
         });
   }
 
-  toggles() {
+  toggles({List<String>? only}) {
     return futureBuilder(
         future: toolbarDisplayToggle(context, id, ffi),
         hasData: (data) {
-          final v = data as List<TToggleMenu>;
+          var v = data as List<TToggleMenu>;
+          if (only != null) {
+            v = v.where((e) => _isLabel(e.child, only)).toList();
+          }
           if (v.isEmpty) return Offstage();
           return Column(
               children: v
@@ -2176,7 +2234,7 @@ class _RectValueThumbShape extends SliderComponentShape {
     );
     final Color? evaluatedColor = colorTween.evaluate(enableAnimation);
     final Color? thumbColor = sliderTheme.thumbColor;
-    final Color fillColor = evaluatedColor ?? thumbColor ?? Colors.blueAccent;
+    final Color fillColor = evaluatedColor ?? thumbColor ?? bdColors.accent;
 
     final RRect rrect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: center, width: width, height: height),
@@ -2191,8 +2249,8 @@ class _RectValueThumbShape extends SliderComponentShape {
         : (min + value * (max - min)).round();
     final TextSpan span = TextSpan(
       text: '$displayValue$unit',
-      style: const TextStyle(
-        color: Colors.white,
+      style: TextStyle(
+        color: bdColors.onAccent,
         fontSize: 12,
         fontWeight: FontWeight.w600,
       ),
@@ -2540,10 +2598,12 @@ class _ResolutionsMenuState extends State<_ResolutionsMenu> {
 class _KeyboardMenu extends StatelessWidget {
   final String id;
   final FFI ffi;
+  final bool showLabel;
   _KeyboardMenu({
     Key? key,
     required this.id,
     required this.ffi,
+    this.showLabel = true,
   }) : super(key: key);
 
   PeerInfo get pi => ffi.ffiModel.pi;
@@ -2566,24 +2626,38 @@ class _KeyboardMenu extends StatelessWidget {
       return toggles;
     }
 
-    return _IconSubmenuButton(
-        tooltip: 'Keyboard Settings',
-        svg: "assets/keyboard_mouse.svg",
+    // Keys to send first, then how keys are sent, then the mouse.
+    keyActions() {
+      final controls = toolbarControls(context, id, ffi);
+      final keys = _keyboardControlLabels
+          .map((l) => _findControl(controls, [l]))
+          .whereType<TTextMenu>()
+          .map((e) => MenuButton(
+              child: e.child,
+              onPressed: e.onPressed,
+              ffi: ffi,
+              trailingIcon: e.trailingIcon) as Widget)
+          .toList();
+      if (keys.isNotEmpty) keys.add(Divider());
+      return keys;
+    }
+
+    return _BdToolbarSubmenu(
+        icon: BdIcons.keyboard,
+        label: tr('bd-tb-keyboard'),
+        showLabel: showLabel,
         ffi: ffi,
-        color: _ToolbarTheme.blueColor,
-        hoverColor: _ToolbarTheme.hoverBlueColor,
         menuChildrenGetter: (_) => [
+              ...keyActions(),
               keyboardMode(),
               localKeyboardType(),
               inputSource(),
               Divider(),
-              viewMode(),
+              ...toolbarToggles(),
+              ...mouseSpeed(),
               if ([kPeerPlatformWindows, kPeerPlatformMacOS, kPeerPlatformLinux]
                   .contains(pi.platform))
                 showMyCursor(),
-              Divider(),
-              ...toolbarToggles(),
-              ...mouseSpeed(),
               ...mobileActions(),
             ]);
   }
@@ -2595,7 +2669,7 @@ class _KeyboardMenu extends StatelessWidget {
       if (ffi.ffiModel.keyboard) {
         final enabled = !ffi.ffiModel.viewOnly;
         final trackpad = MenuButton(
-          child: Text(translate('Trackpad speed')).paddingOnly(left: 26.0),
+          child: Text(translate('Trackpad speed')),
           onPressed: enabled ? () => trackpadSpeedDialog(sessionId, ffi) : null,
           ffi: ffi,
         );
@@ -2772,8 +2846,7 @@ class _KeyboardMenu extends StatelessWidget {
               }
             },
             ffi: ffi,
-            child: Text(translate('Show my cursor')))
-        .paddingOnly(left: 26.0);
+            child: Text(translate('Show my cursor')));
   }
 
   mobileActions() {
@@ -2964,8 +3037,11 @@ class _VoiceCallMenu extends StatelessWidget {
   }
 }
 
+/// While recording, a Recording button sits before More; clicking it stops.
+/// Starting a recording is in More.
 class _RecordMenu extends StatelessWidget {
-  const _RecordMenu({Key? key}) : super(key: key);
+  const _RecordMenu({Key? key, this.showLabel = true}) : super(key: key);
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -2975,19 +3051,14 @@ class _RecordMenu extends StatelessWidget {
         bind.mainGetLocalOption(key: kOptionHideRecordingButton) == 'Y';
     final visible = !hideRecordingButton &&
         (recordingModel.start || ffi.permissions['recording'] != false);
-    if (!visible) return Offstage();
-    return _IconMenuButton(
-      assetName: 'assets/rec.svg',
-      tooltip: recordingModel.start
-          ? 'Stop session recording'
-          : 'Start session recording',
+    if (!visible || !recordingModel.start) return Offstage();
+    return BdToolbarButton(
+      icon: BdIcons.fiberManualRecord,
+      iconColor: context.bd.danger,
+      label: tr('bd-tb-recording'),
+      tooltip: translate('Stop session recording'),
+      showLabel: showLabel,
       onPressed: () => recordingModel.toggle(),
-      color: recordingModel.start
-          ? _ToolbarTheme.redColor
-          : _ToolbarTheme.blueColor,
-      hoverColor: recordingModel.start
-          ? _ToolbarTheme.hoverRedColor
-          : _ToolbarTheme.hoverBlueColor,
     );
   }
 }
@@ -2995,22 +3066,152 @@ class _RecordMenu extends StatelessWidget {
 class _CloseMenu extends StatelessWidget {
   final String id;
   final FFI ffi;
-  const _CloseMenu({Key? key, required this.id, required this.ffi})
+  final bool showLabel;
+  const _CloseMenu(
+      {Key? key, required this.id, required this.ffi, this.showLabel = true})
       : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return _IconMenuButton(
-      assetName: 'assets/close.svg',
-      tooltip: 'Close',
+    return BdToolbarButton(
+      icon: BdIcons.callEnd,
+      label: tr('bd-tb-end'),
+      showLabel: showLabel,
+      danger: true,
       onPressed: () async {
         if (await showConnEndAuditDialogCloseCanceled(ffi: ffi)) {
           return;
         }
         closeConnection(id: id);
       },
-      color: _ToolbarTheme.redColor,
-      hoverColor: _ToolbarTheme.hoverRedColor,
+    );
+  }
+}
+
+/// Labels of the session controls that belong in the Keyboard menu.
+const _keyboardControlLabels = [
+  'Insert Ctrl + Alt + Del',
+  'Insert Lock',
+  'Send clipboard keystrokes',
+  'OS Password',
+  'wayland-keyboard-input-reset-choice-tip',
+];
+
+/// Labels of the session controls that belong under Open as.
+const _openAsLabels = ['View camera', 'Terminal', 'TCP tunneling'];
+
+/// Labels of the session controls that belong under Their computer.
+const _theirComputerLabels = [
+  'Restart remote device',
+  'Block user input',
+  'Unblock user input',
+  'Request Elevation',
+];
+
+String? _labelOf(Widget w) {
+  if (w is Text) return w.data ?? w.textSpan?.toPlainText();
+  if (w is Row) {
+    for (final c in w.children) {
+      final l = _labelOf(c);
+      if (l != null) return l;
+    }
+  }
+  if (w is Padding && w.child != null) return _labelOf(w.child!);
+  return null;
+}
+
+bool _isLabel(Widget child, List<String> keys) {
+  final l = _labelOf(child);
+  if (l == null) return false;
+  return keys.any((k) => l.startsWith(translate(k)));
+}
+
+TTextMenu? _findControl(List<TTextMenu> controls, List<String> keys) {
+  for (final c in controls) {
+    if (!c.divider && _isLabel(c.child, keys)) return c;
+  }
+  return null;
+}
+
+/// A toolbar button that opens a menu (Keyboard, More), with expand_more.
+class _BdToolbarSubmenu extends StatefulWidget {
+  const _BdToolbarSubmenu({
+    required this.icon,
+    required this.label,
+    required this.menuChildrenGetter,
+    required this.ffi,
+    this.showLabel = true,
+  });
+
+  final IconData icon;
+  final String label;
+  final List<Widget> Function(_BdToolbarSubmenuState state) menuChildrenGetter;
+  final FFI ffi;
+  final bool showLabel;
+
+  @override
+  State<_BdToolbarSubmenu> createState() => _BdToolbarSubmenuState();
+}
+
+class _BdToolbarSubmenuState extends State<_BdToolbarSubmenu> {
+  bool _hover = false;
+  bool _open = false;
+
+  @override // discard @protected
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.bd;
+    final t = context.bdText;
+    final button = SubmenuButton(
+      menuStyle: bdMenuStyle(context),
+      style: _ToolbarTheme.defaultMenuButtonStyle,
+      alignmentOffset: const Offset(0, 6),
+      onHover: (v) => setState(() => _hover = v),
+      onOpen: () => setState(() => _open = true),
+      onClose: () => setState(() => _open = false),
+      menuChildren: widget
+          .menuChildrenGetter(this)
+          .map((e) => _buildPointerTrackWidget(e, widget.ffi))
+          .toList(),
+      child: Tooltip(
+        message: widget.showLabel ? '' : widget.label,
+        child: Container(
+          height: _ToolbarTheme.buttonSize,
+          padding: EdgeInsets.only(
+              left: widget.showLabel ? 10 : 8, right: widget.showLabel ? 6 : 8),
+          decoration: BoxDecoration(
+            color: _open ? c.accentTint : (_hover ? c.hover : Colors.transparent),
+            borderRadius: BdSize.r,
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(widget.icon, size: 20, color: c.text),
+            if (widget.showLabel) ...[
+              const SizedBox(width: 8),
+              Text(widget.label,
+                  style: t.label.copyWith(fontSize: 13, height: 18 / 13)),
+              const SizedBox(width: 4),
+              Icon(BdIcons.expandMore, size: 18, color: c.textMuted),
+            ],
+          ]),
+        ),
+      ),
+    );
+    return MenuBar(
+      style: MenuStyle(
+        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+        elevation: const WidgetStatePropertyAll(0),
+        backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+        shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
+      ),
+      children: [
+        button.marginSymmetric(
+            horizontal: _ToolbarTheme.buttonHMargin,
+            vertical: _ToolbarTheme.buttonVMargin)
+      ],
     );
   }
 }
@@ -3053,7 +3254,7 @@ class _IconMenuButtonState extends State<_IconMenuButton> {
     final icon = widget.icon ??
         SvgPicture.asset(
           widget.assetName!,
-          colorFilter: ColorFilter.mode(Colors.white, BlendMode.srcIn),
+          colorFilter: ColorFilter.mode(bdColors.onAccent, BlendMode.srcIn),
           width: _ToolbarTheme.buttonSize,
           height: _ToolbarTheme.buttonSize,
         );
@@ -3062,9 +3263,9 @@ class _IconMenuButtonState extends State<_IconMenuButton> {
       height: _ToolbarTheme.buttonSize,
       child: MenuItemButton(
           style: ButtonStyle(
-              backgroundColor: MaterialStatePropertyAll(Colors.transparent),
-              padding: MaterialStatePropertyAll(EdgeInsets.zero),
-              overlayColor: MaterialStatePropertyAll(Colors.transparent)),
+              backgroundColor: WidgetStatePropertyAll(Colors.transparent),
+              padding: WidgetStatePropertyAll(EdgeInsets.zero),
+              overlayColor: WidgetStatePropertyAll(Colors.transparent)),
           onHover: (value) => setState(() {
                 hover = value;
               }),
@@ -3138,7 +3339,7 @@ class _IconSubmenuButtonState extends State<_IconSubmenuButton> {
     final icon = widget.icon ??
         SvgPicture.asset(
           widget.svg!,
-          colorFilter: ColorFilter.mode(Colors.white, BlendMode.srcIn),
+          colorFilter: ColorFilter.mode(bdColors.onAccent, BlendMode.srcIn),
           width: _ToolbarTheme.buttonSize,
           height: _ToolbarTheme.buttonSize,
         );
@@ -3190,6 +3391,12 @@ class _SubmenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SubmenuButton(
       key: key,
+      style: bdMenuItemStyle(context),
+      leadingIcon: const SizedBox(width: 18),
+      trailingIcon: Padding(
+        padding: const EdgeInsets.only(left: 24),
+        child: Icon(BdIcons.chevronRight, size: 18, color: context.bd.textMuted),
+      ),
       child: child,
       menuChildren:
           menuChildren.map((e) => _buildPointerTrackWidget(e, ffi)).toList(),
@@ -3215,6 +3422,8 @@ class MenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return MenuItemButton(
         key: key,
+        style: bdMenuItemStyle(context),
+        leadingIcon: const SizedBox(width: 18),
         onPressed: onPressed != null
             ? () {
                 if (ffi != null) {
@@ -3243,16 +3452,23 @@ class CkbMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CheckboxMenuButton(
+    final on = value == true;
+    return MenuItemButton(
       key: key,
-      value: value,
+      style: bdMenuItemStyle(context),
+      leadingIcon: SizedBox(
+        width: 18,
+        child: on
+            ? Icon(BdIcons.check, size: 18, color: context.bd.accent)
+            : null,
+      ),
       child: child,
-      onChanged: onChanged != null
-          ? (bool? value) {
+      onPressed: onChanged != null
+          ? () {
               if (ffi != null) {
                 _menuDismissCallback(ffi!);
               }
-              onChanged?.call(value);
+              onChanged?.call(!on);
             }
           : null,
     );
@@ -3279,13 +3495,35 @@ class RdoMenuButton<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RadioMenuButton(
-      value: value,
-      groupValue: groupValue,
-      child: child,
+    final c = context.bd;
+    final on = value == groupValue;
+    return MenuItemButton(
+      style: bdMenuItemStyle(context),
       closeOnActivate: closeOnActivate,
-      onChanged: onChanged != null
-          ? (T? value) {
+      leadingIcon: SizedBox(
+        width: 18,
+        child: Center(
+          child: Container(
+            width: 14,
+            height: 14,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: on ? c.accent : c.border),
+            ),
+            child: on
+                ? Container(
+                    width: 6,
+                    height: 6,
+                    decoration:
+                        BoxDecoration(shape: BoxShape.circle, color: c.accent))
+                : null,
+          ),
+        ),
+      ),
+      child: child,
+      onPressed: onChanged != null
+          ? () {
               if (ffi != null && closeOnActivate) {
                 _menuDismissCallback(ffi!);
               }
@@ -3550,22 +3788,23 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
   @override
   Widget build(BuildContext context) {
     final ButtonStyle buttonStyle = ButtonStyle(
-      minimumSize: MaterialStateProperty.all(const Size(0, 0)),
-      padding: MaterialStateProperty.all(EdgeInsets.zero),
+      minimumSize: WidgetStateProperty.all(const Size(0, 0)),
+      padding: WidgetStateProperty.all(EdgeInsets.zero),
     );
     final isFullscreen = stateGlobal.fullscreen;
     const double iconSize = 20;
 
     buttonWrapper(VoidCallback? onPressed, Widget child,
-        {Color hoverColor = _ToolbarTheme.blueColor}) {
+        {Color? hoverColor}) {
+      final Color hover = hoverColor ?? _ToolbarTheme.blueColor;
       final bgColor = buttonStyle.backgroundColor?.resolve({});
       return TextButton(
         onPressed: onPressed,
         child: child,
         style: buttonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.hovered)) {
-              return (bgColor ?? hoverColor).withOpacity(0.15);
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered)) {
+              return (bgColor ?? hover).withOpacity(0.15);
             }
             return bgColor;
           }),
@@ -3653,7 +3892,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
               .menuBarTheme
               .style
               ?.backgroundColor
-              ?.resolve(MaterialState.values.toSet()),
+              ?.resolve(WidgetState.values.toSet()),
           border: Border.all(
             color: _ToolbarTheme.borderColor(context),
             width: 1,
@@ -3777,10 +4016,10 @@ class _MinimizedMonitorSwitchButton extends StatelessWidget {
         child: TextButton(
           onPressed: cycle.next,
           style: ButtonStyle(
-            minimumSize: MaterialStateProperty.all(const Size(0, 0)),
-            padding: MaterialStateProperty.all(EdgeInsets.zero),
-            backgroundColor: MaterialStateProperty.resolveWith((states) {
-              if (states.contains(MaterialState.hovered)) {
+            minimumSize: WidgetStateProperty.all(const Size(0, 0)),
+            padding: WidgetStateProperty.all(EdgeInsets.zero),
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) {
                 return _ToolbarTheme.blueColor.withOpacity(0.15);
               }
               return null;
@@ -3798,8 +4037,8 @@ class _MinimizedMonitorSwitchButton extends StatelessWidget {
               ),
               Text(
                 label,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: bdColors.onAccent,
                   fontSize: 9,
                   height: 1,
                   fontWeight: FontWeight.bold,

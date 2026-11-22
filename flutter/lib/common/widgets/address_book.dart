@@ -19,6 +19,7 @@ import 'package:get/get.dart';
 import 'package:flex_color_picker/flex_color_picker.dart';
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import 'dialog.dart';
 import 'login.dart';
 
@@ -544,7 +545,7 @@ class _AddressBookState extends State<AddressBook> {
                       children: [
                         Text(
                           '*',
-                          style: TextStyle(color: Colors.red, fontSize: 14),
+                          style: TextStyle(color: context.bd.danger, fontSize: 14),
                         ),
                         Text(
                           'ID',
@@ -657,7 +658,7 @@ class _AddressBookState extends State<AddressBook> {
             ),
             if (!gFFI.abModel.current.isPersonal())
               Row(children: [
-                Icon(Icons.info, color: Colors.amber).marginOnly(right: 4),
+                Icon(Icons.info, color: context.bd.warning).marginOnly(right: 4),
                 Text(
                   translate('share_warning_tip'),
                   style: TextStyle(fontSize: 12),
@@ -697,7 +698,9 @@ class _AddressBookState extends State<AddressBook> {
           for (var t in [kUntagged, translate(kUntagged)]) {
             if (tags.contains(t)) {
               BotToast.showText(
-                  contentColor: Colors.red, text: 'Tag name cannot be "$t"');
+                  contentColor: bdColors.danger,
+                  textStyle: toastTextStyle(bdColors.onDanger),
+                  text: 'Tag name cannot be "$t"');
               isInProgress = false;
               return;
             }
@@ -800,14 +803,14 @@ class AddressBookTag extends StatelessWidget {
                       decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: tags.contains(name)
-                              ? Colors.white
+                              ? BdPalette.onDataColor
                               : gFFI.abModel.getCurrentAbTagColor(name)),
                     ).marginOnly(right: radius / 2),
                   Expanded(
                     child: Text(isUnTagged ? translate(name) : name,
                         style: TextStyle(
                             overflow: TextOverflow.ellipsis,
-                            color: tags.contains(name) ? Colors.white : null)),
+                            color: tags.contains(name) ? BdPalette.onDataColor : null)),
                   ),
                 ],
               ),

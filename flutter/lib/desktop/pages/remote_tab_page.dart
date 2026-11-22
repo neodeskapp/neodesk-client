@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/common/shared_state.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/input_model.dart';
@@ -24,7 +25,7 @@ import '../../common/widgets/dialog.dart';
 import '../../models/platform_model.dart';
 
 class _MenuTheme {
-  static const Color blueColor = MyTheme.button;
+  static Color get blueColor => MyTheme.button;
   // kMinInteractiveDimension
   static const double height = 20.0;
   static const double dividerHeight = 12.0;
@@ -348,7 +349,7 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
       items: menu
           .map((entry) => entry.build(
               context,
-              const MenuConfig(
+              MenuConfig(
                 commonColor: _MenuTheme.blueColor,
                 height: _MenuTheme.height,
                 dividerHeight: _MenuTheme.dividerHeight,
@@ -597,9 +598,9 @@ class _RelativeMouseModeHint extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         margin: const EdgeInsets.only(right: 8),
         decoration: BoxDecoration(
-          color: Colors.orange.withOpacity(0.2),
+          color: context.bd.warning.withOpacity(0.2),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: Colors.orange.withOpacity(0.5)),
+          border: Border.all(color: context.bd.warning.withOpacity(0.5)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -607,7 +608,7 @@ class _RelativeMouseModeHint extends StatelessWidget {
             Icon(
               Icons.mouse,
               size: 14,
-              color: Colors.orange[700],
+              color: context.bd.warning,
             ),
             const SizedBox(width: 4),
             Text(
@@ -615,7 +616,7 @@ class _RelativeMouseModeHint extends StatelessWidget {
                   'rel-mouse-exit-{${isMacOS ? "Cmd+G" : "Ctrl+Alt"}}-tip'),
               style: TextStyle(
                 fontSize: 11,
-                color: Colors.orange[700],
+                color: context.bd.warning,
               ),
             ),
           ],

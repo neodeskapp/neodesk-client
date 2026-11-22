@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:toggle_switch/toggle_switch.dart';
 
 import '../../common.dart';
+import '../../common/theme/bd_theme.dart';
 import '../../common/widgets/dialog.dart';
 import '../../consts.dart';
 
@@ -291,13 +292,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
           centerTitle: true,
           title: ToggleSwitch(
             initialLabelIndex: showLocal ? 0 : 1,
-            activeBgColor: [MyTheme.idColor],
-            inactiveBgColor: Theme.of(context).brightness == Brightness.light
-                ? MyTheme.grayBg
-                : null,
-            inactiveFgColor: Theme.of(context).brightness == Brightness.light
-                ? Colors.black54
-                : null,
+            activeBgColor: [context.bd.accent],
+            activeFgColor: context.bd.onAccent,
+            inactiveBgColor: context.bd.bgSubtle,
+            inactiveFgColor: context.bd.textMuted,
             totalSwitches: 2,
             minWidth: 100,
             fontSize: 15,

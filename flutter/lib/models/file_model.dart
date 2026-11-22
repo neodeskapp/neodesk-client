@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/theme/bd_theme.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/utils/event_loop.dart';
 import 'package:get/get.dart';
@@ -223,7 +224,7 @@ class FileModel {
       return CustomAlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.warning_rounded, color: Colors.red),
+            Icon(Icons.warning_rounded, color: context.bd.danger),
             Text(title).paddingOnly(
               left: 10,
             ),
@@ -815,7 +816,7 @@ class FileController {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.warning_rounded, color: Colors.red),
+            Icon(Icons.warning_rounded, color: context.bd.danger),
             Expanded(
               child: Text(title).paddingOnly(
                 left: 10,
@@ -831,9 +832,9 @@ class FileController {
             Text(content),
             Text(
               translate("This is irreversible!"),
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.red,
+                color: context.bd.danger,
               ),
             ).paddingOnly(top: 20),
             showCheckbox
