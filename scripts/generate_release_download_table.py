@@ -257,7 +257,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--product", choices=("desktop", "support"), required=True)
     parser.add_argument("--asset-dir", type=Path, required=True)
-    parser.add_argument("--repo", default="UNITRONIX/BetterDesk-Client")
+    parser.add_argument("--repo", default="trybetterdesk/betterdesk-client")
     parser.add_argument("--tag", required=True)
     parser.add_argument("--release-name", required=True)
     parser.add_argument("--commit", default="")
