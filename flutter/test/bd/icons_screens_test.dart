@@ -332,18 +332,52 @@ void main() {
     await shot(tester, 'client-menu-submenu', b);
   });
 
-  testWidgets('window controls, new tab and chat close draw 20 px icons',
-      (tester) async {
+  testWidgets('new tab and chat close draw 20 px icons', (tester) async {
     await pumpScreen(tester, _sessionWindow(),
         size: mainSize, extra: _appExtensions);
     List<double> sizes(IconData icon) =>
         tester.widgetList<Icon>(find.byIcon(icon)).map((i) => i.size!).toList()
           ..sort();
-    expect(sizes(BdIcons.remove), [20]);
-    expect(sizes(BdIcons.square), [20]);
     expect(sizes(BdIcons.add), [20]);
-    // The tab's close stays at 16 next to its 13 px label; the window's
-    // and the chat window's are 20.
-    expect(sizes(BdIcons.close), [16, 20, 20]);
+    // The tab's close stays at 16 next to its 13 px label; the chat
+    // window's is 20.
+    expect(sizes(BdIcons.close), [16, 20]);
   });
+
+  for (final maximized in [false, true]) {
+    testWidgets(
+        'window controls draw line glyphs of one size (maximized: $maximized)',
+        (tester) async {
+      await pumpScreen(
+          tester,
+          Align(
+            alignment: Alignment.topRight,
+            child: BdWindowControls(
+                onMinimize: () {},
+                onMaximize: () {},
+                onClose: () {},
+                maximized: maximized),
+          ),
+          size: const Size(200, 40));
+      final buttons = find.byType(BdWinButton);
+      expect(find.descendant(of: buttons, matching: find.byType(Icon)),
+          findsNothing);
+      final glyphs = find.descendant(
+          of: buttons,
+          matching: find.byWidgetPredicate(
+              (w) => w is CustomPaint && w.painter is BdWinGlyphPainter));
+      expect(
+          tester
+              .widgetList<CustomPaint>(glyphs)
+              .map((p) => (p.painter as BdWinGlyphPainter).glyph),
+          [
+            BdWinGlyph.minimize,
+            maximized ? BdWinGlyph.restore : BdWinGlyph.maximize,
+            BdWinGlyph.close,
+          ]);
+      for (final e in glyphs.evaluate()) {
+        expect(tester.getSize(find.byWidget(e.widget)), const Size(10, 10));
+      }
+    });
+  }
 }

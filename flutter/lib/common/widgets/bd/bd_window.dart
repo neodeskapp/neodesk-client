@@ -55,19 +55,19 @@ class BdWindowControls extends StatelessWidget {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       if (onMinimize != null)
         BdWinButton(
-            icon: BdIcons.remove,
+            glyph: BdWinGlyph.minimize,
             tooltip: translate('Minimize'),
             onTap: onMinimize,
             height: height),
       if (onMaximize != null)
         BdWinButton(
-            icon: maximized ? BdIcons.filterNone : BdIcons.square,
+            glyph: maximized ? BdWinGlyph.restore : BdWinGlyph.maximize,
             tooltip: translate(maximized ? 'Restore' : 'Maximize'),
             onTap: onMaximize,
             height: height),
       if (onClose != null)
         BdWinButton(
-            icon: BdIcons.close,
+            glyph: BdWinGlyph.close,
             tooltip: translate('Close'),
             onTap: onClose,
             height: height,
@@ -76,19 +76,64 @@ class BdWindowControls extends StatelessWidget {
   }
 }
 
-/// One window button, 46 x [height]; the close button hovers red. The icon
-/// is 20 px like the session toolbar's, so the strokes have the same weight.
+enum BdWinGlyph { minimize, maximize, restore, close }
+
+/// The window buttons' glyphs: 10 px with a 1 px line, as Windows draws
+/// its own, so the four have the same size and weight. Icon fonts draw a
+/// short heavy dash, a large thin square and a mid-size cross.
+class BdWinGlyphPainter extends CustomPainter {
+  const BdWinGlyphPainter(this.glyph, this.color);
+  final BdWinGlyph glyph;
+  final Color color;
+
+  static const double size = 10;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    // Straight lines sit on half pixels so they cover whole pixels.
+    switch (glyph) {
+      case BdWinGlyph.minimize:
+        canvas.drawLine(const Offset(0, 4.5), const Offset(10, 4.5), p);
+      case BdWinGlyph.maximize:
+        canvas.drawRect(const Rect.fromLTRB(0.5, 0.5, 9.5, 9.5), p);
+      case BdWinGlyph.restore:
+        canvas.drawRect(const Rect.fromLTRB(0.5, 2.5, 7.5, 9.5), p);
+        canvas.drawPath(
+            Path()
+              ..moveTo(2.5, 2.5)
+              ..lineTo(2.5, 0.5)
+              ..lineTo(9.5, 0.5)
+              ..lineTo(9.5, 7.5)
+              ..lineTo(7.5, 7.5),
+            p);
+      case BdWinGlyph.close:
+        p.isAntiAlias = true;
+        canvas.drawLine(Offset.zero, const Offset(10, 10), p);
+        canvas.drawLine(const Offset(10, 0), const Offset(0, 10), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(BdWinGlyphPainter oldDelegate) =>
+      oldDelegate.glyph != glyph || oldDelegate.color != color;
+}
+
+/// One window button, 46 x [height]; the close button hovers red.
 class BdWinButton extends StatefulWidget {
   const BdWinButton({
     super.key,
-    required this.icon,
+    required this.glyph,
     required this.tooltip,
     required this.onTap,
     required this.height,
     this.isClose = false,
   });
 
-  final IconData icon;
+  final BdWinGlyph glyph;
   final String tooltip;
   final VoidCallback? onTap;
   final double height;
@@ -124,7 +169,10 @@ class _WinButtonState extends State<BdWinButton> {
             height: widget.height,
             color: bg,
             alignment: Alignment.center,
-            child: Icon(widget.icon, size: 20, color: fg),
+            child: CustomPaint(
+              size: const Size.square(BdWinGlyphPainter.size),
+              painter: BdWinGlyphPainter(widget.glyph, fg),
+            ),
           ),
         ),
       ),

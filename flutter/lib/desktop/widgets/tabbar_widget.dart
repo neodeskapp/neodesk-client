@@ -807,7 +807,7 @@ class WindowActionPanelState extends State<WindowActionPanel> {
             children: [
               if (widget.showMinimize && !isMacOS)
                 BdWinButton(
-                  icon: BdIcons.remove,
+                  glyph: BdWinGlyph.minimize,
                   tooltip: translate('Minimize'),
                   height: _kTabBarHeight - 1,
                   onTap: () {
@@ -820,9 +820,9 @@ class WindowActionPanelState extends State<WindowActionPanel> {
                 ),
               if (widget.showMaximize && !isMacOS)
                 Obx(() => BdWinButton(
-                      icon: stateGlobal.isMaximized.isTrue
-                          ? BdIcons.filterNone
-                          : BdIcons.square,
+                      glyph: stateGlobal.isMaximized.isTrue
+                          ? BdWinGlyph.restore
+                          : BdWinGlyph.maximize,
                       tooltip: translate(stateGlobal.isMaximized.isTrue
                           ? 'Restore'
                           : 'Maximize'),
@@ -833,7 +833,7 @@ class WindowActionPanelState extends State<WindowActionPanel> {
                     )),
               if (widget.showClose && !isMacOS)
                 BdWinButton(
-                  icon: BdIcons.close,
+                  glyph: BdWinGlyph.close,
                   tooltip: translate('Close'),
                   height: _kTabBarHeight - 1,
                   isClose: true,

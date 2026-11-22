@@ -317,7 +317,7 @@ class ConnectionManagerState extends State<ConnectionManager>
             ),
           ),
           BdWinButton(
-            icon: BdIcons.remove,
+            glyph: BdWinGlyph.minimize,
             tooltip: translate('Minimize'),
             height: kDesktopRemoteTabBarHeight - 1,
             onTap: () => windowManager.minimize(),
