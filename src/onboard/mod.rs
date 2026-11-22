@@ -51,6 +51,8 @@ const OPTION_OWN_ID: &str = "betterdesk-quick-support-id";
 const OPTION_CONSOLE: &str = "betterdesk-console";
 /// How long after the last input event a supporter counts as using the computer.
 const INPUT_ACTIVE_FOR_MS: i64 = 2_000;
+/// The chat lines the state keeps.
+const CHAT_LINES_KEPT: usize = 200;
 
 static QUICK_SUPPORT: AtomicBool = AtomicBool::new(false);
 static LAST_INPUT_MS: AtomicI64 = AtomicI64::new(0);
@@ -98,9 +100,32 @@ pub struct State {
     pub link: Option<String>,
     /// The quick support file this app was started from (Windows).
     pub file_name: Option<String>,
+    /// The chat with the supporter in a quick support session, oldest first.
+    pub messages: Vec<ChatLine>,
+}
+
+/// A chat line of a quick support session.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatLine {
+    pub from_supporter: bool,
+    pub text: String,
+    /// Milliseconds since 1970.
+    pub time: i64,
 }
 
 impl State {
+    fn add_chat(&mut self, from_supporter: bool, text: String) {
+        self.messages.push(ChatLine {
+            from_supporter,
+            text,
+            time: hbb_common::get_time(),
+        });
+        if self.messages.len() > CHAT_LINES_KEPT {
+            self.messages.remove(0);
+        }
+    }
+
     /// Records `err` as the error, in code and words.
     pub fn fail(&mut self, err: &OnboardError) {
         let server = self.server.clone().unwrap_or_default();
@@ -504,6 +529,7 @@ fn start_support(console: Console, code: String) {
     if running.is_some() {
         return;
     }
+    STATE.update(|s| s.messages.clear());
     let (tx, rx) = mpsc::channel();
     *running = Some(tx);
     std::thread::spawn(move || {
@@ -524,6 +550,49 @@ pub fn end_support() {
     if let Some(tx) = SUPPORT.lock().unwrap().as_ref() {
         tx.send(support::Command::End).ok();
     }
+}
+
+/// Keeps a chat line the supporter sent, for the quick support screen.
+/// Called by the connection for each chat message of its peer.
+pub fn note_chat(text: &str) {
+    if is_quick_support() {
+        STATE.update(|s| s.add_chat(true, text.to_owned()));
+    }
+}
+
+/// Sends a chat line from the quick support screen to the supporter.
+pub fn send_chat(text: String) {
+    if is_quick_support() {
+        chat_to_supporter(&STATE, text, send_to_sessions);
+    }
+}
+
+/// Hands `text` to `send` and keeps it as the person's line once a session
+/// took it.
+fn chat_to_supporter(state: &SharedState, text: String, send: impl FnOnce(&str) -> bool) {
+    if text.trim().is_empty() {
+        return;
+    }
+    if send(&text) {
+        state.update(|s| s.add_chat(false, text));
+    }
+}
+
+/// Hands `text` to the remote sessions of this process, which send it to
+/// their peer. False when no remote session runs.
+fn send_to_sessions(text: &str) -> bool {
+    let mut sent = false;
+    for conn in crate::server::AUTHED_CONNS.lock().unwrap().iter() {
+        if conn.conn_type == crate::server::AuthConnType::Remote {
+            sent |= conn
+                .sender
+                .send(crate::ipc::Data::ChatMessage {
+                    text: text.to_owned(),
+                })
+                .is_ok();
+        }
+    }
+    sent
 }
 
 /// The running app as quick support sees it. The server runs in this

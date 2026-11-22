@@ -617,3 +617,42 @@ fn a_handed_over_token_keeps_the_status_it_came_with() {
     assert_eq!(read(payload(Some("rejected"), "123456789")), None);
     assert_eq!(read(payload(None, "987654321")), None);
 }
+
+#[test]
+fn quick_support_chat_keeps_the_lines_of_both_sides() {
+    let state = SharedState::default();
+    let mut sent = Vec::new();
+    super::chat_to_supporter(&state, "It is the printer".to_owned(), |text| {
+        sent.push(text.to_owned());
+        true
+    });
+    super::chat_to_supporter(&state, "  ".to_owned(), |_| panic!("an empty line went out"));
+    super::chat_to_supporter(&state, "nobody gets this".to_owned(), |_| false);
+    state.update(|s| s.add_chat(true, "Which one?".to_owned()));
+
+    assert_eq!(sent, ["It is the printer"]);
+    let lines: Vec<(bool, String)> = state
+        .get()
+        .messages
+        .into_iter()
+        .map(|line| (line.from_supporter, line.text))
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            (false, "It is the printer".to_owned()),
+            (true, "Which one?".to_owned())
+        ]
+    );
+    let value = serde_json::to_value(state.get()).unwrap();
+    assert_eq!(value["messages"][1]["fromSupporter"], true);
+    assert_eq!(value["messages"][1]["text"], "Which one?");
+    assert!(value["messages"][1]["time"].as_i64().unwrap() > 0);
+
+    for n in 0..super::CHAT_LINES_KEPT {
+        state.update(|s| s.add_chat(true, n.to_string()));
+    }
+    let messages = state.get().messages;
+    assert_eq!(messages.len(), super::CHAT_LINES_KEPT);
+    assert_eq!(messages[0].text, "0");
+}

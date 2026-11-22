@@ -1158,6 +1158,18 @@ impl Connection {
                                 conn.send_remote_printing_disallowed().await;
                             }
                         }
+                        // A chat line from the quick support screen, which runs in this process.
+                        ipc::Data::ChatMessage { text } => {
+                            let mut misc = Misc::new();
+                            misc.set_chat_message(ChatMessage {
+                                text,
+                                ..Default::default()
+                            });
+                            let mut msg_out = Message::new();
+                            msg_out.set_misc(misc);
+                            conn.send(msg_out).await;
+                            conn.chat_unanswered = false;
+                        }
                         _ => {}
                     }
                 }
@@ -3809,6 +3821,8 @@ impl Connection {
                         }
                     }
                     Some(misc::Union::ChatMessage(c)) => {
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                        crate::onboard::note_chat(&c.text);
                         self.send_to_cm(ipc::Data::ChatMessage { text: c.text });
                         self.chat_unanswered = true;
                         self.update_auto_disconnect_timer();
