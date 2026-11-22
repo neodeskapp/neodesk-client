@@ -1220,15 +1220,22 @@ fn get_api_server_(api: String, custom: String) -> String {
     }
     let s0 = get_custom_rendezvous_server(custom);
         if !s0.is_empty() {
-        let s = crate::increase_port(&s0, -2);
-        if s == s0 {
-            return format!("http://{}:{}", s, config::RENDEZVOUS_PORT - 2);
-        } else {
-            return format!("http://{}", s);
-        }
+        return api_server_of_id_server(&s0);
     }
     // BetterDesk: never fall back to public admin.rustdesk.com
     "".to_owned()
+}
+
+/// The API port of a BetterDesk server, the same whatever the ID server's port.
+pub const BETTERDESK_API_PORT: i32 = 21121;
+
+/// The API next to the ID server `id_server` (host or host:port) when no API
+/// server is set: plain http on [`BETTERDESK_API_PORT`].
+pub fn api_server_of_id_server(id_server: &str) -> String {
+    let host = hbb_common::socket_client::split_host_port(id_server)
+        .map(|(host, _)| host)
+        .unwrap_or_else(|| id_server.to_owned());
+    format!("http://{host}:{BETTERDESK_API_PORT}")
 }
 
 #[inline]
@@ -3120,6 +3127,22 @@ mod tests {
     use std::collections::HashSet;
 
     use hbb_common::rendezvous_proto::control_permissions::Permission;
+
+    #[test]
+    fn an_id_server_without_api_server_uses_the_betterdesk_api_port() {
+        for (id_server, api) in [
+            ("desk.example.com", "http://desk.example.com:21121"),
+            ("desk.example.com:21116", "http://desk.example.com:21121"),
+            ("10.0.0.5:25116", "http://10.0.0.5:21121"),
+            ("[2001:db8::1]:21116", "http://[2001:db8::1]:21121"),
+        ] {
+            assert_eq!(get_api_server_(String::new(), id_server.to_owned()), api, "{id_server}");
+        }
+        assert_eq!(
+            get_api_server_("https://api.example.com".to_owned(), "desk.example.com".to_owned()),
+            "https://api.example.com"
+        );
+    }
 
     /// The control_permissions bits that set each permission to `value` (1 off, 2 on).
     fn control_bits(permissions: &[Permission], value: u64) -> u64 {

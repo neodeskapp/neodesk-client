@@ -14,7 +14,7 @@
 )]
 
 use hbb_common::{
-    config::{self, keys},
+    config::keys,
     log, tokio,
 };
 use serde_json::{json, Value};
@@ -49,8 +49,7 @@ pub struct PairingTarget {
 
 /// An http(s) URL is used as the API base as typed. A host or host:port is
 /// an ID server, and the API base follows the rule `get_api_server` uses
-/// without api-server: plain http, two ports below the ID server, 21114 when
-/// no port is given.
+/// without api-server: plain http on the BetterDesk API port.
 pub fn pairing_target(server: &str) -> Option<PairingTarget> {
     let server = server.trim();
     let lower = server.to_ascii_lowercase();
@@ -73,14 +72,8 @@ pub fn pairing_target(server: &str) -> Option<PairingTarget> {
     {
         return None;
     }
-    let shifted = crate::increase_port(server, -2);
-    let api = if shifted == server {
-        format!("http://{server}:{}", config::RENDEZVOUS_PORT - 2)
-    } else {
-        format!("http://{shifted}")
-    };
     Some(PairingTarget {
-        api,
+        api: crate::common::api_server_of_id_server(server),
         typed_url: false,
         id_server: server.to_owned(),
     })
@@ -288,7 +281,7 @@ pub fn pair_and_apply(server: String, code: String) -> PairResult {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let device_id = crate::ipc::get_id();
     #[cfg(any(target_os = "android", target_os = "ios"))]
-    let device_id = config::Config::get_id();
+    let device_id = hbb_common::config::Config::get_id();
     let pairing = pair_with_code_blocking(server, code, device_id);
     if pairing.result.ok {
         for (key, value) in pairing.options {
@@ -363,12 +356,12 @@ mod tests {
     #[test]
     fn api_base_for_a_host_follows_the_id_server_rule() {
         let target = pairing_target("bd.example.com").unwrap();
-        assert_eq!(target.api, "http://bd.example.com:21114");
+        assert_eq!(target.api, "http://bd.example.com:21121");
         assert!(!target.typed_url);
         assert_eq!(target.id_server, "bd.example.com");
 
         let target = pairing_target(" 10.0.0.5:21116/ ").unwrap();
-        assert_eq!(target.api, "http://10.0.0.5:21114");
+        assert_eq!(target.api, "http://10.0.0.5:21121");
         assert_eq!(target.id_server, "10.0.0.5:21116");
     }
 

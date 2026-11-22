@@ -34,6 +34,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   final _svcStopped = Get.find<RxBool>(tag: 'stop-service');
   final _svcIsUsingPublicServer = true.obs;
   final _statusReason = 'connecting'.obs;
+  final _standing = ''.obs;
   Timer? _updateTimer;
 
   double get em => 14.0;
@@ -72,12 +73,40 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
     return host;
   }
 
+  /// What the server last said about this computer (banned, removed or
+  /// waiting for approval), as the service keeps it; null when nothing.
+  HomeStatus? standingStatus(String server) {
+    final Map<String, dynamic> standing;
+    try {
+      standing = jsonDecode(_standing.value) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+    final reason = standing['reason'] as String? ?? '';
+    String withReason(String text) => reason.isEmpty
+        ? text
+        : '$text ${tr('bd-home-status-server-says', [reason])}';
+    if (standing['banned'] == true) {
+      return HomeStatus(
+          BdStatusKind.bad, withReason(tr('bd-home-status-banned', [server])));
+    }
+    if (standing['enrollment'] == 'rejected') {
+      return HomeStatus(
+          BdStatusKind.bad, withReason(tr('bd-home-status-removed', [server])));
+    }
+    if (standing['enrollment'] == 'pending') {
+      return HomeStatus(BdStatusKind.wait, tr('bd-home-status-approval'));
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       widget.onSvcStatusChanged?.call();
       final server = serverName();
       final st = stateGlobal.svcStatus.value;
+      final standing = standingStatus(server);
       final HomeStatus status;
       if (_svcStopped.value) {
         status = HomeStatus(
@@ -88,6 +117,8 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
         status = HomeStatus(BdStatusKind.bad, tr('bd-home-status-no-server'),
             linkLabel: tr('bd-set-up-by-hand'),
             onLink: onUsePublicServerGuide);
+      } else if (standing != null) {
+        status = standing;
       } else if (st == SvcStatus.connecting) {
         status = HomeStatus(
             BdStatusKind.wait, tr('bd-home-status-connecting', [server]));
@@ -115,6 +146,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
         jsonDecode(await bind.mainGetConnectStatus()) as Map<String, dynamic>;
     final statusNum = status['status_num'] as int;
     _statusReason.value = status['status_reason'] as String? ?? 'offline';
+    _standing.value = bind.mainGetOptionSync(key: 'betterdesk-device-standing');
     if (statusNum == 0) {
       stateGlobal.svcStatus.value = SvcStatus.connecting;
     } else if (statusNum == -1) {

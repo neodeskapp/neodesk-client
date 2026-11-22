@@ -326,6 +326,7 @@ async fn start_hbbs_sync_async() {
                 if let Ok(s) = crate::post_request(url.clone(), request.to_string(), "").await {
                     if let Some(answer) = read_heartbeat_answer(&s, telemetry::open_response) {
                         let HeartbeatAnswer { fields: mut rsp, mut sealed_only, sealed: secure_response } = answer;
+                        crate::hbbs_http::betterdesk::note_heartbeat_error(rsp.get("error").and_then(Value::as_str));
                         if rsp.remove("sysinfo").is_some() {
                             info_uploaded.uploaded = false;
                             config::Status::set("sysinfo_hash", "".to_owned());

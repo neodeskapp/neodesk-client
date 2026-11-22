@@ -258,6 +258,63 @@ pub fn next_enrollment_step(
     }
 }
 
+/// Config option with what the server last said about this device, as JSON
+/// of [`Standing`]; empty when there is nothing to say. The status line reads
+/// it.
+pub const OPTION_STANDING: &str = "betterdesk-device-standing";
+
+/// What the server last said about this device.
+#[derive(Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Standing {
+    /// The heartbeat answered BANNED.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub banned: bool,
+    /// "pending" or "rejected" from the last enrollment answer.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub enrollment: String,
+    /// The server's message with a rejected enrollment.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reason: String,
+}
+
+/// The longest server message the status line shows.
+const STANDING_REASON_MAX_CHARS: usize = 200;
+
+impl Standing {
+    fn read(stored: &str) -> Self {
+        serde_json::from_str(stored).unwrap_or_default()
+    }
+
+    fn write(&self) -> String {
+        if *self == Self::default() {
+            return String::new();
+        }
+        serde_json::to_string(self).unwrap_or_default()
+    }
+
+    /// The stored standing after a heartbeat answer with `error`.
+    pub fn after_heartbeat(stored: &str, error: Option<&str>) -> String {
+        let mut standing = Self::read(stored);
+        standing.banned = error == Some("BANNED");
+        standing.write()
+    }
+
+    /// The stored standing after an enrollment answer.
+    pub fn after_enrollment(stored: &str, status: &str, message: &str) -> String {
+        let mut standing = Self::read(stored);
+        standing.enrollment = match status {
+            "pending" | "rejected" => status.to_owned(),
+            _ => String::new(),
+        };
+        standing.reason = if status == "rejected" {
+            message.trim().chars().take(STANDING_REASON_MAX_CHARS).collect()
+        } else {
+            String::new()
+        };
+        standing.write()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,6 +322,29 @@ mod tests {
 
     const TIMESTAMP: &str = "2026-11-22T10:00:00Z";
     const NONCE: &str = "6e6f6e6365";
+
+    #[test]
+    fn the_standing_says_why_the_server_refuses_this_device() {
+        let read = |stored: &str| serde_json::from_str::<Value>(stored).unwrap();
+        let removed = Standing::after_enrollment("", "rejected", "Device has been removed");
+        assert_eq!(
+            read(&removed),
+            json!({"enrollment": "rejected", "reason": "Device has been removed"})
+        );
+        let banned = Standing::after_heartbeat(&removed, Some("BANNED"));
+        assert_eq!(
+            read(&banned),
+            json!({"banned": true, "enrollment": "rejected", "reason": "Device has been removed"})
+        );
+        assert_eq!(Standing::after_heartbeat(&banned, None), removed);
+        assert_eq!(Standing::after_enrollment(&removed, "approved", ""), "");
+        assert_eq!(
+            read(&Standing::after_enrollment("", "pending", "")),
+            json!({"enrollment": "pending"})
+        );
+        assert_eq!(Standing::after_heartbeat("", None), "");
+        assert_eq!(Standing::after_heartbeat("not json", Some("OTHER")), "");
+    }
 
     fn key_pair() -> (sign::PublicKey, sign::SecretKey) {
         sign::keypair_from_seed(&sign::Seed([7; 32]))
