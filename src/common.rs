@@ -3042,8 +3042,11 @@ pub fn str2color(s: &str, alpha: u8) -> u32 {
 }
 
 /// Check control permission state from a u64 bitmap.
-/// Each permission uses 2 bits: 0 = not set, 1 = disable, 2 = enable, 3 = invalid (treated as not set)
-/// Returns: Some(true) = enabled, Some(false) = disabled, None = not set or invalid
+/// Each permission uses 2 bits: 0 = not set, 1 = disable, 2 = enable, 3 = invalid.
+/// The server can only take a permission away for a session: enable reads as not set,
+/// so the device's own setting decides. A server that passes on bits the controller
+/// chose cannot switch on what the device has off.
+/// Returns: Some(false) = disabled by the server, None = the device decides
 pub fn get_control_permission(
     permissions: u64,
     permission: hbb_common::rendezvous_proto::control_permissions::Permission,
@@ -3054,8 +3057,7 @@ pub fn get_control_permission(
         let value = (permissions >> shift) & 0b11;
         match value {
             1 => Some(false), // disable
-            2 => Some(true),  // enable
-            _ => None,        // 0 = not set, 3 = invalid
+            _ => None,        // 0 = not set, 2 = enable (ignored), 3 = invalid
         }
     } else {
         None
@@ -3088,6 +3090,33 @@ mod tests {
         time::{interval, interval_at, sleep, Duration, Instant, Interval},
     };
     use std::collections::HashSet;
+
+    use hbb_common::rendezvous_proto::control_permissions::Permission;
+
+    /// The control_permissions bits that set each permission to `value` (1 off, 2 on).
+    fn control_bits(permissions: &[Permission], value: u64) -> u64 {
+        permissions
+            .iter()
+            .fold(0, |bits, p| bits | value << (2 * p.value() as u64))
+    }
+
+    #[test]
+    fn control_permissions_from_the_server_only_turn_permissions_off() {
+        let off = control_bits(&[Permission::file, Permission::clipboard], 1);
+        assert_eq!(get_control_permission(off, Permission::file), Some(false));
+        assert_eq!(get_control_permission(off, Permission::clipboard), Some(false));
+        assert_eq!(get_control_permission(off, Permission::keyboard), None);
+
+        // An enable bit leaves the permission to the device's own setting.
+        let on = control_bits(&[Permission::file, Permission::keyboard, Permission::privacy_mode], 2);
+        assert_eq!(get_control_permission(on, Permission::file), None);
+        assert_eq!(get_control_permission(on, Permission::keyboard), None);
+        assert_eq!(get_control_permission(on, Permission::privacy_mode), None);
+
+        // 3 is invalid and reads as not set.
+        let invalid = control_bits(&[Permission::audio], 3);
+        assert_eq!(get_control_permission(invalid, Permission::audio), None);
+    }
 
     #[test]
     fn parses_stable_rustdesk_release_url() {
