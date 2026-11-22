@@ -42,6 +42,7 @@ import 'desktop/pages/view_camera_page.dart' as desktop_view_camera;
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'models/model.dart';
 import 'models/platform_model.dart';
+import 'onboarding/onboarding_flow.dart' show confirmOnboardingLink;
 import 'onboarding/onboarding_service_bind.dart';
 
 import 'package:flutter_hbb/native/win32.dart'
@@ -2178,7 +2179,8 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
   } else if (isDesktop &&
       (uri.authority == "join" || uri.authority == "support")) {
     // betterdesk://join/<server>/<code> and betterdesk://support/...
-    onboardingService.handleLink(uri.toString());
+    // A join link asks first, naming the server.
+    confirmOnboardingLink(uri.toString(), onboardingService.handleLink);
     return null;
   } else if (uri.authority == "config") {
     if (isAndroid || isIOS) {

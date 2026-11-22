@@ -34,6 +34,7 @@ import 'models/branding_model.dart';
 import 'models/platform_model.dart';
 import 'onboarding/onboarding_demo.dart';
 import 'onboarding/onboarding_service.dart';
+import 'onboarding/onboarding_service_bind.dart';
 import 'onboarding/quick_support_app.dart';
 
 /// Basic window and launch properties.
@@ -184,10 +185,12 @@ void runMainApp(bool startService) async {
   });
 }
 
-/// Picks the onboarding implementation: the one registered by the joining
-/// code, else joining through pair-with-code. Debug and profile builds can
+/// Picks the onboarding implementation: the one on the client core
+/// (onboarding_service_bind.dart); the pair-with-code fallback only applies
+/// when nothing registered. Debug and profile builds can
 /// walk through the screens with BETTERDESK_DEMO_ONBOARDING (onboarding_demo.dart).
 void _registerOnboarding() {
+  registerOnboardingService();
   if (!kReleaseMode) {
     final demo = Platform.environment['BETTERDESK_DEMO_ONBOARDING'] ?? '';
     if (demo == 'first-start') {
