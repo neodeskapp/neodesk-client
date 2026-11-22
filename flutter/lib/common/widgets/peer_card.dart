@@ -1,5 +1,7 @@
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/consts.dart';
@@ -21,7 +23,7 @@ typedef PopupMenuEntryBuilder = Future<List<mod_menu.PopupMenuEntry<String>>>
 
 enum PeerUiType { grid, tile, list }
 
-final peerCardUiType = PeerUiType.grid.obs;
+final peerCardUiType = PeerUiType.list.obs;
 
 bool? hideUsernameOnCard;
 
@@ -91,8 +93,47 @@ class _PeerCardState extends State<_PeerCard>
         ));
   }
 
+  /// A desktop list row of the design (DESIGN.md, Home: list row).
+  Widget _buildDesktopRow() {
+    final peer = super.widget.peer;
+    final PeerTabModel peerTabModel = Provider.of(context);
+    final multi = peerTabModel.multiSelectionMode;
+    final selected = peerTabModel.isPeerSelected(peer.id);
+    final name = peer.alias.isNotEmpty
+        ? peer.alias
+        : (peer.hostname.isNotEmpty ? peer.hostname : formatID(peer.id));
+    final fav = widget.tab == PeerTabIndex.fav ||
+        gFFI.favoritePeersModel.peers.any((p) => p.id == peer.id);
+    return BdPeerRow(
+      name: name,
+      id: peer.id,
+      platform: peer.platform,
+      online: peer.online,
+      favourite: fav,
+      note: _showNote(peer) ? peer.note : null,
+      showStatus: stateGlobal.svcStatus.value == SvcStatus.ready,
+      selected: selected,
+      leading: multi
+          ? Icon(selected ? BdIcons.checkBox : BdIcons.checkBoxOutlineBlank,
+              size: 18, color: selected ? context.bd.accent : context.bd.border)
+          : null,
+      onTap: () => peerTabModel.select(peer),
+      onConnect: multi ? null : () => widget.connect(context, peer.id),
+      onMenu: multi
+          ? null
+          : (pos) {
+              _menuPos = RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx, pos.dy);
+              _showPeerMenu(peer.id);
+            },
+    );
+  }
+
   Widget _buildLandscape() {
     final peer = super.widget.peer;
+    if ((isDesktop || isWebDesktop) &&
+        peerCardUiType.value == PeerUiType.list) {
+      return Obx(() => _buildDesktopRow());
+    }
     var deco = Rx<BoxDecoration?>(
       BoxDecoration(
         border: Border.all(color: Colors.transparent, width: _borderWidth),
@@ -164,7 +205,7 @@ class _PeerCardState extends State<_PeerCard>
                   Positioned(
                     top: 1,
                     left: 1,
-                    child: Icon(Icons.key, size: 6, color: Colors.white),
+                    child: Icon(Icons.key, size: 6, color: BdPalette.onDataColor),
                   ),
               ],
             )),
@@ -323,8 +364,8 @@ class _PeerCardState extends State<_PeerCard>
                                       waitDuration: const Duration(seconds: 1),
                                       child: Text(
                                         name,
-                                        style: const TextStyle(
-                                            color: Colors.white70,
+                                        style: TextStyle(
+                                            color: BdPalette.onDataColor.withOpacity(0.7),
                                             fontSize: 12),
                                         textAlign: TextAlign.center,
                                         overflow: TextOverflow.ellipsis,
@@ -342,8 +383,8 @@ class _PeerCardState extends State<_PeerCard>
                                       waitDuration: const Duration(seconds: 1),
                                       child: Text(
                                         peer.note,
-                                        style: const TextStyle(
-                                            color: Colors.white38,
+                                        style: TextStyle(
+                                            color: BdPalette.onDataColor.withOpacity(0.38),
                                             fontSize: 10),
                                         textAlign: TextAlign.center,
                                         overflow: TextOverflow.ellipsis,
@@ -397,7 +438,7 @@ class _PeerCardState extends State<_PeerCard>
           Positioned(
             top: 4,
             left: 12,
-            child: Icon(Icons.key, size: 12, color: Colors.white),
+            child: Icon(Icons.key, size: 12, color: BdPalette.onDataColor),
           ),
         if (colors.isNotEmpty)
           Positioned(
@@ -788,14 +829,14 @@ abstract class BasePeerCard extends StatelessWidget {
         children: [
           Text(
             translate('Delete'),
-            style: style?.copyWith(color: Colors.red),
+            style: style?.copyWith(color: bdColors.danger),
           ),
           Expanded(
               child: Align(
             alignment: Alignment.centerRight,
             child: Transform.scale(
               scale: 0.8,
-              child: Icon(Icons.delete_forever, color: Colors.red),
+              child: Icon(Icons.delete_forever, color: bdColors.danger),
             ),
           ).marginOnly(right: 4)),
         ],
@@ -852,7 +893,7 @@ abstract class BasePeerCard extends StatelessWidget {
         } else {
           if (tab.index == PeerTabIndex.ab.index) {
             BotToast.showText(
-                contentColor: Colors.red, text: translate("Failed"));
+                contentColor: bdColors.danger, text: translate("Failed"));
           }
         }
       },
@@ -1471,7 +1512,7 @@ Widget getOnline(double rightPadding, bool online) {
       child: Padding(
           padding: EdgeInsets.fromLTRB(0, 4, rightPadding, 4),
           child: CircleAvatar(
-              radius: 3, backgroundColor: online ? Colors.green : kColorWarn)));
+              radius: 3, backgroundColor: online ? bdColors.success : kColorWarn)));
 }
 
 Widget build_more(BuildContext context, {bool invert = false}) {

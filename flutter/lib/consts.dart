@@ -8,7 +8,8 @@ import 'package:get/get.dart';
 const int kMaxVirtualDisplayCount = 4;
 const int kAllVirtualDisplay = -1;
 
-const double kDesktopRemoteTabBarHeight = 28.0;
+/// The title bar of every desktop window (DESIGN.md, Title bar).
+const double kDesktopRemoteTabBarHeight = 40.0;
 const int kInvalidWindowId = -1;
 const int kMainWindowId = 0;
 
