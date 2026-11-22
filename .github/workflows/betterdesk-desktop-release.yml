@@ -45,8 +45,10 @@ on:
           - macos-x86_64
           - macos-aarch64
 
+# A newer push ends the older run of the same branch; a manual run only ends
+# an older manual run, so rerunning one platform leaves a push run alone.
 concurrency:
-  group: betterdesk-desktop-release-${{ github.workflow }}-${{ github.ref }}
+  group: betterdesk-desktop-release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
