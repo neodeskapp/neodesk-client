@@ -169,8 +169,11 @@ void runMainApp(bool startService) async {
   }
 
   // Set window option.
+  // 1100 x 720 on the first start; a saved size and place win after that.
   WindowOptions windowOptions = getHiddenTitleBarWindowOptions(
-      isMainWindow: true, alwaysOnTop: alwaysOnTop);
+      isMainWindow: true,
+      alwaysOnTop: alwaysOnTop,
+      size: bind.isIncomingOnly() ? null : const Size(1100, 720));
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     // Restore the location of the main window before window hide or show.
     await restoreWindowPosition(WindowType.Main);
@@ -189,6 +192,9 @@ void runMainApp(bool startService) async {
     windowManager.setTitle(getWindowName());
     // Do not use `windowManager.setResizable()` here.
     setResizable(!bind.isIncomingOnly());
+    if (!bind.isIncomingOnly()) {
+      windowManager.setMinimumSize(const Size(900, 600));
+    }
   });
 }
 
