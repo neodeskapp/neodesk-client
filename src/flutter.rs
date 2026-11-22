@@ -2170,7 +2170,11 @@ pub mod sessions {
             }
             session.close();
         }
-        update_session_count_to_server();
+        // The UI's status loop calls this on its async runtime, and the count
+        // update starts a runtime of its own, which must not nest.
+        if !sessions.is_empty() {
+            std::thread::spawn(update_session_count_to_server);
+        }
         sessions.len()
     }
 
@@ -2424,6 +2428,32 @@ pub(super) mod async_tasks {
         let _res = super::push_global_event(
             super::APP_TYPE_MAIN,
             serde_json::ser::to_string(&data).unwrap_or("".to_owned()),
+        );
+    }
+}
+
+#[cfg(all(test, not(any(target_os = "android", target_os = "ios"))))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn closing_outgoing_sessions_inside_a_runtime_does_not_panic() {
+        sessions::insert_session(
+            SessionID::new_v4(),
+            ConnType::DEFAULT_CONN,
+            Arc::new(Session::default()),
+        );
+        let runtime = hbb_common::tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        assert_eq!(
+            runtime.block_on(async { sessions::close_outgoing_sessions() }),
+            1
+        );
+        assert_eq!(
+            runtime.block_on(async { sessions::close_outgoing_sessions() }),
+            0
         );
     }
 }
