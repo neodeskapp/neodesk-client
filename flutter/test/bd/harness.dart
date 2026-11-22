@@ -139,12 +139,23 @@ Future<void> shot(WidgetTester tester, String name, Brightness b,
   final theme = b == Brightness.dark ? 'dark' : 'light';
   final boundary = tester.renderObject<RenderRepaintBoundary>(
       find.byKey(rootKey ?? const ValueKey('bd-shot')));
-  await tester.runAsync(() async {
-    final image = await boundary.toImage(pixelRatio: 2);
-    final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    File('$dir/$name-$theme.png')
-        .writeAsBytesSync(data!.buffer.asUint8List());
-  });
+  // Tests draw shadows hard; draw the real soft ones for the picture.
+  debugDisableShadows = false;
+  try {
+    // Not awaited: it waits for a frame that only pump() produces here.
+    // ignore: unawaited_futures
+    tester.binding.reassembleApplication();
+    await tester.pump();
+    await tester.pump();
+    await tester.runAsync(() async {
+      final image = await boundary.toImage(pixelRatio: 2);
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      File('$dir/$name-$theme.png')
+          .writeAsBytesSync(data!.buffer.asUint8List());
+    });
+  } finally {
+    debugDisableShadows = true;
+  }
 }
 
 /// Runs [body] once in light and once in dark.

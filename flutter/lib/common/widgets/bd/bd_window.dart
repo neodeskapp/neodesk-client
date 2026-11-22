@@ -54,30 +54,32 @@ class BdWindowControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       if (onMinimize != null)
-        _WinButton(
+        BdWinButton(
             icon: BdIcons.remove,
             tooltip: translate('Minimize'),
-            onTap: onMinimize!,
+            onTap: onMinimize,
             height: height),
       if (onMaximize != null)
-        _WinButton(
+        BdWinButton(
             icon: maximized ? BdIcons.filterNone : BdIcons.cropSquare,
             tooltip: translate(maximized ? 'Restore' : 'Maximize'),
-            onTap: onMaximize!,
+            onTap: onMaximize,
             height: height),
       if (onClose != null)
-        _WinButton(
+        BdWinButton(
             icon: BdIcons.close,
             tooltip: translate('Close'),
-            onTap: onClose!,
+            onTap: onClose,
             height: height,
             isClose: true),
     ]);
   }
 }
 
-class _WinButton extends StatefulWidget {
-  const _WinButton({
+/// One window button, 46 x [height]; the close button hovers red.
+class BdWinButton extends StatefulWidget {
+  const BdWinButton({
+    super.key,
     required this.icon,
     required this.tooltip,
     required this.onTap,
@@ -87,15 +89,15 @@ class _WinButton extends StatefulWidget {
 
   final IconData icon;
   final String tooltip;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final double height;
   final bool isClose;
 
   @override
-  State<_WinButton> createState() => _WinButtonState();
+  State<BdWinButton> createState() => _WinButtonState();
 }
 
-class _WinButtonState extends State<_WinButton> {
+class _WinButtonState extends State<BdWinButton> {
   bool _hover = false;
 
   @override
@@ -104,16 +106,18 @@ class _WinButtonState extends State<_WinButton> {
     final bg = _hover
         ? (widget.isClose ? c.windowCloseHover : c.hover)
         : Colors.transparent;
-    final fg = _hover && widget.isClose ? c.onWindowCloseHover : c.text;
+    final fg = widget.onTap == null
+        ? c.textMuted
+        : (_hover && widget.isClose ? c.onWindowCloseHover : c.text);
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
-        child: Semantics(
-          button: true,
-          label: widget.tooltip,
+        child: Tooltip(
+          message: widget.tooltip,
+          waitDuration: const Duration(seconds: 1),
           child: Container(
             width: 46,
             height: widget.height,
@@ -320,7 +324,7 @@ class BdTitleBrand extends StatelessWidget {
     if (title != null) {
       return Row(mainAxisSize: MainAxisSize.min, children: [
         const BdLogoMark(size: 18),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         Text(title!, style: t.label.copyWith(fontWeight: FontWeight.w500)),
       ]);
     }

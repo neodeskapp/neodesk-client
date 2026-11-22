@@ -632,7 +632,7 @@ class BdTheme {
         iconTheme: IconThemeData(color: c.text),
         titleTextStyle: m(t.heading),
       ),
-      dividerTheme: DividerThemeData(color: c.rule, thickness: 1, space: 1),
+      dividerTheme: DividerThemeData(color: c.rule, thickness: 1),
       dialogTheme: DialogTheme(
         backgroundColor: c.bgFloat,
         surfaceTintColor: Colors.transparent,
