@@ -42,7 +42,7 @@ Deploy string = `reverse(base64({host,relay,api,key}))` — ten sam format co st
 - opcjonalnie `enrollment_status`, `branding_revision`, `branding_source`
 - `license` — `AGPL-3.0-only`
 - `upstream_project` / `upstream_repo` — RustDesk + `https://github.com/rustdesk/rustdesk`
-- `source_repo` — `https://github.com/trybetterdesk/betterdesk-client`
+- `source_repo` — `https://github.com/neodeskapp/betterdesk-client`
 
 Helper HTTP: [`src/hbbs_http/betterdesk.rs`](../src/hbbs_http/betterdesk.rs) (`/api/health`, `/api/branding`, `/api/server-key`, identity helpers).
 

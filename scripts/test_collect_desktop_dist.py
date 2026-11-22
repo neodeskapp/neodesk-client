@@ -149,13 +149,13 @@ def check_full(tmp: Path) -> None:
     notes_path = tmp / "notes.md"
     table = subprocess.run(
         [sys.executable, str(HERE / "generate_release_download_table.py"), "--product", "desktop",
-         "--asset-dir", str(clean), "--repo", "trybetterdesk/betterdesk-client", "--tag", "desktop/1.5.0",
+         "--asset-dir", str(clean), "--repo", "neodeskapp/betterdesk-client", "--tag", "desktop/1.5.0",
          "--release-name", "BetterDesk Client 1.5.0", "-o", str(notes_path)],
         capture_output=True, text=True,
     )
     expect(table.returncode == 0, f"download table failed: {table.stderr}")
     notes = notes_path.read_text(encoding="utf-8")
-    base = "https://github.com/trybetterdesk/betterdesk-client/releases/download/desktop/1.5.0/"
+    base = "https://github.com/neodeskapp/betterdesk-client/releases/download/desktop/1.5.0/"
     for name in sorted(expected) + ["SHA256SUMS"]:
         expect(f"({base}{name})" in notes, f"download table does not link {name}")
     expect("betterdesk-template-" not in notes.split("### Other assets")[0],

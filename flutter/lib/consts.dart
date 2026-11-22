@@ -730,7 +730,7 @@ const kCheckSoftwareUpdateFinish = 'check_software_update_finish';
 const kUpstreamProjectName = 'RustDesk';
 const kUpstreamRepoUrl = 'https://github.com/rustdesk/rustdesk';
 const kBetterDeskClientRepoUrl =
-    'https://github.com/trybetterdesk/betterdesk-client';
+    'https://github.com/neodeskapp/betterdesk-client';
 const kBetterDeskLicenseSpdx = 'AGPL-3.0-only';
 const kBetterDeskLicenseName = 'GNU Affero General Public License v3.0';
 const kBetterDeskClientProduct = 'betterdesk-desktop';

@@ -1055,8 +1055,8 @@ pub(crate) fn release_id_from_update_url(update_url: &str) -> ResultType<String>
     let release_id = match segments.as_slice() {
         ["rustdesk", "rustdesk", "releases", "tag", release_id] => *release_id,
         ["rustdesk", "rustdesk", "releases", "tag", release_id, ""] => *release_id,
-        ["trybetterdesk", "betterdesk-client", "releases", "tag", release_id] => *release_id,
-        ["trybetterdesk", "betterdesk-client", "releases", "tag", release_id, ""] => *release_id,
+        ["neodeskapp", "betterdesk-client", "releases", "tag", release_id] => *release_id,
+        ["neodeskapp", "betterdesk-client", "releases", "tag", release_id, ""] => *release_id,
         _ => bail!(
             "Update URL is not a known release tag URL: {}",
             update_url
@@ -3209,7 +3209,7 @@ mod tests {
         );
         assert_eq!(
             release_id_from_update_url(
-                "https://github.com/trybetterdesk/betterdesk-client/releases/tag/v1.4.6"
+                "https://github.com/neodeskapp/betterdesk-client/releases/tag/v1.4.6"
             )
             .unwrap(),
             "v1.4.6"
