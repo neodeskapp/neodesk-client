@@ -347,6 +347,36 @@ pub(crate) fn record_enrollment_answer(
         }
         enrollment::TokenChange::Clear => enrollment::clear_token(),
     }
+    if status != "rejected" {
+        note_enrollment_standing(status, "");
+    }
+}
+
+/// Keeps what the server said about this device in the config, where the
+/// status line of the UI reads it.
+fn store_standing(standing: String) {
+    if Config::get_option(enrollment::OPTION_STANDING) != standing {
+        Config::set_option(enrollment::OPTION_STANDING.to_owned(), standing);
+    }
+}
+
+fn note_enrollment_standing(status: &str, message: &str) {
+    let stored = Config::get_option(enrollment::OPTION_STANDING);
+    store_standing(enrollment::Standing::after_enrollment(&stored, status, message));
+}
+
+/// Notes the `error` of a heartbeat answer (BANNED for a banned device).
+pub(crate) fn note_heartbeat_error(error: Option<&str>) {
+    let stored = Config::get_option(enrollment::OPTION_STANDING);
+    store_standing(enrollment::Standing::after_heartbeat(&stored, error));
+}
+
+/// The server's message of a rejected enrollment answer.
+fn note_rejection(answer: &Value) {
+    if enrollment::answer_status(answer) == "rejected" {
+        let message = answer.get("message").and_then(Value::as_str).unwrap_or("");
+        note_enrollment_standing("rejected", message);
+    }
 }
 
 /// POST `{api}/api/devices/register` for BetterDesk desktop / Support (incoming-only).
@@ -449,6 +479,7 @@ pub async fn sync_device_enrollment() {
         &device_id,
         &base,
     );
+    note_rejection(&value);
 
     // Poll status when pending
     if enroll_status == "pending" {
@@ -480,6 +511,7 @@ async fn check_enrollment_status(client: &reqwest::Client, base: &str, device_id
             device_id,
             base,
         );
+        note_rejection(&value);
     }
 }
 
