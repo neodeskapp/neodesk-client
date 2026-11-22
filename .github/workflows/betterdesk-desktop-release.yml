@@ -4,8 +4,13 @@
 # targets and keeps the packages as workflow artifacts of the run. Nothing is
 # published.
 #
-# A desktop/* tag builds the same and publishes a GitHub Release on this
-# repository with a download table in the release notes.
+# A desktop/<version> or desktop-v<version> tag builds the same and publishes
+# a GitHub Release on this repository with a download table in the release
+# notes. The console only takes releases whose tag has no slash, so it can
+# use desktop-v* releases but not desktop/* ones.
+#
+# Package versions: a tag's version for releases, <Cargo.toml version>-dev.<run
+# number> for everything else (betterdesk-1.5.0-dev.42-windows-x86_64.exe).
 #
 # Manual runs (workflow_dispatch) build one platform or all of them, as
 # artifacts only:
@@ -23,6 +28,7 @@ on:
       - launch-ci
     tags:
       - "desktop/*"
+      - "desktop-v*"
     paths-ignore:
       - "docs/**"
       - "**/*.md"
@@ -52,7 +58,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  VERSION: "1.5.0"
   # Clean full client only — never bake Support Agent custom.txt in CI.
   PRODUCT: betterdesk-desktop
   PRODUCT_SKU: betterdesk-desktop
@@ -63,6 +68,7 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       publish: ${{ steps.meta.outputs.publish }}
+      version: ${{ steps.meta.outputs.version }}
       platforms: ${{ steps.meta.outputs.platforms }}
       dist_name: ${{ steps.meta.outputs.dist_name }}
       tag_name: ${{ steps.meta.outputs.tag_name }}
@@ -82,7 +88,7 @@ jobs:
           INPUT_PLATFORMS: ${{ github.event.inputs.platforms }}
         run: |
           set -euo pipefail
-          VERSION="${VERSION}"
+          BASE_VERSION="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' Cargo.toml | head -n 1)"
           SHORT_SHA="$(echo "${GITHUB_SHA}" | cut -c1-7)"
           RUN_N="${GITHUB_RUN_NUMBER}"
 
@@ -91,7 +97,10 @@ jobs:
             PUBLISH=true
             PLATFORMS=all
             TAG_NAME="${GITHUB_REF_NAME}"
-            # Tagged desktop/* releases are still prereleases unless name omits "dev"
+            VERSION="${TAG_NAME#desktop/}"
+            VERSION="${VERSION#desktop-}"
+            VERSION="${VERSION#v}"
+            # Tagged releases are still prereleases when the name says dev, nightly or snapshot
             if echo "${TAG_NAME}" | grep -Eqi 'dev|nightly|snapshot'; then
               IS_DEV=true
             else
@@ -102,7 +111,12 @@ jobs:
             PUBLISH=false
             PLATFORMS="${INPUT_PLATFORMS:-all}"
             TAG_NAME="dev-${RUN_N}-${SHORT_SHA}"
+            VERSION="${BASE_VERSION}-dev.${RUN_N}"
             IS_DEV=true
+          fi
+          if ! printf '%s' "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$'; then
+            echo "::error::Version ${VERSION} (from ${GITHUB_REF_NAME}) is not <major>.<minor>.<patch>[-<suffix>]"
+            exit 1
           fi
 
           if [ "${IS_DEV}" = "true" ]; then
@@ -112,13 +126,14 @@ jobs:
           fi
 
           # Previous BetterDesk desktop tag for changelog (fallback: last 20 commits)
-          PREV="$(git describe --tags --abbrev=0 --match 'desktop/*' "${GITHUB_SHA}^" 2>/dev/null || true)"
+          PREV="$(git describe --tags --abbrev=0 --match 'desktop/*' --match 'desktop-v*' "${GITHUB_SHA}^" 2>/dev/null || true)"
           if [ -z "${PREV}" ]; then
             PREV="$(git rev-list --max-count=1 HEAD~20 2>/dev/null || echo "")"
           fi
 
           {
             echo "publish=${PUBLISH}"
+            echo "version=${VERSION}"
             echo "platforms=${PLATFORMS}"
             echo "dist_name=betterdesk-desktop-${VERSION}-${SHORT_SHA}"
             echo "tag_name=${TAG_NAME}"
@@ -149,12 +164,16 @@ jobs:
     permissions:
       contents: read
       actions: read
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
+      # Cargo.toml and pubspec.yaml carry the version without the -dev or
+      # other suffix.
       - name: Validate release metadata
-        run: python3 scripts/validate_release_metadata.py --version "${VERSION}"
+        run: python3 scripts/validate_release_metadata.py --version "${VERSION%%-*}"
 
       - name: Download Windows unsigned
         uses: actions/download-artifact@v4
@@ -180,14 +199,14 @@ jobs:
       - name: Download Linux debs
         uses: actions/download-artifact@v4
         with:
-          pattern: "betterdesk-${{ env.VERSION }}-*.deb"
+          pattern: "betterdesk-*.deb"
           path: dist-raw/linux-debs
           merge-multiple: true
 
       - name: Download Linux rpms
         uses: actions/download-artifact@v4
         with:
-          pattern: "betterdesk-${{ env.VERSION }}-*-rpms"
+          pattern: "betterdesk-*-rpms"
           path: dist-raw/linux-rpms
           merge-multiple: true
 
