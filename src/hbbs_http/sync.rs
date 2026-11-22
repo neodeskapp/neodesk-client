@@ -336,14 +336,14 @@ async fn start_hbbs_sync_async() {
                                     SENDER.lock().unwrap().send(conns).ok();
                                 }
                         }
-                        if let Some(rsp_modified_at) = rsp.remove("modified_at") {
+                        if let Some(rsp_modified_at) = sealed_only.remove("modified_at") {
                             if let Ok(rsp_modified_at) = serde_json::from_value::<i64>(rsp_modified_at) {
                                 if rsp_modified_at != modified_at {
                                     LocalConfig::set_option("strategy_timestamp".to_string(), rsp_modified_at.to_string());
                                 }
                             }
                         }
-                        if let Some(strategy) = rsp.remove("strategy") {
+                        if let Some(strategy) = sealed_only.remove("strategy") {
                             if let Ok(strategy) = serde_json::from_value::<StrategyOptions>(strategy) {
                                 log::info!("strategy updated");
                                 handle_config_options(strategy.config_options);
@@ -388,10 +388,15 @@ async fn start_hbbs_sync_async() {
 }
 
 /// Fields of a heartbeat answer that count only from inside the sealed
-/// envelope. They run commands on the device, and the plain fields can come
-/// from anyone between the device and the server.
+/// envelope. They run commands on the device and change its settings, and
+/// the plain fields can come from anyone between the device and the server.
 #[cfg(not(target_os = "ios"))]
-const SEALED_ONLY: &[&str] = &["telemetry_commands", "connection_mode_command"];
+const SEALED_ONLY: &[&str] = &[
+    "telemetry_commands",
+    "connection_mode_command",
+    "strategy",
+    "modified_at",
+];
 
 /// A heartbeat answer as the sync loop reads it.
 #[cfg(not(target_os = "ios"))]
@@ -708,5 +713,32 @@ mod tests {
         assert!(answer.sealed);
         assert_eq!(answer.fields.get("connection_mode_command"), None);
         assert_eq!(answer.sealed_only.get("connection_mode_command"), None);
+    }
+
+    #[test]
+    fn strategy_and_its_time_count_only_from_inside_the_envelope() {
+        let strategy = json!({"config_options": {"custom-rendezvous-server": "evil.example"}});
+        let answer = read(
+            json!({"modified_at": 5, "strategy": strategy}),
+            Err("the answer has no envelope".to_owned()),
+        );
+        for key in ["strategy", "modified_at"] {
+            assert_eq!(answer.fields.get(key), None, "{key} of a plain answer");
+            assert_eq!(answer.sealed_only.get(key), None, "{key} of a plain answer");
+        }
+
+        let answer = read(
+            json!({"betterdesk_envelope": {"version": 1}, "modified_at": 5, "strategy": strategy}),
+            Ok(json!({"modified_at": 4})),
+        );
+        assert_eq!(answer.fields.get("strategy"), None);
+        assert_eq!(answer.sealed_only.get("strategy"), None);
+        assert_eq!(answer.sealed_only.get("modified_at"), Some(&json!(4)));
+
+        let answer = read(
+            json!({"betterdesk_envelope": {"version": 1}}),
+            Ok(json!({"modified_at": 4, "strategy": strategy})),
+        );
+        assert_eq!(answer.sealed_only.get("strategy"), Some(&strategy));
     }
 }
