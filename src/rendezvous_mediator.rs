@@ -348,8 +348,12 @@ impl RendezvousMediator {
             select! {
                 n = socket.next() => {
                     match n {
-                        Some(Ok((bytes, _))) => {
+                        Some(Ok((bytes, from))) => {
                             if let Ok(msg) = Message::parse_from_bytes(&bytes) {
+                                if from != addr && msg.has_peer_discovery() {
+                                    log::warn!("Ignored a peer discovery message from {from:?}, not from the ID server");
+                                    continue;
+                                }
                                 rz.handle_resp(msg.union, Sink::Framed(&mut socket, &addr), &server, &mut update_latency).await?;
                             } else {
                                 log::debug!("Non-protobuf message bytes received: {:?}", bytes);
@@ -496,6 +500,13 @@ impl RendezvousMediator {
                 Config::set_serial(cu.serial);
                 if v0 != Config::get_rendezvous_servers() {
                     Self::restart();
+                }
+            }
+            Some(rendezvous_message::Union::PeerDiscovery(pd)) => {
+                if let Some(id) = id_change(&pd, &Config::get_id()) {
+                    log::info!("The console changed this device's ID to {id}");
+                    Config::set_key_confirmed(false);
+                    Config::set_id(&id);
                 }
             }
             _ => {}
@@ -1152,12 +1163,53 @@ impl Drop for CheckIfResendPk {
     }
 }
 
+/// The new ID when `discovery` is the console's ID change for the device
+/// with `my_id`. IDs follow the server's rule: 6 to 16 letters, digits, `_`
+/// or `-`.
+fn id_change(discovery: &PeerDiscovery, my_id: &str) -> Option<String> {
+    let id = discovery.id.trim();
+    let valid = (6..=16).contains(&id.len())
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+    (discovery.cmd == "change_id" && !my_id.is_empty() && discovery.misc == my_id && id != my_id && valid)
+        .then(|| id.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        connection_meta, tokio, udp_nat_listen, Arc, IntoTargetAddr, Ordering, PunchHoleSent,
-        RendezvousMediator, RendezvousMessage, TCP_PUNCHES, UDP_PUNCHES,
+        connection_meta, id_change, tokio, udp_nat_listen, Arc, IntoTargetAddr, Ordering,
+        PeerDiscovery, PunchHoleSent, RendezvousMediator, RendezvousMessage, TCP_PUNCHES,
+        UDP_PUNCHES,
     };
+
+    #[test]
+    fn the_consoles_id_change_names_the_new_id() {
+        let change = |cmd: &str, id: &str, old: &str| PeerDiscovery {
+            cmd: cmd.to_owned(),
+            id: id.to_owned(),
+            misc: old.to_owned(),
+            ..Default::default()
+        };
+        let mine = "123456789";
+        assert_eq!(
+            id_change(&change("change_id", "office-pc_2", mine), mine).as_deref(),
+            Some("office-pc_2")
+        );
+        assert_eq!(
+            id_change(&change("change_id", "987654321", mine), mine).as_deref(),
+            Some("987654321")
+        );
+        // For another device, already done, not an ID, or another command.
+        assert_eq!(id_change(&change("change_id", "office-pc", "555555555"), mine), None);
+        assert_eq!(id_change(&change("change_id", mine, mine), mine), None);
+        assert_eq!(id_change(&change("change_id", "a b c d", mine), mine), None);
+        assert_eq!(id_change(&change("change_id", "short", mine), mine), None);
+        assert_eq!(id_change(&change("change_id", &"x".repeat(17), mine), mine), None);
+        assert_eq!(id_change(&change("ping", "office-pc", mine), mine), None);
+        assert_eq!(id_change(&change("change_id", "office-pc", ""), ""), None);
+    }
     use hbb_common::protobuf::Message as _;
     use std::sync::Mutex;
 
