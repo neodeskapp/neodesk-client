@@ -180,19 +180,34 @@ fn invite_argument(args: &[String]) -> Option<&str> {
     }
 }
 
+/// The file the person started: the packed exe whose name the portable
+/// packer passes on, or else this exe.
+fn started_file<'a>(exe: Option<&'a str>, packed: Option<&'a str>) -> Option<&'a str> {
+    packed.filter(|name| !name.trim().is_empty()).or(exe)
+}
+
+fn packed_file_name() -> Option<String> {
+    #[cfg(windows)]
+    return std::env::var(crate::common::PORTABLE_APPNAME_RUNTIME_ENV_KEY).ok();
+    #[cfg(not(windows))]
+    None
+}
+
 /// Decides the mode of this process from its file name, its arguments and
 /// what its parent passed on. Runs before anything reads the config, since
 /// quick support mode has its own config folder.
 pub fn init_process_mode() {
     let args: Vec<String> = std::env::args().collect();
+    let packed = packed_file_name();
+    let started = started_file(args.first().map(String::as_str), packed.as_deref());
     let mut pending = None;
     #[cfg(windows)]
-    if let Some(exe) = args.first() {
+    if let Some(exe) = started {
         pending = link::parse_file_name(exe);
     }
     let file_name = pending
         .as_ref()
-        .and(args.first())
+        .and(started)
         .and_then(|exe| std::path::Path::new(exe).file_name())
         .map(|name| name.to_string_lossy().into_owned());
     if let Some(text) = invite_argument(args.get(1..).unwrap_or(&[])) {
@@ -249,6 +264,8 @@ fn use_own_id() {
 /// True for a Windows setup file that carries a join code, so double-clicking
 /// it shows the install page like `...install.exe`.
 pub fn is_setup_file(exe: &str) -> bool {
+    let packed = packed_file_name();
+    let exe = started_file(Some(exe), packed.as_deref()).unwrap_or(exe);
     !is_quick_support()
         && link::parse_file_name(exe).map_or(false, |invite| invite.kind == Some(Kind::Join))
 }

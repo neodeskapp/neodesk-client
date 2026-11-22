@@ -656,3 +656,17 @@ fn quick_support_chat_keeps_the_lines_of_both_sides() {
     assert_eq!(messages.len(), super::CHAT_LINES_KEPT);
     assert_eq!(messages[0].text, "0");
 }
+
+#[test]
+fn the_packed_exe_name_carries_the_invite() {
+    let extracted = r"C:\Users\anna\AppData\Local\betterdesk\betterdesk.exe";
+    let packed = "BetterDesk-Setup-desk.example.com-ABCDEF23 (1).exe";
+    let started = super::started_file(Some(extracted), Some(packed));
+    assert_eq!(started, Some(packed));
+    let invite = super::link::parse_file_name(started.unwrap()).unwrap();
+    assert_eq!(invite.kind, Some(super::Kind::Join));
+    assert_eq!(invite.code, "ABCDEF23");
+
+    assert_eq!(super::started_file(Some(extracted), None), Some(extracted));
+    assert_eq!(super::started_file(Some(extracted), Some("")), Some(extracted));
+}
