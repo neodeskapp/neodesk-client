@@ -214,7 +214,11 @@ jobs:
   build-for-windows-flutter:
     name: ${{ matrix.job.target }}
     needs: [plan, build-RustDeskTempTopMostWindow, generate-bridge]
-    if: needs.plan.outputs.windows != '[]'
+    # Runs when one bridge or TopMostWindow leg failed too: the leg that needs the
+    # missing artifact then fails at its download, the other builds go on.
+    if: >-
+      !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.windows != '[]' &&
+      needs.generate-bridge.result != 'skipped' && needs.build-RustDeskTempTopMostWindow.result != 'skipped'
     runs-on: ${{ matrix.job.os }}
     env:
       # Windows files are signed through Azure Artifact Signing as "Rath & Blume GbR"
@@ -632,7 +636,9 @@ jobs:
     name: ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.os }}
     needs: [plan, generate-bridge]
-    if: needs.plan.outputs.macos != '[]'
+    if: >-
+      !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.macos != '[]' &&
+      needs.generate-bridge.result != 'skipped'
     strategy:
       fail-fast: false
       matrix:
@@ -870,7 +876,9 @@ jobs:
 
   build-rustdesk-linux:
     needs: [plan, generate-bridge]
-    if: needs.plan.outputs.linux != '[]'
+    if: >-
+      !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.linux != '[]' &&
+      needs.generate-bridge.result != 'skipped'
     name: build rustdesk linux ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.on }}
     strategy:
