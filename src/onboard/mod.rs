@@ -409,12 +409,35 @@ fn apply_join(joined: &Joined, device_id: &str) {
     }
 }
 
-/// Keeps a joined device token in this process, which runs the sync loop.
+/// Keeps the device token of a join or a pairing in this process, which runs
+/// the sync loop.
 /// Called by the IPC server for [`crate::ipc::IPC_JOINED_DEVICE_TOKEN`].
 pub fn store_device_token(payload: &str) {
-    let Ok(value) = serde_json::from_str::<Value>(payload) else {
+    let Some(handed) = read_device_token(payload, &Config::get_id()) else {
+        log::warn!("Ignored a device token for another device or without server");
         return;
     };
+    crate::hbbs_http::betterdesk::record_enrollment_answer(
+        handed.status,
+        Some(&handed.token),
+        &handed.device_id,
+        &handed.api,
+    );
+}
+
+/// A device token another process of this client handed over.
+#[derive(Debug, PartialEq, Eq)]
+struct HandedToken {
+    status: &'static str,
+    token: String,
+    device_id: String,
+    api: String,
+}
+
+/// Reads a handed-over device token for `this_device`. A join sends no
+/// status, its device is approved; a pairing sends "approved" or "pending".
+fn read_device_token(payload: &str, this_device: &str) -> Option<HandedToken> {
+    let value = serde_json::from_str::<Value>(payload).ok()?;
     let text = |key: &str| {
         value
             .get(key)
@@ -424,11 +447,20 @@ pub fn store_device_token(payload: &str) {
             .to_owned()
     };
     let (token, device_id, api) = (text("token"), text("device_id"), text("api"));
-    if token.is_empty() || api.is_empty() || device_id != Config::get_id() {
-        log::warn!("Ignored a joined device token for another device or without server");
-        return;
+    if token.is_empty() || api.is_empty() || device_id != this_device {
+        return None;
     }
-    crate::hbbs_http::betterdesk::record_enrollment_answer("approved", Some(&token), &device_id, &api);
+    let status = match text("status").as_str() {
+        "" | "approved" => "approved",
+        "pending" => "pending",
+        _ => return None,
+    };
+    Some(HandedToken {
+        status,
+        token,
+        device_id,
+        api,
+    })
 }
 
 /// Starts quick support for a link or code. Outside quick support mode it

@@ -586,3 +586,34 @@ fn join_and_support_links_are_read_from_the_arguments() {
         None
     );
 }
+
+#[test]
+fn a_handed_over_token_keeps_the_status_it_came_with() {
+    let payload = |status: Option<&str>, device_id: &str| {
+        let mut value = json!({
+            "token": "t0ken",
+            "device_id": device_id,
+            "api": "http://desk.example.com:21114",
+        });
+        if let Some(status) = status {
+            value["status"] = json!(status);
+        }
+        value.to_string()
+    };
+    let read = |payload: String| super::read_device_token(&payload, "123456789");
+
+    let joined = read(payload(None, "123456789")).expect("a joined token was refused");
+    assert_eq!(joined.status, "approved");
+    assert_eq!(joined.token, "t0ken");
+    assert_eq!(joined.api, "http://desk.example.com:21114");
+    assert_eq!(
+        read(payload(Some("pending"), "123456789")).map(|t| t.status),
+        Some("pending")
+    );
+    assert_eq!(
+        read(payload(Some("approved"), "123456789")).map(|t| t.status),
+        Some("approved")
+    );
+    assert_eq!(read(payload(Some("rejected"), "123456789")), None);
+    assert_eq!(read(payload(None, "987654321")), None);
+}
