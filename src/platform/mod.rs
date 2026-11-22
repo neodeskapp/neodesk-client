@@ -84,6 +84,19 @@ pub fn is_own_temp_update_file(name: &str) -> bool {
         || (name.starts_with(INSTALL_SCRIPT_PREFIX) && name.ends_with(".bat"))
 }
 
+/// True when the open `command` of a link scheme starts `exe`, so the
+/// uninstaller of `exe` may remove the scheme. A stock RustDesk's rustdesk://
+/// entry starts its own exe and stays.
+pub fn scheme_command_runs(command: &str, exe: &str) -> bool {
+    let command = command.trim_start();
+    let program = match command.strip_prefix('"') {
+        Some(rest) => rest.split('"').next().unwrap_or(""),
+        None => command.split_whitespace().next().unwrap_or(""),
+    };
+    let normal = |path: &str| path.trim().replace('/', "\\").to_lowercase();
+    !normal(exe).is_empty() && normal(program) == normal(exe)
+}
+
 pub fn is_xfce() -> bool {
     #[cfg(target_os = "linux")]
     {
@@ -300,6 +313,30 @@ mod tests {
         ] {
             assert!(!is_own_temp_update_file(stock), "{stock}");
         }
+    }
+
+    #[test]
+    fn only_a_link_entry_that_starts_this_client_is_its_own() {
+        let exe = r"C:\Program Files\BetterDesk\betterdesk.exe";
+        assert!(scheme_command_runs(
+            r#""C:\Program Files\BetterDesk\betterdesk.exe" "%1""#,
+            exe
+        ));
+        assert!(scheme_command_runs(
+            r#" "c:/program files/betterdesk/BetterDesk.exe" "%1""#,
+            exe
+        ));
+        assert!(scheme_command_runs(r"C:\BD\betterdesk.exe %1", r"C:\BD\betterdesk.exe"));
+        assert!(!scheme_command_runs(
+            r#""C:\Program Files\RustDesk\rustdesk.exe" "%1""#,
+            exe
+        ));
+        assert!(!scheme_command_runs(
+            r#""C:\Program Files\BetterDesk\betterdesk.exe.old" "%1""#,
+            exe
+        ));
+        assert!(!scheme_command_runs("", exe));
+        assert!(!scheme_command_runs(r#""" "%1""#, ""));
     }
 
     #[test]

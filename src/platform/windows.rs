@@ -1804,6 +1804,15 @@ fn get_before_uninstall(kill_self: bool) -> String {
     } else {
         format!(" /FI \"PID ne {}\"", get_current_pid())
     };
+    // Stock RustDesk registers rustdesk:// too: the entry goes only while it
+    // still starts this client.
+    let legacy_uri_scheme = hbb_common::config::LEGACY_URI_SCHEME;
+    let (_, _, _, installed_exe) = get_install_info();
+    let delete_legacy_uri_scheme = if machine_uri_scheme_runs(legacy_uri_scheme, &installed_exe) {
+        format!("reg delete HKEY_CLASSES_ROOT\\{legacy_uri_scheme} /f")
+    } else {
+        String::new()
+    };
     format!(
         "
     chcp 65001
@@ -1814,13 +1823,43 @@ fn get_before_uninstall(kill_self: bool) -> String {
     reg delete HKEY_CLASSES_ROOT\\.{ext} /f
     reg delete HKEY_CLASSES_ROOT\\{ext} /f
     reg delete HKEY_CLASSES_ROOT\\{uri_scheme} /f
-    reg delete HKEY_CLASSES_ROOT\\{legacy_uri_scheme} /f
+    {delete_legacy_uri_scheme}
     netsh advfirewall firewall delete rule name=\"{app_name} Service\"
     ",
         broker_exe = WIN_TOPMOST_INJECTED_PROCESS_EXE,
         uri_scheme = hbb_common::config::URI_SCHEME,
-        legacy_uri_scheme = hbb_common::config::LEGACY_URI_SCHEME,
     )
+}
+
+/// True when the machine-wide entry of link `scheme` starts `exe`.
+fn machine_uri_scheme_runs(scheme: &str, exe: &str) -> bool {
+    RegKey::predef(HKEY_LOCAL_MACHINE)
+        .open_subkey(format!("Software\\Classes\\{scheme}\\shell\\open\\command"))
+        .and_then(|key| key.get_value::<String, _>(""))
+        .map_or(false, |command| super::scheme_command_runs(&command, exe))
+}
+
+/// Removes this user's link entries that start the installed client, which
+/// the uninstall removes. They override the machine-wide ones, so a stock
+/// RustDesk's rustdesk:// would stay broken for this user otherwise.
+fn remove_own_user_uri_schemes() {
+    let (_, _, _, installed_exe) = get_install_info();
+    let hcu = RegKey::predef(HKEY_CURRENT_USER);
+    for scheme in [
+        hbb_common::config::URI_SCHEME,
+        hbb_common::config::LEGACY_URI_SCHEME,
+    ] {
+        let classes = format!("Software\\Classes\\{scheme}");
+        let ours = hcu
+            .open_subkey(format!("{classes}\\shell\\open\\command"))
+            .and_then(|key| key.get_value::<String, _>(""))
+            .map_or(false, |command| super::scheme_command_runs(&command, &installed_exe));
+        if ours {
+            if let Err(err) = hcu.delete_subkey_all(&classes) {
+                log::warn!("Failed to remove the {scheme} link entry of this user: {err}");
+            }
+        }
+    }
 }
 
 /// Register `betterdesk://` and legacy `rustdesk://` for the current user.
@@ -1925,6 +1964,7 @@ fn get_uninstall(kill_self: bool, uninstall_printer: bool) -> ResultType<String>
 }
 
 pub fn uninstall_me(kill_self: bool) -> ResultType<()> {
+    remove_own_user_uri_schemes();
     run_cmds(get_uninstall(kill_self, true)?, true, "uninstall")
 }
 
