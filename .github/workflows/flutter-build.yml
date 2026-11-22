@@ -40,7 +40,10 @@ env:
   # Windows arm64 only: first stable Flutter with native arm64 Windows engine.
   FLUTTER_WINDOWS_ARM_VERSION: "3.44.9"
   TAG_NAME: "${{ inputs.upload-tag }}"
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  # vcpkg keeps built ports as zip files in VCPKG_BINCACHE; actions/cache
+  # carries that folder from run to run (vcpkg's own x-gha backend is gone).
+  VCPKG_BINCACHE: "${{ github.workspace }}/vcpkg-bincache"
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/vcpkg-bincache,readwrite"
   # vcpkg version: 2026.07.29 — if changed, run `$VCPKG_ROOT/vcpkg x-update-baseline`.
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   VCPKG_CMAKE_VERSION: "4.3.0"
@@ -210,13 +213,6 @@ jobs:
       matrix:
         job: ${{ fromJSON(needs.plan.outputs.windows) }}
     steps:
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - name: Checkout source code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -326,8 +322,20 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           prefix-key: ${{ matrix.job.os }}
+          cache-on-failure: true
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-
+
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
           vcpkgDirectory: C:\vcpkg
@@ -335,13 +343,24 @@ jobs:
           doNotCache: false
 
       - name: Install vcpkg dependencies
+        id: vcpkg-install
         env:
           VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.job.vcpkg-triplet }}
         run: |
-          if ! $VCPKG_ROOT/vcpkg \
+          bincache="${VCPKG_BINCACHE}"
+          if command -v cygpath >/dev/null; then bincache="$(cygpath -u "${bincache}")"; fi
+          cached_before="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          status=0
+          $VCPKG_ROOT/vcpkg \
             install \
             --triplet ${{ matrix.job.vcpkg-triplet }} \
-            --x-install-root="$VCPKG_ROOT/installed"; then
+            --x-install-root="$VCPKG_ROOT/installed" || status=$?
+          cached_after="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          echo "vcpkg binary cache: ${cached_before} -> ${cached_after} packages"
+          if [ "${cached_after}" -gt "${cached_before}" ]; then
+            echo "built=true" >> "${GITHUB_OUTPUT}"
+          fi
+          if [ "${status}" -ne 0 ]; then
             find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
               echo "$_1:"
               echo "======"
@@ -353,6 +372,15 @@ jobs:
           fi
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
         shell: bash
+
+      # Saved right away whenever vcpkg built something, also when a port
+      # failed, so the next run starts from the ports that did build.
+      - name: Save vcpkg binary cache
+        if: ${{ !cancelled() && steps.vcpkg-install.outputs.built == 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Set SODIUM_LIB_DIR (arm64)
         # libsodium-sys ships no arm64 Windows prebuilt lib; point it at the vcpkg-built one
@@ -563,13 +591,6 @@ jobs:
       matrix:
         job: ${{ fromJSON(needs.plan.outputs.macos) }}
     steps:
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - name: Checkout source code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -661,6 +682,7 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           prefix-key: ${{ matrix.job.os }}
+          cache-on-failure: true
 
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -668,17 +690,39 @@ jobs:
           name: bridge-artifact
           path: ./
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-
+            vcpkg-${{ matrix.job.os }}-${{ matrix.job.vcpkg-triplet }}-
+
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
       - name: Install vcpkg dependencies
+        id: vcpkg-install
         run: |
-          if ! $VCPKG_ROOT/vcpkg \
+          bincache="${VCPKG_BINCACHE}"
+          if command -v cygpath >/dev/null; then bincache="$(cygpath -u "${bincache}")"; fi
+          cached_before="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          status=0
+          $VCPKG_ROOT/vcpkg \
             install \
-            --x-install-root="$VCPKG_ROOT/installed"; then
+            --x-install-root="$VCPKG_ROOT/installed" || status=$?
+          cached_after="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          echo "vcpkg binary cache: ${cached_before} -> ${cached_after} packages"
+          if [ "${cached_after}" -gt "${cached_before}" ]; then
+            echo "built=true" >> "${GITHUB_OUTPUT}"
+          fi
+          if [ "${status}" -ne 0 ]; then
             find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
               echo "$_1:"
               echo "======"
@@ -689,6 +733,15 @@ jobs:
             exit 1
           fi
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
+
+      # Saved right away whenever vcpkg built something, also when a port
+      # failed, so the next run starts from the ports that did build.
+      - name: Save vcpkg binary cache
+        if: ${{ !cancelled() && steps.vcpkg-install.outputs.built == 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Show version information (Rust, cargo, Clang)
         shell: bash
@@ -770,13 +823,6 @@ jobs:
       matrix:
         job: ${{ fromJSON(needs.plan.outputs.linux) }}
     steps:
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - name: Maximize build space
         run: |
           sudo rm -rf /opt/ghc
@@ -818,6 +864,17 @@ jobs:
           RUST_TOOLCHAIN_VERSION=$(cargo --version | awk '{print $2}')
           echo "RUST_TOOLCHAIN_VERSION=$RUST_TOOLCHAIN_VERSION" >> $GITHUB_ENV
 
+      # cargo runs inside the build container on /workspace, which is this
+      # checkout, so target/ outlives the container and this cache keeps it.
+      # The container's crate registry is not kept; cargo downloads it again.
+      - name: Cache Rust build
+        if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          prefix-key: linux-${{ matrix.job.target }}
+          cache-targets: true
+          cache-on-failure: true
+
       - name: Disable rust bridge build
         run: |
           # only build cdylib
@@ -839,7 +896,19 @@ jobs:
           "${user_base}/bin/cmake" --version
           echo "${user_base}/bin" >> "${GITHUB_PATH}"
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: vcpkg-${{ matrix.job.on }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-${{ matrix.job.on }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}-
+            vcpkg-${{ matrix.job.on }}-${{ matrix.job.vcpkg-triplet }}-${{ env.VCPKG_COMMIT_ID }}-
+            vcpkg-${{ matrix.job.on }}-${{ matrix.job.vcpkg-triplet }}-
+
+      - name: Setup vcpkg
         if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
@@ -848,13 +917,24 @@ jobs:
           doNotCache: false
 
       - name: Install vcpkg dependencies
+        id: vcpkg-install
         if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
         run: |
           sudo apt install -y libva-dev && apt show libva-dev
-          if ! $VCPKG_ROOT/vcpkg \
+          bincache="${VCPKG_BINCACHE}"
+          if command -v cygpath >/dev/null; then bincache="$(cygpath -u "${bincache}")"; fi
+          cached_before="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          status=0
+          $VCPKG_ROOT/vcpkg \
             install \
             --triplet ${{ matrix.job.vcpkg-triplet }} \
-            --x-install-root="$VCPKG_ROOT/installed"; then
+            --x-install-root="$VCPKG_ROOT/installed" || status=$?
+          cached_after="$(find "${bincache}" -name '*.zip' 2>/dev/null | wc -l)"
+          echo "vcpkg binary cache: ${cached_before} -> ${cached_after} packages"
+          if [ "${cached_after}" -gt "${cached_before}" ]; then
+            echo "built=true" >> "${GITHUB_OUTPUT}"
+          fi
+          if [ "${status}" -ne 0 ]; then
             find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
               echo "$_1:"
               echo "======"
@@ -866,6 +946,15 @@ jobs:
           fi
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
         shell: bash
+
+      # Saved right away whenever vcpkg built something, also when a port
+      # failed, so the next run starts from the ports that did build.
+      - name: Save vcpkg binary cache
+        if: ${{ !cancelled() && steps.vcpkg-install.outputs.built == 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.VCPKG_BINCACHE }}
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Restore bridge files
         if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
@@ -956,8 +1045,8 @@ jobs:
             fi
             echo $JOBS
             cargo build --locked --lib $JOBS --features hwcodec,flutter,unix-file-copy-paste --release
-            rm -rf target/release/deps target/release/build
-            rm -rf ~/.cargo
+            # target/release/{deps,build} stay for the Rust cache step.
+            du -sh /workspace/target || true
 
             # Setup Flutter
             # disable git safe.directory
