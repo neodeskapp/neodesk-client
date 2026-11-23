@@ -226,31 +226,7 @@ pub fn translate_locale(name: String, locale: &str) -> String {
             s = s.replace("{}", &value);
         }
         if !crate::is_rustdesk() {
-            if s.contains("RustDesk")
-                && !name.starts_with("upgrade_rustdesk_server_pro")
-                && name != "powered_by_me"
-            {
-                let app_name = crate::get_app_name();
-                if !app_name.contains("RustDesk") {
-                    s = s.replace("RustDesk", &app_name);
-                } else {
-                    // https://github.com/rustdesk/rustdesk-server-pro/issues/845
-                    // If app_name contains "RustDesk" (e.g., "RustDesk-Admin"), we need to avoid
-                    // replacing "RustDesk" within the already-substituted app_name, which would
-                    // cause duplication like "RustDesk-Admin" -> "RustDesk-Admin-Admin".
-                    //
-                    // app_name only contains alphanumeric and hyphen.
-                    const PLACEHOLDER: &str = "#A-P-P-N-A-M-E#";
-                    if !s.contains(PLACEHOLDER) {
-                        s = s.replace(&app_name, PLACEHOLDER);
-                        s = s.replace("RustDesk", &app_name);
-                        s = s.replace(PLACEHOLDER, &app_name);
-                    } else {
-                        // It's very unlikely to reach here.
-                        // Skip replacement to avoid incorrect result.
-                    }
-                }
-            }
+            s = with_app_name(&name, s, &crate::get_app_name());
         }
         s
     };
@@ -267,6 +243,43 @@ pub fn translate_locale(name: String, locale: &str) -> String {
         }
     }
     replace(&name.as_str())
+}
+
+/// Texts that credit RustDesk as upstream: they keep its name and its
+/// copyright holder as upstream wrote them (the AGPL notice depends on it).
+const UPSTREAM_CREDITS: &[&str] = &[
+    "powered_by_me",
+    "bd-about-copyright",
+    "neodesk_fork_attribution_tip",
+];
+
+/// Puts the app's own name where a text says "RustDesk", except in the
+/// credits and in the hints about RustDesk Server Pro.
+fn with_app_name(name: &str, s: String, app_name: &str) -> String {
+    if !s.contains("RustDesk")
+        || name.starts_with("upgrade_rustdesk_server_pro")
+        || UPSTREAM_CREDITS.contains(&name)
+    {
+        return s;
+    }
+    if !app_name.contains("RustDesk") {
+        return s.replace("RustDesk", app_name);
+    }
+    // https://github.com/rustdesk/rustdesk-server-pro/issues/845
+    // If app_name contains "RustDesk" (e.g., "RustDesk-Admin"), we need to avoid
+    // replacing "RustDesk" within the already-substituted app_name, which would
+    // cause duplication like "RustDesk-Admin" -> "RustDesk-Admin-Admin".
+    //
+    // app_name only contains alphanumeric and hyphen.
+    const PLACEHOLDER: &str = "#A-P-P-N-A-M-E#";
+    if s.contains(PLACEHOLDER) {
+        // It's very unlikely to reach here.
+        // Skip replacement to avoid incorrect result.
+        return s;
+    }
+    s.replace(app_name, PLACEHOLDER)
+        .replace("RustDesk", app_name)
+        .replace(PLACEHOLDER, app_name)
 }
 
 // Matching pattern is {}
@@ -308,6 +321,29 @@ mod test {
         assert_eq!(
             f("{2} times {4} makes {8}"),
             ("{} times {4} makes {8}".to_string(), Some("2".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_credits_keep_the_rustdesk_name() {
+        use super::with_app_name as f;
+        let langs = [("en", &*super::en::T), ("de", &*super::de::T), ("pl", &*super::pl::T)];
+        for (lang, texts) in langs {
+            for key in ["bd-about-copyright", "neodesk_fork_attribution_tip", "powered_by_me"] {
+                let text = texts.get(key).copied().unwrap_or_default();
+                assert_eq!(f(key, text.to_owned(), "NeoDesk Client"), text, "{lang} {key}");
+            }
+        }
+        let credit = "Based on RustDesk, copyright Purslane Ltd. and the RustDesk contributors.";
+        assert!(super::en::T["bd-about-copyright"].contains(credit));
+        let status = "Connecting to the RustDesk network...".to_owned();
+        assert_eq!(
+            f("connecting_status", status, "NeoDesk Client"),
+            "Connecting to the NeoDesk Client network..."
+        );
+        assert_eq!(
+            f("connecting_status", "RustDesk".to_owned(), "RustDesk-Admin"),
+            "RustDesk-Admin"
         );
     }
 
