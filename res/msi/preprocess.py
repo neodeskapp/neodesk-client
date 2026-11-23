@@ -504,16 +504,14 @@ def init_global_vars(dist_dir, args):
 
 
 def update_license_file(app_name):
-    if app_name == "RustDesk":
-        return
+    # The licence page shows the repository's LICENCE (AGPL-3.0), whatever
+    # the app is called.
+    import license_rtf
+
     license_file = Path(sys.argv[0]).parent.joinpath("Package/License.rtf")
-    with open(license_file, "r", encoding="utf-8") as f:
-        license_content = f.read()
-    license_content = license_content.replace("website rustdesk.com and other ", "")
-    license_content = license_content.replace("RustDesk", app_name)
-    license_content = re.sub(r"Purslane(?: Tech Pte\.)? Ltd", app_name, license_content, flags=re.IGNORECASE)
+    licence = license_rtf.LICENCE.read_text(encoding="utf-8")
     with open(license_file, "w", encoding="utf-8") as f:
-        f.write(license_content)
+        f.write(license_rtf.licence_rtf(licence))
 
 
 def replace_component_guids_in_wxs():

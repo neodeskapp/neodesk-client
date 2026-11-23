@@ -3,6 +3,7 @@
 
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 
@@ -139,6 +140,27 @@ regs = read("res/msi/Package/Components/Regs.wxs")
 require("res/msi/Package/Components/Regs.wxs", regs, 'Key="$(var.UriScheme)"')
 require("res/msi/Package/Components/Regs.wxs", regs, 'Key="$(var.LegacyUriScheme)"')
 require("res/msi/Package/Components/RustDesk.wxs", read("res/msi/Package/Components/RustDesk.wxs"), 'Name="$(var.Executable)"')
+
+# The MSI's licence page is the repository's LICENCE (AGPL-3.0), and the
+# signature names the product, which is what UAC shows for a signed MSI.
+licence = subprocess.run(
+    [sys.executable, str(ROOT / "res" / "msi" / "license_rtf.py"), "--check"],
+    capture_output=True,
+    text=True,
+)
+if licence.returncode != 0:
+    failures.append(f"res/msi/Package/License.rtf: {(licence.stdout + licence.stderr).strip()}")
+licence_rtf = read("res/msi/Package/License.rtf")
+for needle in ("GNU AFFERO GENERAL PUBLIC LICENSE", "https://github.com/neodeskapp/neodesk-client"):
+    require("res/msi/Package/License.rtf", licence_rtf, needle)
+if "Privacy" in licence_rtf or "rustdesk.com" in licence_rtf:
+    failures.append("res/msi/Package/License.rtf: still RustDesk's privacy policy")
+require("res/msi/preprocess.py", preprocess, "license_rtf.licence_rtf(")
+sign_action = read(".github/actions/sign-windows/action.yml")
+require(".github/actions/sign-windows/action.yml", sign_action, "description: ${{ inputs.description }}")
+require(".github/actions/sign-windows/action.yml", sign_action, "--name")
+flutter_build = read(".github/workflows/flutter-build.yml")
+require(".github/workflows/flutter-build.yml", flutter_build, "description: ${{ env.WINDOWS_SIGNING_DESCRIPTION }}")
 
 mac_xcconfig = read("flutter/macos/Runner/Configs/AppInfo.xcconfig")
 require("flutter/macos/Runner/Configs/AppInfo.xcconfig", mac_xcconfig, "PRODUCT_NAME = NeoDesk Client")

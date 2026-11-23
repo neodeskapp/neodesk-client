@@ -20,6 +20,13 @@ inputs:
     description: Regular expression; matching full paths are left alone.
     required: false
     default: '^$'
+  description:
+    description: >-
+      Product name in the signature. UAC shows it as the program name of a
+      signed MSI, which otherwise gets the random name of its cached copy.
+      Empty leaves it out.
+    required: false
+    default: ''
   azure-tenant-id:
     required: true
   azure-client-id:
@@ -71,6 +78,7 @@ runs:
         signing-account-name: Bulwark
         certificate-profile-name: bulwark-desktop
         files: ${{ steps.list.outputs.files }}
+        description: ${{ inputs.description }}
         file-digest: SHA256
         timestamp-rfc3161: http://timestamp.acs.microsoft.com
         timestamp-digest: SHA256
@@ -83,6 +91,7 @@ runs:
         AZURE_CLIENT_ID: ${{ inputs.azure-client-id }}
         AZURE_CLIENT_SECRET: ${{ inputs.azure-client-secret }}
         SIGN_LIST: ${{ steps.list.outputs.list }}
+        SIGN_DESCRIPTION: ${{ inputs.description }}
       run: |
         $ErrorActionPreference = 'Stop'
         $jar = Join-Path $env:RUNNER_TEMP 'jsign-7.6.jar'
@@ -105,7 +114,9 @@ runs:
         Write-Host "::add-mask::$token"
         $env:SIGN_TOKEN = $token
         $java = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { 'java' }
-        & $java -jar $jar `
+        $name = @()
+        if ($env:SIGN_DESCRIPTION) { $name = @('--name', $env:SIGN_DESCRIPTION) }
+        & $java -jar $jar @name `
           --storetype TRUSTEDSIGNING `
           --keystore plc.codesigning.azure.net `
           --storepass env:SIGN_TOKEN `

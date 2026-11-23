@@ -225,6 +225,9 @@ jobs:
       # when the repository has the AZURE_* secrets (forks and PRs have none, and
       # build unsigned).
       WINDOWS_SIGNING: ${{ secrets.AZURE_CLIENT_SECRET != '' && 'true' || 'false' }}
+      # The product name the signatures carry, which UAC shows for the MSI. A
+      # Support Agent build has another name and leaves it out.
+      WINDOWS_SIGNING_DESCRIPTION: ${{ (inputs.support-config-b64 == '' && !inputs.generic-support) && 'NeoDesk Client' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -553,6 +556,7 @@ jobs:
         uses: ./.github/actions/sign-windows
         with:
           paths: ${{ github.workspace }}\SignOutput
+          description: ${{ env.WINDOWS_SIGNING_DESCRIPTION }}
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
