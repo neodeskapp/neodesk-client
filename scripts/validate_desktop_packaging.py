@@ -74,6 +74,28 @@ for relative in ("res/rustdesk.service", "res/rustdesk-link.desktop", "res/rustd
     if exists(relative):
         failures.append(f"{relative}: stock RustDesk's name; NeoDesk ships its own")
 
+# Package scripts also run where there is no systemd (containers, chroots) or
+# no desktop-file-utils (minimal installs). A command that fails there fails
+# the install: dnf5 calls the transaction failed, zypper exits 107. So every
+# systemctl and update-desktop-database call is silenced and allowed to fail.
+PACKAGE_SCRIPTS = (
+    "res/DEBIAN/postinst",
+    "res/DEBIAN/postrm",
+    "res/DEBIAN/preinst",
+    "res/DEBIAN/prerm",
+    "res/rpm.spec",
+    "res/rpm-suse.spec",
+    "res/rpm-flutter.spec",
+    "res/rpm-flutter-suse.spec",
+    "res/pacman_install",
+)
+GUARDED = re.compile(r">\s*/dev/null\s+2>&1\s*\|\|\s*(:|true)$")
+for relative in PACKAGE_SCRIPTS:
+    for number, line in enumerate(read(relative).splitlines(), 1):
+        code = line.split("#", 1)[0].strip()
+        if re.search(r"(^|[\s;&|(])(systemctl|update-desktop-database)(\s|$)", code) and not GUARDED.search(code):
+            failures.append(f"{relative}:{number}: add >/dev/null 2>&1 || : to {code!r}")
+
 service = read("res/neodesk.service") if exists("res/neodesk.service") else ""
 require("res/neodesk.service", service, "ExecStart=/usr/bin/neodesk --service")
 require("res/neodesk.service", service, 'ExecStop=/usr/bin/pkill -f "neodesk --"')

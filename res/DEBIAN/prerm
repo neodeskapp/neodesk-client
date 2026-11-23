@@ -9,8 +9,8 @@ case $1 in
 
 		if [ "systemd" == "${INITSYS}" ]; then
 
-			systemctl stop neodesk || true
-			systemctl disable neodesk || true
+			systemctl stop neodesk >/dev/null 2>&1 || :
+			systemctl disable neodesk >/dev/null 2>&1 || :
 			rm -f /etc/systemd/system/neodesk.service /usr/lib/systemd/system/neodesk.service
 		fi
         ;;

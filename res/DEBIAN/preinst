@@ -6,7 +6,7 @@ case $1 in
     install|upgrade)
 		INITSYS=$(ls -al /proc/1/exe | awk -F' ' '{print $NF}' | awk -F'/' '{print $NF}')
 		if [ "systemd" == "${INITSYS}" ]; then
-			systemctl stop neodesk >/dev/null 2>&1 || true
+			systemctl stop neodesk >/dev/null 2>&1 || :
 			sleep 1
 		fi
         ;;

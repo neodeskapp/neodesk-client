@@ -56,7 +56,7 @@ case "$1" in
   ;;
   2)
     # for upgrade
-    systemctl stop neodesk || true
+    systemctl stop neodesk >/dev/null 2>&1 || :
   ;;
 esac
 
@@ -64,17 +64,17 @@ esac
 cp /usr/share/neodesk/files/neodesk.service /etc/systemd/system/neodesk.service
 cp /usr/share/neodesk/files/neodesk.desktop /usr/share/applications/
 cp /usr/share/neodesk/files/neodesk-link.desktop /usr/share/applications/
-systemctl daemon-reload
-systemctl enable neodesk
-systemctl start neodesk
-update-desktop-database
+systemctl daemon-reload >/dev/null 2>&1 || :
+systemctl enable neodesk >/dev/null 2>&1 || :
+systemctl start neodesk >/dev/null 2>&1 || :
+update-desktop-database >/dev/null 2>&1 || :
 
 %preun
 case "$1" in
   0)
     # for uninstall
-    systemctl stop neodesk || true
-    systemctl disable neodesk || true
+    systemctl stop neodesk >/dev/null 2>&1 || :
+    systemctl disable neodesk >/dev/null 2>&1 || :
     rm /etc/systemd/system/neodesk.service || true
   ;;
   1)
@@ -88,7 +88,7 @@ case "$1" in
     # for uninstall
     rm /usr/share/applications/neodesk.desktop || true
     rm /usr/share/applications/neodesk-link.desktop || true
-    update-desktop-database
+    update-desktop-database >/dev/null 2>&1 || :
   ;;
   1)
     # for upgrade

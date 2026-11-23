@@ -12,9 +12,9 @@ if [ "$1" = configure ]; then
 		rm -f /etc/systemd/system/neodesk.service /usr/lib/systemd/user/neodesk.service
 		mkdir -p /usr/lib/systemd/system/
 		cp /usr/share/neodesk/files/systemd/neodesk.service /usr/lib/systemd/system/neodesk.service
-		systemctl daemon-reload
-		systemctl enable neodesk
-		systemctl start neodesk
+		systemctl daemon-reload >/dev/null 2>&1 || :
+		systemctl enable neodesk >/dev/null 2>&1 || :
+		systemctl start neodesk >/dev/null 2>&1 || :
 	fi
-	update-desktop-database >/dev/null 2>&1 || true
+	update-desktop-database >/dev/null 2>&1 || :
 fi
