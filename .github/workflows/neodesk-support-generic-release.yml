@@ -266,7 +266,11 @@ jobs:
             --extra-md-file support-extra.md \
             -o release-notes.md
 
+          # Never the latest release: the latest one is the desktop client,
+          # which the server's client release cache serves. Not a pre-release
+          # either, since the server's import skips pre-releases.
           gh release create "$tag" out/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "$title" \
-            --notes-file release-notes.md
+            --notes-file release-notes.md \
+            --latest=false
