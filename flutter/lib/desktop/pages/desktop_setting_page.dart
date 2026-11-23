@@ -1626,7 +1626,9 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
                         label: tr('bd-join-a-server'),
                         onPressed: () => showJoinServerDialog(
                             OnboardingService.instance,
-                            currentServer: config.idServer),
+                            currentServer: config.idServer,
+                            knownConsole: (options['neodesk-console'] ?? '')
+                                .toString()),
                       ),
                       BdButton(
                         label: tr('bd-set-up-by-hand'),

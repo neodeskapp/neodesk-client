@@ -788,8 +788,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-first-start-lead", "Fügen Sie den Einladungslink oder Code ein, den Sie von Ihrem IT-Support bekommen haben. Den Rest erledigt NeoDesk."),
         ("bd-invite-field", "Einladungslink oder Code"),
         ("bd-invite-hint", "Sie finden ihn in der E-Mail oder Nachricht mit Ihrer Einladung. Ein Code sieht so aus: 7KQ4-M2XD."),
-        ("bd-invite-server-field", "Servername oder -adresse"),
-        ("bd-invite-server-hint", "Steht auf der Einladungsseite, zum Beispiel help.fernhill.example."),
+        ("bd-invite-server-field", "Serveradresse"),
+        ("bd-invite-server-hint", "Sie steht auf der Einladungsseite unter dem Code. Geben Sie sie so ein, wie sie dort steht, zum Beispiel https://help.fernhill.example."),
         ("bd-set-up-by-hand", "Von Hand einrichten"),
         ("bd-set-up-by-hand-hint", "Für Administratoren: Serveradresse und Schlüssel selbst eingeben."),
         ("bd-invite-error-not-invite", "Das sieht nicht nach einem Einladungslink oder Code aus. Ein Code sieht so aus: 7KQ4-M2XD."),
@@ -1206,6 +1206,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-qs-file-to-here", "Auf diesen Computer"),
         ("bd-qs-file-from", "Von diesem Computer: {}"),
         ("bd-qs-file-from-here", "Von diesem Computer"),
+        ("bd-invite-server-missing", "Geben Sie die Serveradresse von der Einladungsseite ein."),
+        ("bd-verify-password-tip", "Geben Sie das Passwort ein, das auf dem anderen Computer angezeigt wird oder dort festgelegt ist."),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

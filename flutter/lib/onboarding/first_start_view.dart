@@ -40,6 +40,15 @@ String joinLinkFor(String server, String code) {
   return '$base/join/$code';
 }
 
+/// What a join of [typed] redeems: a link as it is, a bare code at the
+/// [server] typed next to it. Null for a code without a server.
+String? joinTextFor(String typed, String server) {
+  final input = InviteInput.parse(typed);
+  if (!input.needsServer) return typed.trim();
+  if (server.trim().isEmpty) return null;
+  return joinLinkFor(server, input.displayCode ?? '');
+}
+
 /// First start without a server: one task, paste the invite.
 class FirstStartView extends StatefulWidget {
   const FirstStartView({

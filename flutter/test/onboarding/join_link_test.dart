@@ -12,4 +12,17 @@ void main() {
     expect(joinLinkFor('desk.example.com', 'ABCDEF23'),
         'https://desk.example.com/join/ABCDEF23');
   });
+
+  test('Join a server takes the code with the address under it on the invite page',
+      () {
+    // The invite page shows the code and "Server address: http://...".
+    expect(joinTextFor('2EQ9-AJ3X', 'http://10.10.10.74:5000'),
+        'http://10.10.10.74:5000/join/2EQ9-AJ3X');
+    expect(joinTextFor(' 2EQ9AJ3X ', 'http://10.10.10.74:5000'),
+        'http://10.10.10.74:5000/join/2EQ9-AJ3X');
+    expect(joinTextFor('2EQ9-AJ3X', '  '), isNull);
+    // A link carries its server; the address field does not count.
+    expect(joinTextFor(' http://10.10.10.74:5000/join/2EQ9AJ3X ', ''),
+        'http://10.10.10.74:5000/join/2EQ9AJ3X');
+  });
 }

@@ -157,12 +157,16 @@ Future<void> showSetupByHand() async {
       ));
 }
 
-/// Join a server from Settings: the first-start field in a dialog. When the
-/// computer already has a server, it first asks to leave it.
+/// Join a server from Settings: the first-start fields in a dialog, the
+/// server address once the text is a bare code (filled with the console of
+/// an earlier join, [knownConsole]). When the computer already has a
+/// server, it first asks to leave it.
 Future<void> showJoinServerDialog(OnboardingService service,
-    {required String currentServer}) async {
+    {required String currentServer, String knownConsole = ''}) async {
   final controller = TextEditingController();
+  final server = TextEditingController(text: knownConsole);
   String? error;
+  String? serverError;
   await showBdDialog<void>((close, setState) {
     Future<void> submit() async {
       final input = InviteInput.parse(controller.text);
@@ -170,7 +174,12 @@ Future<void> showJoinServerDialog(OnboardingService service,
         setState(() => error = tr('bd-invite-error-not-invite'));
         return;
       }
-      final newHost = input.host ?? '';
+      final text = joinTextFor(controller.text, server.text);
+      if (text == null) {
+        setState(() => serverError = tr('bd-invite-server-missing'));
+        return;
+      }
+      final newHost = InviteInput.parse(text).host ?? '';
       if (currentServer.isNotEmpty &&
           newHost.isNotEmpty &&
           newHost != currentServer) {
@@ -193,7 +202,7 @@ Future<void> showJoinServerDialog(OnboardingService service,
         if (go != true) return;
       }
       close();
-      await service.redeemJoin(controller.text.trim());
+      await service.redeemJoin(text);
     }
 
     return BdDialog(
@@ -213,6 +222,16 @@ Future<void> showJoinServerDialog(OnboardingService service,
           onChanged: (_) => setState(() => error = null),
           onSubmitted: (_) => submit(),
         ),
+        if (InviteInput.parse(controller.text).needsServer)
+          BdField(
+            label: tr('bd-invite-server-field'),
+            hint: tr('bd-invite-server-hint'),
+            error: serverError,
+            controller: server,
+            large: true,
+            onChanged: (_) => setState(() => serverError = null),
+            onSubmitted: (_) => submit(),
+          ),
       ],
       actions: [
         BdButton(label: translate('Cancel'), onPressed: close),
@@ -221,6 +240,7 @@ Future<void> showJoinServerDialog(OnboardingService service,
     );
   });
   controller.dispose();
+  server.dispose();
 }
 
 Map<String, dynamic> jsonDecodeOptions(String raw) {

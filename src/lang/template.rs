@@ -1217,6 +1217,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-qs-file-to-here", ""),
         ("bd-qs-file-from", ""),
         ("bd-qs-file-from-here", ""),
+        ("bd-invite-server-missing", ""),
+        ("bd-verify-password-tip", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

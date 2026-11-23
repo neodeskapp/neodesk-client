@@ -1089,7 +1089,7 @@ _connectDialog(
       }
       return Column(
         children: [
-          descWidget(translate('verify_rustdesk_password_tip')),
+          descWidget(translate('bd-verify-password-tip')),
           PasswordWidget(
             controller: passwordController,
             autoFocus: osUsernameController == null,

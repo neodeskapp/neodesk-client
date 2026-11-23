@@ -287,7 +287,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-invite-field", "Invite link or code"),
         ("bd-invite-hint", "It is in the email or message with your invite. A code looks like 7KQ4-M2XD."),
         ("bd-invite-server-field", "Server address"),
-        ("bd-invite-server-hint", "Shown on the invite page, for example help.fernhill.example."),
+        ("bd-invite-server-hint", "It is under the code on the invite page. Type it as shown there, for example https://help.fernhill.example."),
         ("bd-set-up-by-hand", "Set up by hand"),
         ("bd-set-up-by-hand-hint", "For administrators: enter the server address and key yourself."),
         ("bd-invite-error-not-invite", "This doesn't look like an invite link or code. A code looks like 7KQ4-M2XD."),
@@ -779,6 +779,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-qs-file-to-here", "To this computer"),
         ("bd-qs-file-from", "From this computer: {}"),
         ("bd-qs-file-from-here", "From this computer"),
+        ("bd-invite-server-missing", "Enter the server address from the invite page."),
+        ("bd-verify-password-tip", "Enter the password shown or set on the other computer."),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }
