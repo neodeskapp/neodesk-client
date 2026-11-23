@@ -1,0 +1,215 @@
+# NeoDesk package repository https://pkg.neode.sk (apt, dnf, zypper) and the
+# winget manifests of stable releases.
+#
+# The repository job rebuilds the whole repository from the newest
+# desktop-v* releases (packaging/pkg-repo/build_repo.py): stable gets the
+# newest releases, testing the newest releases and release candidates. It
+# signs the metadata and the rpm packages with the repository key and sends
+# the new or changed files to the web server. There, neodesk-pkg-receive
+# (packaging/pkg-repo/server) checks every signature and hash and swaps the
+# new tree in at once. Running it twice publishes the same packages.
+#
+# Runs:
+# - after neodesk-desktop-release.yml published a release (workflow_call)
+# - when a release is published or turned from pre-release into release by
+#   hand (a release published with GITHUB_TOKEN starts no workflow)
+# - by hand: gh workflow run neodesk-packages.yml -f tag=desktop-v1.5.0
+#
+# The winget job writes the manifests of a stable release as an artifact
+# (packaging/winget/make_manifests.py). Submitting them to
+# microsoft/winget-pkgs is done by hand.
+#
+# Repository secrets: PKG_SIGNING_KEY (armored private key),
+# PKG_SIGNING_PASSPHRASE, PKG_SSH_KEY (key of the user neodesk-pkg on the
+# web server), PKG_SSH_HOST, PKG_KNOWN_HOSTS.
+name: NeoDesk packages
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release that must be in the repository afterwards"
+        type: string
+        required: false
+        default: ""
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release that must be in the repository afterwards (desktop-v...), or empty"
+        required: false
+        default: ""
+      allow_mismatch:
+        description: "Tags taken although their packages carry another version (comma-separated)"
+        required: false
+        default: ""
+      keep:
+        description: "Versions kept per suite"
+        required: false
+        default: "3"
+      check_only:
+        description: "Build and check on the server, but don't go live"
+        type: boolean
+        default: false
+  release:
+    types: [published, released]
+
+concurrency:
+  group: neodesk-packages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  repository:
+    name: Publish pkg.neode.sk
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'desktop-v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      # Fingerprint of the repository key (vault "NeoDesk pkg – repository signing key")
+      KEY_ID: D9D7D06AFB85042431C608AB79E8A31B2625AA7B
+      TAG: ${{ inputs.tag || github.event.release.tag_name || '' }}
+      KEEP: ${{ inputs.keep || '3' }}
+      ALLOW_MISMATCH: ${{ inputs.allow_mismatch || '' }}
+      MODE: ${{ inputs.check_only && 'check' || 'upload' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            packaging
+            scripts/collect_desktop_dist.sh
+          sparse-checkout-cone-mode: false
+          submodules: false
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends apt-utils createrepo-c rpm gpgv
+
+      - name: Import the repository key
+        env:
+          PKG_SIGNING_KEY: ${{ secrets.PKG_SIGNING_KEY }}
+          PKG_SIGNING_PASSPHRASE: ${{ secrets.PKG_SIGNING_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PKG_SIGNING_KEY}" ] || [ -z "${PKG_SIGNING_PASSPHRASE}" ]; then
+            echo "::error::PKG_SIGNING_KEY or PKG_SIGNING_PASSPHRASE is not set"
+            exit 1
+          fi
+          umask 077
+          export GNUPGHOME="${RUNNER_TEMP}/gnupg"
+          mkdir -p "${GNUPGHOME}"
+          echo "GNUPGHOME=${GNUPGHOME}" >> "${GITHUB_ENV}"
+          printf '%s' "${PKG_SIGNING_PASSPHRASE}" > "${RUNNER_TEMP}/passphrase"
+          printf '%s\n' "${PKG_SIGNING_KEY}" | gpg --batch --quiet --import
+          gpg --batch --list-secret-keys "${KEY_ID}" > /dev/null
+          gpg --batch --armor --export "${KEY_ID}" > "${RUNNER_TEMP}/neodesk.asc"
+
+      - name: Build the repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 packaging/pkg-repo/build_repo.py \
+            --out tree --work "${RUNNER_TEMP}/work" \
+            --key-id "${KEY_ID}" --passphrase-file "${RUNNER_TEMP}/passphrase" \
+            --public-key "${RUNNER_TEMP}/neodesk.asc" \
+            --keep "${KEEP}" --require-tag "${TAG}" --allow-mismatch "${ALLOW_MISMATCH}"
+
+      - name: Upload to the web server
+        env:
+          PKG_SSH_KEY: ${{ secrets.PKG_SSH_KEY }}
+          PKG_SSH_HOST: ${{ secrets.PKG_SSH_HOST }}
+          PKG_KNOWN_HOSTS: ${{ secrets.PKG_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "${PKG_SSH_KEY}" > "${RUNNER_TEMP}/ssh_key"
+          printf '%s\n' "${PKG_KNOWN_HOSTS}" > "${RUNNER_TEMP}/known_hosts"
+          ssh -i "${RUNNER_TEMP}/ssh_key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o UserKnownHostsFile="${RUNNER_TEMP}/known_hosts" -o StrictHostKeyChecking=yes \
+            "neodesk-pkg@${PKG_SSH_HOST}" "${MODE}" < "${RUNNER_TEMP}/work/upload.tar"
+
+      - name: Check the live repository
+        if: env.MODE == 'upload'
+        run: |
+          set -euo pipefail
+          curl -fsS https://pkg.neode.sk/MANIFEST.sha256 | cmp - tree/MANIFEST.sha256
+          curl -fsS -o "${RUNNER_TEMP}/repo-key.gpg" https://pkg.neode.sk/neodesk.gpg
+          for suite in stable testing; do
+            curl -fsS "https://pkg.neode.sk/deb/dists/${suite}/InRelease" \
+              | gpgv --keyring "${RUNNER_TEMP}/repo-key.gpg"
+          done
+          for repo in rpm/stable rpm/testing suse/stable suse/testing; do
+            curl -fsS -o "${RUNNER_TEMP}/repomd.xml" "https://pkg.neode.sk/${repo}/repodata/repomd.xml"
+            curl -fsS -o "${RUNNER_TEMP}/repomd.xml.asc" "https://pkg.neode.sk/${repo}/repodata/repomd.xml.asc"
+            gpgv --keyring "${RUNNER_TEMP}/repo-key.gpg" "${RUNNER_TEMP}/repomd.xml.asc" "${RUNNER_TEMP}/repomd.xml"
+          done
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f "${RUNNER_TEMP}/work/summary.json" ]; then
+            {
+              echo "### pkg.neode.sk (${MODE})"
+              echo
+              python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); [print(f"- {s}: {chr(44).join(t) or chr(45)}") for s,t in d.items()]' "${RUNNER_TEMP}/work/summary.json"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Remove the keys
+        if: always()
+        run: |
+          gpgconf --kill gpg-agent || true
+          rm -rf "${RUNNER_TEMP}/gnupg" "${RUNNER_TEMP}/passphrase" "${RUNNER_TEMP}/ssh_key"
+
+  winget:
+    name: winget manifests (stable releases)
+    if: startsWith(inputs.tag || github.event.release.tag_name || '', 'desktop-v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TAG: ${{ inputs.tag || github.event.release.tag_name || '' }}
+    steps:
+      - name: Stable release?
+        id: check
+        run: |
+          version="${TAG#desktop-v}"
+          if printf '%s' "${version}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "stable=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::notice::${TAG} is a pre-release; winget gets stable releases only"
+            echo "stable=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Checkout
+        if: steps.check.outputs.stable == 'true'
+        uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            packaging
+            scripts/collect_desktop_dist.sh
+          sparse-checkout-cone-mode: false
+          submodules: false
+
+      - name: Write the manifests
+        if: steps.check.outputs.stable == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends msitools
+          python3 packaging/winget/make_manifests.py --tag "${TAG}" --out winget             --download-dir "${RUNNER_TEMP}/winget-download"
+          find winget/manifests -type f -print -exec cat {} \;
+
+      - name: Keep the manifests
+        if: steps.check.outputs.stable == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: winget-manifests-${{ env.TAG }}
+          path: winget/manifests
+          if-no-files-found: error
+          retention-days: 90

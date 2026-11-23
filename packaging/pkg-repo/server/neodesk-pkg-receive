@@ -1,0 +1,325 @@
+#!/usr/bin/python3 -I
+"""Forced command of the user neodesk-pkg on the web server: receives the
+NeoDesk package repository for https://pkg.neode.sk and puts it live.
+
+    ssh neodesk-pkg@<host> upload < tree.tar    validate, then go live
+    ssh neodesk-pkg@<host> check < tree.tar     validate only
+    ssh neodesk-pkg@<host> status               the live tree and its size
+
+The tar holds MANIFEST.sha256 (sha256sum lines for every file of the new
+tree) and the files that are new or changed since the live tree. A file the
+tar leaves out is taken from the live tree by hard link, after its hash is
+checked. The tar may hold plain files, folders, and hard links to files
+earlier in the same tar; names are letters, digits and ._+~- only.
+
+Before the tree goes live, the apt InRelease and Release.gpg files and the
+rpm repomd.xml.asc signatures must verify with the key in KEYRING, and every
+index they sign must match: Release lists Packages, Packages lists the .deb
+files, repomd.xml lists primary.xml, primary.xml lists the .rpm files. An
+upload key alone can't publish packages the repository key didn't sign.
+
+The new tree goes live by replacing the symlink ROOT/current in one rename.
+The two previous trees stay in ROOT/trees for a rollback.
+"""
+
+import fcntl
+import gzip
+import hashlib
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import xml.etree.ElementTree as ET
+
+# The two variables are for tests; sshd doesn't pass a client's environment.
+ROOT = os.environ.get("NEODESK_PKG_ROOT", "/srv/pkg.neode.sk")
+TREES = os.path.join(ROOT, "trees")
+CURRENT = os.path.join(ROOT, "current")
+KEYRING = os.environ.get("NEODESK_PKG_KEYRING", "/etc/neodesk-pkg/neodesk.gpg")
+KEEP_PREVIOUS = 2
+MAX_FILE = 1 << 30          # 1 GiB per file
+MAX_TOTAL = 8 << 30         # 8 GiB per upload
+NAME = re.compile(r"^(?:[A-Za-z0-9][A-Za-z0-9._+~-]{0,127}/){0,8}[A-Za-z0-9][A-Za-z0-9._+~-]{0,127}$")
+RPM_NS = {"repo": "http://linux.duke.edu/metadata/repo",
+          "common": "http://linux.duke.edu/metadata/common"}
+
+
+class Refused(Exception):
+    pass
+
+
+def clean(name):
+    name = name[2:] if name.startswith("./") else name
+    name = name.rstrip("/")
+    if not NAME.match(name) or any(part in (".", "..") for part in name.split("/")):
+        raise Refused(f"refused name {name!r}")
+    return name
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def receive(stage):
+    """Unpacks the tar on stdin into stage. Returns (files, bytes)."""
+    total = 0
+    files = {}
+    with tarfile.open(fileobj=sys.stdin.buffer, mode="r|*") as tf:
+        for m in tf:
+            if m.name in (".", "./", ""):
+                continue
+            name = clean(m.name)
+            dest = os.path.join(stage, name)
+            if m.isdir():
+                os.makedirs(dest, mode=0o755, exist_ok=True)
+                continue
+            os.makedirs(os.path.dirname(dest), mode=0o755, exist_ok=True)
+            if m.islnk():
+                target = clean(m.linkname)
+                if target not in files:
+                    raise Refused(f"refused: {name} links to {target}, which is not an earlier file of the upload")
+                os.link(os.path.join(stage, target), dest)
+                files[name] = files[target]
+                continue
+            if not m.isreg():
+                raise Refused(f"refused: {name} is not a file or folder")
+            if m.size > MAX_FILE:
+                raise Refused(f"refused: {name} is larger than {MAX_FILE} bytes")
+            total += m.size
+            if total > MAX_TOTAL:
+                raise Refused(f"refused: the upload is larger than {MAX_TOTAL} bytes")
+            src = tf.extractfile(m)
+            h = hashlib.sha256()
+            fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+            with os.fdopen(fd, "wb") as out:
+                for chunk in iter(lambda: src.read(1 << 20), b""):
+                    h.update(chunk)
+                    out.write(chunk)
+            files[name] = h.hexdigest()
+    return files, total
+
+
+def read_manifest(path):
+    manifest = {}
+    with open(path, encoding="utf-8") as f:
+        for n, line in enumerate(f, 1):
+            line = line.rstrip("\n")
+            if not line:
+                continue
+            m = re.fullmatch(r"([0-9a-f]{64}) [ *](.+)", line)
+            if not m:
+                raise Refused(f"refused: MANIFEST.sha256 line {n} is not '<sha256>  <path>'")
+            name = clean(m.group(2))
+            if name == "MANIFEST.sha256" or name in manifest:
+                raise Refused(f"refused: MANIFEST.sha256 lists {name} twice or lists itself")
+            manifest[name] = m.group(1)
+    if not manifest:
+        raise Refused("refused: MANIFEST.sha256 is empty")
+    return manifest
+
+
+def complete(stage, received, manifest, live):
+    """Checks the received files against the manifest and links the rest from
+    the live tree. Returns the number of linked files."""
+    for name, digest in received.items():
+        if name == "MANIFEST.sha256":
+            continue
+        if manifest.get(name) != digest:
+            raise Refused(f"refused: {name} is not in MANIFEST.sha256 with this hash")
+    linked = 0
+    for name, digest in manifest.items():
+        if name in received:
+            continue
+        src = os.path.join(live, name) if live else None
+        if not src or not os.path.isfile(src) or os.path.islink(src) or sha256(src) != digest:
+            raise Refused(f"refused: {name} is neither in the upload nor live with the same hash")
+        dest = os.path.join(stage, name)
+        os.makedirs(os.path.dirname(dest), mode=0o755, exist_ok=True)
+        os.link(src, dest)
+        linked += 1
+    return linked
+
+
+def gpgv(home, *args):
+    r = subprocess.run(["gpgv", "--homedir", home, "--keyring", KEYRING, *args],
+                       capture_output=True)
+    if r.returncode != 0:
+        err = r.stderr.decode(errors="replace").strip().splitlines()
+        where = os.path.relpath(args[-1] if args[-1] != "-" else args[-2], TREES)
+        raise Refused(f"refused: signature check failed for {where}: {err[-1] if err else r.returncode}")
+    return r.stdout
+
+
+def release_hashes(text):
+    """The SHA256 section of a Release file: {path: (hash, size)}."""
+    out, inside = {}, False
+    for line in text.splitlines():
+        if line.startswith("SHA256:"):
+            inside = True
+            continue
+        if inside:
+            if not line.startswith(" "):
+                break
+            digest, size, path = line.split()
+            out[path] = (digest, int(size))
+    return out
+
+
+def check_apt(stage, manifest, home):
+    suites = sorted({n.split("/")[2] for n in manifest
+                     if n.startswith("deb/dists/") and n.endswith("/InRelease")})
+    for suite in suites:
+        base = f"deb/dists/{suite}"
+        signed = gpgv(home, "--output", "-", os.path.join(stage, base, "InRelease")).decode()
+        gpgv(home, os.path.join(stage, base, "Release.gpg"), os.path.join(stage, base, "Release"))
+        with open(os.path.join(stage, base, "Release"), encoding="utf-8") as f:
+            if f.read().strip() != signed.strip():
+                raise Refused(f"refused: {base}/Release and InRelease differ")
+        listed = release_hashes(signed)
+        if not listed:
+            raise Refused(f"refused: {base}/InRelease lists no files")
+        for path, (digest, size) in listed.items():
+            name = f"{base}/{path}"
+            if manifest.get(name) != digest:
+                raise Refused(f"refused: {name} does not match its InRelease entry")
+            if path.endswith("/Packages"):
+                with open(os.path.join(stage, name), encoding="utf-8") as f:
+                    para = {}
+                    for line in f.read().split("\n") + [""]:
+                        if not line.strip():
+                            if para:
+                                fn, digest = para.get("Filename"), para.get("SHA256")
+                                if not fn or manifest.get("deb/" + fn) != digest:
+                                    raise Refused(f"refused: {fn} does not match {name}")
+                            para = {}
+                        elif not line.startswith(" ") and ":" in line:
+                            k, v = line.split(":", 1)
+                            para[k] = v.strip()
+    return suites
+
+
+def check_rpm(stage, manifest, home):
+    repos = sorted(n[: -len("/repodata/repomd.xml")] for n in manifest
+                   if n.endswith("/repodata/repomd.xml"))
+    for repo in repos:
+        repomd = os.path.join(stage, repo, "repodata/repomd.xml")
+        gpgv(home, repomd + ".asc", repomd)
+        primary = None
+        for data in ET.parse(repomd).getroot().findall("repo:data", RPM_NS):
+            href = data.find("repo:location", RPM_NS).get("href")
+            checksum = data.find("repo:checksum", RPM_NS)
+            name = f"{repo}/{href}"
+            if checksum.get("type") != "sha256" or manifest.get(name) != checksum.text:
+                raise Refused(f"refused: {name} does not match repomd.xml")
+            if data.get("type") == "primary":
+                primary = name
+        if not primary or not primary.endswith(".xml.gz"):
+            raise Refused(f"refused: {repo} has no gzip primary.xml")
+        with gzip.open(os.path.join(stage, primary)) as f:
+            for _, el in ET.iterparse(f):
+                if el.tag == "{%s}package" % RPM_NS["common"]:
+                    href = el.find("common:location", RPM_NS).get("href")
+                    checksum = el.find("common:checksum", RPM_NS)
+                    name = f"{repo}/{href}"
+                    if checksum.get("type") != "sha256" or manifest.get(name) != checksum.text:
+                        raise Refused(f"refused: {name} does not match {primary}")
+                    el.clear()
+    return repos
+
+
+def prune():
+    live = os.path.basename(os.path.realpath(CURRENT))
+    trees = sorted(t for t in os.listdir(TREES) if not t.startswith(".") and t != live)
+    for old in trees[:-KEEP_PREVIOUS] if KEEP_PREVIOUS else trees:
+        shutil.rmtree(os.path.join(TREES, old))
+    for leftover in os.listdir(TREES):
+        if leftover.startswith(".incoming-"):
+            shutil.rmtree(os.path.join(TREES, leftover), ignore_errors=True)
+
+
+def status():
+    live = os.path.realpath(CURRENT) if os.path.islink(CURRENT) else None
+    if not live:
+        print("nothing live yet")
+        return
+    manifest = read_manifest(os.path.join(live, "MANIFEST.sha256"))
+    size = sum(os.path.getsize(os.path.join(live, n)) for n in manifest)
+    print(f"live: {os.path.basename(live)}, {len(manifest)} files, {size} bytes")
+    print("trees: " + " ".join(sorted(t for t in os.listdir(TREES) if not t.startswith("."))))
+
+
+def main():
+    command = os.environ.get("SSH_ORIGINAL_COMMAND", "").strip()
+    if command == "status":
+        status()
+        return 0
+    if command not in ("upload", "check"):
+        print("usage: upload | check (with the tree as a tar on stdin) | status", file=sys.stderr)
+        return 2
+    os.umask(0o022)
+    lock = open(os.path.join(ROOT, ".lock"), "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("refused: another upload is running", file=sys.stderr)
+        return 1
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    stage = os.path.join(TREES, f".incoming-{stamp}-{os.getpid()}")
+    os.makedirs(stage, mode=0o755)
+    try:
+        received, size = receive(stage)
+        if "MANIFEST.sha256" not in received:
+            raise Refused("refused: the upload has no MANIFEST.sha256")
+        manifest = read_manifest(os.path.join(stage, "MANIFEST.sha256"))
+        live = os.path.realpath(CURRENT) if os.path.islink(CURRENT) else None
+        linked = complete(stage, received, manifest, live)
+        for dirpath, _, names in os.walk(stage):
+            for n in names:
+                rel = os.path.relpath(os.path.join(dirpath, n), stage).replace(os.sep, "/")
+                if rel != "MANIFEST.sha256" and rel not in manifest:
+                    raise Refused(f"refused: {rel} is not in MANIFEST.sha256")
+        with tempfile.TemporaryDirectory() as home:
+            suites = check_apt(stage, manifest, home)
+            repos = check_rpm(stage, manifest, home)
+        if not suites and not repos:
+            raise Refused("refused: no apt suite and no rpm repository in the upload")
+        summary = (f"{len(manifest)} files: {len(received) - 1} uploaded ({size} bytes), "
+                   f"{linked} kept from the live tree; apt suites {', '.join(suites) or '-'}; "
+                   f"rpm repositories {', '.join(repos) or '-'}")
+        if command == "check":
+            print("check passed: " + summary)
+            shutil.rmtree(stage)
+            return 0
+        final = os.path.join(TREES, stamp)
+        if os.path.exists(final):
+            raise Refused("refused: a tree with this time stamp exists, try again in a second")
+        os.rename(stage, final)
+        tmp_link = CURRENT + ".new"
+        if os.path.lexists(tmp_link):
+            os.unlink(tmp_link)
+        os.symlink(os.path.join("trees", stamp), tmp_link)
+        os.replace(tmp_link, CURRENT)
+        prune()
+        print(f"live: {stamp}, " + summary)
+        return 0
+    except Refused as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    except (tarfile.TarError, OSError, ET.ParseError, ValueError) as e:
+        print(f"refused: {e}", file=sys.stderr)
+        return 1
+    finally:
+        if os.path.isdir(stage):
+            shutil.rmtree(stage, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

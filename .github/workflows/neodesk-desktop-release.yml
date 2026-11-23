@@ -7,7 +7,8 @@
 # A desktop/<version> or desktop-v<version> tag builds the same and publishes
 # a GitHub Release on this repository with a download table in the release
 # notes. The console only takes releases whose tag has no slash, so it can
-# use desktop-v* releases but not desktop/* ones.
+# use desktop-v* releases but not desktop/* ones. After a desktop-v* release
+# the packages job updates https://pkg.neode.sk (neodesk-packages.yml).
 #
 # Package versions: a tag's version for releases, <Cargo.toml version>-dev.<run
 # number> for everything else (neodesk-1.5.0-dev.42-windows-x86_64.exe).
@@ -418,3 +419,17 @@ jobs:
             dist/clean/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # apt, dnf and zypper repository at https://pkg.neode.sk, and the winget
+  # manifests of a stable release. A release published with GITHUB_TOKEN
+  # starts no other workflow, so the release run calls it.
+  packages:
+    name: Publish packages
+    needs: [prepare, release]
+    if: needs.prepare.outputs.publish == 'true' && startsWith(needs.prepare.outputs.tag_name, 'desktop-v')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/neodesk-packages.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag_name }}
+    secrets: inherit
