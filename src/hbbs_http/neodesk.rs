@@ -371,6 +371,22 @@ pub(crate) fn note_heartbeat_error(error: Option<&str>) {
     store_standing(enrollment::Standing::after_heartbeat(&stored, error));
 }
 
+/// Notes the signal server's answer to this device's key (RegisterPk): not
+/// approved yet, refused, or taken.
+pub(crate) fn note_register_pk_answer(
+    result: Option<hbb_common::rendezvous_proto::register_pk_response::Result>,
+) {
+    use hbb_common::rendezvous_proto::register_pk_response::Result as Answer;
+    let answer = match result {
+        Some(Answer::OK) => "ok",
+        Some(Answer::NOT_DEPLOYED) => "not_deployed",
+        Some(Answer::NOT_SUPPORT) => "refused",
+        _ => return,
+    };
+    let stored = Config::get_option(enrollment::OPTION_STANDING);
+    store_standing(enrollment::Standing::after_register_pk(&stored, answer));
+}
+
 /// The server's message of a rejected enrollment answer.
 fn note_rejection(answer: &Value) {
     if enrollment::answer_status(answer) == "rejected" {

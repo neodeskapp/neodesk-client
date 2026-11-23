@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/desktop/pages/home/home_status.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -73,70 +74,27 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
     return host;
   }
 
-  /// What the server last said about this computer (banned, removed or
-  /// waiting for approval), as the service keeps it; null when nothing.
-  HomeStatus? standingStatus(String server) {
-    final Map<String, dynamic> standing;
-    try {
-      standing = jsonDecode(_standing.value) as Map<String, dynamic>;
-    } catch (_) {
-      return null;
-    }
-    final reason = standing['reason'] as String? ?? '';
-    String withReason(String text) => reason.isEmpty
-        ? text
-        : '$text ${tr('bd-home-status-server-says', [reason])}';
-    if (standing['banned'] == true) {
-      return HomeStatus(
-          BdStatusKind.bad, withReason(tr('bd-home-status-banned', [server])));
-    }
-    if (standing['enrollment'] == 'rejected') {
-      return HomeStatus(
-          BdStatusKind.bad, withReason(tr('bd-home-status-removed', [server])));
-    }
-    if (standing['enrollment'] == 'pending') {
-      return HomeStatus(BdStatusKind.wait, tr('bd-home-status-approval'));
-    }
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       widget.onSvcStatusChanged?.call();
       final server = serverName();
-      final st = stateGlobal.svcStatus.value;
-      final standing = standingStatus(server);
-      final HomeStatus status;
-      if (_svcStopped.value) {
-        status = HomeStatus(
-            BdStatusKind.offline, tr('bd-home-status-service-off'),
-            linkLabel: tr('bd-home-turn-on'),
-            onLink: () => start_service(true));
-      } else if (server.isEmpty && _svcIsUsingPublicServer.value) {
-        status = HomeStatus(BdStatusKind.bad, tr('bd-home-status-no-server'),
-            linkLabel: tr('bd-set-up-by-hand'),
-            onLink: onUsePublicServerGuide);
-      } else if (standing != null) {
-        status = standing;
-      } else if (st == SvcStatus.connecting) {
-        status = HomeStatus(
-            BdStatusKind.wait, tr('bd-home-status-connecting', [server]));
-      } else if (st == SvcStatus.notReady &&
-          _statusReason.value == 'deployment_required') {
-        status =
-            HomeStatus(BdStatusKind.wait, tr('bd-home-status-approval'));
-      } else if (st == SvcStatus.notReady) {
-        status = HomeStatus(
-            BdStatusKind.bad, tr('bd-home-status-offline', [server]),
-            linkLabel: tr('bd-home-try-now'), onLink: () async {
+      final status = homeStatusOf(
+        HomeStatusFacts(
+          server: server,
+          status: stateGlobal.svcStatus.value,
+          reason: _statusReason.value,
+          standing: _standing.value,
+          serviceStopped: _svcStopped.value,
+          noServer: server.isEmpty && _svcIsUsingPublicServer.value,
+        ),
+        onTurnOn: () => start_service(true),
+        onSetUp: onUsePublicServerGuide,
+        onTryNow: () async {
           await bind.mainCheckConnectStatus();
           updateStatus();
-        });
-      } else {
-        status = HomeStatus(
-            BdStatusKind.good, tr('bd-home-status-ready', [server]));
-      }
+        },
+      );
       return HomeStatusLine(status: status);
     });
   }

@@ -435,6 +435,7 @@ impl RendezvousMediator {
             }
             Some(rendezvous_message::Union::RegisterPkResponse(rpr)) => {
                 update_latency();
+                crate::hbbs_http::neodesk::note_register_pk_answer(rpr.result.enum_value().ok());
                 match rpr.result.enum_value() {
                     Ok(register_pk_response::Result::OK) => {
                         Config::set_key_confirmed(true);

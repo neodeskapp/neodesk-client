@@ -275,6 +275,11 @@ pub struct Standing {
     /// The server's message with a rejected enrollment.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub reason: String,
+    /// What the signal server last answered to this device's key:
+    /// "pending" (not approved yet) or "refused" (it keeps another key for
+    /// this ID, or keeps the device out); empty once it took the key.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub signal: String,
 }
 
 /// The longest server message the status line shows.
@@ -313,6 +318,19 @@ impl Standing {
         };
         standing.write()
     }
+
+    /// The stored standing after the signal server answered this device's
+    /// key: "ok", "not_deployed" or "refused". Other answers change nothing.
+    pub fn after_register_pk(stored: &str, answer: &str) -> String {
+        let mut standing = Self::read(stored);
+        standing.signal = match answer {
+            "ok" => String::new(),
+            "not_deployed" => "pending".to_owned(),
+            "refused" => "refused".to_owned(),
+            _ => return stored.to_owned(),
+        };
+        standing.write()
+    }
 }
 
 #[cfg(test)]
@@ -344,6 +362,28 @@ mod tests {
         );
         assert_eq!(Standing::after_heartbeat("", None), "");
         assert_eq!(Standing::after_heartbeat("not json", Some("OTHER")), "");
+    }
+
+    #[test]
+    fn the_standing_keeps_what_the_signal_server_said_about_the_key() {
+        let read = |stored: &str| serde_json::from_str::<Value>(stored).unwrap();
+        let refused = Standing::after_register_pk("", "refused");
+        assert_eq!(read(&refused), json!({"signal": "refused"}));
+        let pending = Standing::after_register_pk(&refused, "not_deployed");
+        assert_eq!(read(&pending), json!({"signal": "pending"}));
+        // Taking the key clears it, and only it.
+        let banned = Standing::after_heartbeat(&refused, Some("BANNED"));
+        assert_eq!(
+            read(&Standing::after_register_pk(&banned, "ok")),
+            json!({"banned": true})
+        );
+        assert_eq!(Standing::after_register_pk(&refused, "ok"), "");
+        assert_eq!(Standing::after_register_pk(&refused, "uuid_mismatch"), refused);
+        // An enrollment answer leaves the key's answer alone.
+        assert_eq!(
+            read(&Standing::after_enrollment(&refused, "approved", "")),
+            json!({"signal": "refused"})
+        );
     }
 
     fn key_pair() -> (sign::PublicKey, sign::SecretKey) {

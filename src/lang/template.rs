@@ -1200,6 +1200,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-install-failed", ""),
         ("bd-join-failed-lead-refused", ""),
         ("bd-join-failed-next-refused", ""),
+        ("bd-home-status-key-refused", ""),
+        ("bd-home-status-no-service", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

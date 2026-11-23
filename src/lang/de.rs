@@ -1189,6 +1189,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-install-failed", "Installation fehlgeschlagen: {}."),
         ("bd-join-failed-lead-refused", "Der Server hat diesen Computer nicht angenommen."),
         ("bd-join-failed-next-refused", "Wenn Ihr Administrator das erledigt hat, versuchen Sie es noch einmal mit derselben Einladung. Sie gilt weiterhin."),
+        ("bd-home-status-key-refused", "{} nimmt den neuen Schlüssel dieses Computers nicht an. Bitten Sie Ihren Administrator, ihn in der Konsole freizugeben oder das Gerät dort zu löschen."),
+        ("bd-home-status-no-service", "Der NeoDesk-Dienst auf diesem Computer antwortet nicht."),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

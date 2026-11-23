@@ -762,6 +762,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Use D3D rendering", "D3D rendering"),
         ("bd-join-failed-lead-refused", "The server did not accept this computer."),
         ("bd-join-failed-next-refused", "When your administrator has done that, try the same invite again. It still works."),
+        ("bd-home-status-key-refused", "{} does not accept this computer's new key. Ask your administrator to approve it or to delete the device in the console."),
+        ("bd-home-status-no-service", "The NeoDesk service on this computer does not answer."),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }
