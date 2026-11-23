@@ -135,6 +135,36 @@ pub fn public_key_b64() -> Option<String> {
     (public_key.len() == sign::PUBLICKEYBYTES).then(|| STANDARD.encode(public_key))
 }
 
+/// This process's public key and key proof for a request another process
+/// of this client sends in the device's name, for the pairing request
+/// only (pairing_proof.rs). None for any other request or without a usable
+/// key pair.
+pub fn proof_for_others(method: &str, path: &str) -> Option<(String, Vec<(String, String)>)> {
+    if !super::pairing_proof::signs_for_others(method, path) {
+        return None;
+    }
+    let device_id = hbb_common::config::Config::get_id();
+    let (secret_key, public_key) = hbb_common::config::Config::get_key_pair();
+    let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let nonce = hex::encode(randombytes::randombytes(NONCE_BYTES));
+    let headers = proof_headers(
+        method,
+        path,
+        &device_id,
+        &public_key,
+        &secret_key,
+        &timestamp,
+        &nonce,
+    )?;
+    Some((
+        STANDARD.encode(&public_key),
+        headers
+            .into_iter()
+            .map(|(name, value)| (name.to_owned(), value))
+            .collect(),
+    ))
+}
+
 /// URL-encodes a query value.
 pub fn query_value(value: &str) -> String {
     url::form_urlencoded::byte_serialize(value.as_bytes()).collect()

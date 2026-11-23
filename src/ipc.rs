@@ -362,6 +362,9 @@ pub enum Data {
     Options(Option<HashMap<String, String>>),
     NatType(Option<i32>),
     ConfirmedKey(Option<(Vec<u8>, Vec<u8>)>),
+    /// A pairing request's path, answered with the server process's public
+    /// key and key proof for it (hbbs_http/pairing_proof.rs).
+    PairingProof((String, Option<(String, Vec<(String, String)>)>)),
     RawMessage(Vec<u8>),
     Socks(Option<config::Socks5Server>),
     FS(FS),
@@ -881,6 +884,13 @@ async fn handle(data: Data, stream: &mut Connection) {
                 None
             };
             allow_err!(stream.send(&Data::ConfirmedKey(out)).await);
+        }
+        Data::PairingProof((path, None)) => {
+            let proof = crate::hbbs_http::enrollment::proof_for_others(
+                crate::hbbs_http::pairing_proof::METHOD,
+                &path,
+            );
+            allow_err!(stream.send(&Data::PairingProof((path, proof))).await);
         }
         Data::Socks(s) => match s {
             None => {
@@ -1638,6 +1648,19 @@ where
 #[tokio::main(flavor = "current_thread")]
 pub async fn get_config(name: &str) -> ResultType<Option<String>> {
     get_config_async(name, 1_000).await
+}
+
+/// The server process's public key and key proof for the pairing request
+/// at `path`, None when no server process answers or it refuses.
+pub async fn pairing_proof(path: &str) -> Option<(String, Vec<(String, String)>)> {
+    let mut c = connect(1_000, "").await.ok()?;
+    c.send(&Data::PairingProof((path.to_owned(), None)))
+        .await
+        .ok()?;
+    match c.next_timeout(1_000).await {
+        Ok(Some(Data::PairingProof((answered, Some(proof))))) if answered == path => Some(proof),
+        _ => None,
+    }
 }
 
 async fn get_config_async(name: &str, ms_timeout: u64) -> ResultType<Option<String>> {

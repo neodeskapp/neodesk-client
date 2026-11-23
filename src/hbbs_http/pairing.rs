@@ -19,7 +19,7 @@ use hbb_common::{
 };
 use serde_json::{json, Value};
 
-use super::{create_http_client_async_with_url, enrollment, neodesk};
+use super::{create_http_client_async_with_url, enrollment, neodesk, pairing_proof};
 
 pub const MESSAGE_CODE_INVALID: &str = "The code is wrong or has expired.";
 const MESSAGE_SERVER_INVALID: &str = "Enter the address of your NeoDesk server.";
@@ -225,19 +225,32 @@ pub async fn pair_with_code(server: &str, code: &str, device_id: String) -> Pair
         "version": crate::VERSION,
         "device_type": neodesk::CLIENT_PRODUCT,
     });
-    if let Some(public_key) = enrollment::public_key_b64() {
+    let url = format!("{}{}", target.api, pairing_proof::PATH);
+    // The device's server process proves its key, the one the server binds
+    // (pairing_proof.rs, L440); this process signs only when none runs
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let from_service = match enrollment::request_path(&url) {
+        Some(path) => crate::ipc::pairing_proof(&path).await,
+        None => None,
+    };
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let from_service: Option<(String, Vec<(String, String)>)> = None;
+    let (public_key, proof) = pairing_proof::proof_for_pairing(
+        from_service.map(|(key, headers)| (Some(key), Some(headers))),
+        || (enrollment::public_key_b64(), None),
+    );
+    if let Some(public_key) = public_key {
         body["public_key"] = Value::String(public_key);
     }
 
-    let url = format!("{}/api/pairing/redeem", target.api);
     let client = create_http_client_async_with_url(&url).await;
-    let request = enrollment::sign_request(
-        client.post(&url).json(&body),
-        "POST",
-        &url,
-        &device_id,
-        None,
-    );
+    let request = client.post(&url).json(&body);
+    let request = match proof {
+        Some(headers) => headers.into_iter().fold(request, |request, (name, value)| {
+            request.header(name, value)
+        }),
+        None => enrollment::sign_request(request, pairing_proof::METHOD, &url, &device_id, None),
+    };
     let resp = match request.send().await {
         Ok(resp) => resp,
         Err(err) => {
