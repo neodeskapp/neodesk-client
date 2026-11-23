@@ -46,7 +46,6 @@ Top-level string keys (e.g. `"conn-type": "incoming"`, `"disable-settings": "Y"`
 ### Support Agent (incoming-only)
 
 - Example: [`examples/neodesk-support-agent.example.json`](../../examples/neodesk-support-agent.example.json)
-- Docs: [OFFICIAL_CLIENT.md](../../docs/OFFICIAL_CLIENT.md)
 
 ```bash
 cp examples/neodesk-support-agent.example.json /path/to/Release/custom.txt

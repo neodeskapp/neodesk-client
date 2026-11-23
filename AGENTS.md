@@ -3,13 +3,10 @@
 ## NeoDesk / scope
 
 - This tree is the full RustDesk **client** fork branded as **NeoDesk** (desktop + mobile + web). Do not delete platform trees.
-- **License:** AGPL-3.0 — see `LICENSE`. About UI and sysinfo must keep upstream RustDesk attribution + source repo links ([docs/OFFICIAL_CLIENT.md](docs/OFFICIAL_CLIENT.md)).
+- **License:** AGPL-3.0 — see `LICENCE`. About UI and sysinfo must keep upstream RustDesk attribution + source repo links (constants `UPSTREAM_*`, `FORK_REPO_URL` and `LICENSE_*` in `libs/hbb_common/src/config.rs`, `kUpstream*` and `kNeoDesk*` in `flutter/lib/consts.dart`).
 - **Active work:** desktop Flutter on **Windows** and **Linux** (`flutter/lib/desktop/`, `flutter/windows/`, `flutter/linux/`, Rust `src/` + `libs/`).
 - Mobile (`flutter/android`, `flutter/ios`, `flutter/lib/mobile/`) and web stay in-tree; do not refactor them unless asked.
 - Desktop build setup (tool versions, env checks, smoke-build): [docs/BUILD_DESKTOP.md](docs/BUILD_DESKTOP.md).
-- Connection model (NeoDesk / P2P / LAN / API): [docs/CONNECTIVITY.md](docs/CONNECTIVITY.md).
-- Official NeoDesk client (no public rustdesk.com, Generator bake-in): [docs/OFFICIAL_CLIENT.md](docs/OFFICIAL_CLIENT.md).
-- Client API layers (HTTP / FFI / IPC): [docs/CLIENT_API.md](docs/CLIENT_API.md).
 - CI builds **desktop agents** (Windows / Linux / macOS) and can publish generic permanent incoming-only Support Agents through [`.github/workflows/neodesk-support-generic-release.yml`](.github/workflows/neodesk-support-generic-release.yml). Generic releases contain no server-specific secrets or endpoints.
 - Required submodule: `git submodule update --init --recursive` for `libs/hbb_common`.
 

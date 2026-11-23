@@ -202,8 +202,6 @@ python3 ./build.py --flutter --hwcodec
 - Android / iOS / macOS / ARM builds
 - Automatic installation of Visual Studio or Flutter (install those manually, then use the check scripts)
 
-Official NeoDesk identity, public-server kill, Client Generator bake-in (`custom.txt`), Support Agent (incoming-only), and clean desktop CI: [OFFICIAL_CLIENT.md](OFFICIAL_CLIENT.md).
-
 Example configs: [`examples/neodesk-custom.example.json`](../examples/neodesk-custom.example.json), [`examples/neodesk-support-agent.example.json`](../examples/neodesk-support-agent.example.json).
 
 Release workflow (clean desktop agents + installers + generator templates): [`.github/workflows/neodesk-desktop-release.yml`](../.github/workflows/neodesk-desktop-release.yml). Desktop-only reusable build: [`.github/workflows/flutter-build.yml`](../.github/workflows/flutter-build.yml).

@@ -16,8 +16,6 @@
 
 NeoDesk is a fork of [RustDesk](https://github.com/rustdesk/rustdesk) that started from UNITRONIX's [BetterDesk client](https://github.com/UNITRONIX/BetterDesk-Client). Licensed under **AGPL-3.0**.
 
-[Build](docs/BUILD_DESKTOP.md) · [Official client](docs/OFFICIAL_CLIENT.md) · [Connectivity](docs/CONNECTIVITY.md) · [Client API](docs/CLIENT_API.md) · [Upstream](https://github.com/rustdesk/rustdesk)
-
 </div>
 
 ---
@@ -42,7 +40,7 @@ Pair it with the self-hosted NeoDesk server and web console: [neodeskapp/neodesk
 | **NeoDesk Client** | Full desktop client (outbound + inbound) |
 | **NeoDesk Support Agent** | Incoming-only agent (Generator bake-in; no outbound remote control) |
 
-Both identify to the API as `neodesk-desktop` with a distinct `product_sku`. Details: [docs/OFFICIAL_CLIENT.md](docs/OFFICIAL_CLIENT.md).
+Both identify to the API as `neodesk-desktop` with a distinct `product_sku`.
 
 ---
 
@@ -50,10 +48,7 @@ Both identify to the API as `neodesk-desktop` with a distinct `product_sku`. Det
 
 | Topic | Doc |
 |-------|-----|
-| Official client behaviour (no public cloud, branding, Generator, Support Agent) | [docs/OFFICIAL_CLIENT.md](docs/OFFICIAL_CLIENT.md) |
 | Desktop build (Windows / Linux Flutter) | [docs/BUILD_DESKTOP.md](docs/BUILD_DESKTOP.md) |
-| How connections work (P2P / LAN / relay / API) | [docs/CONNECTIVITY.md](docs/CONNECTIVITY.md) |
-| Client API layers (HTTP / FFI / IPC) | [docs/CLIENT_API.md](docs/CLIENT_API.md) |
 | NeoDesk server docs | [neode.sk/docs](https://neode.sk/docs) |
 
 ---
@@ -94,7 +89,7 @@ Short checklist:
 
 ## Attribution and license
 
-NeoDesk Client is a fork of [RustDesk](https://github.com/rustdesk/rustdesk). It includes work from [BetterDesk-Client](https://github.com/UNITRONIX/BetterDesk-Client) by UNITRONIX, also licensed under the AGPL-3.0. The About UI and sysinfo keep upstream attribution and source links as required by the project policy ([docs/OFFICIAL_CLIENT.md](docs/OFFICIAL_CLIENT.md)).
+NeoDesk Client is a fork of [RustDesk](https://github.com/rustdesk/rustdesk). It includes work from [BetterDesk-Client](https://github.com/UNITRONIX/BetterDesk-Client) by UNITRONIX, also licensed under the AGPL-3.0. The About UI and sysinfo keep upstream attribution and source links.
 
 The language flags in `flutter/assets/flags` are from [Twemoji](https://github.com/jdecked/twemoji) (`@twemoji/svg` 15.0.0), licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
