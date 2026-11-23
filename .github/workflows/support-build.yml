@@ -15,6 +15,14 @@ on:
         description: "Expected neodesk-client commit"
         required: true
         type: string
+      targets_json:
+        description: >-
+          JSON list of the targets to build, as the server sends them:
+          [{"platform":"windows","arch":"x64","format":"portable"}, ...].
+          Empty or [] builds all six.
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -23,6 +31,8 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-22.04
+    outputs:
+      platforms: ${{ steps.targets.outputs.platforms }}
     env:
       NEODESK_SUPPORT_CONFIG_B64: ${{ inputs.config_b64 }}
     steps:
@@ -34,6 +44,49 @@ jobs:
           python3 -m pip install --disable-pip-version-check PyNaCl
           python3 scripts/validate_embedded_support_config.py
 
+      # Turns the server's targets into the platforms of flutter-build.yml.
+      # This workflow makes portable packages only (zip for Windows, tar.gz
+      # for macOS and Linux), so it refuses deb, rpm and arch targets.
+      - name: Read the requested targets
+        id: targets
+        shell: python
+        env:
+          TARGETS_JSON: ${{ inputs.targets_json }}
+        run: |
+          import json, os
+
+          families = ("windows", "linux", "macos")
+          arches = {"x64": "x86_64", "x86_64": "x86_64", "arm64": "aarch64", "aarch64": "aarch64"}
+          everything = [f"{family}-{arch}" for family in families for arch in ("x86_64", "aarch64")]
+
+          raw = os.environ.get("TARGETS_JSON", "").strip()
+          try:
+              targets = json.loads(raw) if raw else []
+          except ValueError as error:
+              raise SystemExit(f"targets_json is not JSON: {error}")
+          if not isinstance(targets, list):
+              raise SystemExit("targets_json must be a JSON list")
+
+          platforms = []
+          for target in targets:
+              if not isinstance(target, dict):
+                  raise SystemExit(f"target is not an object: {json.dumps(target)}")
+              family = str(target.get("platform") or target.get("os") or "").strip().lower()
+              arch = arches.get(str(target.get("arch") or "x64").strip().lower())
+              package = str(target.get("format") or "portable").strip().lower()
+              if family not in families or arch is None or package != "portable":
+                  raise SystemExit(
+                      f"cannot build {json.dumps(target)}: this workflow builds portable "
+                      "packages for windows, linux and macos on x64 and arm64"
+                  )
+              if f"{family}-{arch}" not in platforms:
+                  platforms.append(f"{family}-{arch}")
+
+          chosen = " ".join(platforms or everything)
+          print(f"platforms: {chosen}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"platforms={chosen}\n")
+
   build:
     needs: validate
     uses: ./.github/workflows/flutter-build.yml
@@ -42,13 +95,15 @@ jobs:
       upload-tag: support-${{ inputs.generation_id }}
       support-config-b64: ${{ inputs.config_b64 }}
       source-ref: ${{ inputs.client_commit }}
+      platforms: ${{ needs.validate.outputs.platforms }}
     secrets: inherit
 
   package:
-    needs: build
+    needs: [validate, build]
     runs-on: ubuntu-22.04
     steps:
       - name: Download Windows builds
+        if: contains(needs.validate.outputs.platforms, 'windows-')
         uses: actions/download-artifact@v4
         with:
           pattern: rustdesk-unsigned-windows-*
@@ -56,6 +111,7 @@ jobs:
           merge-multiple: false
 
       - name: Download macOS builds
+        if: contains(needs.validate.outputs.platforms, 'macos-')
         uses: actions/download-artifact@v4
         with:
           pattern: neodesk-unsigned-macos-*
@@ -63,6 +119,7 @@ jobs:
           merge-multiple: false
 
       - name: Download Linux x86_64 build
+        if: contains(needs.validate.outputs.platforms, 'linux-x86_64')
         uses: actions/download-artifact@v4
         with:
           pattern: neodesk-*-x86_64.deb
@@ -70,6 +127,7 @@ jobs:
           merge-multiple: true
 
       - name: Download Linux aarch64 build
+        if: contains(needs.validate.outputs.platforms, 'linux-aarch64')
         uses: actions/download-artifact@v4
         with:
           pattern: neodesk-*-aarch64.deb
@@ -81,11 +139,13 @@ jobs:
         env:
           GENERATION_ID: ${{ inputs.generation_id }}
           CLIENT_COMMIT: ${{ inputs.client_commit }}
+          PLATFORMS: ${{ needs.validate.outputs.platforms }}
         run: |
           set -euo pipefail
           mkdir -p out
 
-          for arch in x86_64 aarch64; do
+          package_windows() {
+            local arch="$1" src
             src="$(find "raw/windows" -type d -path "*rustdesk-unsigned-windows-${arch}/rustdesk" -print -quit)"
             test -n "${src}"
             mkdir -p "stage/windows-${arch}"
@@ -95,9 +155,10 @@ jobs:
               exit 1
             fi
             (cd stage && zip -qr "../out/neodesk-support-${GENERATION_ID}-windows-${arch}.zip" "windows-${arch}")
-          done
+          }
 
-          for arch in x86_64 aarch64; do
+          package_macos() {
+            local arch="$1" archive
             archive="$(find "raw/macos" -type f -name "*-${arch}-app.tar.gz" -print -quit)"
             test -n "${archive}"
             mkdir -p "stage/macos-${arch}"
@@ -107,9 +168,10 @@ jobs:
               exit 1
             fi
             tar -C stage -czf "out/neodesk-support-${GENERATION_ID}-macos-${arch}.tar.gz" "macos-${arch}"
-          done
+          }
 
-          for arch in x86_64 aarch64; do
+          package_linux() {
+            local arch="$1" deb
             deb="$(find "raw/linux-${arch}" -type f -name '*.deb' -print -quit)"
             test -n "${deb}"
             mkdir -p "stage/linux-${arch}/root"
@@ -119,18 +181,34 @@ jobs:
               exit 1
             fi
             tar -C "stage/linux-${arch}" -czf "out/neodesk-support-${GENERATION_ID}-linux-${arch}.tar.gz" root
+          }
+
+          # Only the targets the server asked for (all six when it named none).
+          for target in ${PLATFORMS}; do
+            "package_${target%-*}" "${target#*-}"
           done
 
           python3 - <<'PY'
-          import hashlib, json, os
+          import hashlib, json, os, re
           from pathlib import Path
 
+          # The server finds each target's file by platform, arch and format.
+          prefix = f"neodesk-support-{os.environ['GENERATION_ID']}-"
           root = Path("out")
           assets = []
           for item in sorted(root.iterdir()):
               if item.is_file():
+                  match = re.fullmatch(
+                      r"(windows|linux|macos)-(x86_64|aarch64)\.(?:zip|tar\.gz)",
+                      item.name.removeprefix(prefix),
+                  )
+                  if not match:
+                      raise SystemExit(f"unexpected Support asset name: {item.name}")
                   assets.append({
                       "name": item.name,
+                      "platform": match.group(1),
+                      "arch": match.group(2),
+                      "format": "portable",
                       "sha256": hashlib.sha256(item.read_bytes()).hexdigest(),
                       "size": item.stat().st_size,
                   })
