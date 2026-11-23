@@ -137,8 +137,21 @@ void main() {
     expect(errorKindOf('unreachable'), OnboardingError.unreachable);
     expect(errorKindOf('rate_limited'), OnboardingError.tooManyTries);
     expect(errorKindOf('certificate'), OnboardingError.other);
-    expect(errorKindOf('refused'), OnboardingError.other);
+    expect(errorKindOf('refused'), OnboardingError.refused);
     expect(errorKindOf(null), isNull);
+
+    const reason = "This computer's ID is already enrolled with another key.";
+    final refused = parseOnboardingState(jsonEncode({
+      'phase': 'joinFailed',
+      'server': '10.10.10.74',
+      'error': 'refused',
+      'errorText': '10.10.10.74 did not accept this computer: $reason',
+      'errorReason': reason,
+      'link': 'http://10.10.10.74:5000/join/2EQ9AJ3X',
+    }));
+    expect(refused.errorKind, OnboardingError.refused);
+    expect(refused.reason, reason);
+    expect(refused.link, 'http://10.10.10.74:5000/join/2EQ9AJ3X');
 
     final declined = parseOnboardingState(
         '{"phase":"supportEnded","error":"declined","errorText":null}');

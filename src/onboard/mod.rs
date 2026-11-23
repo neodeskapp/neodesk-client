@@ -88,6 +88,8 @@ pub struct State {
     pub error: Option<String>,
     /// The error in plain words, with the server's reason when it gave one.
     pub error_text: Option<String>,
+    /// The server's own words when it refused this computer.
+    pub error_reason: Option<String>,
     /// While joining: 0 checks the invite, 1 takes over the settings, 2 hands
     /// the device token to the service.
     pub join_step: u8,
@@ -131,11 +133,18 @@ impl State {
         let server = self.server.clone().unwrap_or_default();
         self.error = Some(err.code().to_owned());
         self.error_text = Some(err.message(&server));
+        self.error_reason = match err {
+            OnboardError::Refused(reason) if !reason.trim().is_empty() => {
+                Some(reason.trim().to_owned())
+            }
+            _ => None,
+        };
     }
 
     pub fn clear_error(&mut self) {
         self.error = None;
         self.error_text = None;
+        self.error_reason = None;
     }
 }
 

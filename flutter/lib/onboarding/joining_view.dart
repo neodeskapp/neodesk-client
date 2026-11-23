@@ -11,6 +11,7 @@ class JoiningView extends StatelessWidget {
     required this.onDone,
     required this.onTryAnother,
     required this.onSetUpByHand,
+    this.onTryAgain,
     this.logo,
     this.deviceId,
   });
@@ -19,6 +20,9 @@ class JoiningView extends StatelessWidget {
   final VoidCallback onDone;
   final VoidCallback onTryAnother;
   final VoidCallback onSetUpByHand;
+
+  /// Redeems the same invite again (a refusal leaves it unused).
+  final VoidCallback? onTryAgain;
 
   /// The server's logo from the branding, when it has one.
   final Widget? logo;
@@ -79,7 +83,14 @@ class JoiningView extends StatelessWidget {
         break;
       case OnboardingPhase.joinFailed:
         final kind = state.errorKind ?? OnboardingError.other;
-        final answer = (state.error ?? '').trim();
+        final refused = kind == OnboardingError.refused;
+        final reason = (state.reason ?? '').trim();
+        // The server's own words for a refusal; for the rest the core's
+        // sentence with the server's answer in it.
+        final answer =
+            (refused && reason.isNotEmpty ? reason : (state.error ?? ''))
+                .trim();
+        final tryAgain = refused ? onTryAgain : null;
         children.addAll([
           _title(tr('bd-join-failed-title'), t.title),
           const SizedBox(height: 12),
@@ -91,19 +102,32 @@ class JoiningView extends StatelessWidget {
                 ? onboardingFailedReach(state.server)
                 : tr('bd-join-failed-answer', [
                     state.server ?? '',
-                    answer.isNotEmpty ? answer : _shortReason(kind)
+                    _withoutFinalStop(
+                        answer.isNotEmpty ? answer : _shortReason(kind))
                   ]),
           ),
           const SizedBox(height: 24),
-          Text(tr('bd-join-failed-next'), style: t.body.copyWith(
-              fontSize: 15, height: 22 / 15)),
+          Text(
+              tr(refused
+                  ? 'bd-join-failed-next-refused'
+                  : 'bd-join-failed-next'),
+              style: t.body.copyWith(fontSize: 15, height: 22 / 15)),
           const SizedBox(height: 24),
-          Row(children: [
-            BdButton.primary(
-                label: tr('bd-try-another-code'),
-                size: BdButtonSize.lg,
-                onPressed: onTryAnother),
-            const SizedBox(width: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            if (tryAgain != null)
+              BdButton.primary(
+                  label: tr('bd-try-again'),
+                  size: BdButtonSize.lg,
+                  onPressed: tryAgain),
+            tryAgain != null
+                ? BdButton(
+                    label: tr('bd-try-another-code'),
+                    size: BdButtonSize.lg,
+                    onPressed: onTryAnother)
+                : BdButton.primary(
+                    label: tr('bd-try-another-code'),
+                    size: BdButtonSize.lg,
+                    onPressed: onTryAnother),
             BdButton(
                 label: tr('bd-set-up-by-hand'),
                 size: BdButtonSize.lg,
@@ -168,8 +192,13 @@ class JoiningView extends StatelessWidget {
         OnboardingError.expired => tr('bd-join-failed-lead-expired'),
         OnboardingError.unreachable => tr('bd-join-failed-lead-unreachable'),
         OnboardingError.tooManyTries => tr('bd-invite-error-too-many'),
+        OnboardingError.refused => tr('bd-join-failed-lead-refused'),
         _ => tr('bd-join-failed-lead-other'),
       };
+
+  /// The notice ends the sentence itself.
+  static String _withoutFinalStop(String text) =>
+      text.endsWith('.') ? text.substring(0, text.length - 1) : text;
 
   String _shortReason(OnboardingError kind) => switch (kind) {
         OnboardingError.usedUp => tr('bd-reason-used'),

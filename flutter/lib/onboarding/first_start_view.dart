@@ -23,6 +23,8 @@ String onboardingErrorText(OnboardingError kind, String? server) {
       return tr('bd-invite-error-too-many');
     case OnboardingError.insecureHttp:
       return tr('bd-invite-insecure', [server ?? '']);
+    case OnboardingError.refused:
+      return tr('bd-join-failed-lead-refused');
     case OnboardingError.other:
       return tr('bd-invite-error-other');
   }

@@ -106,6 +106,9 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         },
         onTryAnother: () => setState(() => _retry = true),
         onSetUpByHand: () => showSetupByHand(),
+        onTryAgain: (s.link ?? '').isEmpty
+            ? null
+            : () => widget.service.redeemJoin(s.link!),
       );
     });
   }

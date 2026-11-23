@@ -44,6 +44,10 @@ enum OnboardingError {
   /// The console uses plain HTTP; the person must confirm to go on.
   insecureHttp,
   tooManyTries,
+
+  /// The server keeps this computer out (a new key for a known ID, a
+  /// blocked device). The invite is not used up.
+  refused,
   other,
 }
 
@@ -67,6 +71,7 @@ class OnboardingState {
     this.supporterName,
     this.company,
     this.error,
+    this.reason,
     this.inputActive = false,
     this.errorKind,
     this.joinStep = 0,
@@ -90,6 +95,9 @@ class OnboardingState {
 
   /// The server's answer as text, shown in the failed notice.
   final String? error;
+
+  /// The server's own words when it refused this computer.
+  final String? reason;
 
   /// True while the supporter's mouse or keyboard input arrives.
   final bool inputActive;
@@ -131,6 +139,7 @@ class OnboardingState {
     String? supporterName,
     String? company,
     String? error,
+    String? reason,
     bool? inputActive,
     OnboardingError? errorKind,
     bool clearError = false,
@@ -151,6 +160,7 @@ class OnboardingState {
         supporterName: supporterName ?? this.supporterName,
         company: company ?? this.company,
         error: clearError ? null : (error ?? this.error),
+        reason: clearError ? null : (reason ?? this.reason),
         inputActive: inputActive ?? this.inputActive,
         errorKind: clearError ? null : (errorKind ?? this.errorKind),
         joinStep: joinStep ?? this.joinStep,

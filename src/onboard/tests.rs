@@ -234,6 +234,43 @@ fn join_sends_the_device_and_reads_the_answer() {
 }
 
 #[test]
+fn a_join_refused_for_its_key_keeps_the_servers_words_and_the_invite() {
+    const REASON: &str = "This computer's ID is already enrolled with another key. Ask your administrator to approve the new key or to delete the device in the console.";
+    let console = FakeConsole::start(|_| {
+        (
+            403,
+            json!({"success": false, "error": "device_refused", "message": REASON}),
+        )
+    });
+    let err = block_on(async {
+        let http = Http::new(console.console()).await?;
+        redeem_join(&http, "ABCDEF23", &device()).await
+    })
+    .unwrap_err();
+
+    let link = "http://127.0.0.1/join/ABCDEF23";
+    let mut state = State {
+        phase: Phase::JoinFailed,
+        server: Some("127.0.0.1".to_owned()),
+        link: Some(link.to_owned()),
+        ..State::default()
+    };
+    state.fail(&err);
+    assert_eq!(state.error.as_deref(), Some("refused"));
+    assert_eq!(state.error_reason.as_deref(), Some(REASON));
+    assert_eq!(state.link.as_deref(), Some(link));
+    let value = serde_json::to_value(&state).unwrap();
+    assert_eq!(value["errorReason"], REASON);
+    assert_eq!(value["link"], link);
+
+    state.fail(&OnboardError::Unreachable);
+    assert_eq!(state.error_reason, None);
+    state.fail(&err);
+    state.clear_error();
+    assert_eq!(state.error_reason, None);
+}
+
+#[test]
 fn a_console_that_does_not_answer_is_unreachable() {
     let port = {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();

@@ -1194,7 +1194,8 @@ pub fn main_pair_with_code(server: String, code: String) -> String {
 }
 
 /// The state of Add a computer and quick support, as JSON: `phase`,
-/// `server`, `supporterName`, `company`, `error`, `errorText`, `joinStep`,
+/// `server`, `supporterName`, `company`, `error`, `errorText`,
+/// `errorReason` (the server's own words with a refusal), `joinStep`,
 /// `deviceId`, `deviceName`, `folderId`, `link`, `fileName`, `messages`
 /// (`fromSupporter`, `text`, `time` in ms), `inputActive`, `quickSupport`,
 /// `hasServer`.

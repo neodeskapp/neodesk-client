@@ -97,6 +97,60 @@ void main() {
     await shot(tester, 'client-joining-done', b);
   });
 
+  const keyRefusal =
+      "This computer's ID is already enrolled with another key. Ask your "
+      'administrator to approve the new key or to delete the device in the '
+      'console.';
+  const refused = OnboardingState(
+      phase: OnboardingPhase.joinFailed,
+      server: '10.10.10.74',
+      errorKind: OnboardingError.refused,
+      error: '10.10.10.74 did not accept this computer: $keyRefusal',
+      reason: keyRefusal,
+      link: 'http://10.10.10.74:5000/join/2EQ9AJ3X');
+
+  forBothThemes('a join refused for its key says what the server said',
+      (tester, b) async {
+    var triedAgain = 0;
+    await pumpScreen(
+        tester,
+        mainWindow(JoiningView(
+            state: refused,
+            onDone: () {},
+            onTryAnother: () {},
+            onSetUpByHand: () {},
+            onTryAgain: () => triedAgain++)),
+        size: mainSize,
+        brightness: b);
+    expect(find.text('10.10.10.74 answered: $keyRefusal'), findsOneWidget);
+    expect(find.textContaining('did not accept this computer:'), findsNothing);
+    expect(find.textContaining('for a new one'), findsNothing);
+    expect(find.text('The server did not accept this computer.'),
+        findsOneWidget);
+    expect(find.textContaining('try the same invite again'), findsOneWidget);
+    await tester.tap(find.text('Try again'));
+    expect(triedAgain, 1);
+    await shot(tester, 'client-joining-refused', b);
+  });
+
+  testWidgets('an invite the server did not take still asks for a new one',
+      (tester) async {
+    await pumpScreen(
+        tester,
+        mainWindow(JoiningView(
+            state: const OnboardingState(
+                phase: OnboardingPhase.joinFailed,
+                server: fernServer,
+                errorKind: OnboardingError.usedUp),
+            onDone: () {},
+            onTryAnother: () {},
+            onSetUpByHand: () {},
+            onTryAgain: () {})),
+        size: mainSize);
+    expect(find.textContaining('for a new one'), findsOneWidget);
+    expect(find.text('Try again'), findsNothing);
+  });
+
   forBothThemes('joining failed', (tester, b) async {
     await pumpScreen(
         tester,

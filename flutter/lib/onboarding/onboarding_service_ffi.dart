@@ -24,7 +24,7 @@ import 'onboarding_service.dart';
 /// onboarding_service_bind.dart; tests use a fake.
 abstract class OnboardingNative {
   /// The state as JSON: phase, server, supporterName, company, error,
-  /// errorText, joinStep, deviceId, deviceName, folderId, link, fileName,
+  /// errorText, errorReason, joinStep, deviceId, deviceName, folderId, link, fileName,
   /// messages (fromSupporter, text, time in ms), inputActive, quickSupport,
   /// hasServer.
   String state();
@@ -105,6 +105,8 @@ OnboardingError? errorKindOf(String? code) {
       return OnboardingError.unreachable;
     case 'rate_limited':
       return OnboardingError.tooManyTries;
+    case 'refused':
+      return OnboardingError.refused;
     default:
       return OnboardingError.other;
   }
@@ -124,6 +126,7 @@ OnboardingState parseOnboardingState(String json) {
     supporterName: _text(map['supporterName']),
     company: _text(map['company']),
     error: _text(map['errorText']),
+    reason: _text(map['errorReason']),
     errorKind: errorKindOf(code),
     inputActive: map['inputActive'] == true,
     joinStep: map['joinStep'] is int ? map['joinStep'] as int : 0,
@@ -142,6 +145,7 @@ bool _sameState(OnboardingState a, OnboardingState b) =>
     a.supporterName == b.supporterName &&
     a.company == b.company &&
     a.error == b.error &&
+    a.reason == b.reason &&
     a.errorKind == b.errorKind &&
     a.inputActive == b.inputActive &&
     a.joinStep == b.joinStep &&

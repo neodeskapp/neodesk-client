@@ -1187,6 +1187,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-install-installing-lead", "Das dauert etwa eine Minute."),
         ("bd-install-installing-join", "Das dauert etwa eine Minute. Danach tritt der Computer {} bei."),
         ("bd-install-failed", "Installation fehlgeschlagen: {}."),
+        ("bd-join-failed-lead-refused", "Der Server hat diesen Computer nicht angenommen."),
+        ("bd-join-failed-next-refused", "Wenn Ihr Administrator das erledigt hat, versuchen Sie es noch einmal mit derselben Einladung. Sie gilt weiterhin."),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }
