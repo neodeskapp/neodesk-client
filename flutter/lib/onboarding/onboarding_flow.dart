@@ -228,6 +228,10 @@ Map<String, dynamic> jsonDecodeOptions(String raw) {
   return {};
 }
 
+/// Join links whose question is open. A link that starts the app arrives
+/// twice, from uni_links and from the start arguments, and is asked once.
+final Set<String> _joinLinksAsked = {};
+
 /// A neodesk://join link opens a question naming the server before the
 /// computer joins it (plain HTTP links also carry the warning). Support
 /// links and anything else go straight to [handle].
@@ -238,6 +242,16 @@ Future<void> confirmOnboardingLink(
     handle(link);
     return;
   }
+  if (!_joinLinksAsked.add(link)) return;
+  try {
+    await _askBeforeJoining(input, link, handle);
+  } finally {
+    _joinLinksAsked.remove(link);
+  }
+}
+
+Future<void> _askBeforeJoining(
+    InviteInput input, String link, void Function(String link) handle) async {
   // Started by the link: wait until the window has its first frame.
   for (var i = 0; i < 50 && globalKey.currentContext == null; i++) {
     await Future<void>.delayed(const Duration(milliseconds: 100));
