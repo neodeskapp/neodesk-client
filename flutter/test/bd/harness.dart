@@ -5,7 +5,7 @@
 // - Translates with src/lang/en.rs or de.rs, the same tables the Rust side
 //   uses, falling back to English and then to the key.
 // - shot() pumps a screen at a window size in light or dark and, when
-//   BD_SHOTS_DIR is set, writes it there as <name>-<theme>.png at 2x.
+//   ND_SHOTS_DIR is set, writes it there as <name>-<theme>.png at 2x.
 
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -88,7 +88,7 @@ void useLanguage(String lang) {
   translateForTest = (k) => table[k] ?? _en[k] ?? k;
 }
 
-String? get shotsDir => Platform.environment['BD_SHOTS_DIR'];
+String? get shotsDir => Platform.environment['ND_SHOTS_DIR'];
 
 /// Builds [screen] in a window of [size] with the theme of [brightness]
 /// (and an optional server [accent]) and keeps time still. [extra] adds
@@ -138,7 +138,7 @@ Future<void> pumpScreen(
 }
 
 /// Writes the current frame as <name>-<light|dark>.png (2x) into
-/// BD_SHOTS_DIR when it is set.
+/// ND_SHOTS_DIR when it is set.
 Future<void> shot(WidgetTester tester, String name, Brightness b,
     {Key? rootKey}) async {
   final dir = shotsDir;
