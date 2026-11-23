@@ -509,7 +509,7 @@ mod tests {
     #[test]
     fn request_path_keeps_the_prefix_and_drops_the_query() {
         assert_eq!(
-            request_path("https://bd.example.com/desk/api/devices/register/status?device_id=1")
+            request_path("https://nd.example.com/desk/api/devices/register/status?device_id=1")
                 .as_deref(),
             Some("/desk/api/devices/register/status")
         );
@@ -524,12 +524,12 @@ mod tests {
         let stored = StoredToken {
             token: "tok".to_owned(),
             device_id: "123456789".to_owned(),
-            api: "http://bd:21114".to_owned(),
+            api: "http://nd:21114".to_owned(),
         };
-        let headers = request_headers(vec![], stored.usable_for("123456789", "http://bd:21114"));
+        let headers = request_headers(vec![], stored.usable_for("123456789", "http://nd:21114"));
         assert_eq!(header(&headers, "Authorization"), Some("Bearer tok"));
 
-        let other_id = request_headers(vec![], stored.usable_for("987654321", "http://bd:21114"));
+        let other_id = request_headers(vec![], stored.usable_for("987654321", "http://nd:21114"));
         assert_eq!(header(&other_id, "Authorization"), None);
 
         let other_server =

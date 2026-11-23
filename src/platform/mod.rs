@@ -327,7 +327,7 @@ mod tests {
             r#" "c:/program files/neodesk/NeoDesk.exe" "%1""#,
             exe
         ));
-        assert!(scheme_command_runs(r"C:\BD\neodesk.exe %1", r"C:\BD\neodesk.exe"));
+        assert!(scheme_command_runs(r"C:\ND\neodesk.exe %1", r"C:\ND\neodesk.exe"));
         assert!(!scheme_command_runs(
             r#""C:\Program Files\RustDesk\rustdesk.exe" "%1""#,
             exe

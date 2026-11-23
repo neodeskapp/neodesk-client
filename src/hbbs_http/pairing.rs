@@ -368,10 +368,10 @@ mod tests {
 
     #[test]
     fn api_base_for_a_host_follows_the_id_server_rule() {
-        let target = pairing_target("bd.example.com").unwrap();
-        assert_eq!(target.api, "http://bd.example.com:21121");
+        let target = pairing_target("nd.example.com").unwrap();
+        assert_eq!(target.api, "http://nd.example.com:21121");
         assert!(!target.typed_url);
-        assert_eq!(target.id_server, "bd.example.com");
+        assert_eq!(target.id_server, "nd.example.com");
 
         let target = pairing_target(" 10.0.0.5:21116/ ").unwrap();
         assert_eq!(target.api, "http://10.0.0.5:21121");
@@ -380,10 +380,10 @@ mod tests {
 
     #[test]
     fn api_base_for_a_url_is_the_url_as_typed() {
-        let target = pairing_target("https://bd.example.com/").unwrap();
-        assert_eq!(target.api, "https://bd.example.com");
+        let target = pairing_target("https://nd.example.com/").unwrap();
+        assert_eq!(target.api, "https://nd.example.com");
         assert!(target.typed_url);
-        assert_eq!(target.id_server, "bd.example.com");
+        assert_eq!(target.id_server, "nd.example.com");
 
         let target = pairing_target("HTTP://10.0.0.5:21114/desk").unwrap();
         assert_eq!(target.api, "HTTP://10.0.0.5:21114/desk");
@@ -395,10 +395,10 @@ mod tests {
         assert_eq!(pairing_target(""), None);
         assert_eq!(pairing_target("   "), None);
         assert_eq!(pairing_target("https://"), None);
-        assert_eq!(pairing_target("https://bd.example.com/?x=1"), None);
-        assert_eq!(pairing_target("bd.example.com/desk"), None);
-        assert_eq!(pairing_target("bd example.com"), None);
-        assert_eq!(pairing_target("bd.example.com:"), None);
+        assert_eq!(pairing_target("https://nd.example.com/?x=1"), None);
+        assert_eq!(pairing_target("nd.example.com/desk"), None);
+        assert_eq!(pairing_target("nd example.com"), None);
+        assert_eq!(pairing_target("nd.example.com:"), None);
     }
 
     fn redeem_answer() -> Value {
@@ -407,12 +407,12 @@ mod tests {
             "id": "pc_1",
             "enrollment": {"status": "approved", "device_id": "123456789"},
             "connection": {
-                "host": "bd.example.com",
-                "signal": "bd.example.com:21116",
-                "relay": "bd.example.com:21117",
-                "ws_signal": "bd.example.com:21118",
-                "ws_relay": "bd.example.com:21119",
-                "api": "https://bd.example.com:21114",
+                "host": "nd.example.com",
+                "signal": "nd.example.com:21116",
+                "relay": "nd.example.com:21117",
+                "ws_signal": "nd.example.com:21118",
+                "ws_relay": "nd.example.com:21119",
+                "api": "https://nd.example.com:21114",
                 "relay_servers": "",
             },
             "server_key": "c2VydmVyLWtleQ==",
@@ -421,15 +421,15 @@ mod tests {
 
     #[test]
     fn redeem_answer_sets_the_connection_options() {
-        let changes = option_changes(&redeem_answer(), &pairing_target("bd.example.com").unwrap());
+        let changes = option_changes(&redeem_answer(), &pairing_target("nd.example.com").unwrap());
         assert_eq!(
             changes,
             vec![
                 (
                     "custom-rendezvous-server",
-                    "bd.example.com:21116".to_owned()
+                    "nd.example.com:21116".to_owned()
                 ),
-                ("relay-server", "bd.example.com:21117".to_owned()),
+                ("relay-server", "nd.example.com:21117".to_owned()),
                 ("api-server", String::new()),
                 ("key", "c2VydmVyLWtleQ==".to_owned()),
             ]
@@ -444,15 +444,15 @@ mod tests {
             "connection": {"signal": "", "relay": ""},
             "server_key": "",
         });
-        let changes = option_changes(&answer, &pairing_target("https://bd.example.com").unwrap());
+        let changes = option_changes(&answer, &pairing_target("https://nd.example.com").unwrap());
         assert_eq!(
             option(&changes, "custom-rendezvous-server"),
-            Some("bd.example.com")
+            Some("nd.example.com")
         );
         assert_eq!(option(&changes, "relay-server"), Some(""));
         assert_eq!(
             option(&changes, "api-server"),
-            Some("https://bd.example.com")
+            Some("https://nd.example.com")
         );
         assert_eq!(option(&changes, "key"), None);
     }
@@ -498,7 +498,7 @@ mod tests {
             "pending",
             Some("t0ken"),
             "123456789",
-            "https://bd.example.com",
+            "https://nd.example.com",
             |payload| {
                 sent = Some(payload);
                 Ok(())
@@ -512,7 +512,7 @@ mod tests {
                 "status": "pending",
                 "token": "t0ken",
                 "device_id": "123456789",
-                "api": "https://bd.example.com",
+                "api": "https://nd.example.com",
             })
         );
     }
