@@ -2,6 +2,7 @@
 """Check the source-level launcher and installer contract for desktop builds."""
 
 from pathlib import Path
+import os
 import re
 import subprocess
 import sys
@@ -181,6 +182,52 @@ require(".github/workflows/neodesk-desktop-release.yml", release, "pattern: neod
 require(".github/workflows/neodesk-desktop-release.yml", release, "scripts/collect_desktop_dist.sh collect")
 collect = read("scripts/collect_desktop_dist.sh")
 require("scripts/collect_desktop_dist.sh", collect, 'neodesk-unsigned-macos-${arch}')
+
+# Package metadata names NeoDesk, and a pre-release keeps its suffix: in the
+# client (hbb_common's release_version) and in each package format.
+CONTACT = "NeoDesk <security@neode.sk>"
+HOMEPAGE = "https://neode.sk"
+require(".github/workflows/neodesk-desktop-release.yml", release, "version: ${{ needs.prepare.outputs.version }}")
+require(".github/workflows/flutter-build.yml", flutter_build, "NEODESK_RELEASE_VERSION: ${{ inputs.version }}")
+require(".github/workflows/flutter-build.yml", flutter_build, 'export NEODESK_RELEASE_VERSION="${{ inputs.version }}"')
+require(".github/workflows/flutter-build.yml", flutter_build, "python3 ./build.py --print-package-version")
+import importlib.util
+
+spec = importlib.util.spec_from_file_location("neodesk_build", ROOT / "build.py")
+build_module = importlib.util.module_from_spec(spec)
+saved_environ = dict(os.environ)
+try:
+    spec.loader.exec_module(build_module)
+    for release, expected in (
+        ("1.5.0-rc.4", "1.5.0~rc.4"),
+        ("1.5.0-dev.42", "1.5.0~dev.42"),
+        ("", "1.5.0"),
+        ("1.6.0-rc.1", "1.5.0"),
+    ):
+        os.environ["NEODESK_RELEASE_VERSION"] = release
+        got = build_module.package_version(build_module.release_version("1.5.0"))
+        if got != expected:
+            failures.append(f"build.py: package version for {release!r} is {got!r}, not {expected!r}")
+    os.environ["NEODESK_RELEASE_VERSION"] = "1.5.0-rc.4"
+    control = build_module.control_file_content("1.5.0")
+    for needle in ("Version: 1.5.0~rc.4\n", f"Maintainer: {CONTACT}\n", f"Homepage: {HOMEPAGE}\n"):
+        require("build.py (deb control)", control, needle)
+    if "rustdesk" in control.lower():
+        failures.append("build.py (deb control): still names rustdesk")
+except Exception as err:  # an old build.py has none of these functions
+    failures.append(f"build.py: {type(err).__name__}: {err}")
+finally:
+    os.environ.clear()
+    os.environ.update(saved_environ)
+for relative in ("res/rpm-flutter.spec", "res/rpm-flutter-suse.spec", "res/rpm.spec", "res/rpm-suse.spec"):
+    spec_text = read(relative)
+    require(relative, spec_text, f"Vendor:     {CONTACT}")
+    require(relative, spec_text, f"URL:        {HOMEPAGE}")
+    require(relative, spec_text, "License:    AGPL-3.0-only")
+for link in ("https://github.com/rustdesk/rustdesk", "https://github.com/rustdesk/rustdesk/issues/"):
+    if f'"v": "{link}"' in preprocess:
+        failures.append(f"res/msi/preprocess.py: the MSI's support links still point at {link}")
+require("res/msi/preprocess.py", preprocess, 'g_version.split("-", 1)[0]')
 
 if failures:
     print("\n".join(failures), file=sys.stderr)

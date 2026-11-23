@@ -30,6 +30,13 @@ on:
           linux-x86_64 linux-aarch64 macos-x86_64 macos-aarch64
         type: string
         default: "all"
+      version:
+        description: >-
+          The release's version with its suffix (1.5.0-rc.4). The client
+          reports it and the deb and rpm carry it (1.5.0~rc.4); empty is
+          the version in Cargo.toml.
+        type: string
+        default: ""
 
 env:
   # Keep 1.75 on desktop Flutter/Windows (ABI / historical constraints from upstream).
@@ -52,6 +59,7 @@ env:
   UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
   NEODESK_SUPPORT_CONFIG_B64: "${{ inputs.support-config-b64 }}"
   NEODESK_GENERIC_SUPPORT: "${{ inputs.generic-support && '1' || '' }}"
+  NEODESK_RELEASE_VERSION: ${{ inputs.version }}
 
 jobs:
   # Turns the platforms input into the matrices of the jobs below. A family
@@ -1121,6 +1129,8 @@ jobs:
               export JOBS=""
             fi
             echo $JOBS
+            # The container doesn't see the job's environment.
+            export NEODESK_RELEASE_VERSION="${{ inputs.version }}"
             cargo build --locked --lib $JOBS --features hwcodec,flutter,unix-file-copy-paste --release
             # target/release/{deps,build} stay for the Rust cache step.
             du -sh /workspace/target || true
@@ -1183,9 +1193,11 @@ jobs:
               mv "$name" "${name%%.deb}-${{ matrix.job.arch }}.deb"
             done
 
-            # rpm package
+            # rpm package, with the release's version (1.5.0~rc.4)
             echo -e "start packaging fedora package"
             pushd /workspace
+            RPM_VERSION="$(python3 ./build.py --print-package-version)"
+            sed -i "s/^Version: .*/Version:    ${RPM_VERSION}/" ./res/rpm-flutter.spec ./res/rpm-flutter-suse.spec
             case ${{ matrix.job.arch }} in
               aarch64)
                 sed -i "s/linux\/x64/linux\/arm64/g" ./res/rpm-flutter.spec

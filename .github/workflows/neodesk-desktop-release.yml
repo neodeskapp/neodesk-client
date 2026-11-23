@@ -154,6 +154,7 @@ jobs:
       upload-artifact: true
       upload-tag: ${{ needs.prepare.outputs.tag_name }}
       platforms: ${{ needs.prepare.outputs.platforms }}
+      version: ${{ needs.prepare.outputs.version }}
     secrets: inherit
 
   package:

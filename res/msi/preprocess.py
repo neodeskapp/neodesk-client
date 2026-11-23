@@ -27,15 +27,15 @@ g_arpsystemcomponent = {
     },
     "Contact": {
         "msi": "ARPCONTACT",
-        "v": "https://github.com/rustdesk/rustdesk",
+        "v": "https://neode.sk",
     },
     "HelpLink": {
         "msi": "ARPHELPLINK",
-        "v": "https://github.com/rustdesk/rustdesk/issues/",
+        "v": "https://github.com/neodeskapp/neodesk-client/issues",
     },
     "ReadMe": {
         "msi": "ARPREADME",
-        "v": "https://github.com/rustdesk/rustdesk",
+        "v": "https://github.com/neodeskapp/neodesk-client",
     },
 }
 
@@ -484,6 +484,9 @@ def init_global_vars(dist_dir, args):
     g_version = args.version.replace("-", ".")
     if g_version == "":
         g_version = read_process_output("--version")
+    # An MSI version has numbers only; a pre-release suffix (1.5.0-rc.4)
+    # stays in the version the client reports.
+    g_version = g_version.split("-", 1)[0]
     version_pattern = re.compile(r"\d+\.\d+\.\d+.*")
     if not version_pattern.match(g_version):
         print(f"Error: version {g_version} not found in {dist_app}")

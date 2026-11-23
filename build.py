@@ -162,6 +162,11 @@ def make_parser():
              'for the list rather than repeat it, so the two cannot drift.'
     )
     parser.add_argument(
+        '--print-package-version',
+        action='store_true',
+        help='Print the version a deb or an rpm of this build carries (1.5.0~rc.4), and exit.'
+    )
+    parser.add_argument(
         '--skip-cargo',
         action='store_true',
         help='Skip cargo build process, only flutter version + Linux supported currently'
@@ -362,22 +367,42 @@ def get_features(args):
     return features
 
 
-def generate_control_file(version):
-    control_file_path = "../res/DEBIAN/control"
-    system2('/bin/rm -rf %s' % control_file_path)
+def release_version(version):
+    """NEODESK_RELEASE_VERSION, which the release workflow sets (1.5.0-rc.4),
+    when it is `version` with a pre-release suffix, else `version`. The
+    client reports the same version (hbb_common's release_version)."""
+    release = os.environ.get('NEODESK_RELEASE_VERSION', '').strip()
+    if re.fullmatch(re.escape(version) + r'-[0-9A-Za-z.]+', release):
+        return release
+    return version
 
-    content = """Package: neodesk
+
+def package_version(version):
+    """The version of a deb or an rpm: a pre-release suffix goes after a ~,
+    which sorts before the release in both (1.5.0~rc.4 < 1.5.0)."""
+    return version.replace('-', '~', 1)
+
+
+def control_file_content(version):
+    return """Package: neodesk
 Section: net
 Priority: optional
 Version: %s
 Architecture: %s
-Maintainer: rustdesk <info@rustdesk.com>
-Homepage: https://rustdesk.com
+Maintainer: NeoDesk <security@neode.sk>
+Homepage: https://neode.sk
 Depends: libgtk-3-0t64 | libgtk-3-0, libxcb-randr0, libxdo3 | libxdo4, libxfixes3, libxcb-shape0, libxcb-xfixes0, libasound2t64 | libasound2, libsystemd0, curl, libva2, libva-drm2, libva-x11-2, libgstreamer-plugins-base1.0-0, gstreamer1.0-pipewire%s
 Recommends: libayatana-appindicator3-1
 Description: A remote control software.
 
-""" % (version, get_deb_arch(), get_deb_extra_depends())
+""" % (package_version(release_version(version)), get_deb_arch(), get_deb_extra_depends())
+
+
+def generate_control_file(version):
+    control_file_path = "../res/DEBIAN/control"
+    system2('/bin/rm -rf %s' % control_file_path)
+
+    content = control_file_content(version)
     file = open(control_file_path, "w")
     file.write(content)
     file.close()
@@ -987,6 +1012,9 @@ def main():
         with contextlib.redirect_stdout(sys.stderr):
             feats = ','.join(get_features(args))
         print(feats)
+        return
+    if args.print_package_version:
+        print(package_version(release_version(get_version())))
         return
 
     if os.path.exists(exe_path):

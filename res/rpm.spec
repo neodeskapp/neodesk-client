@@ -2,9 +2,9 @@ Name:       neodesk
 Version:    1.5.0
 Release:    0
 Summary:    NeoDesk remote desktop client
-License:    GPL-3.0
-URL:        https://github.com/neodeskapp/neodesk-client
-Vendor:     rustdesk <info@rustdesk.com>
+License:    AGPL-3.0-only
+URL:        https://neode.sk
+Vendor:     NeoDesk <security@neode.sk>
 Requires:   gtk3 libxcb libXfixes alsa-lib libva2 gstreamer1-plugins-base
 Recommends: libayatana-appindicator-gtk3 libxdo
 
