@@ -85,6 +85,7 @@ jobs:
             packaging
             scripts/collect_desktop_dist.sh
           sparse-checkout-cone-mode: false
+          filter: blob:none
           submodules: false
 
       - name: Install tools
@@ -196,6 +197,7 @@ jobs:
             packaging
             scripts/collect_desktop_dist.sh
           sparse-checkout-cone-mode: false
+          filter: blob:none
           submodules: false
 
       - name: Write the manifests
