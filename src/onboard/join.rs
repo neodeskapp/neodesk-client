@@ -29,7 +29,14 @@ impl DeviceIdentity {
             platform: std::env::consts::OS.to_owned(),
             version: crate::VERSION.to_owned(),
             public_key: if with_public_key {
-                crate::hbbs_http::enrollment::public_key_b64()
+                // The key the device's server process signs with
+                // (device_key.rs), not one this process makes (L438)
+                super::device_key::key_for_join(
+                    crate::ipc::get_config(crate::ipc::IPC_PUBLIC_KEY)
+                        .ok()
+                        .flatten(),
+                    crate::hbbs_http::enrollment::public_key_b64,
+                )
             } else {
                 None
             },

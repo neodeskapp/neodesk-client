@@ -17,6 +17,7 @@
 // Only the Flutter FFI calls the UI part of this module.
 #![cfg_attr(not(feature = "flutter"), allow(dead_code))]
 
+mod device_key;
 mod grants;
 mod http;
 mod join;

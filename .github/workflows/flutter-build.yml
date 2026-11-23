@@ -348,12 +348,13 @@ jobs:
           components: "rustfmt"
 
       # The install script's lines that name the app, the rule for
-      # rustdesk:// and what a quick support session may have; the files
-      # need only std, so their tests run without building the client.
+      # rustdesk:// and what a quick support session may have, and which
+      # key a join sends; the files need only std, so their tests run
+      # without building the client.
       - name: Test the install command builders
         shell: pwsh
         run: |
-          foreach ($file in 'src/platform/windows/install_commands.rs', 'src/platform/windows/link_schemes.rs', 'src/onboard/grants.rs') {
+          foreach ($file in 'src/platform/windows/install_commands.rs', 'src/platform/windows/link_schemes.rs', 'src/onboard/grants.rs', 'src/onboard/device_key.rs') {
             $name = [IO.Path]::GetFileNameWithoutExtension($file)
             rustc --edition 2021 --test $file -o "$env:RUNNER_TEMP\${name}_test.exe"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

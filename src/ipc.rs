@@ -648,6 +648,9 @@ pub async fn start(postfix: &str) -> ResultType<()> {
 /// Config name under which a client that joined or paired with a server
 /// hands the device token to the server process, which keeps it.
 pub const IPC_JOINED_DEVICE_TOKEN: &str = "neodesk-joined-device-token";
+/// The server process's public key (base64), for a join in another
+/// process (onboard/device_key.rs).
+pub const IPC_PUBLIC_KEY: &str = "public-key";
 
 /// The IPC path of `postfix` for this process. A quick support process uses
 /// names of its own, so it never reaches an installed client's server,
@@ -949,6 +952,10 @@ async fn handle(data: Data, stream: &mut Connection) {
                     ));
                 } else if name == "rendezvous_servers" {
                     value = Some(Config::get_rendezvous_servers().join(","));
+                } else if name == IPC_PUBLIC_KEY {
+                    // A join in another process sends the console this
+                    // process's key, the one it signs with (L438)
+                    value = crate::hbbs_http::enrollment::public_key_b64();
                 } else if name == "fingerprint" {
                     value = if Config::get_key_confirmed() {
                         Some(crate::common::pk_to_fingerprint(Config::get_key_pair().1))
