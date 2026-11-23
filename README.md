@@ -14,7 +14,7 @@
 ![Flutter](https://img.shields.io/badge/Flutter-desktop-02569B.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)
 
-NeoDesk is a fork of [RustDesk](https://github.com/rustdesk/rustdesk) that started from UNITRONIX's [BetterDesk client](https://github.com/UNITRONIX/BetterDesk-Client). Licensed under **AGPL-3.0**.
+NeoDesk is a fork of [RustDesk](https://github.com/rustdesk/rustdesk). Licensed under **AGPL-3.0**.
 
 </div>
 
@@ -89,11 +89,9 @@ Short checklist:
 
 ## Attribution and license
 
-NeoDesk Client is a fork of [RustDesk](https://github.com/rustdesk/rustdesk). It includes work from [BetterDesk-Client](https://github.com/UNITRONIX/BetterDesk-Client) by UNITRONIX, also licensed under the AGPL-3.0. The About UI and sysinfo keep upstream attribution and source links.
+NeoDesk Client is a modified version of [RustDesk](https://github.com/rustdesk/rustdesk), copyright Purslane Ltd. and the RustDesk contributors, and includes work from BetterDesk-Client by UNITRONIX. Both are licensed under the AGPL-3.0, and so is NeoDesk Client (see [LICENCE](LICENCE)). The About page and the system information keep the RustDesk credit and the links to the source code.
 
 The language flags in `flutter/assets/flags` are from [Twemoji](https://github.com/jdecked/twemoji) (`@twemoji/svg` 15.0.0), licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-
-[AGPL-3.0](LICENSE) · Source: [neodeskapp/neodesk-client](https://github.com/neodeskapp/neodesk-client) · Upstream: [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk)
 
 ---
 
