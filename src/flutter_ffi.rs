@@ -2776,6 +2776,12 @@ pub fn main_get_common(key: String) -> String {
         return crate::cm_remote_keys::remote_keys_blocked().to_string();
         #[cfg(any(target_os = "android", target_os = "ios"))]
         return false.to_string();
+    } else if key == "is-drm-capture-supported" {
+        // The bundled libdrmtap may not load (a glibc older than its build): then DRM cannot work.
+        #[cfg(all(target_os = "linux", feature = "drm"))]
+        return scrap::drmtap_dl::get().is_some().to_string();
+        #[cfg(not(all(target_os = "linux", feature = "drm")))]
+        return false.to_string();
     } else if key == "transfer-job-id" {
         return hbb_common::fs::get_next_job_id().to_string();
     } else if key == "is-remote-modify-enabled-by-control-permissions" {

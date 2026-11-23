@@ -1213,10 +1213,18 @@ async fn handle(data: Data, stream: &mut Connection) {
                 if let Some(v) = value.get("privacy-mode-impl-key") {
                     crate::privacy_mode::switch(v);
                 }
+                #[cfg(all(target_os = "linux", feature = "drm"))]
+                let drm_capture_was_on = crate::platform::linux::drm_capture_enabled();
                 // What the server's strategy manages stays the server's (A267)
                 crate::hbbs_http::sync::keep_server_managed(&mut value, &Config::get_options());
                 Config::set_options_from_other_process(value);
                 allow_err!(stream.send(&Data::Options(None)).await);
+                // Not from a UI that hosts this IPC itself: its copy of the config can be older
+                // than the service's, and the sync sends all of it.
+                #[cfg(all(target_os = "linux", feature = "drm"))]
+                if crate::is_server() {
+                    crate::platform::linux::sync_drm_capture_to_service(drm_capture_was_on).await;
+                }
             }
         },
         Data::NatType(_) => {
@@ -2304,6 +2312,14 @@ pub async fn set_options(value: HashMap<String, String>) -> ResultType<()> {
     }
     Config::set_options_from_other_process(value);
     Ok(())
+}
+
+/// For the CLI, a process that just loaded the config. With no `--server` up to apply the change,
+/// as right after an install, nothing else tells the service.
+#[cfg(all(target_os = "linux", feature = "drm"))]
+#[tokio::main(flavor = "current_thread")]
+pub async fn sync_drm_capture_to_service_blocking(was_on: bool) {
+    crate::platform::linux::sync_drm_capture_to_service(was_on).await
 }
 
 #[inline]

@@ -10,7 +10,7 @@ groups=()
 depends=('gtk3' 'xdotool' 'libxcb' 'libxfixes' 'alsa-lib' 'libva' 'libappindicator-gtk3' 'gst-plugins-base' 'gst-plugin-pipewire')
 makedepends=()
 checkdepends=()
-optdepends=()
+optdepends=('libdrm: DRM screen capture' 'libglvnd: DRM screen capture')
 provides=()
 conflicts=()
 replaces=()
@@ -26,6 +26,11 @@ package() {
 	  bundle="${HBB}/flutter/build/linux/x64/release/bundle"
 	  [[ ${CARCH} == aarch64 ]] && bundle="${HBB}/flutter/build/linux/arm64/release/bundle"
 	  mkdir -p "${pkgdir}/usr/share/neodesk" && cp -r "${bundle}"/* -t "${pkgdir}/usr/share/neodesk"
+	  so=$(find "${DRMTAP_PREBUILT_DIR:-${HBB}/third_party/libdrmtap/build-pkg}" -maxdepth 1 -type f -name 'libdrmtap.so.0.*' 2>/dev/null || true)
+	  if [[ -n "$so" ]]; then
+	    install -Dm 755 "$so" -t "${pkgdir}/usr/lib/neodesk"
+	    ln -s "$(basename "$so")" "${pkgdir}/usr/lib/neodesk/libdrmtap.so.0"
+	  fi
   else
 	  install -Dm 755 "${HBB}/target/release/rustdesk" "${pkgdir}/usr/share/neodesk/neodesk"
   fi
