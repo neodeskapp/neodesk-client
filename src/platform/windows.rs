@@ -2156,11 +2156,13 @@ fn get_public_base_dir() -> PathBuf {
     std::env::temp_dir()
 }
 
+/// NeoDesk's own folder, apart from RustDesk\RustDeskCustomClientStaging,
+/// which stock RustDesk's custom clients use.
 #[inline]
 pub fn get_custom_client_staging_dir() -> PathBuf {
     get_public_base_dir()
-        .join("RustDesk")
-        .join("RustDeskCustomClientStaging")
+        .join("NeoDesk")
+        .join("CustomClientStaging")
 }
 
 /// Removes the custom client staging directory.
@@ -2169,7 +2171,7 @@ pub fn get_custom_client_staging_dir() -> PathBuf {
 ///
 /// Rationale
 /// - The staging directory only contains a small `custom.txt`, leaving it is harmless.
-/// - Deleting directories under a public location (e.g., C:\\ProgramData\\RustDesk) is
+/// - Deleting directories under a public location (e.g., C:\\ProgramData\\NeoDesk) is
 ///   susceptible to TOCTOU attacks if an unprivileged user can replace the path with a
 ///   symlink/junction between checks and deletion.
 ///
