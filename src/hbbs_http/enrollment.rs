@@ -22,11 +22,11 @@ pub const ENROLLMENT_RETRY: Duration = Duration::from_secs(120);
 /// Time between token checks once the device is approved and holds a token.
 pub const TOKEN_CHECK_INTERVAL: Duration = Duration::from_secs(600);
 
-pub const HEADER_TIMESTAMP: &str = "X-BD-Enrollment-Timestamp";
-pub const HEADER_NONCE: &str = "X-BD-Enrollment-Nonce";
-pub const HEADER_SIGNATURE: &str = "X-BD-Enrollment-Signature";
+pub const HEADER_TIMESTAMP: &str = "X-ND-Enrollment-Timestamp";
+pub const HEADER_NONCE: &str = "X-ND-Enrollment-Nonce";
+pub const HEADER_SIGNATURE: &str = "X-ND-Enrollment-Signature";
 const HEADER_AUTHORIZATION: &str = "Authorization";
-const PROOF_VERSION: &str = "bd-enrollment-v1";
+const PROOF_VERSION: &str = "nd-enrollment-v1";
 const NONCE_BYTES: usize = 32;
 
 const OPTION_DEVICE_TOKEN: &str = "neodesk-device-token";
@@ -369,7 +369,7 @@ mod tests {
         );
         assert_eq!(
             payload.as_bytes(),
-            b"bd-enrollment-v1\nPOST\n/api/devices/register\n123456789\ncHVibGljLWtleQ==\n2026-11-22T10:00:00Z\n6e6f6e6365"
+            b"nd-enrollment-v1\nPOST\n/api/devices/register\n123456789\ncHVibGljLWtleQ==\n2026-11-22T10:00:00Z\n6e6f6e6365"
         );
     }
 
@@ -386,8 +386,18 @@ mod tests {
             NONCE,
         )
         .unwrap();
-        assert_eq!(header(&headers, HEADER_TIMESTAMP), Some(TIMESTAMP));
-        assert_eq!(header(&headers, HEADER_NONCE), Some(NONCE));
+        assert_eq!(
+            header(&headers, "X-ND-Enrollment-Timestamp"),
+            Some(TIMESTAMP)
+        );
+        assert_eq!(header(&headers, "X-ND-Enrollment-Nonce"), Some(NONCE));
+        // Ed25519 signatures are deterministic, so the seed [7; 32] key always
+        // signs this nd-enrollment-v1 payload with these bytes. The server's
+        // Go crypto/ed25519 gives the same value.
+        assert_eq!(
+            header(&headers, "X-ND-Enrollment-Signature"),
+            Some("FwtX80h2o3wuVl3Pe2Tkc5LCjMNhFAuURCMV1oASbl75h77AtC/v0tFsyMpRaCtD9+g1Nkj/i1NK2kBUkp3bAw==")
+        );
         let decoded = STANDARD
             .decode(header(&headers, HEADER_SIGNATURE).unwrap())
             .unwrap();
