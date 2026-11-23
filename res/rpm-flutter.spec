@@ -5,8 +5,6 @@ Summary:    NeoDesk remote desktop client
 License:    GPL-3.0
 URL:        https://github.com/neodeskapp/neodesk-client
 Vendor:     rustdesk <info@rustdesk.com>
-Provides:   rustdesk
-Obsoletes:  rustdesk
 Requires:   gtk3 libxcb libXfixes alsa-lib libva gstreamer1-plugins-base
 Recommends: libayatana-appindicator-gtk3 libxdo
 Provides:   libdesktop_drop_plugin.so()(64bit), libdesktop_multi_window_plugin.so()(64bit), libfile_selector_linux_plugin.so()(64bit), libflutter_custom_cursor_plugin.so()(64bit), libflutter_linux_gtk.so()(64bit), libscreen_retriever_plugin.so()(64bit), libtray_manager_plugin.so()(64bit), liburl_launcher_linux_plugin.so()(64bit), libwindow_manager_plugin.so()(64bit), libwindow_size_plugin.so()(64bit), libtexture_rgba_renderer_plugin.so()(64bit)
@@ -26,23 +24,21 @@ The best open-source remote desktop client software, written in Rust.
 
 %install
 
-mkdir -p "%{buildroot}/usr/share/rustdesk" && cp -r ${HBB}/flutter/build/linux/x64/release/bundle/* -t "%{buildroot}/usr/share/rustdesk"
+mkdir -p "%{buildroot}/usr/share/neodesk" && cp -r ${HBB}/flutter/build/linux/x64/release/bundle/* -t "%{buildroot}/usr/share/neodesk"
 mkdir -p "%{buildroot}/usr/bin"
-install -Dm 644 $HBB/res/rustdesk.service -t "%{buildroot}/usr/share/rustdesk/files"
-install -Dm 644 $HBB/res/neodesk.desktop -t "%{buildroot}/usr/share/rustdesk/files"
-install -Dm 644 $HBB/res/neodesk-link.desktop -t "%{buildroot}/usr/share/rustdesk/files"
-install -Dm 644 $HBB/res/rustdesk-link.desktop -t "%{buildroot}/usr/share/rustdesk/files"
-install -Dm 644 $HBB/res/128x128@2x.png "%{buildroot}/usr/share/icons/hicolor/256x256/apps/rustdesk.png"
-install -Dm 644 $HBB/res/scalable.svg "%{buildroot}/usr/share/icons/hicolor/scalable/apps/rustdesk.svg"
+install -Dm 644 $HBB/res/neodesk.service -t "%{buildroot}/usr/share/neodesk/files"
+install -Dm 644 $HBB/res/neodesk.desktop -t "%{buildroot}/usr/share/neodesk/files"
+install -Dm 644 $HBB/res/neodesk-link.desktop -t "%{buildroot}/usr/share/neodesk/files"
+install -Dm 644 $HBB/res/128x128@2x.png "%{buildroot}/usr/share/icons/hicolor/256x256/apps/neodesk.png"
+install -Dm 644 $HBB/res/scalable.svg "%{buildroot}/usr/share/icons/hicolor/scalable/apps/neodesk.svg"
 
 %files
-/usr/share/rustdesk/*
-/usr/share/rustdesk/files/rustdesk.service
-/usr/share/icons/hicolor/256x256/apps/rustdesk.png
-/usr/share/icons/hicolor/scalable/apps/rustdesk.svg
-/usr/share/rustdesk/files/neodesk.desktop
-/usr/share/rustdesk/files/neodesk-link.desktop
-/usr/share/rustdesk/files/rustdesk-link.desktop
+/usr/share/neodesk/*
+/usr/share/neodesk/files/neodesk.service
+/usr/share/icons/hicolor/256x256/apps/neodesk.png
+/usr/share/icons/hicolor/scalable/apps/neodesk.svg
+/usr/share/neodesk/files/neodesk.desktop
+/usr/share/neodesk/files/neodesk-link.desktop
 
 %changelog
 # let's skip this for now
@@ -55,29 +51,27 @@ case "$1" in
   ;;
   2)
     # for upgrade
-    systemctl stop rustdesk || true
+    systemctl stop neodesk || true
   ;;
 esac
 
 %post
-cp /usr/share/rustdesk/files/rustdesk.service /etc/systemd/system/rustdesk.service
-cp /usr/share/rustdesk/files/neodesk.desktop /usr/share/applications/
-cp /usr/share/rustdesk/files/neodesk-link.desktop /usr/share/applications/
-cp /usr/share/rustdesk/files/rustdesk-link.desktop /usr/share/applications/
-ln -sf /usr/share/rustdesk/neodesk /usr/bin/neodesk
-ln -sf /usr/share/rustdesk/neodesk /usr/bin/rustdesk
+cp /usr/share/neodesk/files/neodesk.service /etc/systemd/system/neodesk.service
+cp /usr/share/neodesk/files/neodesk.desktop /usr/share/applications/
+cp /usr/share/neodesk/files/neodesk-link.desktop /usr/share/applications/
+ln -sf /usr/share/neodesk/neodesk /usr/bin/neodesk
 systemctl daemon-reload
-systemctl enable rustdesk
-systemctl start rustdesk
+systemctl enable neodesk
+systemctl start neodesk
 update-desktop-database
 
 %preun
 case "$1" in
   0)
     # for uninstall
-    systemctl stop rustdesk || true
-    systemctl disable rustdesk || true
-    rm /etc/systemd/system/rustdesk.service || true
+    systemctl stop neodesk || true
+    systemctl disable neodesk || true
+    rm /etc/systemd/system/neodesk.service || true
   ;;
   1)
     # for upgrade
@@ -88,19 +82,13 @@ esac
 case "$1" in
   0)
     # for uninstall
-    rm /usr/bin/neodesk /usr/bin/rustdesk || true
-    rmdir /usr/lib/rustdesk || true
-    rmdir /usr/local/rustdesk || true
-    rmdir /usr/share/rustdesk || true
+    rm /usr/bin/neodesk || true
+            rmdir /usr/share/neodesk || true
     rm /usr/share/applications/neodesk.desktop || true
     rm /usr/share/applications/neodesk-link.desktop || true
-    rm /usr/share/applications/rustdesk.desktop || true
-    rm /usr/share/applications/rustdesk-link.desktop || true
     update-desktop-database
   ;;
   1)
     # for upgrade
-    rmdir /usr/lib/rustdesk || true
-    rmdir /usr/local/rustdesk || true
-  ;;
+          ;;
 esac

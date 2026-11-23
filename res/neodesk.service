@@ -11,7 +11,7 @@ ExecStop=/usr/bin/pkill -f "neodesk --"
 # below two lines do not work, have to use above one line
 #ExecStop=/usr/bin/pkill -f "neodesk --tray"
 #ExecStop=/usr/bin/pkill -f "neodesk --server"
-PIDFile=/run/rustdesk.pid
+PIDFile=/run/neodesk.pid
 KillMode=mixed
 TimeoutStopSec=30
 User=root

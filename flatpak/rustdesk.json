@@ -6,7 +6,7 @@
   "command": "neodesk",
   "cleanup": ["/include", "/lib/pkgconfig", "/share/gtk-doc"],
   "rename-desktop-file": "neodesk.desktop",
-  "rename-icon": "rustdesk",
+  "rename-icon": "neodesk",
   "modules": [
     "shared-modules/libappindicator/libappindicator-gtk3-12.10.json",
     {
@@ -27,7 +27,7 @@
       "build-commands": [
         "bsdtar -Oxf neodesk.deb data.tar.xz | bsdtar -xf -",
         "cp -r usr/* /app/",
-        "mkdir -p /app/bin /app/share/metainfo && ln -s /app/share/rustdesk/neodesk /app/bin/neodesk && ln -s /app/share/rustdesk/neodesk /app/bin/rustdesk",
+        "mkdir -p /app/bin /app/share/metainfo && ln -s /app/share/neodesk/neodesk /app/bin/neodesk",
         "install -Dm644 com.rustdesk.RustDesk.metainfo.xml /app/share/metainfo/sk.neode.neodesk.metainfo.xml"
       ],
       "sources": [

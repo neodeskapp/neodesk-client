@@ -11,9 +11,9 @@ depends=('gtk3' 'xdotool' 'libxcb' 'libxfixes' 'alsa-lib' 'libva' 'libappindicat
 makedepends=()
 checkdepends=()
 optdepends=()
-provides=('rustdesk')
-conflicts=('rustdesk')
-replaces=('rustdesk')
+provides=()
+conflicts=()
+replaces=()
 backup=()
 options=()
 install=pacman_install
@@ -25,16 +25,15 @@ package() {
   if [[ ${FLUTTER} ]]; then
 	  bundle="${HBB}/flutter/build/linux/x64/release/bundle"
 	  [[ ${CARCH} == aarch64 ]] && bundle="${HBB}/flutter/build/linux/arm64/release/bundle"
-	  mkdir -p "${pkgdir}/usr/share/rustdesk" && cp -r "${bundle}"/* -t "${pkgdir}/usr/share/rustdesk"
+	  mkdir -p "${pkgdir}/usr/share/neodesk" && cp -r "${bundle}"/* -t "${pkgdir}/usr/share/neodesk"
   else
-	  install -Dm 755 "${HBB}/target/release/rustdesk" "${pkgdir}/usr/share/rustdesk/neodesk"
+	  install -Dm 755 "${HBB}/target/release/rustdesk" "${pkgdir}/usr/share/neodesk/neodesk"
   fi
   mkdir -p "${pkgdir}/usr/bin"
-  pushd ${pkgdir} && ln -s /usr/share/rustdesk/neodesk usr/bin/neodesk && ln -s /usr/share/rustdesk/neodesk usr/bin/rustdesk && popd
-  install -Dm 644 $HBB/res/rustdesk.service -t "${pkgdir}/usr/share/rustdesk/files"
-  install -Dm 644 $HBB/res/neodesk.desktop -t "${pkgdir}/usr/share/rustdesk/files"
-  install -Dm 644 $HBB/res/neodesk-link.desktop -t "${pkgdir}/usr/share/rustdesk/files"
-  install -Dm 644 $HBB/res/rustdesk-link.desktop -t "${pkgdir}/usr/share/rustdesk/files"
-  install -Dm 644 $HBB/res/128x128@2x.png "${pkgdir}/usr/share/icons/hicolor/256x256/apps/rustdesk.png"
-  install -Dm 644 $HBB/res/scalable.svg "${pkgdir}/usr/share/icons/hicolor/scalable/apps/rustdesk.svg"
+  pushd ${pkgdir} && ln -s /usr/share/neodesk/neodesk usr/bin/neodesk && popd
+  install -Dm 644 $HBB/res/neodesk.service -t "${pkgdir}/usr/share/neodesk/files"
+  install -Dm 644 $HBB/res/neodesk.desktop -t "${pkgdir}/usr/share/neodesk/files"
+  install -Dm 644 $HBB/res/neodesk-link.desktop -t "${pkgdir}/usr/share/neodesk/files"
+  install -Dm 644 $HBB/res/128x128@2x.png "${pkgdir}/usr/share/icons/hicolor/256x256/apps/neodesk.png"
+  install -Dm 644 $HBB/res/scalable.svg "${pkgdir}/usr/share/icons/hicolor/scalable/apps/neodesk.svg"
 }
