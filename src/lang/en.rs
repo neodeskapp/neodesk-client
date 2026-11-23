@@ -781,6 +781,19 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-qs-file-from-here", "From this computer"),
         ("bd-invite-server-missing", "Enter the server address from the invite page."),
         ("bd-verify-password-tip", "Enter the password shown or set on the other computer."),
+        ("bd-tray-status-off", "Connections are off"),
+        ("bd-tray-status-no-server", "Not set up yet"),
+        ("bd-tray-status-banned", "{} has blocked this computer"),
+        ("bd-tray-status-removed", "This computer was removed from {}"),
+        ("bd-tray-status-key-refused", "The server refuses this computer's key"),
+        ("bd-tray-status-approval", "Waiting for approval"),
+        ("bd-tray-status-no-service", "The NeoDesk service does not answer"),
+        ("bd-tray-status-offline", "Can't reach {}"),
+        ("bd-tray-id", "This computer's ID: {}"),
+        ("bd-tray-id-copied", "ID copied"),
+        ("bd-tray-open", "Open NeoDesk"),
+        ("bd-tray-stop", "Stop accepting connections"),
+        ("bd-tray-about", "About NeoDesk {}"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

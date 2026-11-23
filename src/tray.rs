@@ -26,10 +26,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
     // https://github.com/tauri-apps/tray-icon/blob/dev/examples/tao.rs
     use hbb_common::anyhow::Context;
     use tao::event_loop::{ControlFlow, EventLoopBuilder};
-    use tray_icon::{
-        menu::{Menu, MenuEvent, MenuItem},
-        TrayIcon, TrayIconBuilder, TrayIconEvent as TrayEvent,
-    };
+    use crate::tray_model::Action;
+    use tray_icon::{menu::MenuEvent, TrayIcon, TrayIconBuilder, TrayIconEvent as TrayEvent};
 
     // Duplicated tray icons kept piling up through the blind spots of
     // `check_process("--tray", ..)`. https://github.com/rustdesk/rustdesk/issues/15689
@@ -64,30 +62,11 @@ fn make_tray() -> hbb_common::ResultType<()> {
     #[cfg(target_os = "macos")]
     let mut event_loop = event_loop;
 
-    let tray_menu = Menu::new();
-    let hide_stop_service = crate::ui_interface::get_builtin_option(
-        hbb_common::config::keys::OPTION_HIDE_STOP_SERVICE,
-    ) == "Y";
-    // The tray icon is only shown when the service is running, so we don't need to check
-    // the `stop-service` option here.
-    let quit_i = if !hide_stop_service {
-        Some(MenuItem::new(translate("Stop service".to_owned()), true, None))
-    } else {
-        None
-    };
-    let open_i = MenuItem::new(translate("Open".to_owned()), true, None);
-    if let Some(quit_i) = &quit_i {
-        tray_menu.append_items(&[&open_i, quit_i]).ok();
-    } else {
-        tray_menu.append_items(&[&open_i]).ok();
-    }
-    let tooltip = |count: usize| {
+    // The entries and what the service reports: tray_menu.rs.
+    let mut tray_menu = crate::tray_menu::TrayMenu::new();
+    let tooltip = |count: usize, status: &str| {
         if count == 0 {
-            format!(
-                "{} {}",
-                crate::get_app_name(),
-                translate("Service is running".to_owned()),
-            )
+            format!("{}\n{}", crate::get_app_name(), status)
         } else {
             format!(
                 "{} - {}\n{}",
@@ -136,6 +115,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
     });
     #[cfg(windows)]
     let mut last_click = std::time::Instant::now();
+    #[cfg_attr(not(windows), allow(unused_mut))]
+    let mut sessions = 0;
     #[cfg(target_os = "macos")]
     {
         use tao::platform::macos::EventLoopExtMacOS;
@@ -156,8 +137,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
             // to prevent issues like https://github.com/tauri-apps/tray-icon/issues/90
             let mut builder = TrayIconBuilder::new()
                 .with_id(crate::get_exe_name())
-                .with_menu(Box::new(tray_menu.clone()))
-                .with_tooltip(tooltip(0))
+                .with_menu(Box::new(tray_menu.menu.clone()))
+                .with_tooltip(tooltip(0, &tray_menu.status()))
                 .with_icon(icon.clone());
             #[cfg(target_os = "macos")]
             {
@@ -189,8 +170,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
         }
 
         if let Ok(event) = menu_channel.try_recv() {
-            if let Some(quit_i) = &quit_i {
-                if event.id == quit_i.id() {
+            match tray_menu.action(&event.id) {
+                Some(Action::StopService) => {
                     /* failed in windows, seems no permission to check system process
                     if !crate::check_process("--server", false) {
                         *control_flow = ControlFlow::Exit;
@@ -217,12 +198,37 @@ fn make_tray() -> hbb_common::ResultType<()> {
                         .unwrap()
                         .as_mut()
                         .map(|t| t.set_visible(true));
-                } else if event.id == open_i.id() {
-                    open_func();
                 }
-            } else if event.id == open_i.id() {
-                open_func();
+                Some(Action::Open) => open_func(),
+                Some(action) => tray_menu.run(action),
+                None => {}
             }
+        }
+
+        let status = tray_menu.status();
+        let copied = tray_menu.just_copied();
+        if let Some(menu) = tray_menu.update() {
+            let _ = _tray_icon
+                .lock()
+                .unwrap()
+                .as_mut()
+                .map(|t| t.set_menu(Some(Box::new(menu))));
+        }
+        if status != tray_menu.status() || copied != tray_menu.just_copied() {
+            let text = if tray_menu.just_copied() {
+                format!(
+                    "{}\n{}",
+                    crate::get_app_name(),
+                    translate("bd-tray-id-copied".to_owned())
+                )
+            } else {
+                tooltip(sessions, &tray_menu.status())
+            };
+            let _ = _tray_icon
+                .lock()
+                .unwrap()
+                .as_mut()
+                .map(|t| t.set_tooltip(Some(text)));
         }
 
         if let Ok(_event) = tray_channel.try_recv() {
@@ -251,11 +257,12 @@ fn make_tray() -> hbb_common::ResultType<()> {
         if let Ok(data) = ipc_receiver.try_recv() {
             match data {
                 Data::ControlledSessionCount(count) => {
+                    sessions = count;
                     _tray_icon
                         .lock()
                         .unwrap()
                         .as_mut()
-                        .map(|t| t.set_tooltip(Some(tooltip(count))));
+                        .map(|t| t.set_tooltip(Some(tooltip(count, &tray_menu.status()))));
                 }
                 _ => {}
             }

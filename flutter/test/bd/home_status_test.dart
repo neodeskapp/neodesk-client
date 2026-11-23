@@ -2,6 +2,9 @@
 // about this computer: ready, waiting for approval, key refused, or that
 // the server can't be reached, and nothing else for each.
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/bd/bd.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_status.dart';
@@ -87,6 +90,64 @@ void main() {
     final none = homeStatusOf(const HomeStatusFacts(
         server: '', status: SvcStatus.notReady, noServer: true));
     expect(none.text, 'No server is set up.');
+  });
+
+  test('the same cases as the tray menu', () {
+    // home_status_cases.txt is shared with src/tray_model.rs, so Home and
+    // the tray menu name the same state for the same facts.
+    String withSaid(String text, String said) => said.isEmpty
+        ? text
+        : '$text ${tr('bd-home-status-server-says', [said])}';
+    var count = 0;
+    for (final raw in File('test/bd/home_status_cases.txt').readAsLinesSync()) {
+      final line = raw.trim();
+      if (line.isEmpty || line.startsWith('#')) continue;
+      final parts = line.split('=>');
+      final facts = <String, String>{};
+      for (final token in parts[0].trim().split(RegExp(r'\s+'))) {
+        final i = token.indexOf('=');
+        facts[token.substring(0, i)] = token.substring(i + 1);
+      }
+      final standing = <String, dynamic>{
+        if (facts['banned'] == '1') 'banned': true,
+        if ((facts['enrollment'] ?? '').isNotEmpty)
+          'enrollment': facts['enrollment'],
+        if ((facts['said'] ?? '').isNotEmpty) 'reason': facts['said'],
+        if ((facts['signal'] ?? '').isNotEmpty) 'signal': facts['signal'],
+      };
+      final status = switch (facts['status']) {
+        'ready' => SvcStatus.ready,
+        'connecting' => SvcStatus.connecting,
+        _ => SvcStatus.notReady,
+      };
+      final noServer = facts['noserver'] == '1';
+      final server = noServer ? '' : _server;
+      final said = facts['said'] ?? '';
+      final want = switch (parts[1].trim()) {
+        'off' => tr('bd-home-status-service-off'),
+        'no-server' => tr('bd-home-status-no-server'),
+        'banned' => withSaid(tr('bd-home-status-banned', [server]), said),
+        'removed' => withSaid(tr('bd-home-status-removed', [server]), said),
+        'key-refused' => tr('bd-home-status-key-refused', [server]),
+        'ready' => tr('bd-home-status-ready', [server]),
+        'approval' => tr('bd-home-status-approval'),
+        'no-service' => tr('bd-home-status-no-service'),
+        'connecting' => tr('bd-home-status-connecting', [server]),
+        'offline' => tr('bd-home-status-offline', [server]),
+        final other => fail('unknown state $other in $line'),
+      };
+      final got = homeStatusOf(HomeStatusFacts(
+        server: server,
+        status: status,
+        reason: facts['reason'] ?? '',
+        standing: standing.isEmpty ? '' : jsonEncode(standing),
+        serviceStopped: facts['stopped'] == '1',
+        noServer: noServer,
+      ));
+      expect(got.text, want, reason: line);
+      count++;
+    }
+    expect(count, greaterThanOrEqualTo(10));
   });
 
   forBothThemes('home status, key refused', (tester, b) async {

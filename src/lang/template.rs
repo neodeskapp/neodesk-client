@@ -1219,6 +1219,19 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-qs-file-from-here", ""),
         ("bd-invite-server-missing", ""),
         ("bd-verify-password-tip", ""),
+        ("bd-tray-status-off", ""),
+        ("bd-tray-status-no-server", ""),
+        ("bd-tray-status-banned", ""),
+        ("bd-tray-status-removed", ""),
+        ("bd-tray-status-key-refused", ""),
+        ("bd-tray-status-approval", ""),
+        ("bd-tray-status-no-service", ""),
+        ("bd-tray-status-offline", ""),
+        ("bd-tray-id", ""),
+        ("bd-tray-id-copied", ""),
+        ("bd-tray-open", ""),
+        ("bd-tray-stop", ""),
+        ("bd-tray-about", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

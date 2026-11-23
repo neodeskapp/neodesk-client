@@ -54,6 +54,10 @@ mod port_forward;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod tray;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod tray_menu;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod tray_model;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod whiteboard;

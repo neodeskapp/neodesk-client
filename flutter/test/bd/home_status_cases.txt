@@ -1,0 +1,30 @@
+# What the status line says for what the service and the server report
+# about this computer. Home (home_status_test.dart) and the tray menu
+# (src/tray_model.rs) both check their rules against these lines.
+#
+# Facts: status (ready, connecting, notReady), reason (the connect status
+# reason), banned, enrollment, signal and said (the server's message) from
+# the option neodesk-device-standing, stopped (connections turned off) and
+# noserver. Missing facts are empty, notReady or 0.
+stopped=1 status=ready reason=ready => off
+stopped=1 noserver=1 => off
+noserver=1 reason=no_rendezvous_server => no-server
+noserver=1 signal=refused => no-server
+status=ready reason=ready banned=1 signal=refused => banned
+status=notReady reason=offline banned=1 said=Blocked => banned
+status=notReady reason=offline enrollment=rejected said=Removed => removed
+status=ready reason=ready enrollment=rejected => removed
+status=notReady reason=offline signal=refused => key-refused
+status=ready reason=ready signal=refused => key-refused
+status=ready reason=ready => ready
+status=ready reason=ready enrollment=pending => ready
+status=ready reason=ready signal=pending => ready
+status=notReady reason=offline signal=pending => approval
+status=notReady reason=offline enrollment=pending => approval
+status=notReady reason=deployment_required => approval
+status=connecting reason=connecting enrollment=pending => approval
+status=notReady reason=ipc_disconnected => no-service
+status=notReady reason=ipc_disconnected signal=pending => approval
+status=connecting reason=connecting => connecting
+status=notReady reason=offline => offline
+status=notReady reason=no_rendezvous_server => offline
