@@ -389,6 +389,8 @@ jobs:
             fi
           } > changelog-extra.md
 
+          # release-notes/<tag>.md, when the tag has one, comes first in place
+          # of the generated heading; the download table follows it
           python3 scripts/generate_release_download_table.py \
             --product desktop \
             --asset-dir dist/clean \
@@ -397,6 +399,7 @@ jobs:
             --release-name "${RELEASE_NAME}" \
             --commit "${GITHUB_SHA}" \
             --extra-md-file changelog-extra.md \
+            --intro-md-file "release-notes/${TAG_NAME}.md" \
             -o release-notes.md
 
           echo "Wrote release-notes.md"

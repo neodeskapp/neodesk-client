@@ -267,6 +267,25 @@ def check_prerelease_table(tmp: Path) -> None:
     for name in PRERELEASE_PACKAGES:
         expect(f"({base}{name})" in table, f"the download table of a pre-release does not link {name}")
     expect("neodesk-template-" not in table, "download table links an MSI template as an installer")
+    heading = f"## NeoDesk Client {PRERELEASE}\n"
+    expect(notes.startswith(heading), "notes without a notes file lost their heading")
+
+    # With the release's own notes, they come first and the download table follows
+    intro = tmp / "intro.md"
+    intro.write_text("Notes of this release.\n\n## What's new\n\n- Settings open in place.\n", encoding="utf-8")
+    extra = tmp / "extra.md"
+    extra.write_text("### Development changes\n\n- feat: something (abc1234)\n", encoding="utf-8")
+    notes = release_notes(assets, tmp / "with-intro.md", "--intro-md-file", str(intro), "--extra-md-file", str(extra))
+    expect(notes.startswith("Notes of this release.\n\n## What's new\n"), f"the notes file does not come first: {notes[:200]}")
+    expect(heading not in notes and "Official **NeoDesk Client** build" not in notes,
+           "the generated heading stays above the notes file")
+    after = notes.split("- Settings open in place.", 1)[-1]
+    expect(after.startswith("\n\n## Downloads\n"), f"the download table has no heading of its own: {after[:120]}")
+    for name in PRERELEASE_PACKAGES:
+        expect(f"({base}{name})" in after, f"the download table after the notes file does not link {name}")
+    expect("### Development changes" in after, "the change list is missing after the notes file")
+    notes = release_notes(assets, tmp / "missing-intro.md", "--intro-md-file", str(tmp / "none.md"))
+    expect(notes.startswith(heading), "a missing notes file changed the notes")
 
 
 def main() -> int:

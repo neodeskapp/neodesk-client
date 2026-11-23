@@ -179,26 +179,31 @@ def render_notes(
     release_name: str,
     commit: str = "",
     extra_md: str = "",
+    intro_md: str = "",
 ) -> str:
     assets = index_assets(asset_dir, product)
-    parts = [
-        f"## {release_name}",
-        "",
-    ]
-    if product == "desktop":
-        parts.extend(
-            [
-                "Official **NeoDesk Client** build — full desktop remote client.",
-                "",
-            ]
-        )
+    if intro_md.strip():
+        # The release's own notes take the place of the heading and the line under it
+        parts = [intro_md.strip(), "", "## Downloads", ""]
     else:
-        parts.extend(
-            [
-                "Official **NeoDesk Support Agent** build — generic incoming-only agents.",
-                "",
-            ]
-        )
+        parts = [
+            f"## {release_name}",
+            "",
+        ]
+        if product == "desktop":
+            parts.extend(
+                [
+                    "Official **NeoDesk Client** build — full desktop remote client.",
+                    "",
+                ]
+            )
+        else:
+            parts.extend(
+                [
+                    "Official **NeoDesk Support Agent** build — generic incoming-only agents.",
+                    "",
+                ]
+            )
     if commit:
         parts.append(f"- Commit: `{commit}`")
         parts.append(f"- Tag: `{tag}`")
@@ -267,12 +272,22 @@ def main() -> int:
     parser.add_argument("--commit", default="")
     parser.add_argument("--extra-md", default="")
     parser.add_argument("--extra-md-file", type=Path, default=None)
+    parser.add_argument(
+        "--intro-md-file",
+        type=Path,
+        default=None,
+        help="the release's own notes, put first in place of the heading (used when the file exists)",
+    )
     parser.add_argument("-o", "--output", type=Path, required=True)
     args = parser.parse_args()
 
     extra = args.extra_md
     if args.extra_md_file and args.extra_md_file.is_file():
         extra = args.extra_md_file.read_text(encoding="utf-8")
+
+    intro = ""
+    if args.intro_md_file and args.intro_md_file.is_file():
+        intro = args.intro_md_file.read_text(encoding="utf-8")
 
     notes = render_notes(
         product=args.product,
@@ -282,6 +297,7 @@ def main() -> int:
         release_name=args.release_name,
         commit=args.commit,
         extra_md=extra,
+        intro_md=intro,
     )
     args.output.write_text(notes, encoding="utf-8")
     print(f"Wrote {args.output} ({len(notes)} bytes)")
