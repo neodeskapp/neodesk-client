@@ -14,6 +14,7 @@ use std::{
 use serde_json::{json, Value};
 
 use super::{
+    grants::Grants,
     http::{Http, OnboardError},
     join::{redeem_join, DeviceIdentity, ServerSettings},
     link::Console,
@@ -320,6 +321,7 @@ fn a_link_without_http_1_never_talks_plain_http() {
 #[derive(Default)]
 struct FakeHost {
     applied: Mutex<Vec<ServerSettings>>,
+    grants: Mutex<Option<Grants>>,
     password: Mutex<String>,
     in_session: AtomicBool,
     shut_down: AtomicBool,
@@ -335,6 +337,10 @@ impl SupportHost for FakeHost {
 
     fn apply_server(&self, server: &ServerSettings) {
         self.applied.lock().unwrap().push(server.clone());
+    }
+
+    fn set_grants(&self, grants: Grants) {
+        *self.grants.lock().unwrap() = Some(grants);
     }
 
     fn password(&self) -> String {
@@ -357,11 +363,19 @@ struct SupportConsole {
 }
 
 fn support_console(device_answer: (u16, Value)) -> SupportConsole {
+    support_console_with(device_answer, Duration::ZERO)
+}
+
+/// The same console, slow to answer `/end` by `end_delay`.
+fn support_console_with(device_answer: (u16, Value), end_delay: Duration) -> SupportConsole {
     let ended = Arc::new(AtomicBool::new(false));
     let status = Arc::new(Mutex::new("opened".to_owned()));
     let over = ended.clone();
     let fake = FakeConsole::start(move |request| {
         let session = |status: &str| json!({"success": true, "session": {"id": "s1", "status": status}});
+        if request.path == "/api/support/session/end" {
+            std::thread::sleep(end_delay);
+        }
         if request.path == "/api/support/redeem" {
             return if request.body["code"] == "ABCDEF23" {
                 (
@@ -479,11 +493,12 @@ fn quick_support_reports_the_device_waits_for_consent_and_hands_over_the_passwor
     assert!(console.fake.requests_to("/api/support/session/consent").is_empty());
     assert!(passwords(&console).is_empty());
 
-    run.commands.send(Command::Consent(true)).unwrap();
+    run.commands.send(Command::Consent(true, Grants::default())).unwrap();
     wait_for("password", || passwords(&console) == vec![json!("pw-1")]);
     assert_eq!(run.state.get().phase, Phase::SupportWaiting);
     let consent = console.fake.requests_to("/api/support/session/consent");
-    assert_eq!(consent[0].body, json!({"allowed": true}));
+    assert_eq!(consent[0].body, json!({"allowed": true, "grants": []}));
+    assert_eq!(*run.host.grants.lock().unwrap(), Some(Grants::default()));
 
     // The same password goes over once; a new one goes again.
     std::thread::sleep(Duration::from_millis(150));
@@ -510,7 +525,7 @@ fn quick_support_declined_tells_the_console_and_hands_over_nothing() {
     let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
     let run = run_support(&console, "ABCDEF23");
     wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
-    run.commands.send(Command::Consent(false)).unwrap();
+    run.commands.send(Command::Consent(false, Grants::default())).unwrap();
     run.thread.join().unwrap();
 
     let state = run.state.get();
@@ -528,7 +543,7 @@ fn quick_support_ended_by_the_person_calls_end() {
     let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
     let run = run_support(&console, "ABCDEF23");
     wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
-    run.commands.send(Command::Consent(true)).unwrap();
+    run.commands.send(Command::Consent(true, Grants::default())).unwrap();
     wait_for("password", || !passwords(&console).is_empty());
     run.commands.send(Command::End).unwrap();
     run.thread.join().unwrap();
@@ -538,6 +553,131 @@ fn quick_support_ended_by_the_person_calls_end() {
     assert_eq!(end.len(), 1);
     assert_eq!(end[0].bearer(), Some("tok"));
     assert!(run.host.shut_down.load(Ordering::SeqCst));
+}
+
+#[test]
+fn quick_support_sends_what_the_person_ticked_and_the_app_keeps_to_it() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ABCDEF23");
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    let clipboard = Grants {
+        clipboard: true,
+        ..Grants::default()
+    };
+    run.commands.send(Command::Consent(true, clipboard)).unwrap();
+    wait_for("password", || !passwords(&console).is_empty());
+
+    let consent = console.fake.requests_to("/api/support/session/consent");
+    assert_eq!(
+        consent[0].body,
+        json!({"allowed": true, "grants": ["clipboard"]})
+    );
+    assert_eq!(*run.host.grants.lock().unwrap(), Some(clipboard));
+    run.commands.send(Command::End).unwrap();
+    run.thread.join().unwrap();
+
+    let both = Grants {
+        clipboard: true,
+        file_transfer: true,
+    };
+    assert_eq!(
+        support::consent_body(true, both),
+        json!({"allowed": true, "grants": ["clipboard", "file_transfer"]})
+    );
+    // A decline names nothing, whatever was ticked.
+    assert_eq!(support::consent_body(false, both), json!({"allowed": false}));
+}
+
+#[test]
+fn a_supporter_session_gets_only_what_the_person_allowed() {
+    use hbb_common::config::keys;
+    let none = Grants::default();
+    assert!(none.allow(keys::OPTION_ENABLE_KEYBOARD));
+    for option in [
+        keys::OPTION_ENABLE_CLIPBOARD,
+        keys::OPTION_ENABLE_FILE_TRANSFER,
+        keys::OPTION_ENABLE_AUDIO,
+        keys::OPTION_ENABLE_CAMERA,
+        keys::OPTION_ENABLE_TERMINAL,
+        keys::OPTION_ENABLE_TUNNEL,
+        keys::OPTION_ENABLE_REMOTE_RESTART,
+        keys::OPTION_ENABLE_RECORD_SESSION,
+        keys::OPTION_ENABLE_BLOCK_INPUT,
+        keys::OPTION_ENABLE_PRIVACY_MODE,
+        keys::OPTION_ENABLE_REMOTE_PRINTER,
+    ] {
+        assert!(!none.allow(option), "{option}");
+    }
+    let both = Grants {
+        clipboard: true,
+        file_transfer: true,
+    };
+    assert!(both.allow(keys::OPTION_ENABLE_CLIPBOARD));
+    assert!(both.allow(keys::OPTION_ENABLE_FILE_TRANSFER));
+    assert!(!both.allow(keys::OPTION_ENABLE_AUDIO));
+    // Outside quick support nothing changes.
+    assert!(super::quick_support_allows(keys::OPTION_ENABLE_AUDIO));
+}
+
+#[test]
+fn stop_cuts_the_supporter_off_before_the_console_hears_of_it() {
+    let console = support_console_with(
+        (200, json!({"success": true, "session": {"status": "asking"}})),
+        Duration::from_secs(3),
+    );
+    let run = run_support(&console, "ABCDEF23");
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    run.commands
+        .send(Command::Consent(true, Grants::default()))
+        .unwrap();
+    wait_for("password", || !passwords(&console).is_empty());
+    run.host.in_session.store(true, Ordering::SeqCst);
+    wait_for("in session", || run.state.get().phase == Phase::SupportInSession);
+
+    let stopped = Instant::now();
+    run.commands.send(Command::End).unwrap();
+    while !run.host.shut_down.load(Ordering::SeqCst) {
+        assert!(
+            stopped.elapsed() < Duration::from_millis(1500),
+            "Stop waited for the console"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(run.state.get().phase, Phase::SupportEnded);
+    run.thread.join().unwrap();
+    assert_eq!(console.fake.requests_to("/api/support/session/end").len(), 1);
+}
+
+#[test]
+fn file_lines_name_the_file_or_count_them() {
+    let one = super::FileLine::of(
+        true,
+        r"C:\Users\tester",
+        &[("to-win.txt".to_owned(), 36)],
+    );
+    assert!(one.to_this_computer);
+    assert_eq!((one.name.as_str(), one.count, one.size), ("to-win.txt", 1, 36));
+    assert_eq!(one.path, r"C:\Users\tester");
+    let file = super::FileLine::of(
+        false,
+        r"C:\Users\tester\Desktop\from-win.txt",
+        &[(String::new(), 31)],
+    );
+    assert!(!file.to_this_computer);
+    assert_eq!(file.name, "from-win.txt");
+    let folder = super::FileLine::of(
+        false,
+        "/home/tester/Documents/",
+        &[("a.txt".to_owned(), 10), ("b/c.txt".to_owned(), 20)],
+    );
+    assert_eq!((folder.name.as_str(), folder.count, folder.size), ("", 2, 30));
+
+    let mut state = State::default();
+    state.add_file(one);
+    let value = serde_json::to_value(&state).unwrap();
+    assert_eq!(value["files"][0]["toThisComputer"], true);
+    assert_eq!(value["files"][0]["name"], "to-win.txt");
+    assert_eq!(value["files"][0]["size"], 36);
 }
 
 #[test]

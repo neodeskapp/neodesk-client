@@ -224,7 +224,7 @@ void _registerOnboarding() {
   );
 }
 
-/// The quick support app: one 480 x 560 window that is not resizable.
+/// The quick support app: one 480 x 720 window that is not resizable.
 void runQuickSupportApp() async {
   await initEnv(kAppTypeMain);
   await bind.mainCheckConnectStatus();

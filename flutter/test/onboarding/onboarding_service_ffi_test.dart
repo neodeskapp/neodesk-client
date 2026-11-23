@@ -37,7 +37,8 @@ class FakeNative implements OnboardingNative {
   void redeemSupport(String text) => _call('support $text');
 
   @override
-  void consent(bool allow) => _call('consent $allow');
+  void consent(bool allow, bool clipboard, bool fileTransfer) => _call(
+      'consent $allow${clipboard ? ' clipboard' : ''}${fileTransfer ? ' file_transfer' : ''}');
 
   @override
   void endSupport() => _call('end');
@@ -185,15 +186,55 @@ void main() {
     final native = FakeNative()..stateMap = {'phase': 'supportConsent'};
     final service = serviceOf(native);
     await service.consent(true);
+    await service.consent(
+        true, const QuickSupportGrants(clipboard: true, fileTransfer: true));
+    await service.consent(true, const QuickSupportGrants(fileTransfer: true));
     await service.consent(false);
     await service.endSupport();
     await service.redeemSupport(' neodesk://support/desk.lan/7KQ4M2XD ');
     expect(native.calls, [
       'consent true',
+      'consent true clipboard file_transfer',
+      'consent true file_transfer',
       'consent false',
       'end',
       'support neodesk://support/desk.lan/7KQ4M2XD',
     ]);
+  });
+
+  test('files of the session come from the core, newest last', () {
+    final state = parseOnboardingState(jsonEncode({
+      'phase': 'supportInSession',
+      'filesOpen': true,
+      'files': [
+        {
+          'toThisComputer': true,
+          'path': r'C:\Users\tester',
+          'name': 'to-win.txt',
+          'count': 1,
+          'size': 36,
+          'time': 1000,
+        },
+        {
+          'toThisComputer': false,
+          'path': '/home/tester/Documents',
+          'name': '',
+          'count': 3,
+          'size': 9000,
+          'time': 2000,
+        },
+        {'toThisComputer': true},
+      ],
+    }));
+    expect(state.filesOpen, isTrue);
+    expect(state.files.length, 2);
+    expect(state.files.first.toThisComputer, isTrue);
+    expect(state.files.first.name, 'to-win.txt');
+    expect(state.files.first.size, 36);
+    expect(state.files.last.count, 3);
+    expect(state.files.last.time, DateTime.fromMillisecondsSinceEpoch(2000));
+    expect(parseOnboardingState('{"phase":"supportInSession"}').filesOpen,
+        isFalse);
   });
 
   test('polling tells listeners only about changes', () async {

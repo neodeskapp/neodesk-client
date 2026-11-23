@@ -18,21 +18,24 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show listEquals;
+
 import 'onboarding_service.dart';
 
 /// The calls into the client core. The app uses the one in
 /// onboarding_service_bind.dart; tests use a fake.
 abstract class OnboardingNative {
   /// The state as JSON: phase, server, supporterName, company, error,
-  /// errorText, errorReason, joinStep, deviceId, deviceName, folderId, link, fileName,
-  /// messages (fromSupporter, text, time in ms), inputActive, quickSupport,
-  /// hasServer.
+  /// errorText, errorReason, joinStep, deviceId, deviceName, folderId, link,
+  /// fileName, messages (fromSupporter, text, time in ms), files
+  /// (toThisComputer, path, name, count, size, time), inputActive,
+  /// filesOpen, quickSupport, hasServer.
   String state();
 
   bool isQuickSupport();
   void redeemJoin(String text);
   void redeemSupport(String text);
-  void consent(bool allow);
+  void consent(bool allow, bool clipboard, bool fileTransfer);
   void endSupport();
   void sendChat(String text);
 }
@@ -73,6 +76,23 @@ List<OnboardingChatMessage> _messagesOf(Object? value) {
           text: line['text'] as String,
           time: DateTime.fromMillisecondsSinceEpoch(
               line['time'] is int ? line['time'] as int : 0),
+        ),
+  ];
+}
+
+List<OnboardingFileLine> _filesOf(Object? value) {
+  if (value is! List) return const [];
+  int number(Object? v) => v is int ? v : 0;
+  return [
+    for (final line in value)
+      if (line is Map && line['path'] is String)
+        OnboardingFileLine(
+          toThisComputer: line['toThisComputer'] == true,
+          path: line['path'] as String,
+          name: line['name'] is String ? line['name'] as String : '',
+          count: number(line['count']),
+          size: number(line['size']),
+          time: DateTime.fromMillisecondsSinceEpoch(number(line['time'])),
         ),
   ];
 }
@@ -136,6 +156,8 @@ OnboardingState parseOnboardingState(String json) {
     fileName: _text(map['fileName']),
     declined: code == 'declined',
     messages: _messagesOf(map['messages']),
+    files: _filesOf(map['files']),
+    filesOpen: map['filesOpen'] == true,
   );
 }
 
@@ -154,6 +176,8 @@ bool _sameState(OnboardingState a, OnboardingState b) =>
     a.link == b.link &&
     a.fileName == b.fileName &&
     a.declined == b.declined &&
+    a.filesOpen == b.filesOpen &&
+    listEquals(a.files, b.files) &&
     _sameMessages(a.messages, b.messages);
 
 class FfiOnboardingService extends OnboardingService {
@@ -222,8 +246,9 @@ class FfiOnboardingService extends OnboardingService {
   }
 
   @override
-  Future<void> consent(bool allow) async {
-    _native.consent(allow);
+  Future<void> consent(bool allow,
+      [QuickSupportGrants grants = const QuickSupportGrants()]) async {
+    _native.consent(allow, grants.clipboard, grants.fileTransfer);
     _called();
   }
 

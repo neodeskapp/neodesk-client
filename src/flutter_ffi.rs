@@ -1197,8 +1197,9 @@ pub fn main_pair_with_code(server: String, code: String) -> String {
 /// `server`, `supporterName`, `company`, `error`, `errorText`,
 /// `errorReason` (the server's own words with a refusal), `joinStep`,
 /// `deviceId`, `deviceName`, `folderId`, `link`, `fileName`, `messages`
-/// (`fromSupporter`, `text`, `time` in ms), `inputActive`, `quickSupport`,
-/// `hasServer`.
+/// (`fromSupporter`, `text`, `time` in ms), `files` (`toThisComputer`,
+/// `path`, `name`, `count`, `size`, `time`), `inputActive`, `filesOpen`,
+/// `quickSupport`, `hasServer`.
 pub fn main_onboard_state() -> SyncReturn<String> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let state = crate::onboard::state_json();
@@ -1225,12 +1226,19 @@ pub fn main_onboard_redeem_support(text: String) -> SyncReturn<()> {
     SyncReturn(())
 }
 
-/// The answer on the quick support consent screen.
-pub fn main_onboard_consent(allow: bool) -> SyncReturn<()> {
+/// The answer on the quick support consent screen, with the choices to let
+/// the supporter copy text (`clipboard`) and send files (`file_transfer`).
+pub fn main_onboard_consent(allow: bool, clipboard: bool, file_transfer: bool) -> SyncReturn<()> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    crate::onboard::consent(allow);
+    crate::onboard::consent(
+        allow,
+        crate::onboard::Grants {
+            clipboard,
+            file_transfer,
+        },
+    );
     #[cfg(any(target_os = "android", target_os = "ios"))]
-    let _ = allow;
+    let _ = (allow, clipboard, file_transfer);
     SyncReturn(())
 }
 

@@ -6,7 +6,7 @@ import 'package:flutter_hbb/common/widgets/bd/bd.dart';
 
 import 'onboarding_service.dart';
 
-/// The quick support window (480 x 560): connecting, consent, waiting,
+/// The quick support window (480 x 720): connecting, consent, waiting,
 /// ended, declined, expired and offline (DESIGN.md, Quick support app).
 class QuickSupportView extends StatefulWidget {
   const QuickSupportView({
@@ -22,7 +22,9 @@ class QuickSupportView extends StatefulWidget {
   });
 
   final OnboardingState state;
-  final VoidCallback onAllow;
+
+  /// Allow, with the choices the person ticked.
+  final ValueChanged<QuickSupportGrants> onAllow;
   final VoidCallback onDecline;
 
   /// Cancel while connecting or waiting: ends the session.
@@ -43,6 +45,10 @@ class QuickSupportView extends StatefulWidget {
 class _QuickSupportViewState extends State<QuickSupportView> {
   Timer? _waitTimer;
   late bool _long = widget.waitedLong;
+
+  /// The consent screen's choices; both start off.
+  bool _clipboard = false;
+  bool _files = false;
 
   @override
   void initState() {
@@ -122,7 +128,21 @@ class _QuickSupportViewState extends State<QuickSupportView> {
             const SizedBox(height: 10),
             _Can(icon: BdIcons.visibility, text: tr('bd-qs-can-see')),
             _Can(icon: BdIcons.mouse, text: tr('bd-qs-can-use')),
+            const SizedBox(height: 16),
+            Text(tr('bd-qs-consent-also', [short]), style: lead),
             const SizedBox(height: 10),
+            BdCheckbox(
+                value: _clipboard,
+                label: tr('bd-qs-allow-clipboard'),
+                hint: tr('bd-qs-allow-clipboard-hint'),
+                onChanged: (v) => setState(() => _clipboard = v)),
+            const SizedBox(height: 10),
+            BdCheckbox(
+                value: _files,
+                label: tr('bd-qs-allow-files'),
+                hint: tr('bd-qs-allow-files-hint', [short]),
+                onChanged: (v) => setState(() => _files = v)),
+            const SizedBox(height: 16),
             Text(tr('bd-qs-consent-after'), style: lead),
             if ((s.server ?? '').isNotEmpty) ...[
               const SizedBox(height: 20),
@@ -137,7 +157,8 @@ class _QuickSupportViewState extends State<QuickSupportView> {
               label: tr('bd-allow'),
               size: BdButtonSize.lg,
               block: true,
-              onPressed: widget.onAllow);
+              onPressed: () => widget.onAllow(QuickSupportGrants(
+                  clipboard: _clipboard, fileTransfer: _files)));
           secondary = BdButton(
               label: translate('Decline'),
               size: BdButtonSize.lg,
@@ -291,14 +312,16 @@ class _Can extends StatelessWidget {
 }
 
 /// The bar at the top of the screen while the supporter is connected:
-/// "<name> is viewing your screen" (or "is using your computer" while their
-/// input arrives), Chat and Stop.
+/// "<name> is viewing and controlling your computer" (or "is using your
+/// computer" while their input arrives), Files once files move, Chat and
+/// Stop.
 class SessionBar extends StatelessWidget {
   const SessionBar({
     super.key,
     required this.state,
     required this.onChat,
     required this.onStop,
+    this.onFiles,
     this.chatOpen = false,
     this.onDrag,
   });
@@ -306,6 +329,10 @@ class SessionBar extends StatelessWidget {
   final OnboardingState state;
   final VoidCallback onChat;
   final VoidCallback onStop;
+
+  /// Opens the list of files; the button shows once the supporter has the
+  /// files open or sent or took one.
+  final VoidCallback? onFiles;
   final bool chatOpen;
 
   /// Starts moving the window (the drag handle).
@@ -356,6 +383,16 @@ class SessionBar extends StatelessWidget {
         const SizedBox(width: 10),
         text,
         const SizedBox(width: 14),
+        if (onFiles != null && (state.filesOpen || state.files.isNotEmpty)) ...[
+          BdButton(
+              label: state.files.isEmpty
+                  ? tr('bd-qs-files')
+                  : tr('bd-qs-files-count', [state.files.length]),
+              icon: state.filesOpen ? BdIcons.folderOpen : BdIcons.folder,
+              size: BdButtonSize.sm,
+              onPressed: onFiles),
+          const SizedBox(width: 8),
+        ],
         BdButton(
             label: translate('Chat'),
             size: BdButtonSize.sm,
@@ -484,6 +521,153 @@ class _SessionChatPanelState extends State<SessionChatPanel> {
             const SizedBox(width: 8),
             BdButton.primary(label: translate('Send'), onPressed: _send),
           ]),
+        ),
+      ]),
+    );
+  }
+}
+
+/// A file size as people read it: 36 B, 4.5 KB, 12.3 MB.
+String sessionFileSize(int bytes) {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  var size = bytes.toDouble();
+  var unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit++;
+  }
+  final number = unit == 0 || size >= 100
+      ? size.round().toString()
+      : size.toStringAsFixed(1);
+  return '$number ${units[unit]}';
+}
+
+/// The files panel under the session bar: whether the supporter has the
+/// files open, and each file they sent to this computer or took from it, as
+/// it happens. Newest first.
+class SessionFilesPanel extends StatelessWidget {
+  const SessionFilesPanel({
+    super.key,
+    required this.state,
+    required this.onClose,
+    this.timeFormat,
+  });
+
+  final OnboardingState state;
+  final VoidCallback onClose;
+  final String Function(DateTime)? timeFormat;
+
+  String _time(DateTime d) =>
+      timeFormat?.call(d) ??
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.bd;
+    final t = context.bdText;
+    final name = (state.supporterName ?? '').trim();
+    final lines = state.files.reversed.toList();
+    return Container(
+      width: 400,
+      decoration: BoxDecoration(
+        color: c.bgFloat,
+        borderRadius: BdSize.r,
+        border: Border.all(color: c.rule),
+        boxShadow: c.shadowFloat,
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+          child: Row(children: [
+            Expanded(child: Text(tr('bd-qs-files'), style: t.heading)),
+            BdIconButton(
+                icon: BdIcons.close,
+                tooltip: translate('Close'),
+                color: c.text,
+                iconSize: 20,
+                onPressed: onClose),
+          ]),
+        ),
+        const BdRule(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+          child: Row(children: [
+            if (state.filesOpen) ...[
+              const BdSpinner(),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: Text(
+                  state.filesOpen
+                      ? tr('bd-qs-files-open', [name])
+                      : tr('bd-qs-files-closed', [name]),
+                  style: t.body.copyWith(fontSize: 15, height: 22 / 15)),
+            ),
+          ]),
+        ),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 260),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+            children: [
+              if (lines.isEmpty)
+                Text(tr('bd-qs-files-none'), style: t.small),
+              for (final f in lines)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Icon(
+                            f.toThisComputer
+                                ? BdIcons.arrowDownward
+                                : BdIcons.arrowUpward,
+                            size: 18,
+                            color: c.textMuted),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                                f.name.isNotEmpty
+                                    ? f.name
+                                    : tr('bd-qs-file-count', [f.count]),
+                                style: t.body.copyWith(
+                                    fontSize: 15,
+                                    height: 22 / 15,
+                                    fontWeight: FontWeight.w600)),
+                            Text(
+                                f.path.isEmpty
+                                    ? tr(f.toThisComputer
+                                        ? 'bd-qs-file-to-here'
+                                        : 'bd-qs-file-from-here')
+                                    : tr(
+                                        f.toThisComputer
+                                            ? 'bd-qs-file-to'
+                                            : 'bd-qs-file-from',
+                                        [f.path]),
+                                style: t.small),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(sessionFileSize(f.size), style: t.small),
+                          Text(_time(f.time), style: t.small),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ]),
     );

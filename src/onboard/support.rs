@@ -4,13 +4,15 @@
 //! session token that opens only this session's routes. It reports the
 //! device (`/api/support/session/device`) before it registers with the ID
 //! server, so a server in managed mode admits it. The person allows or
-//! declines (`/consent`); after Allow the app hands over the session
-//! password once (`/password`, again only when the password changes) and
-//! polls `GET /api/support/session` so the session stays open. A 401 means
-//! the supporter ended it or it timed out. Closing the app ends it (`/end`).
+//! declines (`/consent`, with the grants they ticked: copying text, sending
+//! files); after Allow the app hands over the session password once
+//! (`/password`, again only when the password changes) and polls
+//! `GET /api/support/session` so the session stays open. A 401 means the
+//! supporter ended it or it timed out. Stop and closing the app end it: the
+//! supporter is cut off first, then the console hears of it (`/end`).
 
 use std::{
-    sync::mpsc::{Receiver, RecvTimeoutError},
+    sync::mpsc::{Receiver, RecvTimeoutError, TryRecvError},
     time::{Duration, Instant},
 };
 
@@ -18,6 +20,7 @@ use hbb_common::{log, tokio};
 use serde_json::{json, Value};
 
 use super::{
+    grants::Grants,
     http::{Answer, Http, OnboardError},
     join::{DeviceIdentity, ServerSettings},
     link::Console,
@@ -27,7 +30,8 @@ use super::{
 /// What the UI asks of a running session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
-    Consent(bool),
+    /// Allow (with what the person ticked) or decline.
+    Consent(bool, Grants),
     End,
 }
 
@@ -37,6 +41,9 @@ pub trait SupportHost {
     fn device(&self) -> DeviceIdentity;
     /// Makes the app reach the session's server.
     fn apply_server(&self, server: &ServerSettings);
+    /// What the supporter's sessions may have besides the screen, the mouse
+    /// and the keyboard.
+    fn set_grants(&self, grants: Grants);
     /// The session password the supporter connects with.
     fn password(&self) -> String;
     /// True while a supporter is connected.
@@ -113,6 +120,25 @@ pub fn session_status(answer: &Answer) -> Result<String, OnboardError> {
     }
 }
 
+/// The body of `/consent`: a decline names no grants.
+pub fn consent_body(allowed: bool, grants: Grants) -> Value {
+    if allowed {
+        json!({ "allowed": true, "grants": grants.names() })
+    } else {
+        json!({ "allowed": false })
+    }
+}
+
+/// Ends local access at once: the supporter is cut off and the screens show
+/// the end. Telling the console comes after.
+pub fn stop(host: &dyn SupportHost, state: &SharedState) {
+    state.update(|s| {
+        s.phase = Phase::SupportEnded;
+        s.clear_error();
+    });
+    host.shut_down();
+}
+
 fn success(answer: &Answer) -> Result<(), OnboardError> {
     match answer.common_error() {
         Some(err) => Err(err),
@@ -153,12 +179,12 @@ impl<'a> Session<'a> {
         session_status(&answer)
     }
 
-    pub async fn consent(&self, allowed: bool) -> Result<String, OnboardError> {
+    pub async fn consent(&self, allowed: bool, grants: Grants) -> Result<String, OnboardError> {
         let answer = self
             .http
             .post(
                 "/api/support/session/consent",
-                &json!({ "allowed": allowed }),
+                &consent_body(allowed, grants),
                 Some(&self.token),
             )
             .await?;
@@ -276,7 +302,7 @@ pub fn run(
     };
     let allowed = loop {
         match commands.recv_timeout(timing.tick) {
-            Ok(Command::Consent(allowed)) => break Some(allowed),
+            Ok(Command::Consent(allowed, grants)) => break Some((allowed, grants)),
             Ok(Command::End) | Err(RecvTimeoutError::Disconnected) => break None,
             Err(RecvTimeoutError::Timeout) => {}
         }
@@ -288,17 +314,20 @@ pub fn run(
     };
     match allowed {
         None => {
+            stop(host, state);
             runtime.block_on(session.end()).ok();
-            return end_here(None);
+            return;
         }
-        Some(false) => {
-            runtime.block_on(session.consent(false)).ok();
+        Some((false, _)) => {
+            runtime.block_on(session.consent(false, Grants::default())).ok();
             log::info!("Quick support declined");
             end_here(None);
             return state.update(|s| s.error = Some("declined".to_owned()));
         }
-        Some(true) => {
-            if let Err(err) = runtime.block_on(session.consent(true)) {
+        Some((true, grants)) => {
+            // Before the console hears Allow, so no session starts with more.
+            host.set_grants(grants);
+            if let Err(err) = runtime.block_on(session.consent(true, grants)) {
                 if err != OnboardError::SessionEnded {
                     runtime.block_on(session.end()).ok();
                 }
@@ -312,6 +341,17 @@ pub fn run(
     let mut handed_over = String::new();
     let mut next_try = Instant::now();
     loop {
+        // A Stop that came during a request goes first: no password and no
+        // phase may follow it.
+        if matches!(
+            commands.try_recv(),
+            Ok(Command::End) | Err(TryRecvError::Disconnected)
+        ) {
+            stop(host, state);
+            log::info!("Quick support ended here");
+            runtime.block_on(session.end()).ok();
+            return;
+        }
         let password = host.password();
         if !password.is_empty() && password != handed_over && Instant::now() >= next_try {
             match runtime.block_on(session.hand_over(&password)) {
@@ -331,11 +371,12 @@ pub fn run(
         state.update(|s| s.phase = phase);
         match commands.recv_timeout(timing.tick) {
             Ok(Command::End) | Err(RecvTimeoutError::Disconnected) => {
-                runtime.block_on(session.end()).ok();
+                stop(host, state);
                 log::info!("Quick support ended here");
-                return end_here(None);
+                runtime.block_on(session.end()).ok();
+                return;
             }
-            Ok(Command::Consent(_)) | Err(RecvTimeoutError::Timeout) => {}
+            Ok(Command::Consent(..)) | Err(RecvTimeoutError::Timeout) => {}
         }
         if poll_due(&mut last_poll) {
             match runtime.block_on(session.poll()) {

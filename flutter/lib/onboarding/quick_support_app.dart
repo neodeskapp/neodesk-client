@@ -12,13 +12,17 @@ import 'package:window_manager/window_manager.dart';
 import 'onboarding_service.dart';
 import 'quick_support_view.dart';
 
-const kQuickSupportWindowSize = Size(480, 560);
+const kQuickSupportWindowSize = Size(480, 720);
 
-/// The bar window: wide enough for the bar and its shadow.
-const _kBarWindow = Size(560, 64);
-const _kBarWindowChat = Size(560, 64 + 8 + 400);
+/// The bar window: wide enough for the bar and its shadow, and taller with
+/// the chat or the files open under it.
+const _kBarWindow = Size(760, 64);
+const _kBarWindowPanel = Size(760, 64 + 8 + 400);
 
-/// The quick support app in the main window: the 480 x 560 window with the
+/// What shows under the session bar.
+enum _Panel { none, chat, files }
+
+/// The quick support app in the main window: the 480 x 720 window with the
 /// consent and status screens, and during the session the bar at the top of
 /// the screen. The window itself becomes the bar, so it hides while the bar
 /// shows (DESIGN.md, Quick support app).
@@ -35,8 +39,9 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
   StreamSubscription<OnboardingState>? _sub;
   late OnboardingState _state = widget.service.current;
   bool _bar = false;
-  bool _chat = false;
+  _Panel _panel = _Panel.none;
   int _seenMessages = 0;
+  int _seenFiles = 0;
 
   @override
   void initState() {
@@ -57,14 +62,17 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
   Future<void> _onState(OnboardingState s) async {
     if (!mounted) return;
     final wantBar = s.phase == OnboardingPhase.supportInSession;
-    // A new chat message opens the panel.
+    // A new chat message opens the chat, a file that moves the files.
     final fromSupporter = s.messages.where((m) => m.fromSupporter).length;
     final newMessage = fromSupporter > _seenMessages;
     _seenMessages = fromSupporter;
+    final newFile = s.files.length > _seenFiles;
+    _seenFiles = s.files.length;
     setState(() {
       _state = s;
-      if (wantBar && newMessage) _chat = true;
-      if (!wantBar) _chat = false;
+      if (wantBar && newMessage) _panel = _Panel.chat;
+      if (wantBar && newFile) _panel = _Panel.files;
+      if (!wantBar) _panel = _Panel.none;
     });
     if ((s.accentHex ?? '').isNotEmpty) {
       BrandingModel.current.accentColor.value = s.accentHex!;
@@ -81,7 +89,8 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
     try {
       if (_bar) {
         await windowManager.setResizable(true);
-        await windowManager.setSize(_chat ? _kBarWindowChat : _kBarWindow);
+        await windowManager.setSize(
+            _panel == _Panel.none ? _kBarWindow : _kBarWindowPanel);
         await windowManager.setAlwaysOnTop(true);
         await windowManager.setSkipTaskbar(true);
         await windowManager.setAlignment(Alignment.topCenter);
@@ -136,6 +145,12 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
     exit(0);
   }
 
+  /// Opens [panel] under the bar, or closes it when it is open.
+  void _toggle(_Panel panel) {
+    setState(() => _panel = _panel == panel ? _Panel.none : panel);
+    _applyWindow();
+  }
+
   Widget? _logo() {
     final b = BrandingModel.current;
     if (!b.hasLogo.value || b.logoPath.value.isEmpty) return null;
@@ -160,23 +175,25 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
             children: [
               SessionBar(
                 state: _state,
-                chatOpen: _chat,
+                chatOpen: _panel == _Panel.chat,
                 onDrag: () => windowManager.startDragging(),
-                onChat: () {
-                  setState(() => _chat = !_chat);
-                  _applyWindow();
-                },
+                onChat: () => _toggle(_Panel.chat),
+                onFiles: () => _toggle(_Panel.files),
                 onStop: () => widget.service.endSupport(),
               ),
-              if (_chat) ...[
+              if (_panel == _Panel.chat) ...[
                 const SizedBox(height: 8),
                 SessionChatPanel(
                   state: _state,
                   onSend: widget.service.sendChat,
-                  onClose: () {
-                    setState(() => _chat = false);
-                    _applyWindow();
-                  },
+                  onClose: () => _toggle(_Panel.none),
+                ),
+              ],
+              if (_panel == _Panel.files) ...[
+                const SizedBox(height: 8),
+                SessionFilesPanel(
+                  state: _state,
+                  onClose: () => _toggle(_Panel.none),
                 ),
               ],
             ],
@@ -200,7 +217,7 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
       child: QuickSupportView(
         state: _state,
         logo: _logo(),
-        onAllow: () => widget.service.consent(true),
+        onAllow: (grants) => widget.service.consent(true, grants),
         onDecline: () => widget.service.consent(false),
         onCancel: () => widget.service.endSupport(),
         onClose: _close,

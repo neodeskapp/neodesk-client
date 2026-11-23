@@ -1202,6 +1202,21 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-join-failed-next-refused", ""),
         ("bd-home-status-key-refused", ""),
         ("bd-home-status-no-service", ""),
+        ("bd-qs-consent-also", ""),
+        ("bd-qs-allow-clipboard", ""),
+        ("bd-qs-allow-clipboard-hint", ""),
+        ("bd-qs-allow-files", ""),
+        ("bd-qs-allow-files-hint", ""),
+        ("bd-qs-files", ""),
+        ("bd-qs-files-count", ""),
+        ("bd-qs-files-open", ""),
+        ("bd-qs-files-closed", ""),
+        ("bd-qs-files-none", ""),
+        ("bd-qs-file-count", ""),
+        ("bd-qs-file-to", ""),
+        ("bd-qs-file-to-here", ""),
+        ("bd-qs-file-from", ""),
+        ("bd-qs-file-from-here", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

@@ -1605,6 +1605,12 @@ impl Connection {
         files: Vec<(String, i64)>,
         info: Value,
     ) {
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::onboard::note_file_transfer(
+            matches!(r#type, FileAuditType::RemoteReceive),
+            path,
+            &files,
+        );
         if self.server_audit_file.is_empty() {
             return;
         }
@@ -2638,6 +2644,10 @@ impl Connection {
         control_permissions: &Option<ControlPermissions>,
     ) -> bool {
         use hbb_common::rendezvous_proto::control_permissions::Permission;
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        if !crate::onboard::quick_support_allows(enable_prefix_option) {
+            return false;
+        }
         if let Some(control_permissions) = control_permissions {
             let permission = match enable_prefix_option {
                 keys::OPTION_ENABLE_KEYBOARD => Some(Permission::keyboard),

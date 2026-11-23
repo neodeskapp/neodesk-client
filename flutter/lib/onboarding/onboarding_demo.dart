@@ -45,8 +45,9 @@ class DemoOnboardingService extends FakeOnboardingService {
   }
 
   @override
-  Future<void> consent(bool allow) async {
-    await super.consent(allow);
+  Future<void> consent(bool allow,
+      [QuickSupportGrants grants = const QuickSupportGrants()]) async {
+    await super.consent(allow, grants);
     if (!allow) return;
     _timer?.cancel();
     _timer = Timer(const Duration(seconds: 3), () {
@@ -58,6 +59,17 @@ class DemoOnboardingService extends FakeOnboardingService {
               text: "I'm opening the printer settings now.",
               time: DateTime.now()),
         ]));
+        if (!grants.fileTransfer) return;
+        _timer = Timer(const Duration(seconds: 4), () {
+          emit(current.copyWith(filesOpen: true, files: [
+            OnboardingFileLine(
+                toThisComputer: true,
+                path: r'C:\Users\anna\Downloads',
+                name: 'printer-driver.zip',
+                size: 4718592,
+                time: DateTime.now()),
+          ]));
+        });
       });
     });
   }

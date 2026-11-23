@@ -20,7 +20,9 @@ class BindOnboardingNative implements OnboardingNative {
   void redeemSupport(String text) => bind.mainOnboardRedeemSupport(text: text);
 
   @override
-  void consent(bool allow) => bind.mainOnboardConsent(allow: allow);
+  void consent(bool allow, bool clipboard, bool fileTransfer) =>
+      bind.mainOnboardConsent(
+          allow: allow, clipboard: clipboard, fileTransfer: fileTransfer);
 
   @override
   void endSupport() => bind.mainOnboardEndSupport();

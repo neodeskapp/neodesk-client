@@ -10,11 +10,14 @@
 //! alone (see [`support`]).
 //!
 //! The UI reads [`state_json`] and calls [`redeem_join`], [`redeem_support`],
-//! [`consent`] and [`end_support`].
+//! [`consent`] and [`end_support`]. In quick support a supporter's session
+//! gets only what the person allowed ([`quick_support_allows`]), and the
+//! files they send or take show in the state as it happens.
 
 // Only the Flutter FFI calls the UI part of this module.
 #![cfg_attr(not(feature = "flutter"), allow(dead_code))]
 
+mod grants;
 mod http;
 mod join;
 mod link;
@@ -36,6 +39,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::core_main::CoreMainAction;
+pub use grants::Grants;
 pub use http::OnboardError;
 pub use join::{DeviceIdentity, Joined, ServerSettings};
 pub use link::{Console, Invite, Kind};
@@ -53,6 +57,8 @@ const OPTION_CONSOLE: &str = "neodesk-console";
 const INPUT_ACTIVE_FOR_MS: i64 = 2_000;
 /// The chat lines the state keeps.
 const CHAT_LINES_KEPT: usize = 200;
+/// The file lines the state keeps.
+const FILE_LINES_KEPT: usize = 200;
 
 static QUICK_SUPPORT: AtomicBool = AtomicBool::new(false);
 static LAST_INPUT_MS: AtomicI64 = AtomicI64::new(0);
@@ -104,6 +110,48 @@ pub struct State {
     pub file_name: Option<String>,
     /// The chat with the supporter in a quick support session, oldest first.
     pub messages: Vec<ChatLine>,
+    /// What the supporter sent to this computer or took from it in a quick
+    /// support session, oldest first.
+    pub files: Vec<FileLine>,
+}
+
+/// A file transfer of a quick support session, as it started.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileLine {
+    /// The supporter sent it to this computer; otherwise they took it.
+    pub to_this_computer: bool,
+    /// The file or folder on this computer.
+    pub path: String,
+    /// The file's name when it is one file, else empty.
+    pub name: String,
+    pub count: usize,
+    /// Bytes in all.
+    pub size: i64,
+    /// Milliseconds since 1970.
+    pub time: i64,
+}
+
+impl FileLine {
+    fn of(to_this_computer: bool, path: &str, files: &[(String, i64)]) -> Self {
+        let name = match files {
+            [(name, _)] if !name.is_empty() => name.clone(),
+            [_] => path
+                .rsplit(['/', '\\'])
+                .find(|part| !part.is_empty())
+                .unwrap_or_default()
+                .to_owned(),
+            _ => String::new(),
+        };
+        Self {
+            to_this_computer,
+            path: path.to_owned(),
+            name,
+            count: files.len(),
+            size: files.iter().map(|(_, size)| (*size).max(0)).sum(),
+            time: hbb_common::get_time(),
+        }
+    }
 }
 
 /// A chat line of a quick support session.
@@ -125,6 +173,13 @@ impl State {
         });
         if self.messages.len() > CHAT_LINES_KEPT {
             self.messages.remove(0);
+        }
+    }
+
+    fn add_file(&mut self, line: FileLine) {
+        self.files.push(line);
+        if self.files.len() > FILE_LINES_KEPT {
+            self.files.remove(0);
         }
     }
 
@@ -167,6 +222,7 @@ lazy_static::lazy_static! {
     static ref PENDING: Mutex<Option<Invite>> = Mutex::new(None);
     static ref SUPPORT: Mutex<Option<mpsc::Sender<support::Command>>> = Mutex::new(None);
     static ref JOINING: Mutex<Option<String>> = Mutex::new(None);
+    static ref GRANTS: Mutex<Grants> = Mutex::new(Grants::default());
 }
 
 /// True in a quick support process.
@@ -322,10 +378,37 @@ fn input_active() -> bool {
     last > 0 && hbb_common::get_time() - last < INPUT_ACTIVE_FOR_MS
 }
 
+/// True while a supporter has a file transfer session open on this
+/// computer in quick support.
+fn files_open() -> bool {
+    is_quick_support()
+        && crate::server::AUTHED_CONNS
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|conn| conn.conn_type == crate::server::AuthConnType::FileTransfer)
+}
+
+/// Whether a supporter's session may have the permission of the `enable-*`
+/// option `option`: in quick support only what the person allowed, always
+/// otherwise. The connection asks before it gives a permission.
+pub fn quick_support_allows(option: &str) -> bool {
+    !is_quick_support() || GRANTS.lock().unwrap().allow(option)
+}
+
+/// Keeps a file transfer the supporter started, for the session bar. Called
+/// by the connection for each one, sent (`to_this_computer`) or taken.
+pub fn note_file_transfer(to_this_computer: bool, path: &str, files: &[(String, i64)]) {
+    if is_quick_support() {
+        STATE.update(|s| s.add_file(FileLine::of(to_this_computer, path, files)));
+    }
+}
+
 /// The state as JSON for the UI, with `inputActive` and `quickSupport`.
 pub fn state_json() -> String {
     let mut value = serde_json::to_value(STATE.get()).unwrap_or(Value::Null);
     value["inputActive"] = Value::Bool(input_active());
+    value["filesOpen"] = Value::Bool(files_open());
     value["quickSupport"] = Value::Bool(is_quick_support());
     value["hasServer"] = Value::Bool(has_server());
     value.to_string()
@@ -555,7 +638,11 @@ fn start_support(console: Console, code: String) {
     if running.is_some() {
         return;
     }
-    STATE.update(|s| s.messages.clear());
+    STATE.update(|s| {
+        s.messages.clear();
+        s.files.clear();
+    });
+    *GRANTS.lock().unwrap() = Grants::default();
     let (tx, rx) = mpsc::channel();
     *running = Some(tx);
     std::thread::spawn(move || {
@@ -564,16 +651,25 @@ fn start_support(console: Console, code: String) {
     });
 }
 
-/// The person's answer on the consent screen.
-pub fn consent(allow: bool) {
+/// The person's answer on the consent screen, with what they ticked besides
+/// the screen, the mouse and the keyboard.
+pub fn consent(allow: bool, grants: Grants) {
     if let Some(tx) = SUPPORT.lock().unwrap().as_ref() {
-        tx.send(support::Command::Consent(allow)).ok();
+        tx.send(support::Command::Consent(allow, grants)).ok();
     }
 }
 
-/// Ends the quick support session, for Stop and when the app closes.
+/// Ends the quick support session, for Stop and when the app closes. Once
+/// the person allowed it, the supporter is cut off here at once, even while
+/// the session waits for an answer of the console.
 pub fn end_support() {
     if let Some(tx) = SUPPORT.lock().unwrap().as_ref() {
+        if matches!(
+            STATE.get().phase,
+            Phase::SupportWaiting | Phase::SupportInSession
+        ) {
+            support::stop(&AppHost, &STATE);
+        }
         tx.send(support::Command::End).ok();
     }
 }
@@ -643,6 +739,10 @@ impl support::SupportHost for AppHost {
             Config::set_option(key.to_owned(), value);
         }
         crate::RendezvousMediator::restart();
+    }
+
+    fn set_grants(&self, grants: Grants) {
+        *GRANTS.lock().unwrap() = grants;
     }
 
     fn password(&self) -> String {
@@ -784,7 +884,9 @@ fn run_in_terminal() {
         if let Ok(line) = lines_rx.recv_timeout(Duration::from_millis(250)) {
             let line = line.trim().to_ascii_lowercase();
             match state.phase {
-                Phase::SupportConsent => consent(line == "y" || line == "yes"),
+                Phase::SupportConsent => {
+                    consent(line == "y" || line == "yes", Grants::default())
+                }
                 _ if matches!(line.as_str(), "end" | "stop" | "q") => end_support(),
                 _ => {}
             }
@@ -811,6 +913,9 @@ fn print_terminal_state(state: &State, before: &State) {
                 .map(|c| format!(" from {c}"))
                 .unwrap_or_default();
             println!("{supporter}{company} wants to see your screen to help you.");
+            println!(
+                "If you allow it, {supporter} can see your screen and use your mouse and keyboard. Copying text and sending files stay off."
+            );
             println!("Allow? Type y and press Enter. Anything else declines.");
         }
         (Phase::SupportWaiting | Phase::SupportInSession, Some(_)) if new_error => {

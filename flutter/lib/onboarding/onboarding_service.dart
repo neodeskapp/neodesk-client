@@ -63,6 +63,75 @@ class OnboardingChatMessage {
   final DateTime time;
 }
 
+/// What the person allows on the quick support consent screen besides the
+/// screen, the mouse and the keyboard. Both stay off until ticked.
+@immutable
+class QuickSupportGrants {
+  const QuickSupportGrants({this.clipboard = false, this.fileTransfer = false});
+
+  /// Copying text between the two computers.
+  final bool clipboard;
+
+  /// Opening folders and sending files both ways.
+  final bool fileTransfer;
+
+  /// The names the consent request sends.
+  List<String> get names => [
+        if (clipboard) 'clipboard',
+        if (fileTransfer) 'file_transfer',
+      ];
+
+  @override
+  bool operator ==(Object other) =>
+      other is QuickSupportGrants &&
+      other.clipboard == clipboard &&
+      other.fileTransfer == fileTransfer;
+
+  @override
+  int get hashCode => Object.hash(clipboard, fileTransfer);
+}
+
+/// A file transfer of a quick support session, as it started.
+@immutable
+class OnboardingFileLine {
+  const OnboardingFileLine({
+    required this.toThisComputer,
+    required this.path,
+    required this.time,
+    this.name = '',
+    this.count = 1,
+    this.size = 0,
+  });
+
+  /// The supporter sent it to this computer; otherwise they took it.
+  final bool toThisComputer;
+
+  /// The file or folder on this computer.
+  final String path;
+
+  /// The file's name when it is one file, else empty.
+  final String name;
+  final int count;
+
+  /// Bytes in all.
+  final int size;
+  final DateTime time;
+
+  @override
+  bool operator ==(Object other) =>
+      other is OnboardingFileLine &&
+      other.toThisComputer == toThisComputer &&
+      other.path == path &&
+      other.name == name &&
+      other.count == count &&
+      other.size == size &&
+      other.time == time;
+
+  @override
+  int get hashCode =>
+      Object.hash(toThisComputer, path, name, count, size, time);
+}
+
 @immutable
 class OnboardingState {
   const OnboardingState({
@@ -84,6 +153,8 @@ class OnboardingState {
     this.fileName,
     this.declined = false,
     this.messages = const [],
+    this.files = const [],
+    this.filesOpen = false,
   });
 
   final OnboardingPhase phase;
@@ -133,6 +204,13 @@ class OnboardingState {
   /// Chat during a quick support session, oldest first.
   final List<OnboardingChatMessage> messages;
 
+  /// Files the supporter sent or took in a quick support session, oldest
+  /// first.
+  final List<OnboardingFileLine> files;
+
+  /// True while the supporter has this computer's files open.
+  final bool filesOpen;
+
   OnboardingState copyWith({
     OnboardingPhase? phase,
     String? server,
@@ -153,6 +231,8 @@ class OnboardingState {
     String? fileName,
     bool? declined,
     List<OnboardingChatMessage>? messages,
+    List<OnboardingFileLine>? files,
+    bool? filesOpen,
   }) =>
       OnboardingState(
         phase: phase ?? this.phase,
@@ -173,6 +253,8 @@ class OnboardingState {
         fileName: fileName ?? this.fileName,
         declined: declined ?? this.declined,
         messages: messages ?? this.messages,
+        files: files ?? this.files,
+        filesOpen: filesOpen ?? this.filesOpen,
       );
 
   /// The supporter's first name for the short lines; the full name when the
@@ -201,7 +283,9 @@ abstract class OnboardingService {
   /// A link, a short code, or a neodesk:// link.
   Future<void> redeemJoin(String linkOrCode);
   Future<void> redeemSupport(String linkOrCode);
-  Future<void> consent(bool allow);
+  /// The answer on the consent screen, with what the person ticked.
+  Future<void> consent(bool allow,
+      [QuickSupportGrants grants = const QuickSupportGrants()]);
   Future<void> endSupport();
 
   /// Started from a QuickSupport file name or link.
@@ -352,9 +436,15 @@ class FakeOnboardingService extends OnboardingService {
         clearError: true));
   }
 
+  /// The grants of the last Allow.
+  QuickSupportGrants? grants;
+
   @override
-  Future<void> consent(bool allow) async {
-    calls.add('consent:$allow');
+  Future<void> consent(bool allow,
+      [QuickSupportGrants grants = const QuickSupportGrants()]) async {
+    final names = grants.names;
+    calls.add('consent:$allow${names.isEmpty ? '' : ':${names.join(',')}'}');
+    if (allow) this.grants = grants;
     emit(_state.copyWith(
         phase: allow
             ? OnboardingPhase.supportWaiting
@@ -463,7 +553,8 @@ class PairingOnboardingService extends OnboardingService {
   }
 
   @override
-  Future<void> consent(bool allow) async {}
+  Future<void> consent(bool allow,
+      [QuickSupportGrants grants = const QuickSupportGrants()]) async {}
 
   @override
   Future<void> endSupport() async {

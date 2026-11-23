@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'fixtures.dart';
 import 'harness.dart';
 
-const _qsSize = Size(480, 560);
+const _qsSize = Size(480, 720);
 
 const _base = OnboardingState(
   phase: OnboardingPhase.supportConsent,
@@ -32,7 +32,8 @@ Widget _qs(OnboardingState s, {List<String>? calls}) => _window(
       QuickSupportView(
         state: s,
         logo: fernLogo(),
-        onAllow: () => calls?.add('allow'),
+        onAllow: (grants) => calls?.add(
+            ['allow', ...grants.names].join(' ')),
         onDecline: () => calls?.add('decline'),
         onCancel: () => calls?.add('cancel'),
         onClose: () => calls?.add('close'),
@@ -120,8 +121,108 @@ void main() {
         Center(
             child: SessionBar(state: _base, onChat: () {}, onStop: () {})),
         size: const Size(800, 200));
-    expect(find.textContaining('is viewing your screen', findRichText: true),
+    expect(
+        find.textContaining('is viewing and controlling your computer',
+            findRichText: true),
         findsOneWidget);
+  });
+
+  testWidgets('consent lists exactly what is given; text and files only when ticked',
+      (tester) async {
+    final calls = <String>[];
+    await pumpScreen(tester, _qs(_base, calls: calls), size: _qsSize);
+    expect(find.text('See your screen'), findsOneWidget);
+    expect(find.text('Use your mouse and keyboard'), findsOneWidget);
+    expect(find.text('Only if you tick it, Mara can also:'), findsOneWidget);
+    // Nothing ticked: Allow gives the screen, the mouse and the keyboard.
+    await tester.tap(find.text('Allow'));
+    await tester.tap(find.text('Copy text between the two computers'));
+    await tester.pump();
+    await tester.tap(find.text('Allow'));
+    await tester.tap(find.text('Send and receive files'));
+    await tester.pump();
+    await tester.tap(find.text('Allow'));
+    await tester.tap(find.text('Copy text between the two computers'));
+    await tester.pump();
+    await tester.tap(find.text('Allow'));
+    expect(calls, [
+      'allow',
+      'allow clipboard',
+      'allow clipboard file_transfer',
+      'allow file_transfer',
+    ]);
+
+    final svc = FakeOnboardingService(_base);
+    await svc.consent(true, const QuickSupportGrants(fileTransfer: true));
+    expect(svc.grants, const QuickSupportGrants(fileTransfer: true));
+    expect(svc.calls.last, 'consent:true:file_transfer');
+  });
+
+  final withFiles = _base.copyWith(
+    phase: OnboardingPhase.supportInSession,
+    filesOpen: true,
+    files: [
+      OnboardingFileLine(
+          toThisComputer: true,
+          path: r'C:\Users\tester',
+          name: 'to-win.txt',
+          size: 36,
+          time: DateTime(2026, 11, 23, 8, 41)),
+      OnboardingFileLine(
+          toThisComputer: false,
+          path: r'C:\Users\tester\Desktop\from-win.txt',
+          name: 'from-win.txt',
+          size: 31,
+          time: DateTime(2026, 11, 23, 8, 42)),
+    ],
+  );
+
+  forBothThemes('session bar with files', (tester, b) async {
+    var opened = 0;
+    await pumpScreen(
+        tester,
+        _desktop(Column(mainAxisSize: MainAxisSize.min, children: [
+          SessionBar(
+              state: withFiles,
+              onChat: () {},
+              onStop: () {},
+              onFiles: () => opened++),
+          const SizedBox(height: 8),
+          SessionFilesPanel(state: withFiles, onClose: () {}),
+        ])),
+        size: const Size(1100, 460),
+        brightness: b,
+        accent: fernAccent);
+    expect(find.text('Files (2)'), findsOneWidget);
+    expect(find.text('Mara Jensen has your files open.'), findsOneWidget);
+    expect(find.text(r'To this computer: C:\Users\tester'), findsOneWidget);
+    expect(
+        find.text(r'From this computer: C:\Users\tester\Desktop\from-win.txt'),
+        findsOneWidget);
+    expect(find.text('36 B'), findsOneWidget);
+    // Newest first.
+    expect(
+        tester.getTopLeft(find.text('from-win.txt')).dy <
+            tester.getTopLeft(find.text('to-win.txt')).dy,
+        isTrue);
+    await tester.tap(find.text('Files (2)'));
+    expect(opened, 1);
+    await shot(tester, 'client-session-bar-files', b);
+  });
+
+  testWidgets('the bar has no Files button before files move', (tester) async {
+    await pumpScreen(
+        tester,
+        Center(
+            child: SessionBar(
+                state: _base.copyWith(phase: OnboardingPhase.supportInSession),
+                onChat: () {},
+                onStop: () {},
+                onFiles: () {})),
+        size: const Size(800, 200));
+    expect(find.text('Files'), findsNothing);
+    expect(sessionFileSize(4718592), '4.5 MB');
+    expect(sessionFileSize(1536), '1.5 KB');
   });
 
   testWidgets('Allow and Decline reach the service; the fake follows them',
