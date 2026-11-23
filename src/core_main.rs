@@ -313,6 +313,12 @@ pub fn core_main() -> Option<CoreMainAction> {
                 #[cfg(windows)]
                 hbb_common::allow_err!(crate::platform::windows::uninstall_cert());
                 return None;
+            } else if args[0] == "--claim-rustdesk-scheme" {
+                hbb_common::allow_err!(platform::claim_rustdesk_scheme_for_machine());
+                return None;
+            } else if args[0] == "--release-rustdesk-scheme" {
+                hbb_common::allow_err!(platform::release_rustdesk_scheme_of_machine());
+                return None;
             } else if args[0] == "--install-idd" {
                 #[cfg(windows)]
                 if crate::virtual_display_manager::is_virtual_display_supported() {

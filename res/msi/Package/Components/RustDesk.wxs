@@ -20,6 +20,11 @@
 
 		<CustomAction Id="LaunchApp" ExeCommand="" Return="asyncNoWait" FileRef="App.exe" />
 		<CustomAction Id="LaunchAppTray" ExeCommand=" --tray" Return="asyncNoWait" FileRef="App.exe" />
+		<!-- rustdesk:// is stock RustDesk's: the client takes it only on a computer
+		     without stock RustDesk and no other program for it, and gives it up on
+		     removal only while it still starts the client. -->
+		<CustomAction Id="ClaimRustDeskScheme" ExeCommand="--claim-rustdesk-scheme" Execute="deferred" Impersonate="no" Return="ignore" FileRef="App.exe" />
+		<CustomAction Id="ReleaseRustDeskScheme" ExeCommand="--release-rustdesk-scheme" Execute="deferred" Impersonate="no" Return="ignore" FileRef="App.exe" />
 		<Property Id="TerminateProcesses" Value="AppTest.exe" />
 		<CustomAction Id="TerminateProcesses.SetParam" Return="check" Property="TerminateProcesses" Value="$(var.Executable)" />
 		<CustomAction Id="TerminateBrokers.SetParam" Return="check" Property="TerminateProcesses" Value="RuntimeBroker_neodesk.exe" />
@@ -88,6 +93,9 @@
 			<Custom Action="RemoveRuntimeGeneratedFiles.SetParam" Before="RemoveRuntimeGeneratedFiles" Condition="Installed AND (REMOVE=&quot;ALL&quot; OR UPGRADINGPRODUCTCODE)"/>
 			<Custom Action="TryStopDeleteService" Before="RemoveRuntimeGeneratedFiles.SetParam" />
 			<Custom Action="TryStopDeleteService.SetParam" Before="TryStopDeleteService" />
+
+			<Custom Action="ClaimRustDeskScheme" Before="InstallFinalize" Condition="NOT (Installed AND REMOVE AND NOT UPGRADINGPRODUCTCODE)"/>
+			<Custom Action="ReleaseRustDeskScheme" Before="RemoveFiles" Condition="Installed AND (REMOVE=&quot;ALL&quot; OR UPGRADINGPRODUCTCODE)"/>
 
 			<Custom Action="RemoveFirewallRules" Before="RemoveFiles"/>
 			<Custom Action="RemoveFirewallRules.SetParam" Before="RemoveFirewallRules"/>

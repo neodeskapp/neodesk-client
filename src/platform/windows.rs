@@ -99,6 +99,7 @@ use winreg::{enums::*, RegKey};
 
 mod acl;
 mod install_commands;
+mod link_schemes;
 mod installer_handoff;
 mod installer_shell;
 mod verified_update;
@@ -1555,12 +1556,7 @@ fn get_after_install(
     reg add HKEY_CLASSES_ROOT\\{uri_scheme}\\shell\\open /f
     reg add HKEY_CLASSES_ROOT\\{uri_scheme}\\shell\\open\\command /f
     reg add HKEY_CLASSES_ROOT\\{uri_scheme}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{nested_exe}\\\" \\\"%%1\\\"\"
-    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme} /f
-    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme} /f /v \"URL Protocol\" /t REG_SZ /d \"\"
-    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme}\\shell /f
-    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme}\\shell\\open /f
-    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme}\\shell\\open\\command /f
-    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{nested_exe}\\\" \\\"%%1\\\"\"
+    {legacy_uri_scheme}
     netsh advfirewall firewall add rule name=\"{app_name} Service\" dir=out action=allow program=\"{exe}\" enable=yes
     netsh advfirewall firewall add rule name=\"{app_name} Service\" dir=in action=allow program=\"{exe}\" enable=yes
     {create_service}
@@ -1569,8 +1565,107 @@ fn get_after_install(
         app_classes = install_commands::add_app_classes(&ext, exe),
         create_service = get_create_service(&exe),
         uri_scheme = hbb_common::config::URI_SCHEME,
-        legacy_uri_scheme = hbb_common::config::LEGACY_URI_SCHEME,
+        legacy_uri_scheme = add_rustdesk_scheme_commands(&nested_exe),
     )
+}
+
+/// The lines of the install script that register rustdesk:// for this
+/// client, empty when another program has it or stock RustDesk is installed.
+fn add_rustdesk_scheme_commands(nested_exe: &str) -> String {
+    if !may_claim_rustdesk_scheme() {
+        log::info!("rustdesk:// stays with the program that has it or with stock RustDesk");
+        return String::new();
+    }
+    format!("
+    reg add HKEY_CLASSES_ROOT\\{scheme} /f
+    reg add HKEY_CLASSES_ROOT\\{scheme} /f /v \"URL Protocol\" /t REG_SZ /d \"\"
+    reg add HKEY_CLASSES_ROOT\\{scheme}\\shell /f
+    reg add HKEY_CLASSES_ROOT\\{scheme}\\shell\\open /f
+    reg add HKEY_CLASSES_ROOT\\{scheme}\\shell\\open\\command /f
+    reg add HKEY_CLASSES_ROOT\\{scheme}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{nested_exe}\\\" \\\"%%1\\\"\"
+    ",
+        scheme = hbb_common::config::LEGACY_URI_SCHEME,
+    )
+}
+
+const RUSTDESK_SCHEME_KEY: &str = "Software\\Classes\\rustdesk";
+const RUSTDESK_SCHEME_COMMAND_KEY: &str = "Software\\Classes\\rustdesk\\shell\\open\\command";
+
+/// The open command of rustdesk:// under `root`, if there is one.
+fn rustdesk_scheme_handler(root: &RegKey) -> Option<String> {
+    root
+        .open_subkey(RUSTDESK_SCHEME_COMMAND_KEY)
+        .and_then(|key| key.get_value::<String, _>(""))
+        .ok()
+}
+
+/// True when stock RustDesk is installed: an uninstall entry named RustDesk,
+/// which both its exe installer and its MSI write.
+fn stock_rustdesk_installed() -> bool {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    for path in [
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+    ] {
+        let Ok(uninstall) = hklm.open_subkey(path) else {
+            continue;
+        };
+        for name in uninstall.enum_keys().flatten() {
+            let stock = uninstall
+                .open_subkey(&name)
+                .and_then(|entry| entry.get_value::<String, _>("DisplayName"))
+                .map_or(false, |display| display.eq_ignore_ascii_case("RustDesk"));
+            if stock {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// NeoDesk takes stock RustDesk's rustdesk:// only on a computer without
+/// stock RustDesk, and never from another program (link_schemes.rs).
+fn may_claim_rustdesk_scheme() -> bool {
+    let handlers: Vec<String> = [
+        RegKey::predef(HKEY_LOCAL_MACHINE),
+        RegKey::predef(HKEY_CURRENT_USER),
+    ]
+    .iter()
+    .filter_map(rustdesk_scheme_handler)
+    .collect();
+    link_schemes::may_claim_rustdesk_scheme(&handlers, stock_rustdesk_installed())
+}
+
+/// True when the machine-wide rustdesk:// entry starts NeoDesk.
+fn machine_rustdesk_scheme_is_ours() -> bool {
+    rustdesk_scheme_handler(&RegKey::predef(HKEY_LOCAL_MACHINE))
+        .map_or(false, |command| link_schemes::starts_neodesk(&command))
+}
+
+/// `--claim-rustdesk-scheme`, which the MSI runs after it installed the
+/// files: registers rustdesk:// for this client machine-wide when it may.
+pub fn claim_rustdesk_scheme_for_machine() -> ResultType<()> {
+    if !may_claim_rustdesk_scheme() {
+        log::info!("rustdesk:// stays with the program that has it or with stock RustDesk");
+        return Ok(());
+    }
+    let exe = std::env::current_exe()?;
+    let command = format!("\"{}\" \"%1\"", exe.to_string_lossy());
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let (key, _) = hklm.create_subkey(RUSTDESK_SCHEME_KEY)?;
+    key.set_value("URL Protocol", &"")?;
+    let (key, _) = hklm.create_subkey(RUSTDESK_SCHEME_COMMAND_KEY)?;
+    key.set_value("", &command)?;
+    Ok(())
+}
+
+/// `--release-rustdesk-scheme`, which the MSI runs before it removes the
+/// files: removes rustdesk:// while it still starts NeoDesk.
+pub fn release_rustdesk_scheme_of_machine() -> ResultType<()> {
+    if machine_rustdesk_scheme_is_ours() {
+        RegKey::predef(HKEY_LOCAL_MACHINE).delete_subkey_all(RUSTDESK_SCHEME_KEY)?;
+    }
+    Ok(())
 }
 
 pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> ResultType<()> {
@@ -1792,10 +1887,9 @@ fn get_before_uninstall(kill_self: bool) -> String {
         format!(" /FI \"PID ne {}\"", get_current_pid())
     };
     // Stock RustDesk registers rustdesk:// too: the entry goes only while it
-    // still starts this client.
+    // still starts NeoDesk.
     let legacy_uri_scheme = hbb_common::config::LEGACY_URI_SCHEME;
-    let (_, _, _, installed_exe) = get_install_info();
-    let delete_legacy_uri_scheme = if machine_uri_scheme_runs(legacy_uri_scheme, &installed_exe) {
+    let delete_legacy_uri_scheme = if machine_rustdesk_scheme_is_ours() {
         format!("reg delete HKEY_CLASSES_ROOT\\{legacy_uri_scheme} /f")
     } else {
         String::new()
@@ -1821,14 +1915,6 @@ fn get_before_uninstall(kill_self: bool) -> String {
     )
 }
 
-/// True when the machine-wide entry of link `scheme` starts `exe`.
-fn machine_uri_scheme_runs(scheme: &str, exe: &str) -> bool {
-    RegKey::predef(HKEY_LOCAL_MACHINE)
-        .open_subkey(format!("Software\\Classes\\{scheme}\\shell\\open\\command"))
-        .and_then(|key| key.get_value::<String, _>(""))
-        .map_or(false, |command| super::scheme_command_runs(&command, exe))
-}
-
 /// Removes this user's link entries that start the installed client, which
 /// the uninstall removes. They override the machine-wide ones, so a stock
 /// RustDesk's rustdesk:// would stay broken for this user otherwise.
@@ -1843,7 +1929,13 @@ fn remove_own_user_uri_schemes() {
         let ours = hcu
             .open_subkey(format!("{classes}\\shell\\open\\command"))
             .and_then(|key| key.get_value::<String, _>(""))
-            .map_or(false, |command| super::scheme_command_runs(&command, &installed_exe));
+            .map_or(false, |command| {
+                if scheme == hbb_common::config::LEGACY_URI_SCHEME {
+                    link_schemes::starts_neodesk(&command)
+                } else {
+                    super::scheme_command_runs(&command, &installed_exe)
+                }
+            });
         if ours {
             if let Err(err) = hcu.delete_subkey_all(&classes) {
                 log::warn!("Failed to remove the {scheme} link entry of this user: {err}");
@@ -1852,9 +1944,11 @@ fn remove_own_user_uri_schemes() {
     }
 }
 
-/// Register `neodesk://` and legacy `rustdesk://` for the current user.
-/// HKCU overrides HKCR, so a portable or already-installed client can open
-/// browser links without a new elevated install.
+/// Register `neodesk://` for the current user. HKCU overrides HKCR, so a
+/// portable or already-installed client can open browser links without a
+/// new elevated install. `rustdesk://` is stock RustDesk's: only an
+/// installer takes it, and this user's entry that starts NeoDesk goes once
+/// stock RustDesk or another program has the scheme, so theirs works.
 pub fn ensure_user_uri_schemes() {
     let exe = match std::env::current_exe() {
         Ok(path) => path,
@@ -1869,11 +1963,13 @@ pub fn ensure_user_uri_schemes() {
     };
     let command = format!("\"{}\" \"%1\"", exe);
     let hcu = RegKey::predef(HKEY_CURRENT_USER);
-    for scheme in [
-        hbb_common::config::URI_SCHEME,
-        hbb_common::config::LEGACY_URI_SCHEME,
-    ] {
-        register_user_uri_scheme(&hcu, scheme, &command);
+    register_user_uri_scheme(&hcu, hbb_common::config::URI_SCHEME, &command);
+    let user_entry_is_ours = rustdesk_scheme_handler(&hcu)
+        .map_or(false, |command| link_schemes::starts_neodesk(&command));
+    if user_entry_is_ours && !may_claim_rustdesk_scheme() {
+        if let Err(err) = hcu.delete_subkey_all(RUSTDESK_SCHEME_KEY) {
+            log::warn!("Failed to give rustdesk:// back for this user: {err}");
+        }
     }
 }
 

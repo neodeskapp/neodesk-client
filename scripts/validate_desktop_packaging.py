@@ -94,6 +94,12 @@ link = read("res/neodesk-link.desktop")
 require("res/neodesk-link.desktop", link, "TryExec=neodesk")
 require("res/neodesk-link.desktop", link, "Exec=neodesk %u")
 require("res/neodesk-link.desktop", link, "Icon=neodesk")
+require("res/neodesk-link.desktop", link, "MimeType=x-scheme-handler/neodesk;")
+# rustdesk:// is stock RustDesk's. A package file claiming it would take it
+# from a stock RustDesk installed before or after, so no Linux package does.
+for relative in LINUX_PACKAGING:
+    if exists(relative) and "x-scheme-handler/rustdesk" in read(relative):
+        failures.append(f"{relative}: claims rustdesk://, which is stock RustDesk's")
 require(
     "flutter/linux/my_application.cc",
     read("flutter/linux/my_application.cc"),
@@ -139,7 +145,17 @@ require("res/msi/preprocess.py", preprocess, '"neodesk.exe"')
 require("res/msi/preprocess.py", preprocess, 'UriScheme="neodesk"')
 regs = read("res/msi/Package/Components/Regs.wxs")
 require("res/msi/Package/Components/Regs.wxs", regs, 'Key="$(var.UriScheme)"')
-require("res/msi/Package/Components/Regs.wxs", regs, 'Key="$(var.LegacyUriScheme)"')
+# The MSI takes rustdesk:// only by the rule in link_schemes.rs, through the
+# client, and never as a component it would remove whatever it points at.
+if "$(var.LegacyUriScheme)" in regs:
+    failures.append("res/msi/Package/Components/Regs.wxs: registers rustdesk:// unconditionally")
+msi_components = read("res/msi/Package/Components/RustDesk.wxs")
+for needle in ('ExeCommand="--claim-rustdesk-scheme"', 'ExeCommand="--release-rustdesk-scheme"',
+               '<Custom Action="ClaimRustDeskScheme"', '<Custom Action="ReleaseRustDeskScheme"'):
+    require("res/msi/Package/Components/RustDesk.wxs", msi_components, needle)
+windows_rs = read("src/platform/windows.rs")
+require("src/platform/windows.rs", windows_rs, "legacy_uri_scheme = add_rustdesk_scheme_commands(&nested_exe)")
+require("src/platform/windows.rs", windows_rs, "link_schemes::may_claim_rustdesk_scheme(")
 require("res/msi/Package/Components/RustDesk.wxs", read("res/msi/Package/Components/RustDesk.wxs"), 'Name="$(var.Executable)"')
 
 # The MSI's licence page is the repository's LICENCE (AGPL-3.0), and the
@@ -172,7 +188,10 @@ require(
 )
 mac_plist = read("flutter/macos/Runner/Info.plist")
 require("flutter/macos/Runner/Info.plist", mac_plist, "<string>neodesk</string>")
-require("flutter/macos/Runner/Info.plist", mac_plist, "<string>rustdesk</string>")
+# Launch Services picks an unspecified app when two claim one scheme, so the
+# Mac app declares only its own.
+if "<string>rustdesk</string>" in mac_plist:
+    failures.append("flutter/macos/Runner/Info.plist: declares rustdesk://, which is stock RustDesk's")
 macos_runtime = read("src/platform/macos.rs")
 require("src/platform/macos.rs", macos_runtime, 'sk.neode.{}_service.plist')
 require("src/platform/macos.rs", macos_runtime, 'sk.neode.{}_server.plist')

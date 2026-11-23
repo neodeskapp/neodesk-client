@@ -47,20 +47,12 @@
 				<RegistryKey Root="HKCR" Key="$(var.UriScheme)">
 					<RegistryValue Type="string" Name="URL Protocol" Value="" />
 				</RegistryKey>
-				<RegistryKey Root="HKCR" Key="$(var.LegacyUriScheme)">
-					<RegistryValue Type="string" Name="URL Protocol" Value="" />
-				</RegistryKey>
 			</Component>
 
 			<Component Id="Product.Registry.Command" Guid="BC8D581C-5960-4843-93DC-E347CD43BD49">
 				<RegistryKey Root="HKCR" Key="$(var.UriScheme)\shell" />
 				<RegistryKey Root="HKCR" Key="$(var.UriScheme)\shell\open" />
 				<RegistryKey Root="HKCR" Key="$(var.UriScheme)\shell\open\command">
-					<RegistryValue Type="string" Value='"[INSTALLFOLDER_INNER]$(var.Executable)" "%1"' />
-				</RegistryKey>
-				<RegistryKey Root="HKCR" Key="$(var.LegacyUriScheme)\shell" />
-				<RegistryKey Root="HKCR" Key="$(var.LegacyUriScheme)\shell\open" />
-				<RegistryKey Root="HKCR" Key="$(var.LegacyUriScheme)\shell\open\command">
 					<RegistryValue Type="string" Value='"[INSTALLFOLDER_INNER]$(var.Executable)" "%1"' />
 				</RegistryKey>
 			</Component>

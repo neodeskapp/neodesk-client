@@ -30,7 +30,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>neodesk</string>
-				<string>rustdesk</string>
 			</array>
 		</dict>
 	</array>
