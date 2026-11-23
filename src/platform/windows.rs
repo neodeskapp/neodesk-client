@@ -1,4 +1,4 @@
-use super::{validate_install_app_name, CursorData, ResultType};
+use super::{CursorData, ResultType};
 use crate::{
     common::PORTABLE_APPNAME_RUNTIME_ENV_KEY,
     custom_server::*,
@@ -98,6 +98,7 @@ use windows_service::{
 use winreg::{enums::*, RegKey};
 
 mod acl;
+mod install_commands;
 mod installer_handoff;
 mod installer_shell;
 mod verified_update;
@@ -1532,44 +1533,22 @@ fn get_after_install(
     hcu.delete_subkey_all(format!("Software\\Classes\\{}", exe))
         .ok();
 
-    let desktop_shortcuts = reg_value_desktop_shortcuts
-        .map(|v| {
-            format!("reg add HKEY_CLASSES_ROOT\\.{ext} /f /v {REG_NAME_INSTALL_DESKTOPSHORTCUTS} /t REG_SZ /d \"{v}\"")
-        })
-        .unwrap_or_default();
-    let start_menu_shortcuts = reg_value_start_menu_shortcuts
-        .map(|v| {
-            format!(
-                "reg add HKEY_CLASSES_ROOT\\.{ext} /f /v {REG_NAME_INSTALL_STARTMENUSHORTCUTS} /t REG_SZ /d \"{v}\""
-            )
-        })
-        .unwrap_or_default();
-    let reg_printer = reg_value_printer
-        .map(|v| {
-            format!(
-                "reg add HKEY_CLASSES_ROOT\\.{ext} /f /v {REG_NAME_INSTALL_PRINTER} /t REG_SZ /d \"{v}\""
-            )
-        })
-        .unwrap_or_default();
+    let option = |name: &str, value: Option<String>| {
+        value
+            .map(|v| install_commands::add_install_option(&ext, name, &v))
+            .unwrap_or_default()
+    };
+    let desktop_shortcuts = option(REG_NAME_INSTALL_DESKTOPSHORTCUTS, reg_value_desktop_shortcuts);
+    let start_menu_shortcuts =
+        option(REG_NAME_INSTALL_STARTMENUSHORTCUTS, reg_value_start_menu_shortcuts);
+    let reg_printer = option(REG_NAME_INSTALL_PRINTER, reg_value_printer);
 
     format!("
     chcp 65001
-    reg add HKEY_CLASSES_ROOT\\.{ext} /f
+    {app_classes}
     {desktop_shortcuts}
     {start_menu_shortcuts}
     {reg_printer}
-    reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f
-    reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f /ve /t REG_SZ  /d \"\\\"{nested_exe}\\\",0\"
-    reg add HKEY_CLASSES_ROOT\\.{ext}\\shell /f
-    reg add HKEY_CLASSES_ROOT\\.{ext}\\shell\\open /f
-    reg add HKEY_CLASSES_ROOT\\.{ext}\\shell\\open\\command /f
-    reg add HKEY_CLASSES_ROOT\\.{ext}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{nested_exe}\\\" --play \\\"%%1\\\"\"
-    reg add HKEY_CLASSES_ROOT\\{ext} /f
-    reg add HKEY_CLASSES_ROOT\\{ext} /f /v \"URL Protocol\" /t REG_SZ /d \"\"
-    reg add HKEY_CLASSES_ROOT\\{ext}\\shell /f
-    reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open /f
-    reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f
-    reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{nested_exe}\\\" \\\"%%1\\\"\"
     reg add HKEY_CLASSES_ROOT\\{uri_scheme} /f
     reg add HKEY_CLASSES_ROOT\\{uri_scheme} /f /v \"URL Protocol\" /t REG_SZ /d \"\"
     reg add HKEY_CLASSES_ROOT\\{uri_scheme}\\shell /f
@@ -1587,6 +1566,7 @@ fn get_after_install(
     {create_service}
     reg add HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /f /v SoftwareSASGeneration /t REG_DWORD /d 1
     ",
+        app_classes = install_commands::add_app_classes(&ext, exe),
         create_service = get_create_service(&exe),
         uri_scheme = hbb_common::config::URI_SCHEME,
         legacy_uri_scheme = hbb_common::config::LEGACY_URI_SCHEME,
@@ -1763,6 +1743,7 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
 {install_remote_printer}
 {sleep}
     ",
+        subkey = install_commands::quoted(&subkey),
         display_icon = shortcut_icon_location.as_deref().unwrap_or(exe.as_str()),
         nested_exe = escape_nested_cmd_ampersands(&exe),
         version = crate::VERSION.replace("-", "."),
@@ -1816,17 +1797,20 @@ fn get_before_uninstall(kill_self: bool) -> String {
     format!(
         "
     chcp 65001
-    sc stop {app_name}
-    sc delete {app_name}
+    {stop_service}
+    {delete_service}
     taskkill /F /IM {broker_exe}
-    taskkill /F /IM {app_name}.exe{filter}
-    reg delete HKEY_CLASSES_ROOT\\.{ext} /f
-    reg delete HKEY_CLASSES_ROOT\\{ext} /f
+    {kill_processes}
+    {delete_app_classes}
     reg delete HKEY_CLASSES_ROOT\\{uri_scheme} /f
     {delete_legacy_uri_scheme}
     netsh advfirewall firewall delete rule name=\"{app_name} Service\"
     ",
+        stop_service = install_commands::stop_service(&app_name),
+        delete_service = install_commands::delete_service(&app_name),
         broker_exe = WIN_TOPMOST_INJECTED_PROCESS_EXE,
+        kill_processes = install_commands::kill_processes(&crate::get_exe_name(), &filter),
+        delete_app_classes = install_commands::delete_app_classes(&ext),
         uri_scheme = hbb_common::config::URI_SCHEME,
     )
 }
@@ -1958,6 +1942,7 @@ fn get_uninstall(kill_self: bool, uninstall_printer: bool) -> ResultType<String>
     if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
     ",
         before_uninstall=get_before_uninstall(kill_self),
+        subkey = install_commands::quoted(&subkey),
         uninstall_amyuni_idd=get_uninstall_amyuni_idd(),
         app_name = crate::get_app_name(),
     ))
@@ -2227,8 +2212,10 @@ pub fn update_install_option(k: &str, v: &str) -> ResultType<()> {
     }
     let app_name = crate::get_app_name();
     let ext = app_name.to_lowercase();
-    let cmds =
-        format!("chcp 65001 && reg add HKEY_CLASSES_ROOT\\.{ext} /f /v {k} /t REG_SZ /d \"{v}\"");
+    let cmds = format!(
+        "chcp 65001 && {}",
+        install_commands::add_install_option(&ext, k, v)
+    );
     run_cmds(cmds, false, "update_install_option")?;
     Ok(())
 }
@@ -3391,17 +3378,20 @@ pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
     log::info!("Uninstalling service...");
     let filter = format!(" /FI \"PID ne {}\"", get_current_pid());
     Config::set_option("stop-service".into(), "Y".into());
+    let app_name = crate::get_app_name();
     let cmds = format!(
         "
     chcp 65001
-    sc stop {app_name}
-    sc delete {app_name}
+    {stop_service}
+    {delete_service}
     if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
     taskkill /F /IM {broker_exe}
-    taskkill /F /IM {app_name}.exe{filter}
+    {kill_processes}
     ",
-        app_name = crate::get_app_name(),
+        stop_service = install_commands::stop_service(&app_name),
+        delete_service = install_commands::delete_service(&app_name),
         broker_exe = WIN_TOPMOST_INJECTED_PROCESS_EXE,
+        kill_processes = install_commands::kill_processes(&crate::get_exe_name(), &filter),
     );
     if let Err(err) = run_cmds(cmds, false, "uninstall") {
         Config::set_option("stop-service".into(), "".into());
@@ -3433,12 +3423,13 @@ fn get_install_service_commands(path: &str, exe: &str) -> ResultType<String> {
     Ok(format!(
         "
 chcp 65001
-taskkill /F /IM {app_name}.exe{filter}
+{kill_processes}
 {tray_shortcut_commands}
 copy /Y \"%RUSTDESK_OUTPUT_DIR%\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
 {import_config}
 {create_service}
     ",
+        kill_processes = install_commands::kill_processes(&crate::get_exe_name(), &filter),
         import_config = get_import_config(exe),
         create_service = get_create_service(exe),
     ))
@@ -3577,6 +3568,7 @@ pub fn update_me(debug: bool) -> ResultType<()> {
         version_build: &str,
         size: u64,
     ) -> String {
+        let subkey = install_commands::quoted(subkey);
         let reg_display_icon = if is_msi.unwrap_or(false) {
             "".to_string()
         } else {
@@ -3614,7 +3606,10 @@ reg add {subkey} /f /v EstimatedSize /t REG_DWORD /d {size}
         let reg_cmd_msi = if let Some(reg_msi_key) = &reg_msi_key {
             // This is best-effort: failure may leave a stale version in the Windows app list,
             // but should not interrupt the update.
-            format!("reg add {reg_msi_key} /f /v DisplayVersion /t REG_SZ /d \"{version}\"")
+            format!(
+                "reg add {} /f /v DisplayVersion /t REG_SZ /d \"{version}\"",
+                install_commands::quoted(reg_msi_key)
+            )
         } else {
             "".to_owned()
         };
@@ -3623,7 +3618,7 @@ reg add {subkey} /f /v EstimatedSize /t REG_DWORD /d {size}
 
     let filter = format!(" /FI \"PID ne {}\"", get_current_pid());
     let restore_service_cmd = if is_service_running {
-        format!("sc start {}", &app_name)
+        install_commands::start_service(&app_name)
     } else {
         "".to_owned()
     };
@@ -3655,8 +3650,8 @@ reg add {subkey} /f /v EstimatedSize /t REG_DWORD /d {size}
     let cmds = format!(
         "
 chcp 65001
-sc stop {app_name}
-taskkill /F /IM {app_name}.exe{filter}
+{stop_service}
+{kill_processes}
 {reg_cmd}
 {copy_exe}
 {rename_exe}
@@ -3666,7 +3661,8 @@ taskkill /F /IM {app_name}.exe{filter}
 {install_printer_cmd}
 {sleep}
     ",
-        app_name = app_name,
+        stop_service = install_commands::stop_service(&app_name),
+        kill_processes = install_commands::kill_processes(&crate::get_exe_name(), &filter),
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
         rename_exe = rename_exe_cmd(&src_exe, &path)?,
         remove_meta_toml = remove_meta_toml_cmd(is_msi.unwrap_or(true), &path),
@@ -3996,19 +3992,12 @@ fn get_import_config(exe: &str) -> String {
     if config::is_outgoing_only() {
         return "".to_string();
     }
-    let exe = escape_nested_cmd_ampersands(exe);
     let config_path = Config::file();
-    let config_path = escape_nested_cmd_ampersands(config_path.to_str().unwrap_or(""));
-    format!("
-sc stop {app_name}
-sc delete {app_name}
-sc create {app_name} binpath= \"\\\"{exe}\\\" --import-config \\\"{config_path}\\\"\" start= auto DisplayName= \"{app_name} Service\"
-sc start {app_name}
-sc stop {app_name}
-sc delete {app_name}
-",
-    app_name = crate::get_app_name(),
-)
+    install_commands::import_config_service(
+        &crate::get_app_name(),
+        exe,
+        config_path.to_str().unwrap_or(""),
+    )
 }
 
 fn get_create_service(exe: &str) -> String {
@@ -4021,19 +4010,7 @@ fn get_create_service(exe: &str) -> String {
 if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
 ", app_name = crate::get_app_name())
     } else {
-        let exe = escape_nested_cmd_ampersands(exe);
-        format!("
-sc query {app_name} >nul 2>&1
-if errorlevel 1 (
-    sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto DisplayName= \"{app_name} Service\"
-) else (
-    sc config {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto
-)
-sc failure {app_name} reset= 86400 actions= restart/5000/restart/10000/restart/30000
-sc failureflag {app_name} 1
-sc start {app_name}
-",
-    app_name = crate::get_app_name())
+        install_commands::create_service(&crate::get_app_name(), exe)
     }
 }
 
@@ -4919,18 +4896,6 @@ mod tests {
         assert_eq!(chr, Some('a'));
         let chr = get_char_from_vk(VK_ESCAPE as u32); // VK_ESC
         assert_eq!(chr, None)
-    }
-
-    #[test]
-    fn install_app_names_enforce_ascii_command_safety() {
-        assert!(validate_install_app_name("RustDesk-Admin1").is_ok());
-        assert!(validate_install_app_name("NeoDesk Client").is_ok());
-        for app_name in ["", "RustDesk_Admin", "RustDesk&whoami", "RustDesk应用"] {
-            assert!(
-                validate_install_app_name(app_name).is_err(),
-                "unsafe application name was accepted: {app_name}"
-            );
-        }
     }
 
     #[test]

@@ -33,7 +33,8 @@ use hbb_common::{message_proto::CursorData, sysinfo::Pid, ResultType};
 use std::sync::{Arc, Mutex};
 
 // Restrict names because installers interpolate them into privileged scripts and paths.
-#[cfg(any(windows, target_os = "macos"))]
+// Windows checks its install name in windows/install_commands.rs.
+#[cfg(target_os = "macos")]
 fn validate_install_app_name(app_name: &str) -> ResultType<()> {
     let mut bytes = app_name.bytes();
     let Some(first) = bytes.next() else {
@@ -266,7 +267,7 @@ pub fn get_pids_of_process_with_first_arg<S1: AsRef<str>, S2: AsRef<str>>(
 mod tests {
     use super::*;
 
-    #[cfg(any(windows, target_os = "macos"))]
+    #[cfg(target_os = "macos")]
     #[test]
     fn install_app_names_enforce_ascii_command_safety() {
         for app_name in [

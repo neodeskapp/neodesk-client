@@ -1,10 +1,11 @@
 use super::{
+    install_commands::validate_app_name,
     installer_shell::{
         get_system_executable, path_for_cmd_assignment, path_for_cmd_environment,
         run_elevated_and_wait, trusted_install_environment,
         BATCH_SHORTCUT_DECODE_FAILURE_EXIT_CODE, CMD_RELATIVE_PATH,
     },
-    validate_install_app_name, ResultType,
+    ResultType,
 };
 use hbb_common::{
     bail, log,
@@ -144,7 +145,9 @@ fn verified_install_parameters(script: &InstallCommandScript) -> ResultType<Stri
 }
 
 pub(super) fn run_cmds(cmds: String, show: bool, tip: &str) -> ResultType<()> {
-    validate_install_app_name(&crate::get_app_name())?;
+    if let Err(err) = validate_app_name(&crate::get_app_name()) {
+        bail!(err);
+    }
     let script = write_install_script(cmds)?;
     let cmd_path = get_system_executable(CMD_RELATIVE_PATH)?;
     let parameters = verified_install_parameters(&script)?;
