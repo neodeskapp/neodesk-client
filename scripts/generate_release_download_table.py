@@ -35,20 +35,24 @@ def _link(label: str, repo: str, tag: str, name: str | None) -> str:
     return f"[{label}]({_url(repo, tag, name)})"
 
 
+# A package's version: 1.5.0, or a pre-release such as 1.5.0-rc.4 or 1.5.0-dev.42.
+# It starts with a digit, so neodesk-template-x86_64.msi is not taken for the MSI.
+_VERSION = r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?"
+
+
 def _classify_desktop(name: str) -> tuple[str, str, str] | None:
     """Return (platform, arch, kind) for full desktop assets."""
     # neodesk-1.5.0-windows-x86_64.exe / .msi (older releases: neodesk-1.5.0-x86_64.exe).
-    # The version starts with a digit, so neodesk-template-x86_64.msi is not taken for the MSI.
-    m = re.match(r"^neodesk-\d[^-]*-(?:windows-)?(x86_64|aarch64)\.(exe|msi)$", name)
+    m = re.match(rf"^neodesk-{_VERSION}-(?:windows-)?(x86_64|aarch64)\.(exe|msi)$", name)
     if m:
         return "windows", m.group(1), m.group(2)
     # neodesk-1.5.0-windows-x86_64.tar.gz
-    m = re.match(r"^neodesk-[^-]+-windows-(x86_64|aarch64)\.tar\.gz$", name)
+    m = re.match(rf"^neodesk-{_VERSION}-windows-(x86_64|aarch64)\.tar\.gz$", name)
     if m:
         return "windows", m.group(1), "portable"
     # neodesk-1.5.0-linux-x86_64.deb / .rpm / -suse.rpm / -portable.tar.gz
     m = re.match(
-        r"^neodesk-[^-]+-linux-(x86_64|aarch64)(?:-(suse))?(\.deb|\.rpm|-portable\.tar\.gz)$",
+        rf"^neodesk-{_VERSION}-linux-(x86_64|aarch64)(?:-(suse))?(\.deb|\.rpm|-portable\.tar\.gz)$",
         name,
     )
     if m:
@@ -64,7 +68,7 @@ def _classify_desktop(name: str) -> tuple[str, str, str] | None:
         if ext == "-portable.tar.gz":
             return "linux", arch, "portable"
     # neodesk-1.5.0-macos-x86_64.dmg / -portable.zip (older releases: .tar.gz)
-    m = re.match(r"^neodesk-[^-]+-macos-(x86_64|aarch64)(\.dmg|-portable\.zip|\.tar\.gz)$", name)
+    m = re.match(rf"^neodesk-{_VERSION}-macos-(x86_64|aarch64)(\.dmg|-portable\.zip|\.tar\.gz)$", name)
     if m:
         kind = "dmg" if m.group(2) == ".dmg" else "portable"
         return "macos", m.group(1), kind

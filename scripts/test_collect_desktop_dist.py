@@ -232,8 +232,45 @@ def check_signature(tmp: Path) -> None:
     expect(result.returncode != 0, "sign ran without a key")
 
 
+# The packages of a pre-release, as desktop-v1.5.0-rc.4 published them.
+PRERELEASE = "1.5.0-rc.4"
+PRERELEASE_PACKAGES = [
+    f"neodesk-{PRERELEASE}-{name}"
+    for name in (
+        "windows-x86_64.exe", "windows-x86_64.msi", "windows-x86_64.tar.gz",
+        "windows-aarch64.exe", "windows-aarch64.msi", "windows-aarch64.tar.gz",
+        "linux-x86_64.deb", "linux-x86_64.rpm", "linux-x86_64-suse.rpm", "linux-x86_64-portable.tar.gz",
+        "linux-aarch64.deb", "linux-aarch64.rpm", "linux-aarch64-suse.rpm", "linux-aarch64-portable.tar.gz",
+        "macos-x86_64.dmg", "macos-x86_64-portable.zip", "macos-aarch64.dmg", "macos-aarch64-portable.zip",
+    )
+]
+
+
+def release_notes(assets: Path, out: Path, *extra: str) -> str:
+    result = subprocess.run(
+        [sys.executable, str(HERE / "generate_release_download_table.py"), "--product", "desktop",
+         "--asset-dir", str(assets), "--repo", "neodeskapp/neodesk-client", "--tag", f"desktop-v{PRERELEASE}",
+         "--release-name", f"NeoDesk Client {PRERELEASE}", "-o", str(out), *extra],
+        capture_output=True, text=True,
+    )
+    expect(result.returncode == 0, f"download table failed: {result.stderr}")
+    return out.read_text(encoding="utf-8")
+
+
+def check_prerelease_table(tmp: Path) -> None:
+    assets = tmp / "assets"
+    for name in PRERELEASE_PACKAGES + ["neodesk-template-x86_64.msi", "SHA256SUMS"]:
+        write(assets / name)
+    notes = release_notes(assets, tmp / "notes.md")
+    table = notes.split("### Other assets")[0]
+    base = f"https://github.com/neodeskapp/neodesk-client/releases/download/desktop-v{PRERELEASE}/"
+    for name in PRERELEASE_PACKAGES:
+        expect(f"({base}{name})" in table, f"the download table of a pre-release does not link {name}")
+    expect("neodesk-template-" not in table, "download table links an MSI template as an installer")
+
+
 def main() -> int:
-    for check in (check_full, check_partial, check_empty, check_signature):
+    for check in (check_full, check_partial, check_empty, check_signature, check_prerelease_table):
         with tempfile.TemporaryDirectory(prefix="neodesk-collect-") as value:
             check(Path(value))
         print(f"{check.__name__}: OK")
