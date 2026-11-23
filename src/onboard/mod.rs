@@ -422,6 +422,17 @@ fn has_server() -> bool {
     .is_empty()
 }
 
+/// Leaves a failed join: the screens show the first start again, or Home
+/// once the computer has a server (set up by hand).
+pub fn dismiss_failed_join() {
+    STATE.update(|s| {
+        if s.phase == Phase::JoinFailed {
+            s.phase = Phase::NotSetUp;
+            s.clear_error();
+        }
+    });
+}
+
 /// The console of an earlier join, where a bare code goes.
 fn known_console() -> Option<Console> {
     Console::from_base(&Config::get_option(OPTION_CONSOLE))
@@ -446,7 +457,14 @@ pub fn redeem_join(text: String) {
     match link::parse(&text) {
         Ok(invite) if invite.kind == Some(Kind::Support) => redeem_support(text),
         Ok(invite) => {
-            STATE.update(|s| s.link = Some(text.trim().to_owned()));
+            // The screens see at once that this join runs, also when an
+            // earlier one failed and its screen is still up.
+            STATE.update(|s| {
+                s.link = Some(text.trim().to_owned());
+                s.phase = Phase::Joining;
+                s.join_step = 0;
+                s.clear_error();
+            });
             std::thread::spawn(move || {
                 let _ = join_now(invite.console, &invite.code);
             });

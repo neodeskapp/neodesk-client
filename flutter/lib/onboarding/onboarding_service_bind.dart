@@ -25,6 +25,9 @@ class BindOnboardingNative implements OnboardingNative {
           allow: allow, clipboard: clipboard, fileTransfer: fileTransfer);
 
   @override
+  void dismissFailedJoin() => bind.mainOnboardDismissFailedJoin();
+
+  @override
   void endSupport() => bind.mainOnboardEndSupport();
 
   @override

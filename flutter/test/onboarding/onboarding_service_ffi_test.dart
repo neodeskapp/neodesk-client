@@ -41,6 +41,9 @@ class FakeNative implements OnboardingNative {
       'consent $allow${clipboard ? ' clipboard' : ''}${fileTransfer ? ' file_transfer' : ''}');
 
   @override
+  void dismissFailedJoin() => _call('dismiss failed join');
+
+  @override
   void endSupport() => _call('end');
 
   @override
@@ -200,6 +203,25 @@ void main() {
       'end',
       'support neodesk://support/desk.lan/7KQ4M2XD',
     ]);
+  });
+
+  test('Set up by hand leaves a failed join in the core, then shows Home',
+      () async {
+    final native = FakeNative()
+      ..stateMap = {'phase': 'joinFailed', 'error': 'refused'};
+    native.onCall = (call) {
+      if (call == 'dismiss failed join') {
+        native.stateMap = {'phase': 'notSetUp', 'hasServer': false};
+      }
+    };
+    final service = serviceOf(native);
+    service.dismissFailedJoin();
+    expect(native.calls, ['dismiss failed join']);
+    expect(service.current.phase, OnboardingPhase.notSetUp);
+    // The server saved by hand: the next read is Home.
+    native.stateMap = {'phase': 'notSetUp', 'hasServer': true};
+    service.refresh();
+    expect(service.current.phase, OnboardingPhase.joined);
   });
 
   test('files of the session come from the core, newest last', () {

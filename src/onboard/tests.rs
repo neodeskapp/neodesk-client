@@ -795,6 +795,42 @@ fn a_handed_over_token_keeps_the_status_it_came_with() {
     assert_eq!(read(payload(None, "987654321")), None);
 }
 
+/// The app's own state, which these steps share; one test runs them in turn.
+#[test]
+fn the_setup_screen_sees_each_join_and_can_leave_a_failed_one() {
+    // A join failed; its screen is up, or the setup screen after Try another
+    // code.
+    super::STATE.update(|s| {
+        s.phase = Phase::JoinFailed;
+        s.fail(&OnboardError::Unreachable);
+    });
+    let closed = {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let link = format!("http://127.0.0.1:{closed}/join/ABCDEF23");
+    super::redeem_join(link.clone());
+    // The next join shows at once, so a quick second failure is a change the
+    // screens see.
+    let state = super::STATE.get();
+    assert_eq!(state.phase, Phase::Joining);
+    assert_eq!(state.error, None);
+    assert_eq!(state.link.as_deref(), Some(link.as_str()));
+    wait_for("second failure", || super::STATE.get().phase == Phase::JoinFailed);
+    assert!(super::STATE.get().error.is_some());
+
+    // Set up by hand leaves the failed join behind.
+    super::dismiss_failed_join();
+    let state = super::STATE.get();
+    assert_eq!(state.phase, Phase::NotSetUp);
+    assert_eq!(state.error, None);
+
+    super::STATE.update(|s| s.phase = Phase::Joining);
+    super::dismiss_failed_join();
+    assert_eq!(super::STATE.get().phase, Phase::Joining);
+    super::STATE.update(|s| *s = State::default());
+}
+
 #[test]
 fn quick_support_chat_keeps_the_lines_of_both_sides() {
     let state = SharedState::default();

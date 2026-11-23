@@ -7,6 +7,7 @@ import 'package:flutter_hbb/common/widgets/bd/bd.dart';
 import 'package:flutter_hbb/common/widgets/bd/bd_dialog_host.dart';
 import 'package:flutter_hbb/common/widgets/branding_logo.dart';
 import 'package:flutter_hbb/consts.dart';
+import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:get/get.dart';
@@ -34,12 +35,20 @@ bool onboardingShowsInPlaceOfHome(OnboardingState s, bool joinFlowOpen) {
 /// First start and joining in the main window: follows the service and
 /// opens the hand setup.
 class OnboardingFlow extends StatefulWidget {
-  const OnboardingFlow({super.key, required this.service, required this.onFinished});
+  const OnboardingFlow({
+    super.key,
+    required this.service,
+    required this.onFinished,
+    this.onSetUpByHand = openServerSetup,
+  });
 
   final OnboardingService service;
 
-  /// Done on the joined screen.
+  /// Done on the joined screen, and when the hand setup takes over.
   final VoidCallback onFinished;
+
+  /// Where Set up by hand leads: the Server settings.
+  final VoidCallback onSetUpByHand;
 
   @override
   State<OnboardingFlow> createState() => _OnboardingFlowState();
@@ -57,7 +66,12 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       if (!mounted) return;
       setState(() {
         _state = s;
-        if (s.phase == OnboardingPhase.joining) _retry = false;
+        // A join from the setup screen of Try another code shows its own
+        // progress and result.
+        if (s.phase == OnboardingPhase.joining ||
+            s.phase == OnboardingPhase.joinFailed) {
+          _retry = false;
+        }
         if (s.accentHex != null && s.accentHex!.isNotEmpty) {
           BrandingModel.current.accentColor.value = s.accentHex!;
         }
@@ -69,6 +83,14 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   void dispose() {
     _sub?.cancel();
     super.dispose();
+  }
+
+  /// Leaves a failed join behind, so that Back from the settings shows
+  /// Home once a server is set, and the first start otherwise.
+  void _setUpByHand() {
+    widget.service.dismissFailedJoin();
+    widget.onFinished();
+    widget.onSetUpByHand();
   }
 
   Widget? _logo() {
@@ -91,7 +113,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         !onboardingShowsInPlaceOfHome(s, true)) {
       return FirstStartView(
         service: widget.service,
-        onSetUpByHand: () => showSetupByHand(),
+        onSetUpByHand: _setUpByHand,
       );
     }
     return Obx(() {
@@ -105,13 +127,29 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           widget.onFinished();
         },
         onTryAnother: () => setState(() => _retry = true),
-        onSetUpByHand: () => showSetupByHand(),
+        onSetUpByHand: _setUpByHand,
         onTryAgain: (s.link ?? '').isEmpty
             ? null
             : () => widget.service.redeemJoin(s.link!),
       );
     });
   }
+}
+
+/// Counts the servers saved by hand, so pages that show the server read it
+/// again.
+final handSetupSaved = 0.obs;
+
+/// Set up by hand from the first start: Settings opens at Server in place of
+/// Home, with the hand setup over it. Back leads to Home once a server is
+/// set. Without the Server settings only the hand setup opens.
+void openServerSetup() {
+  if (!DesktopSettingPage.tabKeys.contains(SettingsTabKey.network)) {
+    showSetupByHand();
+    return;
+  }
+  DesktopSettingPage.switch2page(SettingsTabKey.network);
+  WidgetsBinding.instance.addPostFrameCallback((_) => showSetupByHand());
 }
 
 /// The hand setup dialog with today's server settings, saved through
@@ -143,6 +181,7 @@ Future<void> showSetupByHand() async {
             ),
           );
           if (ok) {
+            handSetupSaved.value++;
             close();
             return const HandSetupErrors();
           }

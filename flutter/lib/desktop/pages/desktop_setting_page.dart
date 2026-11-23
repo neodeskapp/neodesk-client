@@ -1605,6 +1605,11 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   Widget serverSummary() {
     final hideServer =
         bind.mainGetBuildinOption(key: kOptionHideServerSetting) == 'Y';
+    // Read again once a server is set up by hand, also from the first start.
+    return Obx(() => _serverSummary(hideServer, handSetupSaved.value));
+  }
+
+  Widget _serverSummary(bool hideServer, int _) {
     return futureBuilder(
       future: bind.mainGetOptions(),
       hasData: (raw) {

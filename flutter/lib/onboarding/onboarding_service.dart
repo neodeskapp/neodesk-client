@@ -296,6 +296,9 @@ abstract class OnboardingService {
 
   /// Done on the joined screen: the app goes to Home.
   void dismissJoined() {}
+
+  /// Set up by hand after a failed join: the failure is left behind.
+  void dismissFailedJoin() {}
 }
 
 /// What people paste into the invite field.
@@ -471,6 +474,14 @@ class FakeOnboardingService extends OnboardingService {
   @override
   void dismissJoined() {
     calls.add('dismissJoined');
+  }
+
+  @override
+  void dismissFailedJoin() {
+    calls.add('dismissFailedJoin');
+    if (_state.phase == OnboardingPhase.joinFailed) {
+      emit(_state.copyWith(phase: OnboardingPhase.notSetUp, clearError: true));
+    }
   }
 }
 

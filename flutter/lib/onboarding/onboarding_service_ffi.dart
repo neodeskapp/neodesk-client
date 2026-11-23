@@ -36,6 +36,7 @@ abstract class OnboardingNative {
   void redeemJoin(String text);
   void redeemSupport(String text);
   void consent(bool allow, bool clipboard, bool fileTransfer);
+  void dismissFailedJoin();
   void endSupport();
   void sendChat(String text);
 }
@@ -255,6 +256,12 @@ class FfiOnboardingService extends OnboardingService {
   @override
   Future<void> endSupport() async {
     _native.endSupport();
+    _called();
+  }
+
+  @override
+  void dismissFailedJoin() {
+    _native.dismissFailedJoin();
     _called();
   }
 

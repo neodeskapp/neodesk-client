@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/onboarding/first_start_view.dart';
 import 'package:flutter_hbb/onboarding/joining_view.dart';
+import 'package:flutter_hbb/onboarding/onboarding_flow.dart';
 import 'package:flutter_hbb/onboarding/onboarding_service.dart';
 import 'package:flutter_hbb/onboarding/setup_by_hand.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,33 @@ import 'fixtures.dart';
 import 'harness.dart';
 
 void main() {
+  testWidgets('Set up by hand leads from the setup screen to the server settings',
+      (tester) async {
+    useLanguage('en');
+    final svc = FakeOnboardingService();
+    var settings = 0;
+    var finished = 0;
+    await pumpScreen(
+        tester,
+        mainWindow(OnboardingFlow(
+            service: svc,
+            onFinished: () => finished++,
+            onSetUpByHand: () => settings++)),
+        size: mainSize);
+    await tester.tap(find.text('Set up by hand'));
+    expect(settings, 1);
+    // The join flow closes, so Back from the settings shows Home once a
+    // server is set.
+    expect(finished, 1);
+    expect(svc.calls, ['dismissFailedJoin']);
+
+    final failed = FakeOnboardingService(const OnboardingState(
+        phase: OnboardingPhase.joinFailed, errorKind: OnboardingError.refused));
+    failed.dismissFailedJoin();
+    expect(failed.current.phase, OnboardingPhase.notSetUp);
+    expect(failed.current.errorKind, isNull);
+  });
+
   forBothThemes('first start', (tester, b) async {
     final svc = FakeOnboardingService();
     await pumpScreen(

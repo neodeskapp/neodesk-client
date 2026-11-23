@@ -1242,6 +1242,13 @@ pub fn main_onboard_consent(allow: bool, clipboard: bool, file_transfer: bool) -
     SyncReturn(())
 }
 
+/// Leaves a failed join, for Set up by hand; the state follows.
+pub fn main_onboard_dismiss_failed_join() -> SyncReturn<()> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::onboard::dismiss_failed_join();
+    SyncReturn(())
+}
+
 /// Ends the quick support session.
 pub fn main_onboard_end_support() -> SyncReturn<()> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
