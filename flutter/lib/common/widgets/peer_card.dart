@@ -1485,8 +1485,8 @@ void _rdpDialog(String id) async {
                                     onPressed: () =>
                                         secure.value = !secure.value,
                                     icon: Icon(secure.value
-                                        ? NdIcons.visibilityOff
-                                        : NdIcons.visibility))),
+                                        ? NdIcons.hide
+                                        : NdIcons.view))),
                             controller: passwordController,
                           ).workaroundFreezeLinuxMint()),
                     ),

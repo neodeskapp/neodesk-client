@@ -74,7 +74,7 @@ const peersEmptyIcons = <String, IconData>{
   LoadEvent.favorite: NdIcons.star,
   LoadEvent.lan: NdIcons.lan,
   LoadEvent.addressBook: NdIcons.contacts,
-  LoadEvent.group: NdIcons.workspaces,
+  LoadEvent.group: NdIcons.groups,
 };
 
 /// An empty peer list: the list's glyph, muted, over its text.

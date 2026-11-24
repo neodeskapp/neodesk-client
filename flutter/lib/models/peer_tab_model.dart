@@ -36,7 +36,7 @@ class PeerTabModel with ChangeNotifier {
     NdIcons.star,
     NdIcons.lan,
     NdIcons.contacts,
-    NdIcons.workspaces,
+    NdIcons.groups,
   ];
   List<bool> isEnabled = List.from([
     true,

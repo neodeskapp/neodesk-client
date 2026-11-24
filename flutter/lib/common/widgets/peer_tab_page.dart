@@ -553,7 +553,7 @@ class _PeerTabPageState extends State<PeerTabPage>
                   showToast(translate('Successful'));
                 });
               },
-              child: Icon(NdIcons.tag))
+              child: Icon(NdIcons.tags))
           .marginOnly(left: !(isDesktop || isWebDesktop) ? 11 : 6),
     );
   }
@@ -598,7 +598,7 @@ class _PeerTabPageState extends State<PeerTabPage>
         toolTip: translate('Toggle Tags'),
         hoverableWhenfalse: hideAbTagsPanel,
         child: Icon(
-          NdIcons.tag,
+          NdIcons.tags,
           size: 18,
         ),
         onTap: () async {
