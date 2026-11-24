@@ -3220,8 +3220,8 @@ void changeSocks5Proxy() async {
                             suffixIcon: IconButton(
                                 onPressed: () => obscure.value = !obscure.value,
                                 icon: Icon(obscure.value
-                                    ? NdIcons.visibilityOff
-                                    : NdIcons.visibility))),
+                                    ? NdIcons.hide
+                                    : NdIcons.view))),
                         controller: pwdController,
                         enabled: !isOptFixed,
                         maxLength: bind.mainMaxEncryptLen(),

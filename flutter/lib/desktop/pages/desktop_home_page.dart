@@ -724,7 +724,7 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(NdIcons.key, color: context.nd.accent),
+          Icon(NdIcons.password, color: context.nd.accent),
           Text(translate("Set Password")).paddingOnly(left: 10),
         ],
       ),

@@ -211,7 +211,7 @@ List<Widget> ServerConfigImportExportWidgets(
     Tooltip(
         message: translate('Export Server Config'),
         child: IconButton(
-            icon: Icon(NdIcons.contentCopy, color: ndColors.textMuted), onPressed: export))
+            icon: Icon(NdIcons.copy, color: ndColors.textMuted), onPressed: export))
   ];
 }
 

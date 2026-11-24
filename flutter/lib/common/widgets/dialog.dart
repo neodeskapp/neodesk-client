@@ -507,9 +507,9 @@ class DialogTextField extends StatelessWidget {
   final int? maxLength;
 
   static const kUsernameTitle = 'Username';
-  static const kUsernameIcon = Icon(NdIcons.accountCircle);
+  static const kUsernameIcon = Icon(NdIcons.user);
   static const kPasswordTitle = 'Password';
-  static const kPasswordIcon = Icon(NdIcons.lock);
+  static const kPasswordIcon = Icon(NdIcons.password);
 
   DialogTextField(
       {Key? key,
@@ -881,7 +881,7 @@ class _PasswordWidgetState extends State<PasswordWidget> {
       suffixIcon: IconButton(
         icon: Icon(
             // Based on passwordVisible state choose the icon
-            _passwordVisible ? NdIcons.visibility : NdIcons.visibilityOff,
+            _passwordVisible ? NdIcons.view : NdIcons.hide,
             color: MyTheme.lightTheme.primaryColor),
         onPressed: () {
           // Update the state i.e. toggle the state of passwordVisible variable
@@ -2606,7 +2606,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(NdIcons.key, color: MyTheme.accent),
+          Icon(NdIcons.password, color: MyTheme.accent),
           Text(translate(peer.password.isEmpty
                   ? 'Set shared password'
                   : 'Change Password'))
@@ -2621,7 +2621,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
               decoration: InputDecoration(
                 suffixIcon: IconButton(
                   icon: Icon(
-                      passwordVisible ? NdIcons.visibility : NdIcons.visibilityOff,
+                      passwordVisible ? NdIcons.view : NdIcons.hide,
                       color: MyTheme.lightTheme.primaryColor),
                   onPressed: () {
                     setState(() {
