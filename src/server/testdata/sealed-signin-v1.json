@@ -1,0 +1,9 @@
+{
+  "comment": "NeoDesk sealed sign-in, format 1 (made-up keys and values). packet = crypto_box_seal(plaintext, x25519_public); x25519_public = crypto_sign_ed25519_pk_to_curve25519(ed25519_public); x25519_secret = crypto_sign_ed25519_sk_to_curve25519 of the key pair of ed25519_seed.",
+  "ed25519_seed_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+  "ed25519_public_hex": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12",
+  "x25519_public_hex": "cc4f2cdb695dd766f34118eb67b98652fed1d8bc49c330b119bbfa8a64989378",
+  "x25519_secret_hex": "90e7595fc89e52fdfddce9c6a43d74dbf6047025ee0462d2d172e8b6a2841d6e",
+  "plaintext": "{\"v\":1,\"device_id\":\"123456789\",\"session\":\"9f1c2b7e-0d4a-4c3b-8a55-5e6f7a8b9c0d\",\"username\":\"LAB\\\\lab-admin\",\"password\":\"Made-Up-Vector-Pass-ä€@\\\\<&>\",\"form\":\"name_password\",\"not_after\":1795000000,\"nonce\":\"AAECAwQFBgcICQoLDA0ODw\"}",
+  "packet_base64": "Fde3UGT90co7aIfXWzfWr8H9JXPtnd/vONZ9w83K+RviwnHcYsLzMqJT+lqaVHkyvYapc+QMuHgafUDHk8JcUCu8oJYb4YIYuVrq+tYb/7EEAqemI5Sk1cgZbmtcx8athoAFGItxeEBtV7U9yftLqnkQazbiBJdiYqjvvetOoi+Z9Onz+03lVvVkPYW1NqQnVRCoZJ9yUc+E0J14+JtkVYTtXfVz//P/Mcl6AeSMNSvK68NtzjWcUSLPD+F2WZGvlDUv/ycKARQAjAEdIa4U+8tqFjXkIsBsB15G26Eewt5gEg5b3dpd1DYzEp3npSB6VxQu3AKTgkBDdtXi+wvgsvk0MfcCVq7M+uicCwVx2wnEoKXU5amPcA=="
+}

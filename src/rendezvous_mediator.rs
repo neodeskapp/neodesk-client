@@ -40,6 +40,7 @@ fn connection_meta(
     ConnectionMeta {
         control_permissions,
         controlled_context,
+        relay_uuid: None,
     }
 }
 

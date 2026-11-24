@@ -2358,6 +2358,42 @@ async fn lock_screen_2() {
     lock_screen().await;
 }
 
+/// Saved sign-in (L469): Ctrl+Alt+Del. Called on a thread of its own, not
+/// in a tokio runtime.
+#[cfg(windows)]
+pub(crate) fn nd_signin_sas() {
+    allow_err!(send_sas());
+}
+
+/// Saved sign-in (L469): the text as Unicode characters (KEYEVENTF_UNICODE),
+/// whatever the keyboard layout, after letting go of the modifiers so none
+/// turns a character into a shortcut
+#[cfg(windows)]
+pub(crate) fn nd_signin_text(text: &str) {
+    crate::platform::windows::try_change_desktop();
+    let mut en = ENIGO.lock().unwrap();
+    for key in [
+        Key::Shift,
+        Key::RightShift,
+        Key::Control,
+        Key::RightControl,
+        Key::Alt,
+        Key::RightAlt,
+        Key::Meta,
+        Key::RWin,
+    ] {
+        en.key_up(key);
+    }
+    en.key_sequence(text);
+}
+
+/// Saved sign-in (L469): a key by its virtual key code, Tab or Return
+#[cfg(windows)]
+pub(crate) fn nd_signin_key(key: Key) {
+    crate::platform::windows::try_change_desktop();
+    ENIGO.lock().unwrap().key_click(key);
+}
+
 #[cfg(windows)]
 #[tokio::main(flavor = "current_thread")]
 async fn send_sas() -> ResultType<()> {
