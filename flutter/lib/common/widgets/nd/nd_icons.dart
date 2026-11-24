@@ -58,7 +58,6 @@ class NdIcons {
   static const IconData deleteForever = IconData(0xe92b, fontFamily: _f);
   static const IconData description = IconData(0xe873, fontFamily: _f);
   static const IconData desktopWindows = IconData(0xe30c, fontFamily: _f);
-  static const IconData devices = IconData(0xe326, fontFamily: _f);
   static const IconData dragHandle = IconData(0xe25d, fontFamily: _f);
   static const IconData dragIndicator = IconData(0xe945, fontFamily: _f);
   static const IconData dragPan = IconData(0xf71e, fontFamily: _f);

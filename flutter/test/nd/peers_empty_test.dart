@@ -1,17 +1,27 @@
-// The empty peer lists show their tab's glyph (L481), here on Home with no
-// recent sessions, as the app lays it out (ConnectionPage: ConnectHeader,
-// PeerTabPage's header, then the list).
+// An empty peer list says so in one muted sentence and says what to do on a
+// second line, as the console's empty states do: no icon (L481). Here on
+// Home with no recent sessions, as the app lays it out (ConnectionPage:
+// ConnectHeader, PeerTabPage's header, then the list).
+
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart' show translate;
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/common/widgets/peers_view.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
-import 'package:flutter_hbb/models/peer_tab_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fixtures.dart';
 import 'harness.dart';
+
+const _lists = [
+  LoadEvent.recent,
+  LoadEvent.favorite,
+  LoadEvent.lan,
+  LoadEvent.addressBook,
+  LoadEvent.group,
+];
 
 Widget _homeEmpty() => Builder(builder: (context) {
       final left = ThisComputerColumn(
@@ -42,29 +52,40 @@ Widget _homeEmpty() => Builder(builder: (context) {
             search: NdSearchField(
                 placeholder: tr('nd-search'), width: 170, height: 30),
           ),
-          Expanded(
-            child: PeersEmpty(
-              icon: peersEmptyIcons[LoadEvent.recent]!,
-              text: translate('empty_recent_tip'),
-            ),
-          ),
+          Expanded(child: peersEmpty(LoadEvent.recent)),
         ],
       );
       return mainWindow(HomeLayout(left: left, right: right));
     });
 
 void main() {
-  test('each empty list shows the glyph of its tab', () {
-    final events = [
-      LoadEvent.recent,
-      LoadEvent.favorite,
-      LoadEvent.lan,
-      LoadEvent.addressBook,
-      LoadEvent.group,
-    ];
-    for (var i = 0; i < events.length; i++) {
-      expect(peersEmptyIcons[events[i]], PeerTabModel.icons[i],
-          reason: events[i]);
+  test('every list has its own sentence and what-to-do line', () {
+    for (final lang in ['en', 'de']) {
+      useLanguage(lang);
+      final seen = <String>{};
+      for (final list in _lists) {
+        final keys = peersEmptyTexts[list];
+        expect(keys, isNotNull, reason: list);
+        for (final key in [keys!.$1, keys.$2]) {
+          final text = translate(key);
+          expect(text, isNot(key), reason: '$lang $key');
+          expect(text, isNot(contains('\n')), reason: '$lang $key');
+          expect(seen.add(text), isTrue, reason: '$lang $key repeats');
+        }
+      }
+    }
+  });
+
+  test('the old cheerful texts are gone from every language file', () {
+    final old = RegExp(r'"empty_(recent|favorite|lan|address_book)_tip"');
+    final files = Directory('../src/lang')
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.rs'))
+        .toList();
+    expect(files, hasLength(greaterThan(40)));
+    for (final f in files) {
+      expect(old.hasMatch(f.readAsStringSync()), isFalse, reason: f.path);
     }
   });
 
@@ -72,12 +93,19 @@ void main() {
     forBothThemes('home without recent sessions ($lang)', (tester, b) async {
       await pumpScreen(tester, _homeEmpty(),
           size: mainSize, brightness: b, lang: lang);
-      final empty = find.descendant(
-          of: find.byType(PeersEmpty), matching: find.byType(Icon));
-      final icon = tester.widget<Icon>(empty);
-      expect(icon.icon, NdIcons.history);
-      expect(icon.color,
-          (b == Brightness.dark ? NdColors.dark : NdColors.light).textMuted);
+      final empty = find.byType(PeerListEmpty);
+      expect(empty, findsOneWidget);
+      expect(find.descendant(of: empty, matching: find.byType(Icon)),
+          findsNothing);
+      final muted =
+          (b == Brightness.dark ? NdColors.dark : NdColors.light).textMuted;
+      for (final key in [
+        peersEmptyTexts[LoadEvent.recent]!.$1,
+        peersEmptyTexts[LoadEvent.recent]!.$2,
+      ]) {
+        final text = tester.widget<Text>(find.text(translate(key)));
+        expect(text.style?.color, muted, reason: key);
+      }
       await shot(tester, 'client-home-no-recent-$lang', b);
     });
   }
