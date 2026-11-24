@@ -17,7 +17,7 @@ import '../../common.dart';
 import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
 import 'peer_card.dart';
-import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 typedef PeerFilter = bool Function(Peer peer);
 typedef PeerCardBuilder = Widget Function(Peer peer);
@@ -67,6 +67,42 @@ RxList<RxString> get obslist => [peerSearchText, peerSort].obs;
 
 final peerSearchTextController =
     TextEditingController(text: peerSearchText.value);
+
+/// The glyph of an empty list: its tab's (PeerTabModel.icons).
+const peersEmptyIcons = <String, IconData>{
+  LoadEvent.recent: NdIcons.history,
+  LoadEvent.favorite: NdIcons.star,
+  LoadEvent.lan: NdIcons.lan,
+  LoadEvent.addressBook: NdIcons.contacts,
+  LoadEvent.group: NdIcons.workspaces,
+};
+
+/// An empty peer list: the list's glyph, muted, over its text.
+class PeersEmpty extends StatelessWidget {
+  const PeersEmpty({super.key, required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: context.nd.textMuted, size: 40)
+              .paddingOnly(bottom: 10),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Theme.of(context).tabBarTheme.labelColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _PeersView extends StatefulWidget {
   final Peers peers;
@@ -188,25 +224,10 @@ class _PeersViewState extends State<_PeersView>
       child: Consumer<Peers>(builder: (context, peers, child) {
         if (peers.peers.isEmpty) {
           gFFI.peerTabModel.setCurrentTabCachedPeers([]);
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  NdIcons.sentimentVeryDissatisfied,
-                  color: Theme.of(context).tabBarTheme.labelColor,
-                  size: 40,
-                ).paddingOnly(bottom: 10),
-                Text(
-                  translate(
-                    _emptyMessages[widget.peers.loadEvent] ?? 'Empty',
-                  ),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Theme.of(context).tabBarTheme.labelColor,
-                  ),
-                ),
-              ],
+          return PeersEmpty(
+            icon: peersEmptyIcons[widget.peers.loadEvent] ?? NdIcons.devices,
+            text: translate(
+              _emptyMessages[widget.peers.loadEvent] ?? 'Empty',
             ),
           );
         } else {
