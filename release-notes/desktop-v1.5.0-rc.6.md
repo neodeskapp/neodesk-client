@@ -8,7 +8,7 @@ This pre-release installs on Windows, runs next to stock RustDesk on the same co
 
 A Windows computer that joined with an invite lost its key at the next restart. The server kept showing it online, but every session to it ended with "could not be secured". The join now asks the NeoDesk service for its key, so the server holds the key the service signs with, and the computer stays reachable after a restart. A computer set up by hand with a pairing code gets the service's key too.
 
-With the server 3.6.0-rc.4, a computer that comes back with another key anyway shows as refused, with **Approve new key** on its device page, instead of failing every session.
+With the server 3.6.0-rc.4, a computer that comes back with another key anyway is refused and shows offline, instead of showing online while every session fails, and Home and the tray say that the server refuses this computer's key. Running its invite again then offers **Approve new key** on its device page in the console.
 
 ### The Windows installer installs
 
