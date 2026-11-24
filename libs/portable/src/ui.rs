@@ -93,7 +93,8 @@ struct Splash {
     logo_bitmap: Option<nwg::Bitmap>,
     bar_width: usize,
     bar_height: u32,
-    shown: RefCell<(bool, usize)>,
+    /// The step and bar width on screen; None until the first tick.
+    shown: RefCell<Option<(bool, usize)>>,
 }
 
 impl Splash {
@@ -110,16 +111,18 @@ impl Splash {
             self.bar_width * DONE.load(Ordering::Relaxed).min(total) / total
         };
         let mut shown = self.shown.borrow_mut();
-        if *shown == (starting, width) {
+        if *shown == Some((starting, width)) {
             return;
         }
-        if shown.0 != starting {
+        // The text is set here, not when the label is built: set then, the
+        // label paints the dialog grey behind it until the first change.
+        if shown.map(|(s, _)| s) != Some(starting) {
             let (unpacking, start) = texts();
             self.label.set_text(if starting { start } else { unpacking });
         }
         self.fill.set_visible(width > 0);
         self.fill.set_size(width.max(1) as u32, self.bar_height);
-        *shown = (starting, width);
+        *shown = Some((starting, width));
     }
 }
 
@@ -146,7 +149,6 @@ fn logo_bitmap(
 fn build() -> Result<Rc<Splash>, nwg::NwgError> {
     let s = scale();
     let px = |v: i32| (v as f64 * s).round() as i32;
-    let (unpacking, _) = texts();
     let mut ui = Splash::default();
 
     let decoder = nwg::ImageDecoder::new()?;
@@ -194,7 +196,7 @@ fn build() -> Result<Rc<Splash>, nwg::NwgError> {
         .size((content, px(TEXT_SIZE * 2)))
         .font(Some(&ui.font))
         .background_color(Some(BG))
-        .text(unpacking)
+        .text("")
         .build(&mut ui.label)?;
     ui.bar_width = content.max(1) as usize;
     ui.bar_height = px(BAR_HEIGHT).max(2) as u32;
