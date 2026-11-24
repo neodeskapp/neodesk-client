@@ -6,8 +6,8 @@ import 'package:draggable_float_widget/draggable_float_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/shared_state.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/mobile/pages/home_page.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
@@ -180,7 +180,7 @@ class ChatModel with ChangeNotifier {
             }
           },
           backgroundColor: Theme.of(context).colorScheme.primary,
-          child: Icon(BdIcons.chat, color: bdColors.onAccent),
+          child: Icon(NdIcons.chat, color: ndColors.onAccent),
         ),
       );
     });

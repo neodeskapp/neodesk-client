@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -24,11 +24,11 @@ Widget _home({
 }) {
   return Builder(builder: (context) {
     final status = offline
-        ? HomeStatus(BdStatusKind.bad,
-            tr('bd-home-status-offline', [fernServer]),
-            linkLabel: tr('bd-home-try-now'), onLink: () {})
+        ? HomeStatus(NdStatusKind.bad,
+            tr('nd-home-status-offline', [fernServer]),
+            linkLabel: tr('nd-home-try-now'), onLink: () {})
         : HomeStatus(
-            BdStatusKind.good, tr('bd-home-status-ready', [fernServer]));
+            NdStatusKind.good, tr('nd-home-status-ready', [fernServer]));
     final left = ThisComputerColumn(
       id: '418205739',
       password: 'k7m2qx9w',
@@ -45,10 +45,10 @@ Widget _home({
           : null,
     );
     final list = empty
-        ? PeerListEmpty(text: tr('bd-home-empty-recent'))
+        ? PeerListEmpty(text: tr('nd-home-empty-recent'))
         : Column(children: [
             for (var i = 0; i < _rows.length; i++)
-              BdPeerRow(
+              NdPeerRow(
                 name: _rows[i].$1,
                 id: _rows[i].$2,
                 platform: _rows[i].$3,
@@ -65,26 +65,26 @@ Widget _home({
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ConnectHeader(
-          field: const BdField(large: true, mono: true),
+          field: const NdField(large: true, mono: true),
           onConnect: () {},
-          moreWays: [(tr('bd-home-files-only'), () {})],
+          moreWays: [(tr('nd-home-files-only'), () {})],
         ),
         const SizedBox(height: 22),
         PeerListHeader<int>(
           tabs: [
-            BdTab(0, tr('bd-tab-recent')),
-            BdTab(1, tr('bd-tab-favourites')),
-            BdTab(2, tr('bd-tab-network')),
-            BdTab(3, tr('bd-tab-address-book')),
+            NdTab(0, tr('nd-tab-recent')),
+            NdTab(1, tr('nd-tab-favourites')),
+            NdTab(2, tr('nd-tab-network')),
+            NdTab(3, tr('nd-tab-address-book')),
           ],
           value: 0,
           onChanged: (_) {},
-          search: BdSearchField(
-              placeholder: tr('bd-search'), width: 170, height: 30),
+          search: NdSearchField(
+              placeholder: tr('nd-search'), width: 170, height: 30),
         ),
         if (offline) ...[
           const SizedBox(height: 12),
-          Text(tr('bd-home-offline-note'), style: context.bdText.small),
+          Text(tr('nd-home-offline-note'), style: context.ndText.small),
         ],
         list,
       ],
@@ -132,7 +132,7 @@ void main() {
         ThisComputerColumn(
           id: '418205739',
           password: 'k7m2qx9w',
-          status: const HomeStatus(BdStatusKind.good, 'Ready'),
+          status: const HomeStatus(NdStatusKind.good, 'Ready'),
         ),
         size: const Size(392, 600));
     await tester.tap(find.text('Copy').first);
@@ -150,7 +150,7 @@ void main() {
         ThisComputerColumn(
           id: '418205739',
           password: 'k7m2qx9w',
-          status: const HomeStatus(BdStatusKind.good, 'Ready'),
+          status: const HomeStatus(NdStatusKind.good, 'Ready'),
         ),
         size: const Size(392, 600));
     expect(find.text('k7m2qx9w'), findsNothing);
@@ -164,7 +164,7 @@ void main() {
           id: '418205739',
           password: 'k7m2qx9w',
           onlyClick: true,
-          status: const HomeStatus(BdStatusKind.good, 'Ready'),
+          status: const HomeStatus(NdStatusKind.good, 'Ready'),
         ),
         size: const Size(392, 600));
     expect(find.text('Show'), findsNothing);

@@ -3,16 +3,16 @@
 // button, the chat window's close and the file manager's buttons.
 //
 // The windows need a running session, so these are put together from the
-// widgets the windows use (title bar, AddButton, BdToolbarButton,
+// widgets the windows use (title bar, AddButton, NdToolbarButton,
 // ChatWindowTitleBar, MenuButton, fileManagerIcon), laid out as the windows
 // lay them out.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/common/widgets/overlay.dart';
 import 'package:flutter_hbb/desktop/pages/file_manager_page.dart';
-import 'package:flutter_hbb/desktop/widgets/bd_toolbar_button.dart';
+import 'package:flutter_hbb/desktop/widgets/nd_toolbar_button.dart';
 import 'package:flutter_hbb/desktop/widgets/menu_button.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,60 +21,60 @@ import 'package:get/get.dart';
 import 'fixtures.dart';
 import 'harness.dart';
 
-List<ThemeExtension<dynamic>> _appExtensions(BdColors c) =>
+List<ThemeExtension<dynamic>> _appExtensions(NdColors c) =>
     [ColorThemeExtension.from(c), TabbarTheme.from(c)];
 
 /// The title bar of a session or file transfer window with one tab.
-Widget _titleBar(String label, Widget lead) => BdTitleBar(
-      brand: const BdLogoMark(size: 18),
+Widget _titleBar(String label, Widget lead) => NdTitleBar(
+      brand: const NdLogoMark(size: 18),
       tabs: [
-        BdWindowTab(
+        NdWindowTab(
             label: label, leading: lead, selected: true, onClose: () {}),
       ],
       actions: const [AddButton()],
-      controls: BdWindowControls(
+      controls: NdWindowControls(
           onMinimize: () {}, onMaximize: () {}, onClose: () {}),
     );
 
 Widget _sessionTabLead() => Row(mainAxisSize: MainAxisSize.min, children: [
-      const Icon(BdIcons.desktopWindows, size: 18),
+      const Icon(NdIcons.desktopWindows, size: 18),
       const SizedBox(width: 4),
       getConnectionIcon(true, true, size: 18),
     ]);
 
 Widget _toolbar(BuildContext context) {
-  final c = context.bd;
+  final c = context.nd;
   return Column(mainAxisSize: MainAxisSize.min, children: [
     Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: c.bgFloat,
-        borderRadius: BdSize.r,
+        borderRadius: NdSize.r,
         border: Border.all(color: c.rule),
         boxShadow: c.shadowFloat,
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        BdToolbarButton(
-            icon: BdIcons.keyboard,
-            label: tr('bd-tb-keyboard'),
+        NdToolbarButton(
+            icon: NdIcons.keyboard,
+            label: tr('nd-tb-keyboard'),
             onPressed: () {}),
-        BdToolbarButton(
-            icon: BdIcons.folder, label: tr('bd-tb-files'), onPressed: () {}),
-        BdToolbarButton(icon: BdIcons.chat, label: 'Chat', onPressed: () {}),
-        BdToolbarButton(
-            icon: BdIcons.fullscreen,
-            label: tr('bd-tb-full-screen'),
+        NdToolbarButton(
+            icon: NdIcons.folder, label: tr('nd-tb-files'), onPressed: () {}),
+        NdToolbarButton(icon: NdIcons.chat, label: 'Chat', onPressed: () {}),
+        NdToolbarButton(
+            icon: NdIcons.fullscreen,
+            label: tr('nd-tb-full-screen'),
             onPressed: () {}),
-        BdToolbarButton(
-            icon: BdIcons.moreHoriz, label: tr('bd-tb-more'), onPressed: () {}),
+        NdToolbarButton(
+            icon: NdIcons.moreHoriz, label: tr('nd-tb-more'), onPressed: () {}),
         Container(
             width: 1,
             height: 24,
             margin: const EdgeInsets.symmetric(horizontal: 6),
             color: c.rule),
-        BdToolbarButton(
-            icon: BdIcons.callEnd,
-            label: tr('bd-tb-end'),
+        NdToolbarButton(
+            icon: NdIcons.callEnd,
+            label: tr('nd-tb-end'),
             danger: true,
             onPressed: () {}),
       ]),
@@ -88,18 +88,18 @@ Widget _toolbar(BuildContext context) {
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(4)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(BdIcons.dragIndicator, size: 20, color: c.textMuted),
+        Icon(NdIcons.dragIndicator, size: 20, color: c.textMuted),
         const SizedBox(width: 8),
-        const Icon(BdIcons.fullscreen, size: 20),
+        const Icon(NdIcons.fullscreen, size: 20),
         const SizedBox(width: 8),
-        const Icon(BdIcons.expandLess, size: 20),
+        const Icon(NdIcons.expandLess, size: 20),
       ]),
     ),
   ]);
 }
 
 Widget _chatWindow(BuildContext context) {
-  final c = context.bd;
+  final c = context.nd;
   Widget bubble(String text, bool me) => Align(
         alignment: me ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
@@ -107,8 +107,8 @@ Widget _chatWindow(BuildContext context) {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           constraints: const BoxConstraints(maxWidth: 210),
           decoration: BoxDecoration(
-              color: me ? c.accentTint : c.bgSubtle, borderRadius: BdSize.r),
-          child: Text(text, style: context.bdText.small),
+              color: me ? c.accentTint : c.bgSubtle, borderRadius: NdSize.r),
+          child: Text(text, style: context.ndText.small),
         ),
       );
   return Container(
@@ -134,13 +134,13 @@ Widget _chatWindow(BuildContext context) {
               padding: const EdgeInsets.symmetric(horizontal: 10),
               alignment: Alignment.centerLeft,
               decoration: BoxDecoration(
-                  border: Border.all(color: c.border), borderRadius: BdSize.r),
+                  border: Border.all(color: c.border), borderRadius: NdSize.r),
               child: Text('Write a message',
-                  style: context.bdText.small.copyWith(color: c.textMuted)),
+                  style: context.ndText.small.copyWith(color: c.textMuted)),
             ),
           ),
           const SizedBox(width: 6),
-          Icon(BdIcons.send, size: 20, color: c.accent),
+          Icon(NdIcons.send, size: 20, color: c.accent),
         ]),
       ),
     ]),
@@ -148,10 +148,10 @@ Widget _chatWindow(BuildContext context) {
 }
 
 Widget _sessionWindow() => Builder(
-      builder: (context) => BdWindowFrame(
+      builder: (context) => NdWindowFrame(
         titleBar: _titleBar('Reception PC', _sessionTabLead()),
         child: Container(
-          color: context.bd.canvas,
+          color: context.nd.canvas,
           child: Stack(children: [
             Align(
               alignment: Alignment.topCenter,
@@ -187,17 +187,17 @@ Widget _filePane(BuildContext context, {required bool local}) {
         child: Row(children: [
           fileManagerIcon(icon, label),
           const SizedBox(width: 6),
-          Expanded(child: Text(name, style: context.bdText.small)),
-          Text(size, style: context.bdText.small),
+          Expanded(child: Text(name, style: context.ndText.small)),
+          Text(size, style: context.ndText.small),
         ]),
       );
   final send = ElevatedButton.icon(
     onPressed: () {},
     icon: local
         ? Text(translate('Send'))
-        : Icon(BdIcons.arrowBack, size: 20, color: context.bd.onAccent),
+        : Icon(NdIcons.arrowBack, size: 20, color: context.nd.onAccent),
     label: local
-        ? Icon(BdIcons.arrowForward, size: 20, color: context.bd.onAccent)
+        ? Icon(NdIcons.arrowForward, size: 20, color: context.nd.onAccent)
         : Text(translate('Receive')),
   );
   return Container(
@@ -210,7 +210,7 @@ Widget _filePane(BuildContext context, {required bool local}) {
           height: 50,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-              color: context.bd.accent, borderRadius: BorderRadius.circular(8)),
+              color: context.nd.accent, borderRadius: BorderRadius.circular(8)),
           child: getPlatformImage(local ? 'Windows' : 'Linux'),
         ),
         const SizedBox(width: 8),
@@ -218,8 +218,8 @@ Widget _filePane(BuildContext context, {required bool local}) {
       ]),
       const SizedBox(height: 15),
       Row(children: [
-        button(BdIcons.arrowBack, 'Back'),
-        button(BdIcons.arrowUpward, 'Parent directory'),
+        button(NdIcons.arrowBack, 'Back'),
+        button(NdIcons.arrowUpward, 'Parent directory'),
         Expanded(
           child: Container(
             height: 32,
@@ -228,37 +228,37 @@ Widget _filePane(BuildContext context, {required bool local}) {
             decoration: BoxDecoration(
                 color: card, borderRadius: BorderRadius.circular(8)),
             child: Row(children: [
-              Text(local ? 'C:' : 'home', style: context.bdText.small),
-              Icon(BdIcons.chevronRight, color: label),
-              Text(local ? 'Users' : 'mara', style: context.bdText.small),
+              Text(local ? 'C:' : 'home', style: context.ndText.small),
+              Icon(NdIcons.chevronRight, color: label),
+              Text(local ? 'Users' : 'mara', style: context.ndText.small),
             ]),
           ),
         ),
-        button(BdIcons.search, 'Search'),
-        button(BdIcons.refresh, 'Refresh File'),
+        button(NdIcons.search, 'Search'),
+        button(NdIcons.refresh, 'Refresh File'),
       ]),
       Row(children: [
-        button(BdIcons.home, 'Home'),
-        button(BdIcons.createNewFolder, 'Create Folder'),
-        button(BdIcons.delete, 'Delete'),
-        button(BdIcons.moreVert, 'More'),
+        button(NdIcons.home, 'Home'),
+        button(NdIcons.createNewFolder, 'Create Folder'),
+        button(NdIcons.delete, 'Delete'),
+        button(NdIcons.moreVert, 'More'),
         const Spacer(),
         send,
       ]).marginOnly(top: 8),
       const SizedBox(height: 8),
-      if (local) row(BdIcons.hardDrive, 'C:', ''),
-      row(BdIcons.folder, 'Documents', ''),
-      row(BdIcons.folder, 'Pictures', ''),
-      row(BdIcons.description, 'printer-setup.txt', '2 KB'),
-      row(BdIcons.description, 'invoice-0425.pdf', '184 KB'),
+      if (local) row(NdIcons.hardDrive, 'C:', ''),
+      row(NdIcons.folder, 'Documents', ''),
+      row(NdIcons.folder, 'Pictures', ''),
+      row(NdIcons.description, 'printer-setup.txt', '2 KB'),
+      row(NdIcons.description, 'invoice-0425.pdf', '184 KB'),
     ]),
   );
 }
 
 Widget _fileTransferWindow() => Builder(
-      builder: (context) => BdWindowFrame(
+      builder: (context) => NdWindowFrame(
         titleBar:
-            _titleBar('Reception PC', const Icon(BdIcons.folder, size: 18)),
+            _titleBar('Reception PC', const Icon(NdIcons.folder, size: 18)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(flex: 3, child: _filePane(context, local: true)),
           Expanded(flex: 3, child: _filePane(context, local: false)),
@@ -271,7 +271,7 @@ Widget _fileTransferWindow() => Builder(
                   borderRadius: BorderRadius.circular(8)),
               child: Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(BdIcons.swapHoriz,
+                  Icon(NdIcons.swapHoriz,
                           size: 40,
                           color: Theme.of(context).tabBarTheme.labelColor)
                       .paddingOnly(bottom: 10),
@@ -292,11 +292,11 @@ Widget _menu(MenuController controller) => Builder(
           padding: const EdgeInsets.all(16),
           child: MenuAnchor(
             controller: controller,
-            style: bdMenuStyle(context),
+            style: ndMenuStyle(context),
             menuChildren: [
-              BdMenuItem(label: 'Fit window', onPressed: () {}),
-              BdSubmenu(label: 'Image quality', children: [
-                BdMenuItem(label: 'Best', onPressed: () {}),
+              NdMenuItem(label: 'Fit window', onPressed: () {}),
+              NdSubmenu(label: 'Image quality', children: [
+                NdMenuItem(label: 'Best', onPressed: () {}),
               ]),
             ],
             child: const SizedBox(width: 10, height: 10),
@@ -326,7 +326,7 @@ void main() {
     controller.open();
     await tester.pump();
     // The submenu mark is the chevron; Flutter's own arrow is transparent.
-    expect(find.byIcon(BdIcons.chevronRight), findsOneWidget);
+    expect(find.byIcon(NdIcons.chevronRight), findsOneWidget);
     final arrow = tester.element(find.byIcon(Icons.arrow_right));
     expect(IconTheme.of(arrow).color, Colors.transparent);
     await shot(tester, 'client-menu-submenu', b);
@@ -338,10 +338,10 @@ void main() {
     List<double> sizes(IconData icon) =>
         tester.widgetList<Icon>(find.byIcon(icon)).map((i) => i.size!).toList()
           ..sort();
-    expect(sizes(BdIcons.add), [20]);
+    expect(sizes(NdIcons.add), [20]);
     // The tab's close stays at 16 next to its 13 px label; the chat
     // window's is 20.
-    expect(sizes(BdIcons.close), [16, 20]);
+    expect(sizes(NdIcons.close), [16, 20]);
   });
 
   for (final maximized in [false, true]) {
@@ -352,28 +352,28 @@ void main() {
           tester,
           Align(
             alignment: Alignment.topRight,
-            child: BdWindowControls(
+            child: NdWindowControls(
                 onMinimize: () {},
                 onMaximize: () {},
                 onClose: () {},
                 maximized: maximized),
           ),
           size: const Size(200, 40));
-      final buttons = find.byType(BdWinButton);
+      final buttons = find.byType(NdWinButton);
       expect(find.descendant(of: buttons, matching: find.byType(Icon)),
           findsNothing);
       final glyphs = find.descendant(
           of: buttons,
           matching: find.byWidgetPredicate(
-              (w) => w is CustomPaint && w.painter is BdWinGlyphPainter));
+              (w) => w is CustomPaint && w.painter is NdWinGlyphPainter));
       expect(
           tester
               .widgetList<CustomPaint>(glyphs)
-              .map((p) => (p.painter as BdWinGlyphPainter).glyph),
+              .map((p) => (p.painter as NdWinGlyphPainter).glyph),
           [
-            BdWinGlyph.minimize,
-            maximized ? BdWinGlyph.restore : BdWinGlyph.maximize,
-            BdWinGlyph.close,
+            NdWinGlyph.minimize,
+            maximized ? NdWinGlyph.restore : NdWinGlyph.maximize,
+            NdWinGlyph.close,
           ]);
       for (final e in glyphs.evaluate()) {
         expect(tester.getSize(find.byWidget(e.widget)), const Size(10, 10));

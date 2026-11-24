@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/common/shared_state.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/common/widgets/login.dart';
@@ -15,7 +15,7 @@ import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 bool isEditOsPassword = false;
 const String kPeerOptionAllowWaylandKeyboard = 'allow-wayland-keyboard';
@@ -288,7 +288,7 @@ void showWaylandKeyboardInputWarningDialog(
                     }
                   },
             style: TextButton.styleFrom(
-              foregroundColor: bdColors.accent,
+              foregroundColor: ndColors.accent,
               padding: EdgeInsets.zero,
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -367,7 +367,7 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
               }
               handleOsPasswordEditIcon(sessionId, ffi.dialogManager);
             },
-            icon: Icon(BdIcons.edit, color: isMobile ? MyTheme.accent : null),
+            icon: Icon(NdIcons.edit, color: isMobile ? MyTheme.accent : null),
           ),
         ),
         onPressed: () => handleOsPasswordAction(sessionId, ffi.dialogManager),
@@ -591,8 +591,8 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
               padding: EdgeInsets.only(left: 12),
               child: Icon(
                   ffi.recordingModel.start
-                      ? BdIcons.pauseCircle
-                      : BdIcons.videocam,
+                      ? NdIcons.pauseCircle
+                      : NdIcons.videocam,
                   color: MyTheme.accent),
             )
           ],
@@ -1349,7 +1349,7 @@ List<Widget> getVirtualDisplayMenuChildren(
                             sessionId: ffi.sessionId, index: 0, on: false);
                         clickCallBack?.call();
                       },
-                child: Icon(BdIcons.remove),
+                child: Icon(NdIcons.remove),
               ),
               Text(count.toString()),
               TextButton(
@@ -1360,7 +1360,7 @@ List<Widget> getVirtualDisplayMenuChildren(
                             sessionId: ffi.sessionId, index: 0, on: true);
                         clickCallBack?.call();
                       },
-                child: Icon(BdIcons.add),
+                child: Icon(NdIcons.add),
               ),
             ],
           )),

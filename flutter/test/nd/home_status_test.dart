@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_status.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
 import 'package:flutter_hbb/models/state_model.dart' show SvcStatus;
@@ -28,7 +28,7 @@ void main() {
 
   test('a computer the signal server took is ready', () {
     final s = _of(SvcStatus.ready, reason: 'ready');
-    expect(s.kind, BdStatusKind.good);
+    expect(s.kind, NdStatusKind.good);
     expect(s.text, 'Ready. Connected to 10.10.10.74');
     // An enrollment answer from before the approval does not hide it.
     final late = _of(SvcStatus.ready,
@@ -38,7 +38,7 @@ void main() {
 
   test('a refused key says so instead of "can\'t reach"', () {
     final s = _of(SvcStatus.notReady, standing: '{"signal":"refused"}');
-    expect(s.kind, BdStatusKind.bad);
+    expect(s.kind, NdStatusKind.bad);
     expect(
         s.text,
         "10.10.10.74 does not accept this computer's new key. Ask your "
@@ -53,7 +53,7 @@ void main() {
       ('', 'deployment_required'),
     ]) {
       final s = _of(SvcStatus.notReady, standing: standing, reason: reason);
-      expect(s.kind, BdStatusKind.wait, reason: standing + reason);
+      expect(s.kind, NdStatusKind.wait, reason: standing + reason);
       expect(s.text, _approval, reason: standing + reason);
     }
   });
@@ -65,7 +65,7 @@ void main() {
 
   test("only a server without any answer is \"can't reach\"", () {
     final s = _of(SvcStatus.notReady);
-    expect(s.kind, BdStatusKind.bad);
+    expect(s.kind, NdStatusKind.bad);
     expect(s.text, _cantReach);
     expect(s.linkLabel, 'Try now');
     expect(_of(SvcStatus.connecting).text, 'Connecting to 10.10.10.74');
@@ -85,7 +85,7 @@ void main() {
   test('turned off and no server need no server answer', () {
     final off = homeStatusOf(const HomeStatusFacts(
         server: _server, status: SvcStatus.ready, serviceStopped: true));
-    expect(off.kind, BdStatusKind.offline);
+    expect(off.kind, NdStatusKind.offline);
     expect(off.linkLabel, 'Turn on');
     final none = homeStatusOf(const HomeStatusFacts(
         server: '', status: SvcStatus.notReady, noServer: true));
@@ -97,9 +97,9 @@ void main() {
     // the tray menu name the same state for the same facts.
     String withSaid(String text, String said) => said.isEmpty
         ? text
-        : '$text ${tr('bd-home-status-server-says', [said])}';
+        : '$text ${tr('nd-home-status-server-says', [said])}';
     var count = 0;
-    for (final raw in File('test/bd/home_status_cases.txt').readAsLinesSync()) {
+    for (final raw in File('test/nd/home_status_cases.txt').readAsLinesSync()) {
       final line = raw.trim();
       if (line.isEmpty || line.startsWith('#')) continue;
       final parts = line.split('=>');
@@ -124,16 +124,16 @@ void main() {
       final server = noServer ? '' : _server;
       final said = facts['said'] ?? '';
       final want = switch (parts[1].trim()) {
-        'off' => tr('bd-home-status-service-off'),
-        'no-server' => tr('bd-home-status-no-server'),
-        'banned' => withSaid(tr('bd-home-status-banned', [server]), said),
-        'removed' => withSaid(tr('bd-home-status-removed', [server]), said),
-        'key-refused' => tr('bd-home-status-key-refused', [server]),
-        'ready' => tr('bd-home-status-ready', [server]),
-        'approval' => tr('bd-home-status-approval'),
-        'no-service' => tr('bd-home-status-no-service'),
-        'connecting' => tr('bd-home-status-connecting', [server]),
-        'offline' => tr('bd-home-status-offline', [server]),
+        'off' => tr('nd-home-status-service-off'),
+        'no-server' => tr('nd-home-status-no-server'),
+        'banned' => withSaid(tr('nd-home-status-banned', [server]), said),
+        'removed' => withSaid(tr('nd-home-status-removed', [server]), said),
+        'key-refused' => tr('nd-home-status-key-refused', [server]),
+        'ready' => tr('nd-home-status-ready', [server]),
+        'approval' => tr('nd-home-status-approval'),
+        'no-service' => tr('nd-home-status-no-service'),
+        'connecting' => tr('nd-home-status-connecting', [server]),
+        'offline' => tr('nd-home-status-offline', [server]),
         final other => fail('unknown state $other in $line'),
       };
       final got = homeStatusOf(HomeStatusFacts(

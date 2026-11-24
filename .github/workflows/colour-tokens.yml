@@ -1,7 +1,7 @@
 name: Colour tokens
 
 # Every colour of the Flutter client comes from the tokens in
-# flutter/lib/common/theme/bd_theme.dart; the check lists colour values
+# flutter/lib/common/theme/nd_theme.dart; the check lists colour values
 # written anywhere else.
 
 on:

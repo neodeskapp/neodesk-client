@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/bd_theme.dart';
-import 'bd_button.dart';
-import 'bd_icons.dart';
+import '../../theme/nd_theme.dart';
+import 'nd_button.dart';
+import 'nd_icons.dart';
 
 Duration _motion(BuildContext context) =>
-    MediaQuery.of(context).disableAnimations ? Duration.zero : BdSize.motion;
+    MediaQuery.of(context).disableAnimations ? Duration.zero : NdSize.motion;
 
 /// The square switch: 36 x 20 track with 4 px corners and a 12 px knob.
 /// For settings that apply at once. A null [onChanged] shows it disabled.
-class BdSwitch extends StatefulWidget {
-  const BdSwitch({
+class NdSwitch extends StatefulWidget {
+  const NdSwitch({
     super.key,
     required this.value,
     required this.onChanged,
@@ -22,17 +22,17 @@ class BdSwitch extends StatefulWidget {
   final String? semanticLabel;
 
   @override
-  State<BdSwitch> createState() => _BdSwitchState();
+  State<NdSwitch> createState() => _NdSwitchState();
 }
 
-class _BdSwitchState extends State<BdSwitch> {
+class _NdSwitchState extends State<NdSwitch> {
   bool _focus = false;
 
   void _toggle() => widget.onChanged?.call(!widget.value);
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
+    final c = context.nd;
     final on = widget.value;
     final enabled = widget.onChanged != null;
     Widget track = AnimatedContainer(
@@ -42,7 +42,7 @@ class _BdSwitchState extends State<BdSwitch> {
       height: 20,
       decoration: BoxDecoration(
         color: on ? c.accent : Colors.transparent,
-        borderRadius: BdSize.r,
+        borderRadius: NdSize.r,
         border: Border.all(color: on ? c.accent : c.border, width: 1),
       ),
       child: AnimatedAlign(
@@ -60,7 +60,7 @@ class _BdSwitchState extends State<BdSwitch> {
         ),
       ),
     );
-    if (_focus) track = BdFocusRing(child: track);
+    if (_focus) track = NdFocusRing(child: track);
     return Semantics(
       toggled: on,
       enabled: enabled,
@@ -85,8 +85,8 @@ class _BdSwitchState extends State<BdSwitch> {
 }
 
 /// A 16 px checkbox with 3 px corners, for forms that are submitted.
-class BdCheckbox extends StatelessWidget {
-  const BdCheckbox({
+class NdCheckbox extends StatelessWidget {
+  const NdCheckbox({
     super.key,
     required this.value,
     required this.onChanged,
@@ -101,8 +101,8 @@ class BdCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final enabled = onChanged != null;
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -120,11 +120,11 @@ class BdCheckbox extends StatelessWidget {
                 margin: const EdgeInsets.only(top: 2),
                 decoration: BoxDecoration(
                   color: value ? c.accent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(BdSize.radiusSm),
+                  borderRadius: BorderRadius.circular(NdSize.radiusSm),
                   border: Border.all(color: value ? c.accent : c.border),
                 ),
                 child: value
-                    ? Icon(BdIcons.check, size: 14, color: c.onAccent)
+                    ? Icon(NdIcons.check, size: 14, color: c.onAccent)
                     : null,
               ),
               const SizedBox(width: 10),
@@ -146,15 +146,15 @@ class BdCheckbox extends StatelessWidget {
 }
 
 /// A round 16 px radio mark (menus draw their own 14 px variant).
-class BdRadioMark extends StatelessWidget {
-  const BdRadioMark({super.key, required this.selected, this.size = 16});
+class NdRadioMark extends StatelessWidget {
+  const NdRadioMark({super.key, required this.selected, this.size = 16});
 
   final bool selected;
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
+    final c = context.nd;
     return Container(
       width: size,
       height: size,
@@ -175,30 +175,30 @@ class BdRadioMark extends StatelessWidget {
   }
 }
 
-class BdSegment<T> {
-  const BdSegment(this.value, this.label);
+class NdSegment<T> {
+  const NdSegment(this.value, this.label);
   final T value;
   final String label;
 }
 
 /// Two to four short choices that apply at once. 30 high; the chosen one
 /// has the accent tint and a 2 px accent line at the bottom.
-class BdSegmented<T> extends StatelessWidget {
-  const BdSegmented({
+class NdSegmented<T> extends StatelessWidget {
+  const NdSegmented({
     super.key,
     required this.segments,
     required this.value,
     required this.onChanged,
   });
 
-  final List<BdSegment<T>> segments;
+  final List<NdSegment<T>> segments;
   final T value;
   final ValueChanged<T>? onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final enabled = onChanged != null;
     final children = <Widget>[];
     for (var i = 0; i < segments.length; i++) {
@@ -239,11 +239,11 @@ class BdSegmented<T> extends StatelessWidget {
         opacity: enabled ? 1 : 0.45,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BdSize.r,
+            borderRadius: NdSize.r,
             border: Border.all(color: c.border, width: 1),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(BdSize.radius - 1),
+            borderRadius: BorderRadius.circular(NdSize.radius - 1),
             child: Row(mainAxisSize: MainAxisSize.min, children: children),
           ),
         ),
@@ -252,16 +252,16 @@ class BdSegmented<T> extends StatelessWidget {
   }
 }
 
-class BdTab<T> {
-  const BdTab(this.value, this.label);
+class NdTab<T> {
+  const NdTab(this.value, this.label);
   final T value;
   final String label;
 }
 
 /// Text tabs with a 2 px accent underline on the chosen one and a rule
 /// under the row. [trailing] sits at the end of the row (search field).
-class BdTabs<T> extends StatelessWidget {
-  const BdTabs({
+class NdTabs<T> extends StatelessWidget {
+  const NdTabs({
     super.key,
     required this.tabs,
     required this.value,
@@ -270,7 +270,7 @@ class BdTabs<T> extends StatelessWidget {
     this.gap = 20,
   });
 
-  final List<BdTab<T>> tabs;
+  final List<NdTab<T>> tabs;
   final T value;
   final ValueChanged<T> onChanged;
   final Widget? trailing;
@@ -278,8 +278,8 @@ class BdTabs<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final row = <Widget>[];
     for (final tab in tabs) {
       final on = tab.value == value;

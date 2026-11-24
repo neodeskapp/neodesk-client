@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 
@@ -268,8 +268,8 @@ const String kMsgboxTextWaitingForImage = 'Connected, waiting for image...';
 // the executable name of the portable version
 const String kEnvPortableExecutable = "RUSTDESK_APPNAME";
 
-Color get kColorWarn => bdColors.warning;
-Color get kColorCanvas => bdColors.canvas;
+Color get kColorWarn => ndColors.warning;
+Color get kColorCanvas => ndColors.canvas;
 
 const int kMobileDefaultDisplayWidth = 720;
 const int kMobileDefaultDisplayHeight = 1280;

@@ -9,7 +9,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/formatter/id_formatter.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/desktop/widgets/refresh_wrapper.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/main.dart';
@@ -50,9 +50,9 @@ import 'package:flutter_hbb/native/win32.dart'
 import 'package:flutter_hbb/native/common.dart'
     if (dart.library.html) 'package:flutter_hbb/web/common.dart';
 import 'package:flutter_hbb/utils/http_service.dart' as http;
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_misc.dart'
-    show BdOsMark, bdOsFromPlatform;
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_misc.dart'
+    show NdOsMark, ndOsFromPlatform;
 
 final globalKey = GlobalKey<NavigatorState>();
 final navigationBarKey = GlobalKey();
@@ -149,7 +149,7 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
   final Color? divider;
 
   /// The old colour roles, drawn from the NeoDesk tokens.
-  factory ColorThemeExtension.from(BdColors c) => ColorThemeExtension(
+  factory ColorThemeExtension.from(NdColors c) => ColorThemeExtension(
         border: c.rule,
         border2: c.border,
         border3: c.border,
@@ -163,8 +163,8 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
         divider: c.rule,
       );
 
-  static ColorThemeExtension get light => ColorThemeExtension.from(BdTheme.lightColors);
-  static ColorThemeExtension get dark => ColorThemeExtension.from(BdTheme.darkColors);
+  static ColorThemeExtension get light => ColorThemeExtension.from(NdTheme.lightColors);
+  static ColorThemeExtension get dark => ColorThemeExtension.from(NdTheme.darkColors);
 
   @override
   ThemeExtension<ColorThemeExtension> copyWith({
@@ -220,19 +220,19 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
 class MyTheme {
   MyTheme._();
 
-  // Old colour names, now read from the NeoDesk tokens (bd_theme.dart).
-  static Color get grayBg => bdColors.bgSubtle;
-  static Color get accent => bdColors.accent;
-  static Color get accent50 => bdColors.accent.withOpacity(0.47);
-  static Color get accent80 => bdColors.accent.withOpacity(0.67);
-  static Color get canvasColor => bdColors.canvas;
-  static Color get border => bdColors.rule;
-  static Color get idColor => bdColors.accent;
-  static Color get darkGray => bdColors.textMuted;
-  static Color get cmIdColor => bdColors.success;
-  static Color get dark => bdColors.text;
-  static Color get button => bdColors.accent;
-  static Color get hoverBorder => bdColors.border;
+  // Old colour names, now read from the NeoDesk tokens (nd_theme.dart).
+  static Color get grayBg => ndColors.bgSubtle;
+  static Color get accent => ndColors.accent;
+  static Color get accent50 => ndColors.accent.withOpacity(0.47);
+  static Color get accent80 => ndColors.accent.withOpacity(0.67);
+  static Color get canvasColor => ndColors.canvas;
+  static Color get border => ndColors.rule;
+  static Color get idColor => ndColors.accent;
+  static Color get darkGray => ndColors.textMuted;
+  static Color get cmIdColor => ndColors.success;
+  static Color get dark => ndColors.text;
+  static Color get button => ndColors.accent;
+  static Color get hoverBorder => ndColors.border;
 
   // ListTile
   static const ListTileThemeData listTileTheme = ListTileThemeData(
@@ -319,7 +319,7 @@ class MyTheme {
   static ThemeData get lightTheme => _theme(Brightness.light);
   static ThemeData get darkTheme => _theme(Brightness.dark);
 
-  static ThemeData _theme(Brightness b) => BdTheme.theme(
+  static ThemeData _theme(Brightness b) => NdTheme.theme(
         b,
         desktop: isDesktop || isWebDesktop,
         extra: (c) => [ColorThemeExtension.from(c), TabbarTheme.from(c)],
@@ -617,7 +617,7 @@ class OverlayDialogManager {
             innerClicked = false;
           },
           child: Container(
-              color: context.bd.scrim,
+              color: context.nd.scrim,
               child: StatefulBuilder(builder: (context, setState) {
                 return Listener(
                   onPointerUp: (_) => innerClicked = true,
@@ -676,7 +676,7 @@ class OverlayDialogManager {
                                   onPressed: cancel,
                                   child: Text(translate('Cancel'),
                                       style: TextStyle(
-                                          color: context.bd.accent)))))
+                                          color: context.nd.accent)))))
                 ])),
         onCancel: showCancel ? cancel : null,
       );
@@ -897,7 +897,7 @@ Widget createDialogContent(String text) {
     spans.add(TextSpan(
       text: match.group(0) ?? '',
       style: TextStyle(
-        color: bdColors.accent,
+        color: ndColors.accent,
         decoration: TextDecoration.underline,
       ),
       recognizer: TapGestureRecognizer()
@@ -1059,7 +1059,7 @@ void msgBox(SessionID sessionId, String type, String title, String text,
 }
 
 Color? _msgboxColor(String type) {
-  final c = bdColors;
+  final c = ndColors;
   if (type == "input-password" || type == "custom-os-password") {
     return c.accent;
   }
@@ -1075,19 +1075,19 @@ Color? _msgboxColor(String type) {
 Widget msgboxIcon(String type) {
   IconData? iconData;
   if (type.contains("error") || type == "re-input-password") {
-    iconData = BdIcons.cancel;
+    iconData = NdIcons.cancel;
   }
   if (type.contains("success")) {
-    iconData = BdIcons.checkCircle;
+    iconData = NdIcons.checkCircle;
   }
   if (type == "wait-uac" || type == "wait-remote-accept-nook") {
-    iconData = BdIcons.hourglassTop;
+    iconData = NdIcons.hourglassTop;
   }
   if (type == 'on-uac' || type == 'on-foreground-elevated') {
-    iconData = BdIcons.adminPanelSettings;
+    iconData = NdIcons.adminPanelSettings;
   }
   if (type.contains('info')) {
-    iconData = BdIcons.info;
+    iconData = NdIcons.info;
   }
   if (iconData != null) {
     return Icon(iconData, size: 50, color: _msgboxColor(type))
@@ -1162,13 +1162,13 @@ Color str2color(String str, [alpha = 0xFF]) {
 }
 
 Color str2color2(String str, {List<int> existing = const []}) {
-  const colorMap = BdPalette.tagColorsByName;
+  const colorMap = NdPalette.tagColorsByName;
   final color = colorMap[str.toLowerCase()];
   if (color != null) {
     return color.withAlpha(0xFF);
   }
   if (str.toLowerCase() == 'yellow') {
-    return BdPalette.tagYellow.withAlpha(0xFF);
+    return NdPalette.tagYellow.withAlpha(0xFF);
   }
   var hash = 0;
   for (var i = 0; i < str.length; i++) {
@@ -1444,10 +1444,10 @@ Widget getPlatformImage(String platform, {double size = 50}) {
   if (platform.isEmpty) {
     return Container(width: size, height: size);
   }
-  return BdOsMark(
-      os: bdOsFromPlatform(platform),
+  return NdOsMark(
+      os: ndOsFromPlatform(platform),
       size: size,
-      color: BdPalette.onDataColor);
+      color: NdPalette.onDataColor);
 }
 
 class LastWindowPosition {
@@ -2946,7 +2946,7 @@ Widget buildRemoteBlock(
             Offstage(
                 offstage: !block.value,
                 child: Container(
-                  color: bdColors.scrim,
+                  color: ndColors.scrim,
                 )),
         ]),
       ));
@@ -2965,14 +2965,14 @@ Widget unreadMessageCountBuilder(RxInt? count,
         width: size ?? 16,
         height: size ?? 16,
         decoration: BoxDecoration(
-          color: bdColors.danger,
+          color: ndColors.danger,
           shape: BoxShape.circle,
         ),
         child: Center(
           child: Text("${count?.value ?? 0}",
               maxLines: 1,
               style: TextStyle(
-                  color: bdColors.onDanger, fontSize: fontSize ?? 10)),
+                  color: ndColors.onDanger, fontSize: fontSize ?? 10)),
         ),
       )));
 }
@@ -2980,7 +2980,7 @@ Widget unreadMessageCountBuilder(RxInt? count,
 Widget unreadTopRightBuilder(RxInt? count, {Widget? icon}) {
   return Stack(
     children: [
-      icon ?? Icon(BdIcons.chat),
+      icon ?? Icon(NdIcons.chat),
       Positioned(
           top: 0,
           right: 0,
@@ -3012,8 +3012,8 @@ Widget buildErrorBanner(BuildContext context,
             children: [
               FittedBox(
                 child: Icon(
-                  BdIcons.info,
-                  color: context.bd.danger,
+                  NdIcons.info,
+                  color: context.nd.danger,
                 ),
               ).marginAll(4),
               Flexible(
@@ -3040,7 +3040,7 @@ Widget buildErrorBanner(BuildContext context,
                   onTap: () {
                     close.call();
                   },
-                  child: Icon(BdIcons.close).marginSymmetric(horizontal: 5),
+                  child: Icon(NdIcons.close).marginSymmetric(horizontal: 5),
                 ),
               ).marginAll(4)
             ],
@@ -3454,7 +3454,7 @@ class ComboBox extends StatelessWidget {
                     ? Theme.of(context).textTheme.titleMedium?.color
                     : disabledTextColor(context, enabled)),
             icon: const Icon(
-              BdIcons.expandMore,
+              NdIcons.expandMore,
               size: 20,
             ).marginOnly(right: 15),
             onChanged: enabled
@@ -3613,7 +3613,7 @@ Widget _buildPresetPasswordWarning() {
       'N') {
     return SizedBox.shrink();
   }
-  final c = bdColors;
+  final c = ndColors;
   return Container(
     color: c.noticeBg(c.warning),
     child: Column(
@@ -3670,7 +3670,7 @@ Widget buildVirtualWindowFrame(BuildContext context, Widget child) {
       ? <BoxShadow>[
           if (stateGlobal.fullscreen.isFalse || stateGlobal.isMaximized.isFalse)
             BoxShadow(
-              color: context.bd.shadowNear,
+              color: context.nd.shadowNear,
               offset: Offset(
                   0.0,
                   stateGlobal.isFocused.isTrue
@@ -3800,7 +3800,7 @@ Widget netWorkErrorWidget() {
               child: Text(translate("Retry")))
           .marginSymmetric(vertical: 16),
       SelectableText(gFFI.userModel.networkError.value,
-          style: TextStyle(fontSize: 11, color: bdColors.danger)),
+          style: TextStyle(fontSize: 11, color: ndColors.danger)),
     ],
   ));
 }
@@ -3849,7 +3849,7 @@ Widget workaroundWindowBorder(BuildContext context, Widget child) {
   }
 
   final isLight = Theme.of(context).brightness == Brightness.light;
-  final borderColor = context.bd.border;
+  final borderColor = context.nd.border;
   final width = isLight ? 0.5 : 0.1;
 
   getBorderWidget(Widget child) {
@@ -3965,12 +3965,12 @@ String getConnectionText(bool secure, bool direct, String streamType) {
 /// encrypted, a crossed shield in danger when it is not encrypted.
 Widget getConnectionIcon(bool secure, bool direct, {double size = 20}) {
   final icon = !secure
-      ? BdIcons.gppBad
+      ? NdIcons.gppBad
       : direct
-          ? BdIcons.verifiedUser
-          : BdIcons.cloudLock;
+          ? NdIcons.verifiedUser
+          : NdIcons.cloudLock;
   return Icon(icon,
-      size: size, color: secure ? bdColors.success : bdColors.danger);
+      size: size, color: secure ? ndColors.success : ndColors.danger);
 }
 
 String decode_http_response(http.Response resp) {

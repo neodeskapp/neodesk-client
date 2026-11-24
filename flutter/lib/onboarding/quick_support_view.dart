@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart' show translate;
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 import 'onboarding_service.dart';
 
@@ -79,8 +79,8 @@ class _QuickSupportViewState extends State<QuickSupportView> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final s = widget.state;
     final company = (s.company ?? '').trim();
     final full = (s.supporterName ?? '').trim();
@@ -100,18 +100,18 @@ class _QuickSupportViewState extends State<QuickSupportView> {
 
     if (offline) {
       body.addAll([
-        Text(tr('bd-qs-offline-title'), style: title),
+        Text(tr('nd-qs-offline-title'), style: title),
         const SizedBox(height: 16),
-        Text(tr('bd-qs-offline-lead', [companyOrServer]), style: lead),
+        Text(tr('nd-qs-offline-lead', [companyOrServer]), style: lead),
       ]);
-      primary = BdButton.primary(
-          label: tr('bd-try-again'),
-          size: BdButtonSize.lg,
+      primary = NdButton.primary(
+          label: tr('nd-try-again'),
+          size: NdButtonSize.lg,
           block: true,
           onPressed: widget.onRetry);
-      secondary = BdButton(
+      secondary = NdButton(
           label: translate('Cancel'),
-          size: BdButtonSize.lg,
+          size: NdButtonSize.lg,
           block: true,
           onPressed: widget.onCancel);
     } else {
@@ -120,96 +120,96 @@ class _QuickSupportViewState extends State<QuickSupportView> {
           body.addAll([
             Text(
                 company.isNotEmpty
-                    ? tr('bd-qs-consent-title', [full, company])
-                    : tr('bd-qs-consent-title-nocompany', [full]),
+                    ? tr('nd-qs-consent-title', [full, company])
+                    : tr('nd-qs-consent-title-nocompany', [full]),
                 style: title),
             const SizedBox(height: 12),
-            Text(tr('bd-qs-consent-intro', [short]), style: lead),
+            Text(tr('nd-qs-consent-intro', [short]), style: lead),
             const SizedBox(height: 10),
-            _Can(icon: BdIcons.visibility, text: tr('bd-qs-can-see')),
-            _Can(icon: BdIcons.mouse, text: tr('bd-qs-can-use')),
+            _Can(icon: NdIcons.visibility, text: tr('nd-qs-can-see')),
+            _Can(icon: NdIcons.mouse, text: tr('nd-qs-can-use')),
             const SizedBox(height: 16),
-            Text(tr('bd-qs-consent-also', [short]), style: lead),
+            Text(tr('nd-qs-consent-also', [short]), style: lead),
             const SizedBox(height: 10),
-            BdCheckbox(
+            NdCheckbox(
                 value: _clipboard,
-                label: tr('bd-qs-allow-clipboard'),
-                hint: tr('bd-qs-allow-clipboard-hint'),
+                label: tr('nd-qs-allow-clipboard'),
+                hint: tr('nd-qs-allow-clipboard-hint'),
                 onChanged: (v) => setState(() => _clipboard = v)),
             const SizedBox(height: 10),
-            BdCheckbox(
+            NdCheckbox(
                 value: _files,
-                label: tr('bd-qs-allow-files'),
-                hint: tr('bd-qs-allow-files-hint', [short]),
+                label: tr('nd-qs-allow-files'),
+                hint: tr('nd-qs-allow-files-hint', [short]),
                 onChanged: (v) => setState(() => _files = v)),
             const SizedBox(height: 16),
-            Text(tr('bd-qs-consent-after'), style: lead),
+            Text(tr('nd-qs-consent-after'), style: lead),
             if ((s.server ?? '').isNotEmpty) ...[
               const SizedBox(height: 20),
               Row(children: [
-                Icon(BdIcons.lock, size: 16, color: c.textMuted),
+                Icon(NdIcons.lock, size: 16, color: c.textMuted),
                 const SizedBox(width: 10),
-                Text(tr('bd-qs-origin', [s.server]), style: t.small),
+                Text(tr('nd-qs-origin', [s.server]), style: t.small),
               ]),
             ],
           ]);
-          primary = BdButton.primary(
-              label: tr('bd-allow'),
-              size: BdButtonSize.lg,
+          primary = NdButton.primary(
+              label: tr('nd-allow'),
+              size: NdButtonSize.lg,
               block: true,
               onPressed: () => widget.onAllow(QuickSupportGrants(
                   clipboard: _clipboard, fileTransfer: _files)));
-          secondary = BdButton(
+          secondary = NdButton(
               label: translate('Decline'),
-              size: BdButtonSize.lg,
+              size: NdButtonSize.lg,
               block: true,
               onPressed: widget.onDecline);
-          under = Text(tr('bd-qs-not-expecting'),
+          under = Text(tr('nd-qs-not-expecting'),
               textAlign: TextAlign.center, style: t.small);
           break;
         case OnboardingPhase.supportWaiting:
         case OnboardingPhase.supportInSession:
           body.addAll([
-            Text(tr('bd-qs-waiting-title', [short]), style: title),
+            Text(tr('nd-qs-waiting-title', [short]), style: title),
             const SizedBox(height: 16),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Padding(
-                  padding: EdgeInsets.only(top: 3), child: BdSpinner()),
+                  padding: EdgeInsets.only(top: 3), child: NdSpinner()),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                     _long
                         ? ((s.companyPhone ?? '').isNotEmpty
-                            ? tr('bd-qs-waiting-long-phone',
+                            ? tr('nd-qs-waiting-long-phone',
                                 [short, companyOrServer, s.companyPhone])
-                            : tr('bd-qs-waiting-long', [short]))
-                        : tr('bd-qs-waiting-line', [short]),
+                            : tr('nd-qs-waiting-long', [short]))
+                        : tr('nd-qs-waiting-line', [short]),
                     style: lead),
               ),
             ]),
           ]);
-          secondary = BdButton(
+          secondary = NdButton(
               label: translate('Cancel'),
-              size: BdButtonSize.lg,
+              size: NdButtonSize.lg,
               block: true,
               onPressed: widget.onCancel);
           break;
         case OnboardingPhase.supportEnded:
           if (s.declined) {
             body.addAll([
-              Text(tr('bd-qs-ended-title'), style: title),
+              Text(tr('nd-qs-ended-title'), style: title),
               const SizedBox(height: 16),
-              Text(tr('bd-qs-declined', [full]), style: lead),
+              Text(tr('nd-qs-declined', [full]), style: lead),
             ]);
           } else {
             body.addAll([
-              Text(tr('bd-qs-ended-title'), style: title),
+              Text(tr('nd-qs-ended-title'), style: title),
               const SizedBox(height: 16),
-              Text(tr('bd-qs-ended-lead', [short, companyOrServer]),
+              Text(tr('nd-qs-ended-lead', [short, companyOrServer]),
                   style: lead),
               if ((s.fileName ?? '').isNotEmpty) ...[
                 const SizedBox(height: 20),
-                Text(tr('bd-qs-ended-hint'), style: t.body.copyWith(
+                Text(tr('nd-qs-ended-hint'), style: t.body.copyWith(
                     color: c.textMuted)),
                 const SizedBox(height: 4),
                 SelectableText(s.fileName!, style: t.mono.copyWith(
@@ -217,40 +217,40 @@ class _QuickSupportViewState extends State<QuickSupportView> {
               ],
             ]);
           }
-          primary = BdButton.primary(
+          primary = NdButton.primary(
               label: translate('Close'),
-              size: BdButtonSize.lg,
+              size: NdButtonSize.lg,
               block: true,
               onPressed: widget.onClose);
           break;
         case OnboardingPhase.supportExpired:
           body.addAll([
-            Text(tr('bd-qs-expired-title'), style: title),
+            Text(tr('nd-qs-expired-title'), style: title),
             const SizedBox(height: 16),
-            Text(tr('bd-qs-expired-lead', [companyOrServer]), style: lead),
+            Text(tr('nd-qs-expired-lead', [companyOrServer]), style: lead),
           ]);
-          primary = BdButton.primary(
+          primary = NdButton.primary(
               label: translate('Close'),
-              size: BdButtonSize.lg,
+              size: NdButtonSize.lg,
               block: true,
               onPressed: widget.onClose);
           break;
         default:
           body.addAll([
-            Text(tr('bd-qs-connecting-title'), style: title),
+            Text(tr('nd-qs-connecting-title'), style: title),
             const SizedBox(height: 16),
             Row(children: [
-              const BdSpinner(),
+              const NdSpinner(),
               const SizedBox(width: 12),
               Expanded(
                   child: Text(
-                      tr('bd-qs-connecting-line', [s.server ?? '']),
+                      tr('nd-qs-connecting-line', [s.server ?? '']),
                       style: lead)),
             ]),
           ]);
-          secondary = BdButton(
+          secondary = NdButton(
               label: translate('Cancel'),
-              size: BdButtonSize.lg,
+              size: NdButtonSize.lg,
               block: true,
               onPressed: widget.onCancel);
       }
@@ -299,11 +299,11 @@ class _Can extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(children: [
-        Icon(icon, size: 20, color: context.bd.success),
+        Icon(icon, size: 20, color: context.nd.success),
         const SizedBox(width: 12),
         Text(text, style: t.body.copyWith(fontSize: 15, height: 22 / 15)),
       ]),
@@ -340,12 +340,12 @@ class SessionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final name = (state.supporterName ?? '').trim();
     final sentence = state.inputActive
-        ? tr('bd-qs-bar-using', [name])
-        : tr('bd-qs-bar-viewing', [name]);
+        ? tr('nd-qs-bar-using', [name])
+        : tr('nd-qs-bar-viewing', [name]);
     // Bold the name inside the translated sentence.
     final i = name.isEmpty ? -1 : sentence.indexOf(name);
     final style = t.body.copyWith(fontSize: 15, height: 22 / 15);
@@ -363,7 +363,7 @@ class SessionBar extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, right: 6),
       decoration: BoxDecoration(
         color: c.bgFloat,
-        borderRadius: BdSize.r,
+        borderRadius: NdSize.r,
         border: Border.all(color: c.rule),
         boxShadow: c.shadowFloat,
       ),
@@ -374,34 +374,34 @@ class SessionBar extends StatelessWidget {
             cursor: SystemMouseCursors.move,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Icon(BdIcons.dragIndicator, size: 18, color: c.textMuted),
+              child: Icon(NdIcons.dragIndicator, size: 18, color: c.textMuted),
             ),
           ),
         ),
         const SizedBox(width: 4),
-        const BdLogoMark(size: 18),
+        const NdLogoMark(size: 18),
         const SizedBox(width: 10),
         text,
         const SizedBox(width: 14),
         if (onFiles != null && (state.filesOpen || state.files.isNotEmpty)) ...[
-          BdButton(
+          NdButton(
               label: state.files.isEmpty
-                  ? tr('bd-qs-files')
-                  : tr('bd-qs-files-count', [state.files.length]),
-              icon: state.filesOpen ? BdIcons.folderOpen : BdIcons.folder,
-              size: BdButtonSize.sm,
+                  ? tr('nd-qs-files')
+                  : tr('nd-qs-files-count', [state.files.length]),
+              icon: state.filesOpen ? NdIcons.folderOpen : NdIcons.folder,
+              size: NdButtonSize.sm,
               onPressed: onFiles),
           const SizedBox(width: 8),
         ],
-        BdButton(
+        NdButton(
             label: translate('Chat'),
-            size: BdButtonSize.sm,
+            size: NdButtonSize.sm,
             onPressed: onChat),
         const SizedBox(width: 8),
-        BdButton(
-            label: tr('bd-stop'),
-            size: BdButtonSize.sm,
-            kind: BdButtonKind.danger,
+        NdButton(
+            label: tr('nd-stop'),
+            size: NdButtonSize.sm,
+            kind: NdButtonKind.danger,
             onPressed: onStop),
       ]),
     );
@@ -449,14 +449,14 @@ class _SessionChatPanelState extends State<SessionChatPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final name = (widget.state.supporterName ?? '').trim();
     return Container(
       width: 400,
       decoration: BoxDecoration(
         color: c.bgFloat,
-        borderRadius: BdSize.r,
+        borderRadius: NdSize.r,
         border: Border.all(color: c.rule),
         boxShadow: c.shadowFloat,
       ),
@@ -465,16 +465,16 @@ class _SessionChatPanelState extends State<SessionChatPanel> {
           padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
           child: Row(children: [
             Expanded(
-                child: Text(tr('bd-qs-chat-with', [name]), style: t.heading)),
-            BdIconButton(
-                icon: BdIcons.close,
+                child: Text(tr('nd-qs-chat-with', [name]), style: t.heading)),
+            NdIconButton(
+                icon: NdIcons.close,
                 tooltip: translate('Close'),
                 color: c.text,
                 iconSize: 20,
                 onPressed: widget.onClose),
           ]),
         ),
-        const BdRule(),
+        const NdRule(),
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 260),
           child: ListView(
@@ -490,7 +490,7 @@ class _SessionChatPanelState extends State<SessionChatPanel> {
                         : CrossAxisAlignment.end,
                     children: [
                       Text(
-                          '${m.fromSupporter ? name : tr('bd-qs-you')}, ${_time(m.time)}',
+                          '${m.fromSupporter ? name : tr('nd-qs-you')}, ${_time(m.time)}',
                           style: t.small),
                       const SizedBox(height: 2),
                       ConstrainedBox(
@@ -512,14 +512,14 @@ class _SessionChatPanelState extends State<SessionChatPanel> {
           padding: const EdgeInsets.fromLTRB(14, 6, 14, 14),
           child: Row(children: [
             Expanded(
-              child: BdField(
+              child: NdField(
                 controller: _controller,
-                placeholder: tr('bd-qs-chat-field'),
+                placeholder: tr('nd-qs-chat-field'),
                 onSubmitted: (_) => _send(),
               ),
             ),
             const SizedBox(width: 8),
-            BdButton.primary(label: translate('Send'), onPressed: _send),
+            NdButton.primary(label: translate('Send'), onPressed: _send),
           ]),
         ),
       ]),
@@ -563,15 +563,15 @@ class SessionFilesPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final name = (state.supporterName ?? '').trim();
     final lines = state.files.reversed.toList();
     return Container(
       width: 400,
       decoration: BoxDecoration(
         color: c.bgFloat,
-        borderRadius: BdSize.r,
+        borderRadius: NdSize.r,
         border: Border.all(color: c.rule),
         boxShadow: c.shadowFloat,
       ),
@@ -579,28 +579,28 @@ class SessionFilesPanel extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
           child: Row(children: [
-            Expanded(child: Text(tr('bd-qs-files'), style: t.heading)),
-            BdIconButton(
-                icon: BdIcons.close,
+            Expanded(child: Text(tr('nd-qs-files'), style: t.heading)),
+            NdIconButton(
+                icon: NdIcons.close,
                 tooltip: translate('Close'),
                 color: c.text,
                 iconSize: 20,
                 onPressed: onClose),
           ]),
         ),
-        const BdRule(),
+        const NdRule(),
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
           child: Row(children: [
             if (state.filesOpen) ...[
-              const BdSpinner(),
+              const NdSpinner(),
               const SizedBox(width: 10),
             ],
             Expanded(
               child: Text(
                   state.filesOpen
-                      ? tr('bd-qs-files-open', [name])
-                      : tr('bd-qs-files-closed', [name]),
+                      ? tr('nd-qs-files-open', [name])
+                      : tr('nd-qs-files-closed', [name]),
                   style: t.body.copyWith(fontSize: 15, height: 22 / 15)),
             ),
           ]),
@@ -612,7 +612,7 @@ class SessionFilesPanel extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
             children: [
               if (lines.isEmpty)
-                Text(tr('bd-qs-files-none'), style: t.small),
+                Text(tr('nd-qs-files-none'), style: t.small),
               for (final f in lines)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -623,8 +623,8 @@ class SessionFilesPanel extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 2),
                         child: Icon(
                             f.toThisComputer
-                                ? BdIcons.arrowDownward
-                                : BdIcons.arrowUpward,
+                                ? NdIcons.arrowDownward
+                                : NdIcons.arrowUpward,
                             size: 18,
                             color: c.textMuted),
                       ),
@@ -636,7 +636,7 @@ class SessionFilesPanel extends StatelessWidget {
                             Text(
                                 f.name.isNotEmpty
                                     ? f.name
-                                    : tr('bd-qs-file-count', [f.count]),
+                                    : tr('nd-qs-file-count', [f.count]),
                                 style: t.body.copyWith(
                                     fontSize: 15,
                                     height: 22 / 15,
@@ -644,12 +644,12 @@ class SessionFilesPanel extends StatelessWidget {
                             Text(
                                 f.path.isEmpty
                                     ? tr(f.toThisComputer
-                                        ? 'bd-qs-file-to-here'
-                                        : 'bd-qs-file-from-here')
+                                        ? 'nd-qs-file-to-here'
+                                        : 'nd-qs-file-from-here')
                                     : tr(
                                         f.toThisComputer
-                                            ? 'bd-qs-file-to'
-                                            : 'bd-qs-file-from',
+                                            ? 'nd-qs-file-to'
+                                            : 'nd-qs-file-from',
                                         [f.path]),
                                 style: t.small),
                           ],

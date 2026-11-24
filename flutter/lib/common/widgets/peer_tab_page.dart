@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
 import 'package:flutter_hbb/common/widgets/address_book.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
@@ -149,15 +149,15 @@ class _PeerTabPageState extends State<PeerTabPage>
   String _tabLabel(int t) {
     switch (t) {
       case 0:
-        return tr('bd-tab-recent');
+        return tr('nd-tab-recent');
       case 1:
-        return tr('bd-tab-favourites');
+        return tr('nd-tab-favourites');
       case 2:
-        return tr('bd-tab-network');
+        return tr('nd-tab-network');
       case 3:
-        return tr('bd-tab-address-book');
+        return tr('nd-tab-address-book');
       case 4:
-        return tr('bd-tab-devices');
+        return tr('nd-tab-devices');
       default:
         return gFFI.peerTabModel.tabTooltip(t);
     }
@@ -170,7 +170,7 @@ class _PeerTabPageState extends State<PeerTabPage>
     return PeerListHeader<int>(
       tabs: [
         for (final t in model.visibleEnabledOrderedIndexs)
-          BdTab(t, _tabLabel(t)),
+          NdTab(t, _tabLabel(t)),
       ],
       value: model.currentTab,
       onChanged: (t) async {
@@ -179,11 +179,11 @@ class _PeerTabPageState extends State<PeerTabPage>
         await bind.setLocalFlutterOption(
             k: kOptionPeerTabIndex, v: t.toString());
       },
-      search: BdSearchField(
-        placeholder: tr('bd-search'),
+      search: NdSearchField(
+        placeholder: tr('nd-search'),
         controller: peerSearchTextController,
         width: 170,
-        height: BdSize.controlSm,
+        height: NdSize.controlSm,
         onChanged: (v) => peerSearchText.value = v,
       ),
       actions: [
@@ -291,7 +291,7 @@ class _PeerTabPageState extends State<PeerTabPage>
             child: RotatedBox(
                 quarterTurns: 2,
                 child: Icon(
-                  BdIcons.refresh,
+                  NdIcons.refresh,
                   size: 18,
                   color: textColor,
                 ))),
@@ -315,7 +315,7 @@ class _PeerTabPageState extends State<PeerTabPage>
           Navigator.pop(context);
         }
       },
-      child: Icon(BdIcons.checkBox, size: 18, color: textColor),
+      child: Icon(NdIcons.checkBox, size: 18, color: textColor),
     );
   }
 
@@ -486,7 +486,7 @@ class _PeerTabPageState extends State<PeerTabPage>
 
           deleteConfirmDialog(onSubmit, translate('Delete'));
         },
-        child: Icon(BdIcons.delete, color: bdColors.danger));
+        child: Icon(NdIcons.delete, color: ndColors.danger));
   }
 
   Widget addSelectionToFav() {
@@ -553,7 +553,7 @@ class _PeerTabPageState extends State<PeerTabPage>
                   showToast(translate('Successful'));
                 });
               },
-              child: Icon(BdIcons.tag))
+              child: Icon(NdIcons.tag))
           .marginOnly(left: !(isDesktop || isWebDesktop) ? 11 : 6),
     );
   }
@@ -575,7 +575,7 @@ class _PeerTabPageState extends State<PeerTabPage>
         onTap: () {
           model.selectAll();
         },
-        child: Icon(BdIcons.selectAll),
+        child: Icon(NdIcons.selectAll),
       ).marginOnly(left: 6),
     );
   }
@@ -588,7 +588,7 @@ class _PeerTabPageState extends State<PeerTabPage>
             onTap: () {
               model.setMultiSelectionMode(false);
             },
-            child: Icon(BdIcons.close))
+            child: Icon(NdIcons.close))
         .marginOnly(left: 6);
   }
 
@@ -598,7 +598,7 @@ class _PeerTabPageState extends State<PeerTabPage>
         toolTip: translate('Toggle Tags'),
         hoverableWhenfalse: hideAbTagsPanel,
         child: Icon(
-          BdIcons.tag,
+          NdIcons.tag,
           size: 18,
         ),
         onTap: () async {
@@ -652,7 +652,7 @@ class _PeerTabPageState extends State<PeerTabPage>
           return _hoverAction(
             context: context,
             toolTip: translate('More'),
-            child: Icon(BdIcons.unfoldMore, size: 18, color: textColor),
+            child: Icon(NdIcons.unfoldMore, size: 18, color: textColor),
             onTap: showMenu,
           );
         },
@@ -735,7 +735,7 @@ class _PeerSearchBarState extends State<PeerSearchBar> {
               });
             },
             child: Icon(
-              BdIcons.search,
+              NdIcons.search,
               color: Theme.of(context).hintColor,
             ));
   }
@@ -761,7 +761,7 @@ class _PeerSearchBarState extends State<PeerSearchBar> {
                 child: Row(
                   children: [
                     Icon(
-                      BdIcons.search,
+                      NdIcons.search,
                       color: Theme.of(context).hintColor,
                     ).marginSymmetric(horizontal: 4),
                     Expanded(
@@ -808,7 +808,7 @@ class _PeerSearchBarState extends State<PeerSearchBar> {
                       icon: Tooltip(
                           message: translate('Close'),
                           child: Icon(
-                            BdIcons.close,
+                            NdIcons.close,
                             color: Theme.of(context).hintColor,
                           )),
                     ),
@@ -860,10 +860,10 @@ class _PeerViewDropdownState extends State<PeerViewDropdown> {
                                   : 'List'),
                           child: Icon(
                             e == PeerUiType.grid
-                                ? BdIcons.gridView
+                                ? NdIcons.gridView
                                 : e == PeerUiType.list
-                                    ? BdIcons.viewList
-                                    : BdIcons.viewAgenda,
+                                    ? NdIcons.viewList
+                                    : NdIcons.viewAgenda,
                             size: 18,
                           )),
                       e,
@@ -894,10 +894,10 @@ class _PeerViewDropdownState extends State<PeerViewDropdown> {
         toolTip: translate('Change view'),
         child: Icon(
           peerCardUiType.value == PeerUiType.grid
-              ? BdIcons.gridView
+              ? NdIcons.gridView
               : peerCardUiType.value == PeerUiType.list
-                  ? BdIcons.viewList
-                  : BdIcons.viewAgenda,
+                  ? NdIcons.viewList
+                  : NdIcons.viewAgenda,
           size: 18,
         ),
         onTapDown: (details) {
@@ -973,7 +973,7 @@ class _PeerSortDropdownState extends State<PeerSortDropdown> {
       context: context,
       toolTip: translate('Sort by'),
       child: Icon(
-        BdIcons.sort,
+        NdIcons.sort,
         size: 18,
       ),
       onTapDown: (details) {

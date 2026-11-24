@@ -4,7 +4,7 @@ import 'package:flutter_hbb/mobile/pages/settings_page.dart';
 import 'package:flutter_hbb/web/settings_page.dart';
 import 'package:get/get.dart';
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 import '../../common/widgets/chat_page.dart';
 import '../../models/platform_model.dart';
 import '../../models/state_model.dart';
@@ -142,7 +142,7 @@ class HomePageState extends State<HomePage> {
                       height: 10,
                       decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: context.bd.success),
+                          color: context.nd.success),
                     ).marginSymmetric(horizontal: 2),
                 ],
               ),

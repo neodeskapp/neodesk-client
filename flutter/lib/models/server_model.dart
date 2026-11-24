@@ -11,14 +11,14 @@ import 'package:get/get.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../common.dart';
-import '../common/theme/bd_theme.dart';
+import '../common/theme/nd_theme.dart';
 import '../common/formatter/id_formatter.dart';
 import '../desktop/pages/server_page.dart' as desktop;
 import '../desktop/widgets/tabbar_widget.dart';
 import '../mobile/pages/server_page.dart';
 import 'model.dart';
 import 'state_model.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 const kLoginDialogTag = "LOGIN";
 
@@ -394,8 +394,8 @@ class ServerModel with ChangeNotifier {
         submit() => close(true);
         return CustomAlertDialog(
           title: Row(children: [
-            Icon(BdIcons.warning,
-                color: context.bd.danger, size: 28),
+            Icon(NdIcons.warning,
+                color: context.nd.danger, size: 28),
             const SizedBox(width: 10),
             Text(translate("Warning")),
           ]),
@@ -421,8 +421,8 @@ class ServerModel with ChangeNotifier {
         submit() => close(true);
         return CustomAlertDialog(
           title: Row(children: [
-            Icon(BdIcons.warning,
-                color: context.bd.danger, size: 28),
+            Icon(NdIcons.warning,
+                color: context.nd.danger, size: 28),
             const SizedBox(width: 10),
             Text(translate("Warning")),
           ]),
@@ -652,7 +652,7 @@ class ServerModel with ChangeNotifier {
         title:
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text(translate(title)),
-          IconButton(onPressed: close, icon: const Icon(BdIcons.close))
+          IconButton(onPressed: close, icon: const Icon(NdIcons.close))
         ]),
         content: Column(
           mainAxisSize: MainAxisSize.min,

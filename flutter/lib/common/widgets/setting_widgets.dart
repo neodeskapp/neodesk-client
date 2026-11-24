@@ -2,11 +2,11 @@ import 'package:debounce_throttle/debounce_throttle.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:get/get.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 customImageQualityWidget(
     {required double initQuality,
@@ -206,12 +206,12 @@ List<Widget> ServerConfigImportExportWidgets(
     Tooltip(
       message: translate('Import server config'),
       child: IconButton(
-          icon: Icon(BdIcons.contentPaste, color: bdColors.textMuted), onPressed: import),
+          icon: Icon(NdIcons.contentPaste, color: ndColors.textMuted), onPressed: import),
     ),
     Tooltip(
         message: translate('Export Server Config'),
         child: IconButton(
-            icon: Icon(BdIcons.contentCopy, color: bdColors.textMuted), onPressed: export))
+            icon: Icon(NdIcons.contentCopy, color: ndColors.textMuted), onPressed: export))
   ];
 }
 

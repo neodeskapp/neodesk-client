@@ -13,7 +13,7 @@ import 'package:bot_toast/bot_toast.dart';
 
 import '../utils/http_service.dart' as http;
 import '../common.dart';
-import '../common/theme/bd_theme.dart';
+import '../common/theme/nd_theme.dart';
 
 final syncAbOption = 'sync-ab-with-recent-sessions';
 bool shouldSyncAb() {
@@ -485,8 +485,8 @@ class AbModel {
         }
         if (hasSynced) {
           BotToast.showText(
-              contentColor: bdColors.accent,
-              textStyle: toastTextStyle(bdColors.onAccent),
+              contentColor: ndColors.accent,
+              textStyle: toastTextStyle(ndColors.onAccent),
               text: translate('synced_peer_readded_tip'));
           _syncAllFromRecent = true;
         }
@@ -779,8 +779,8 @@ class AbModel {
     final res = current.isFull();
     if (res && warn) {
       BotToast.showText(
-          contentColor: bdColors.danger,
-          textStyle: toastTextStyle(bdColors.onDanger),
+          contentColor: ndColors.danger,
+          textStyle: toastTextStyle(ndColors.onDanger),
           text: translate('exceed_max_devices'));
     }
     return res;
@@ -1092,8 +1092,8 @@ class LegacyAb extends BaseAb {
 
     if (!ret && toastIfFail) {
       BotToast.showText(
-          contentColor: bdColors.danger,
-          textStyle: toastTextStyle(bdColors.onDanger),
+          contentColor: ndColors.danger,
+          textStyle: toastTextStyle(ndColors.onDanger),
           text: pushError.value);
     }
     if (ret && toastIfSucc) {
@@ -1260,8 +1260,8 @@ class LegacyAb extends BaseAb {
   Future<bool> renameTag(String oldTag, String newTag) async {
     if (tags.contains(newTag)) {
       BotToast.showText(
-          contentColor: bdColors.danger,
-          textStyle: toastTextStyle(bdColors.onDanger),
+          contentColor: ndColors.danger,
+          textStyle: toastTextStyle(ndColors.onDanger),
           text: 'Tag $newTag already exists');
       return false;
     }
@@ -1601,8 +1601,8 @@ class Ab extends BaseAb {
         final errMsg = _jsonDecodeActionResp(resp);
         if (errMsg.isNotEmpty) {
           BotToast.showText(
-              contentColor: bdColors.danger,
-              textStyle: toastTextStyle(bdColors.onDanger),
+              contentColor: ndColors.danger,
+              textStyle: toastTextStyle(ndColors.onDanger),
               text: errMsg);
           ret = false;
           break;
@@ -1627,8 +1627,8 @@ class Ab extends BaseAb {
       final errMsg = _jsonDecodeActionResp(resp);
       if (errMsg.isNotEmpty) {
         BotToast.showText(
-            contentColor: bdColors.danger,
-            textStyle: toastTextStyle(bdColors.onDanger),
+            contentColor: ndColors.danger,
+            textStyle: toastTextStyle(ndColors.onDanger),
             text: errMsg);
         return false;
       }
@@ -1651,8 +1651,8 @@ class Ab extends BaseAb {
       final errMsg = _jsonDecodeActionResp(resp);
       if (errMsg.isNotEmpty) {
         BotToast.showText(
-            contentColor: bdColors.danger,
-            textStyle: toastTextStyle(bdColors.onDanger),
+            contentColor: ndColors.danger,
+            textStyle: toastTextStyle(ndColors.onDanger),
             text: errMsg);
         return false;
       }
@@ -1674,8 +1674,8 @@ class Ab extends BaseAb {
       final errMsg = _jsonDecodeActionResp(resp);
       if (errMsg.isNotEmpty) {
         BotToast.showText(
-            contentColor: bdColors.danger,
-            textStyle: toastTextStyle(bdColors.onDanger),
+            contentColor: ndColors.danger,
+            textStyle: toastTextStyle(ndColors.onDanger),
             text: errMsg);
         return false;
       }
@@ -1782,8 +1782,8 @@ class Ab extends BaseAb {
       final errMsg = _jsonDecodeActionResp(resp);
       if (errMsg.isNotEmpty) {
         BotToast.showText(
-            contentColor: bdColors.danger,
-            textStyle: toastTextStyle(bdColors.onDanger),
+            contentColor: ndColors.danger,
+            textStyle: toastTextStyle(ndColors.onDanger),
             text: errMsg);
         return false;
       }
@@ -1815,8 +1815,8 @@ class Ab extends BaseAb {
         final errMsg = _jsonDecodeActionResp(resp);
         if (errMsg.isNotEmpty) {
           BotToast.showText(
-              contentColor: bdColors.danger,
-              textStyle: toastTextStyle(bdColors.onDanger),
+              contentColor: ndColors.danger,
+              textStyle: toastTextStyle(ndColors.onDanger),
               text: errMsg);
           return false;
         }
@@ -1832,8 +1832,8 @@ class Ab extends BaseAb {
   Future<bool> renameTag(String oldTag, String newTag) async {
     if (tags.contains(newTag)) {
       BotToast.showText(
-          contentColor: bdColors.danger,
-          textStyle: toastTextStyle(bdColors.onDanger),
+          contentColor: ndColors.danger,
+          textStyle: toastTextStyle(ndColors.onDanger),
           text: 'Tag $newTag already exists');
       return false;
     }
@@ -1850,8 +1850,8 @@ class Ab extends BaseAb {
       final errMsg = _jsonDecodeActionResp(resp);
       if (errMsg.isNotEmpty) {
         BotToast.showText(
-            contentColor: bdColors.danger,
-            textStyle: toastTextStyle(bdColors.onDanger),
+            contentColor: ndColors.danger,
+            textStyle: toastTextStyle(ndColors.onDanger),
             text: errMsg);
         return false;
       }
@@ -1877,8 +1877,8 @@ class Ab extends BaseAb {
       final errMsg = _jsonDecodeActionResp(resp);
       if (errMsg.isNotEmpty) {
         BotToast.showText(
-            contentColor: bdColors.danger,
-            textStyle: toastTextStyle(bdColors.onDanger),
+            contentColor: ndColors.danger,
+            textStyle: toastTextStyle(ndColors.onDanger),
             text: errMsg);
         return false;
       }
@@ -1901,8 +1901,8 @@ class Ab extends BaseAb {
       final errMsg = _jsonDecodeActionResp(resp);
       if (errMsg.isNotEmpty) {
         BotToast.showText(
-            contentColor: bdColors.danger,
-            textStyle: toastTextStyle(bdColors.onDanger),
+            contentColor: ndColors.danger,
+            textStyle: toastTextStyle(ndColors.onDanger),
             text: errMsg);
         return false;
       }

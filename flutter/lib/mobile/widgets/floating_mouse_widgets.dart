@@ -10,7 +10,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/common/widgets/remote_input.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 import 'package:flutter_hbb/models/model.dart';
@@ -26,10 +26,10 @@ const double _kSpaceBetweenLeftRightButtons = 40;
 const double _kLeftRightButtonWidth = 55;
 const double _kLeftRightButtonHeight = 40;
 const double _kBorderWidth = 1;
-Color get _kDefaultBorderColor => bdColors.onCanvas.withOpacity(0.7);
-Color get _kDefaultColor => bdColors.canvas.withOpacity(0.4);
-Color get _kTapDownColor => bdColors.accent.withOpacity(0.7);
-Color get _kWidgetHighlightColor => bdColors.onCanvas.withOpacity(0.9);
+Color get _kDefaultBorderColor => ndColors.onCanvas.withOpacity(0.7);
+Color get _kDefaultColor => ndColors.canvas.withOpacity(0.4);
+Color get _kTapDownColor => ndColors.accent.withOpacity(0.7);
+Color get _kWidgetHighlightColor => ndColors.onCanvas.withOpacity(0.9);
 const int _kInputTimerIntervalMillis = 100;
 
 class FloatingMouseWidgets extends StatefulWidget {
@@ -537,7 +537,7 @@ class _FloatingLeftRightButtonState extends State<FloatingLeftRightButton> {
           height: h,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(_kLeftRightButtonWidth * 0.225),
-            color: context.bd.onCanvas,
+            color: context.nd.onCanvas,
           ),
         ),
         Positioned(

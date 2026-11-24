@@ -19,10 +19,10 @@ import 'package:get/get.dart';
 import 'package:flex_color_picker/flex_color_picker.dart';
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 import 'dialog.dart';
 import 'login.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 final hideAbTagsPanel = false.obs;
 
@@ -157,7 +157,7 @@ class _AddressBookState extends State<AddressBook> {
         return Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            icon(BdIcons.cloudOff, "Personal"),
+            icon(NdIcons.cloudOff, "Personal"),
           ],
         );
       } else {
@@ -165,17 +165,17 @@ class _AddressBookState extends State<AddressBook> {
         final rule = gFFI.abModel.current.sharedProfile()?.rule;
         if (rule == ShareRule.read.value) {
           children.add(
-              icon(BdIcons.visibility, ShareRule.desc(ShareRule.read.value)));
+              icon(NdIcons.visibility, ShareRule.desc(ShareRule.read.value)));
         } else if (rule == ShareRule.readWrite.value) {
           children
-              .add(icon(BdIcons.edit, ShareRule.desc(ShareRule.readWrite.value)));
+              .add(icon(NdIcons.edit, ShareRule.desc(ShareRule.readWrite.value)));
         } else if (rule == ShareRule.fullControl.value) {
           children.add(icon(
-              BdIcons.security, ShareRule.desc(ShareRule.fullControl.value)));
+              NdIcons.security, ShareRule.desc(ShareRule.fullControl.value)));
         }
         final owner = gFFI.abModel.current.sharedProfile()?.owner;
         if (owner != null) {
-          children.add(icon(BdIcons.person, "${translate("Owner")}: $owner"));
+          children.add(icon(NdIcons.person, "${translate("Owner")}: $owner"));
         }
         return Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -250,7 +250,7 @@ class _AddressBookState extends State<AddressBook> {
               Expanded(
                   child:
                       buildItem(gFFI.abModel.currentName.value, button: true)),
-              Icon(BdIcons.arrowDropDown),
+              Icon(NdIcons.arrowDropDown),
             ]),
           )),
       underline: Container(
@@ -546,7 +546,7 @@ class _AddressBookState extends State<AddressBook> {
                       children: [
                         Text(
                           '*',
-                          style: TextStyle(color: context.bd.danger, fontSize: 14),
+                          style: TextStyle(color: context.nd.danger, fontSize: 14),
                         ),
                         Text(
                           'ID',
@@ -595,8 +595,8 @@ class _AddressBookState extends State<AddressBook> {
                             suffixIcon: IconButton(
                               icon: Icon(
                                   passwordVisible
-                                      ? BdIcons.visibility
-                                      : BdIcons.visibilityOff,
+                                      ? NdIcons.visibility
+                                      : NdIcons.visibilityOff,
                                   color: MyTheme.lightTheme.primaryColor),
                               onPressed: () {
                                 setState(() {
@@ -659,7 +659,7 @@ class _AddressBookState extends State<AddressBook> {
             ),
             if (!gFFI.abModel.current.isPersonal())
               Row(children: [
-                Icon(BdIcons.info, color: context.bd.warning).marginOnly(right: 4),
+                Icon(NdIcons.info, color: context.nd.warning).marginOnly(right: 4),
                 Text(
                   translate('share_warning_tip'),
                   style: TextStyle(fontSize: 12),
@@ -699,8 +699,8 @@ class _AddressBookState extends State<AddressBook> {
           for (var t in [kUntagged, translate(kUntagged)]) {
             if (tags.contains(t)) {
               BotToast.showText(
-                  contentColor: bdColors.danger,
-                  textStyle: toastTextStyle(bdColors.onDanger),
+                  contentColor: ndColors.danger,
+                  textStyle: toastTextStyle(ndColors.onDanger),
                   text: 'Tag name cannot be "$t"');
               isInProgress = false;
               return;
@@ -804,14 +804,14 @@ class AddressBookTag extends StatelessWidget {
                       decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: tags.contains(name)
-                              ? BdPalette.onDataColor
+                              ? NdPalette.onDataColor
                               : gFFI.abModel.getCurrentAbTagColor(name)),
                     ).marginOnly(right: radius / 2),
                   Expanded(
                     child: Text(isUnTagged ? translate(name) : name,
                         style: TextStyle(
                             overflow: TextOverflow.ellipsis,
-                            color: tags.contains(name) ? BdPalette.onDataColor : null)),
+                            color: tags.contains(name) ? NdPalette.onDataColor : null)),
                   ),
                 ],
               ),

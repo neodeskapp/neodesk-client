@@ -6,8 +6,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart' show translate;
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
-import 'package:flutter_hbb/onboarding/joining_view.dart' show formatBdId;
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_hbb/onboarding/joining_view.dart' show formatNdId;
 
 /// Two columns: this computer (392) and connect (the rest), 48 apart.
 /// Incoming-only clients show the left column alone, centred; outgoing-only
@@ -67,7 +67,7 @@ class HomeSupportContact {
 
 class HomeStatus {
   const HomeStatus(this.kind, this.text, {this.linkLabel, this.onLink});
-  final BdStatusKind kind;
+  final NdStatusKind kind;
   final String text;
   final String? linkLabel;
   final VoidCallback? onLink;
@@ -141,52 +141,52 @@ class _ThisComputerColumnState extends State<ThisComputerColumn> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final st = widget.status;
     final showPassword = !widget.onlyClick && widget.password != null;
 
     Widget statusLine = widget.statusWidget ?? HomeStatusLine(status: st);
 
-    final panel = BdPanel(
+    final panel = NdPanel(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
             Expanded(
-                child: Text(tr('bd-home-id'),
+                child: Text(tr('nd-home-id'),
                     style: t.body.copyWith(color: c.textMuted))),
-            BdCopyButton(
+            NdCopyButton(
               value: () => widget.id.replaceAll(' ', ''),
-              label: tr('bd-copy'),
+              label: tr('nd-copy'),
               copiedLabel: translate('Copied'),
             ),
           ]),
           const SizedBox(height: 6),
-          SelectableText(formatBdId(widget.id), style: t.id),
+          SelectableText(formatNdId(widget.id), style: t.id),
           if (showPassword || widget.permanentOnly) ...[
             const SizedBox(height: 16),
-            const BdRule(),
+            const NdRule(),
             const SizedBox(height: 14),
             Row(children: [
               Expanded(
                 child: Text(
                     widget.permanentOnly
-                        ? tr('bd-home-permanent-password')
-                        : tr('bd-home-one-time-password'),
+                        ? tr('nd-home-permanent-password')
+                        : tr('nd-home-one-time-password'),
                     style: t.body.copyWith(color: c.textMuted)),
               ),
               if (!widget.permanentOnly) ...[
-                BdButton(
-                  label: _shown ? tr('bd-hide') : tr('bd-show'),
-                  size: BdButtonSize.sm,
+                NdButton(
+                  label: _shown ? tr('nd-hide') : tr('nd-show'),
+                  size: NdButtonSize.sm,
                   onPressed: () => setState(() => _shown = !_shown),
                 ),
                 const SizedBox(width: 8),
-                BdCopyButton(
+                NdCopyButton(
                   value: () => widget.password ?? '',
-                  label: tr('bd-copy'),
+                  label: tr('nd-copy'),
                   copiedLabel: translate('Copied'),
                 ),
               ],
@@ -200,8 +200,8 @@ class _ThisComputerColumnState extends State<ThisComputerColumn> {
             ),
             if (!widget.permanentOnly && widget.onNewPassword != null) ...[
               const SizedBox(height: 10),
-              BdButton.link(
-                  label: tr('bd-home-new-password'), onPressed: _newPassword),
+              NdButton.link(
+                  label: tr('nd-home-new-password'), onPressed: _newPassword),
             ],
           ],
         ],
@@ -217,7 +217,7 @@ class _ThisComputerColumnState extends State<ThisComputerColumn> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(tr('bd-home-this-computer'), style: t.title),
+                Text(tr('nd-home-this-computer'), style: t.title),
                 const SizedBox(height: 6),
                 statusLine,
                 const SizedBox(height: 20),
@@ -226,32 +226,32 @@ class _ThisComputerColumnState extends State<ThisComputerColumn> {
                 const SizedBox(height: 16),
                 Text(
                   widget.onlyClick
-                      ? tr('bd-home-hint-click')
-                      : tr('bd-home-hint'),
+                      ? tr('nd-home-hint-click')
+                      : tr('nd-home-hint'),
                   style: t.small,
                 ),
                 const Spacer(),
                 if (support != null && !support.isEmpty) ...[
                   const SizedBox(height: 32),
-                  const BdRule(),
+                  const NdRule(),
                   const SizedBox(height: 20),
-                  Text(tr('bd-home-help-from', [support.company]),
+                  Text(tr('nd-home-help-from', [support.company]),
                       style: t.heading),
                   const SizedBox(height: 10),
                   if (support.phone.isNotEmpty)
                     _ContactRow(
-                        icon: BdIcons.call,
+                        icon: NdIcons.call,
                         text: support.phone,
                         onTap: support.onPhone),
                   if (support.email.isNotEmpty)
                     _ContactRow(
-                        icon: BdIcons.mail,
+                        icon: NdIcons.mail,
                         text: support.email,
                         link: true,
                         onTap: support.onEmail),
                   if (support.website.isNotEmpty)
                     _ContactRow(
-                        icon: BdIcons.language,
+                        icon: NdIcons.language,
                         text: support.website,
                         link: true,
                         onTap: support.onWebsite),
@@ -277,11 +277,11 @@ class HomeStatusLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        BdStatusMark(kind: status.kind),
+        NdStatusMark(kind: status.kind),
         const SizedBox(width: 10),
         Flexible(
           child: Wrap(
@@ -290,7 +290,7 @@ class HomeStatusLine extends StatelessWidget {
             children: [
               Text(status.text, style: t.body),
               if (status.linkLabel != null)
-                BdButton.link(label: status.linkLabel!, onPressed: status.onLink),
+                NdButton.link(label: status.linkLabel!, onPressed: status.onLink),
             ],
           ),
         ),
@@ -309,8 +309,8 @@ class _ContactRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(children: [
@@ -318,7 +318,7 @@ class _ContactRow extends StatelessWidget {
         const SizedBox(width: 14),
         Flexible(
           child: link
-              ? BdButton.link(label: text, onPressed: onTap)
+              ? NdButton.link(label: text, onPressed: onTap)
               : Text(text, style: t.body.copyWith(fontSize: 15)),
         ),
       ]),
@@ -345,20 +345,20 @@ class ConnectHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(tr('bd-home-connect-title'), style: t.title),
+        Text(tr('nd-home-connect-title'), style: t.title),
         const SizedBox(height: 20),
-        Text(tr('bd-home-connect-field'), style: t.label),
+        Text(tr('nd-home-connect-field'), style: t.label),
         const SizedBox(height: 6),
         Row(children: [
           Expanded(child: field),
           const SizedBox(width: 8),
-          BdButton.primary(
+          NdButton.primary(
               label: translate('Connect'),
-              size: BdButtonSize.lg,
+              size: NdButtonSize.lg,
               onPressed: onConnect),
         ]),
         const SizedBox(height: 8),
@@ -366,20 +366,20 @@ class ConnectHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
-              child: Text(tr('bd-home-connect-hint'), style: t.small),
+              child: Text(tr('nd-home-connect-hint'), style: t.small),
             ),
             MenuAnchor(
-              style: bdMenuStyle(context),
+              style: ndMenuStyle(context),
               alignmentOffset: const Offset(0, 4),
               menuChildren: [
                 for (final m in moreWays)
-                  BdMenuItem(label: m.$1, onPressed: m.$2),
+                  NdMenuItem(label: m.$1, onPressed: m.$2),
               ],
-              builder: (context, controller, _) => BdButton(
-                label: tr('bd-home-more-ways'),
-                kind: BdButtonKind.ghost,
-                size: BdButtonSize.sm,
-                trailingIcon: BdIcons.expandMore,
+              builder: (context, controller, _) => NdButton(
+                label: tr('nd-home-more-ways'),
+                kind: NdButtonKind.ghost,
+                size: NdButtonSize.sm,
+                trailingIcon: NdIcons.expandMore,
                 onPressed: () =>
                     controller.isOpen ? controller.close() : controller.open(),
               ),
@@ -393,8 +393,8 @@ class ConnectHeader extends StatelessWidget {
 
 /// One computer in the list: name and ID, system, status, Connect on hover
 /// and the row menu.
-class BdPeerRow extends StatefulWidget {
-  const BdPeerRow({
+class NdPeerRow extends StatefulWidget {
+  const NdPeerRow({
     super.key,
     required this.name,
     required this.id,
@@ -435,18 +435,18 @@ class BdPeerRow extends StatefulWidget {
   final Widget? leading;
 
   @override
-  State<BdPeerRow> createState() => _BdPeerRowState();
+  State<NdPeerRow> createState() => _NdPeerRowState();
 }
 
-class _BdPeerRowState extends State<BdPeerRow> {
+class _NdPeerRowState extends State<NdPeerRow> {
   bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final hover = _hover || widget.forceHover;
-    final os = bdOsFromPlatform(widget.platform);
+    final os = ndOsFromPlatform(widget.platform);
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -483,13 +483,13 @@ class _BdPeerRowState extends State<BdPeerRow> {
                     ),
                     if (widget.favourite) ...[
                       const SizedBox(width: 4),
-                      Icon(BdIcons.starFilled, size: 16, color: c.textMuted),
+                      Icon(NdIcons.starFilled, size: 16, color: c.textMuted),
                     ],
                   ]),
                   const SizedBox(height: 2),
                   Text(
                     [
-                      formatBdId(widget.id),
+                      formatNdId(widget.id),
                       if ((widget.note ?? '').isNotEmpty) widget.note!,
                     ].join('   '),
                     maxLines: 1,
@@ -503,7 +503,7 @@ class _BdPeerRowState extends State<BdPeerRow> {
             SizedBox(
               width: 126,
               child: Row(children: [
-                BdOsMark(os: os),
+                NdOsMark(os: os),
                 const SizedBox(width: 10),
                 Flexible(
                   child: Text(widget.platform,
@@ -524,13 +524,13 @@ class _BdPeerRowState extends State<BdPeerRow> {
             SizedBox(
               width: 76,
               child: widget.showStatus
-                  ? BdStatus(
+                  ? NdStatus(
                       kind: widget.online
-                          ? BdStatusKind.good
-                          : BdStatusKind.offline,
+                          ? NdStatusKind.good
+                          : NdStatusKind.offline,
                       text: widget.online
-                          ? tr('bd-online')
-                          : tr('bd-offline'))
+                          ? tr('nd-online')
+                          : tr('nd-offline'))
                   : const SizedBox.shrink(),
             ),
             SizedBox(
@@ -538,18 +538,18 @@ class _BdPeerRowState extends State<BdPeerRow> {
               child: hover && widget.showStatus && widget.onConnect != null
                   ? Align(
                       alignment: Alignment.centerRight,
-                      child: BdButton(
+                      child: NdButton(
                           label: translate('Connect'),
-                          size: BdButtonSize.sm,
+                          size: NdButtonSize.sm,
                           onPressed: widget.onConnect),
                     )
                   : null,
             ),
             const SizedBox(width: 6),
             Builder(
-              builder: (bctx) => BdIconButton(
-                icon: BdIcons.moreVert,
-                tooltip: tr('bd-row-menu'),
+              builder: (bctx) => NdIconButton(
+                icon: NdIcons.moreVert,
+                tooltip: tr('nd-row-menu'),
                 color: c.text,
                 onPressed: widget.onMenu == null
                     ? null
@@ -578,7 +578,7 @@ class PeerListHeader<T> extends StatelessWidget {
     this.actions = const [],
   });
 
-  final List<BdTab<T>> tabs;
+  final List<NdTab<T>> tabs;
   final T value;
   final ValueChanged<T> onChanged;
   final Widget search;
@@ -586,7 +586,7 @@ class PeerListHeader<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BdTabs<T>(
+    return NdTabs<T>(
       tabs: tabs,
       value: value,
       onChanged: onChanged,
@@ -606,7 +606,7 @@ class PeerListEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     return Padding(
       padding: const EdgeInsets.only(top: 24),
       child: Column(
@@ -614,7 +614,7 @@ class PeerListEmpty extends StatelessWidget {
         children: [
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
-            child: Text(text, style: t.body.copyWith(color: context.bd.textMuted)),
+            child: Text(text, style: t.body.copyWith(color: context.nd.textMuted)),
           ),
           if (action != null) ...[const SizedBox(height: 12), action!],
         ],
@@ -624,4 +624,4 @@ class PeerListEmpty extends StatelessWidget {
 }
 
 /// Puts [text] on the clipboard.
-void bdCopy(String text) => Clipboard.setData(ClipboardData(text: text));
+void ndCopy(String text) => Clipboard.setData(ClipboardData(text: text));

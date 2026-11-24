@@ -157,7 +157,7 @@ flutter:
     - assets/flags/
 
   fonts:
-    # NeoDesk type and icons (lib/common/theme/bd_theme.dart, bd_icons.dart).
+    # NeoDesk type and icons (lib/common/theme/nd_theme.dart, nd_icons.dart).
     # Licences next to the files: IBMPlex-OFL.txt, FunnelDisplay-OFL.txt,
     # MaterialSymbols-LICENSE.txt.
     - family: IBMPlexSans
@@ -180,12 +180,12 @@ flutter:
           weight: 600
         - asset: assets/fonts/FunnelDisplay-Bold.ttf
           weight: 700
-    - family: BdSymbols
+    - family: NdSymbols
       fonts:
-        - asset: assets/fonts/BdSymbols.ttf
-    - family: BdSymbolsFilled
+        - asset: assets/fonts/NdSymbols.ttf
+    - family: NdSymbolsFilled
       fonts:
-        - asset: assets/fonts/BdSymbolsFilled.ttf
+        - asset: assets/fonts/NdSymbolsFilled.ttf
     # Touch gestures of the mobile app's gesture help, which Material
     # Symbols has no glyphs for.
     - family: GestureIcons

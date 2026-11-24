@@ -6,7 +6,7 @@ import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide TabBarTheme;
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/common/widgets/branding_logo.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
 import 'package:flutter_hbb/common.dart';
@@ -602,18 +602,18 @@ class _DesktopTabState extends State<DesktopTab>
   /// in the others.
   Widget _brand() {
     if (tabType == DesktopTabType.cm) {
-      return BdTitleBrand(title: bind.mainGetAppNameSync());
+      return NdTitleBrand(title: bind.mainGetAppNameSync());
     }
     if (tabType == DesktopTabType.install) {
-      return BdTitleBrand(title: tr('bd-install-title'));
+      return NdTitleBrand(title: tr('nd-install-title'));
     }
     if (tabType != DesktopTabType.main && tabType != DesktopTabType.install) {
-      return const BdLogoMark(size: 18);
+      return const NdLogoMark(size: 18);
     }
     return Obx(() {
       final branding = BrandingModel.current;
       if (branding.hasCompanyName) {
-        return BdTitleBrand(
+        return NdTitleBrand(
           serverName: branding.companyName.value.trim(),
           serverLogo:
               branding.hasLogo.value && branding.logoPath.value.isNotEmpty
@@ -628,14 +628,14 @@ class _DesktopTabState extends State<DesktopTab>
                   : null,
         );
       }
-      return const BdTitleBrand();
+      return const NdTitleBrand();
     });
   }
 
   Widget _buildBar() {
     final isIncomingHomePage = bind.isIncomingOnly() && isInHomePage();
     return ColoredBox(
-      color: context.bd.titlebar,
+      color: context.nd.titlebar,
       child: _buildBarRow(isIncomingHomePage),
     );
   }
@@ -810,8 +810,8 @@ class WindowActionPanelState extends State<WindowActionPanel> {
           Row(
             children: [
               if (widget.showMinimize && !isMacOS)
-                BdWinButton(
-                  glyph: BdWinGlyph.minimize,
+                NdWinButton(
+                  glyph: NdWinGlyph.minimize,
                   tooltip: translate('Minimize'),
                   height: _kTabBarHeight - 1,
                   onTap: () {
@@ -823,10 +823,10 @@ class WindowActionPanelState extends State<WindowActionPanel> {
                   },
                 ),
               if (widget.showMaximize && !isMacOS)
-                Obx(() => BdWinButton(
+                Obx(() => NdWinButton(
                       glyph: stateGlobal.isMaximized.isTrue
-                          ? BdWinGlyph.restore
-                          : BdWinGlyph.maximize,
+                          ? NdWinGlyph.restore
+                          : NdWinGlyph.maximize,
                       tooltip: translate(stateGlobal.isMaximized.isTrue
                           ? 'Restore'
                           : 'Maximize'),
@@ -836,8 +836,8 @@ class WindowActionPanelState extends State<WindowActionPanel> {
                           : _toggleMaximize,
                     )),
               if (widget.showClose && !isMacOS)
-                BdWinButton(
-                  glyph: BdWinGlyph.close,
+                NdWinButton(
+                  glyph: NdWinGlyph.close,
                   tooltip: translate('Close'),
                   height: _kTabBarHeight - 1,
                   isClose: true,
@@ -922,8 +922,8 @@ Future<bool> closeConfirmDialog() async {
 
     return CustomAlertDialog(
       title: Row(children: [
-        Icon(BdIcons.warning,
-            color: context.bd.danger, size: 28),
+        Icon(NdIcons.warning,
+            color: context.nd.danger, size: 28),
         const SizedBox(width: 10),
         Text(translate("Warning")),
       ]),
@@ -1119,7 +1119,7 @@ class _TabState extends State<_Tab> with RestorationMixin {
         child: Icon(
           isSelected ? widget.selectedIcon : widget.unselectedIcon,
           size: 16,
-          color: context.bd.textMuted,
+          color: context.nd.textMuted,
         ).paddingOnly(right: 8));
     final labelWidget = Obx(() {
       return ConstrainedBox(
@@ -1132,10 +1132,10 @@ class _TabState extends State<_Tab> with RestorationMixin {
                   ? translate(widget.label.value)
                   : widget.label.value,
               textAlign: TextAlign.center,
-              style: context.bdText.label.copyWith(
+              style: context.ndText.label.copyWith(
                   fontSize: 13,
                   height: 18 / 13,
-                  color: isSelected ? context.bd.text : context.bd.textMuted),
+                  color: isSelected ? context.nd.text : context.nd.textMuted),
               overflow: TextOverflow.ellipsis,
             ),
           ));
@@ -1182,7 +1182,7 @@ class _TabState extends State<_Tab> with RestorationMixin {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
+    final c = context.nd;
     bool isSelected = widget.index == widget.selected;
     RxBool hover = restoreHover.value.obs;
     return MouseRegion(
@@ -1263,8 +1263,8 @@ class _CloseButton extends StatelessWidget {
       child: visible
           ? Align(
               alignment: Alignment.centerRight,
-              child: BdIconButton(
-                icon: BdIcons.close,
+              child: NdIconButton(
+                icon: NdIcons.close,
                 tooltip: translate('Close'),
                 size: 20,
                 iconSize: 16,
@@ -1310,7 +1310,7 @@ class _ActionIconState extends State<ActionIcon> {
       waitDuration: const Duration(seconds: 1),
       child: InkWell(
         hoverColor: widget.isClose
-            ? context.bd.windowCloseHover
+            ? context.nd.windowCloseHover
             : MyTheme.tabbar(context).hoverColor,
         onHover: (value) => hover.value = value,
         onTap: widget.onTap,
@@ -1321,14 +1321,14 @@ class _ActionIconState extends State<ActionIcon> {
           child: widget.onTap == null
               ? Icon(
                   widget.icon,
-                  color: context.bd.textMuted,
+                  color: context.nd.textMuted,
                   size: widget.iconSize,
                 )
               : Obx(
                   () => Icon(
                     widget.icon,
                     color: hover.value && widget.isClose
-                        ? context.bd.onWindowCloseHover
+                        ? context.nd.onWindowCloseHover
                         : MyTheme.tabbar(context).unSelectedIconColor,
                     size: widget.iconSize,
                   ),
@@ -1348,7 +1348,7 @@ class AddButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ActionIcon(
         message: 'New Connection',
-        icon: BdIcons.add,
+        icon: NdIcons.add,
         onTap: () => rustDeskWinManager.call(
             WindowType.Main, kWindowMainWindowOnTop, ""),
         isClose: false);
@@ -1382,7 +1382,7 @@ class _TabDropDownButtonState extends State<_TabDropDownButton> {
         final y = details.globalPosition.dy;
         position = RelativeRect.fromLTRB(x, y, x, y);
       },
-      icon: BdIcons.arrowDropDown,
+      icon: NdIcons.arrowDropDown,
       onTap: () {
         showMenu(
           context: context,
@@ -1436,9 +1436,9 @@ class _TabDropDownButtonState extends State<_TabDropDownButton> {
                                       setState(() => btnHover.value = true),
                                   onExit: (event) =>
                                       setState(() => btnHover.value = false),
-                                  child: Icon(BdIcons.close,
+                                  child: Icon(NdIcons.close,
                                       color:
-                                          btnHover.value ? context.bd.danger : null)));
+                                          btnHover.value ? context.nd.danger : null)));
                         } else {
                           return Offstage();
                         }
@@ -1484,7 +1484,7 @@ class TabbarTheme extends ThemeExtension<TabbarTheme> {
       required this.selectedTabBackgroundColor});
 
   /// Tab colours drawn from the NeoDesk tokens.
-  factory TabbarTheme.from(BdColors c) => TabbarTheme(
+  factory TabbarTheme.from(NdColors c) => TabbarTheme(
       selectedTabIconColor: c.accent,
       unSelectedTabIconColor: c.textMuted,
       selectedTextColor: c.text,
@@ -1496,8 +1496,8 @@ class TabbarTheme extends ThemeExtension<TabbarTheme> {
       closeHoverColor: c.hover,
       selectedTabBackgroundColor: c.bg);
 
-  static TabbarTheme get light => TabbarTheme.from(BdTheme.lightColors);
-  static TabbarTheme get dark => TabbarTheme.from(BdTheme.darkColors);
+  static TabbarTheme get light => TabbarTheme.from(NdTheme.lightColors);
+  static TabbarTheme get dark => TabbarTheme.from(NdTheme.darkColors);
 
   @override
   ThemeExtension<TabbarTheme> copyWith({

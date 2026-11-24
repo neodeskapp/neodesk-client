@@ -22,11 +22,11 @@ import 'package:flutter_hbb/web/dummy.dart'
 import '../../consts.dart';
 import '../../desktop/widgets/material_mod_popup_menu.dart' as mod_menu;
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import '../widgets/popup_menu.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 /// status of location bar
 enum LocationStatus {
@@ -217,7 +217,7 @@ class _FileManagerPageState extends State<FileManagerPage>
       switch (job.type) {
         case JobType.deleteDir:
         case JobType.deleteFile:
-          return Icon(BdIcons.delete, color: color);
+          return Icon(NdIcons.delete, color: color);
         default:
           return Transform.rotate(
             angle: isWeb
@@ -227,7 +227,7 @@ class _FileManagerPageState extends State<FileManagerPage>
                 : job.isRemoteToLocal
                     ? pi
                     : 0,
-            child: Icon(BdIcons.arrowForward, color: color),
+            child: Icon(NdIcons.arrowForward, color: color),
           );
       }
     }
@@ -285,7 +285,7 @@ class _FileManagerPageState extends State<FileManagerPage>
                                       shaderCallback: (bounds) =>
                                           LinearGradient(
                                         colors: [
-                                          context.bd.onAccent,
+                                          context.nd.onAccent,
                                           Colors.transparent,
                                         ],
                                         stops: [item.percent, item.percent],
@@ -333,7 +333,7 @@ class _FileManagerPageState extends State<FileManagerPage>
                                   jobController.resumeJob(item.id);
                                 },
                                 child: fileManagerIcon(
-                                    BdIcons.refresh, context.bd.onAccent),
+                                    NdIcons.refresh, context.nd.onAccent),
                                 color: MyTheme.accent,
                                 hoverColor: MyTheme.accent80,
                               ),
@@ -341,7 +341,7 @@ class _FileManagerPageState extends State<FileManagerPage>
                             MenuButton(
                               tooltip: translate("Delete"),
                               child: fileManagerIcon(
-                                  BdIcons.close, context.bd.onAccent),
+                                  NdIcons.close, context.nd.onAccent),
                               onPressed: () {
                                 jobController.jobTable.removeAt(index);
                                 jobController.cancelJob(item.id);
@@ -373,7 +373,7 @@ class _FileManagerPageState extends State<FileManagerPage>
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(BdIcons.swapHoriz,
+                          Icon(NdIcons.swapHoriz,
                                   size: 40,
                                   color: Theme.of(context)
                                       .tabBarTheme
@@ -591,7 +591,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                     padding: EdgeInsets.only(
                       right: 3,
                     ),
-                    child: fileManagerIcon(BdIcons.arrowBack,
+                    child: fileManagerIcon(NdIcons.arrowBack,
                         Theme.of(context).tabBarTheme.labelColor),
                     color: Theme.of(context).cardColor,
                     hoverColor: Theme.of(context).hoverColor,
@@ -602,7 +602,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                   ),
                   MenuButton(
                     tooltip: translate('Parent directory'),
-                    child: fileManagerIcon(BdIcons.arrowUpward,
+                    child: fileManagerIcon(NdIcons.arrowUpward,
                         Theme.of(context).tabBarTheme.labelColor),
                     color: Theme.of(context).cardColor,
                     hoverColor: Theme.of(context).hoverColor,
@@ -666,7 +666,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                         Future.delayed(
                             Duration.zero, () => _locationNode.requestFocus());
                       },
-                      child: fileManagerIcon(BdIcons.search,
+                      child: fileManagerIcon(NdIcons.search,
                           Theme.of(context).tabBarTheme.labelColor),
                       color: Theme.of(context).cardColor,
                       hoverColor: Theme.of(context).hoverColor,
@@ -674,7 +674,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                   case LocationStatus.pathLocation:
                     return MenuButton(
                       onPressed: null,
-                      child: fileManagerIcon(BdIcons.close,
+                      child: fileManagerIcon(NdIcons.close,
                           Theme.of(context).tabBarTheme.labelColor),
                       color: Theme.of(context).disabledColor,
                       hoverColor: Theme.of(context).hoverColor,
@@ -686,7 +686,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                         onSearchText("", isLocal);
                         _locationStatus.value = LocationStatus.bread;
                       },
-                      child: fileManagerIcon(BdIcons.close,
+                      child: fileManagerIcon(NdIcons.close,
                           Theme.of(context).tabBarTheme.labelColor),
                       color: Theme.of(context).cardColor,
                       hoverColor: Theme.of(context).hoverColor,
@@ -701,7 +701,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                 onPressed: () {
                   controller.refresh();
                 },
-                child: fileManagerIcon(BdIcons.refresh,
+                child: fileManagerIcon(NdIcons.refresh,
                     Theme.of(context).tabBarTheme.labelColor),
                 color: Theme.of(context).cardColor,
                 hoverColor: Theme.of(context).hoverColor,
@@ -724,7 +724,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                       onPressed: () {
                         controller.goToHomeDirectory();
                       },
-                      child: fileManagerIcon(BdIcons.home,
+                      child: fileManagerIcon(NdIcons.home,
                           Theme.of(context).tabBarTheme.labelColor),
                       color: Theme.of(context).cardColor,
                       hoverColor: Theme.of(context).hoverColor,
@@ -765,7 +765,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                             title: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(BdIcons.createNewFolder,
+                                Icon(NdIcons.createNewFolder,
                                     color: MyTheme.accent),
                                 Text(
                                   translate("Create Folder"),
@@ -792,13 +792,13 @@ class _FileManagerViewState extends State<FileManagerView> {
                             actions: [
                               dialogButton(
                                 "Cancel",
-                                icon: Icon(BdIcons.close),
+                                icon: Icon(NdIcons.close),
                                 onPressed: cancel,
                                 isOutline: true,
                               ),
                               dialogButton(
                                 "Ok",
-                                icon: Icon(BdIcons.check),
+                                icon: Icon(NdIcons.check),
                                 onPressed: submit,
                               ),
                             ],
@@ -807,7 +807,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                           );
                         });
                       },
-                      child: fileManagerIcon(BdIcons.createNewFolder,
+                      child: fileManagerIcon(NdIcons.createNewFolder,
                           Theme.of(context).tabBarTheme.labelColor),
                       color: Theme.of(context).cardColor,
                       hoverColor: Theme.of(context).hoverColor,
@@ -821,7 +821,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                   selectedItems.clear();
                                 }
                               : null,
-                          child: fileManagerIcon(BdIcons.delete,
+                          child: fileManagerIcon(NdIcons.delete,
                               Theme.of(context).tabBarTheme.labelColor),
                           color: Theme.of(context).cardColor,
                           hoverColor: Theme.of(context).hoverColor,
@@ -878,7 +878,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                             webselectFiles(is_folder: value);
                           }
                         },
-                        child: Icon(BdIcons.arrowDropDown),
+                        child: Icon(NdIcons.arrowDropDown),
                       ),
                       icon: Text(
                         translate(isUploadFolder.isTrue
@@ -886,7 +886,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                             : 'Upload files'),
                         textAlign: TextAlign.right,
                         style: TextStyle(
-                          color: context.bd.onAccent,
+                          color: context.nd.onAccent,
                         ),
                       ).marginOnly(left: 8),
                     )).marginOnly(left: 16),
@@ -920,28 +920,28 @@ class _FileManagerViewState extends State<FileManagerView> {
                                           Brightness.light
                                       ? MyTheme.grayBg
                                       : MyTheme.darkGray
-                                  : context.bd.onAccent,
+                                  : context.nd.onAccent,
                             ),
                           )
                         : isWeb
                             ? Offstage()
-                            : Icon(BdIcons.arrowBack,
+                            : Icon(NdIcons.arrowBack,
                                 size: 20,
                                 color: selectedItems.items.isEmpty
                                     ? Theme.of(context).brightness ==
                                             Brightness.light
                                         ? MyTheme.grayBg
                                         : MyTheme.darkGray
-                                    : context.bd.onAccent),
+                                    : context.nd.onAccent),
                     label: isLocal
-                        ? Icon(BdIcons.arrowForward,
+                        ? Icon(NdIcons.arrowForward,
                             size: 20,
                             color: selectedItems.items.isEmpty
                                 ? Theme.of(context).brightness ==
                                         Brightness.light
                                     ? MyTheme.grayBg
                                     : MyTheme.darkGray
-                                : context.bd.onAccent)
+                                : context.nd.onAccent)
                         : Text(
                             translate(isWeb ? 'Download' : 'Receive'),
                             style: TextStyle(
@@ -950,7 +950,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                           Brightness.light
                                       ? MyTheme.grayBg
                                       : MyTheme.darkGray
-                                  : context.bd.onAccent,
+                                  : context.nd.onAccent,
                             ),
                           ),
                   )),
@@ -1017,7 +1017,7 @@ class _FileManagerViewState extends State<FileManagerView> {
           elevation: 8,
         ),
         child:
-            fileManagerIcon(BdIcons.moreVert, Theme.of(context).tabBarTheme.labelColor),
+            fileManagerIcon(NdIcons.moreVert, Theme.of(context).tabBarTheme.labelColor),
         color: Theme.of(context).cardColor,
         hoverColor: Theme.of(context).hoverColor,
       ),
@@ -1172,15 +1172,15 @@ class _FileManagerViewState extends State<FileManagerView> {
                                       child: Row(children: [
                                         entry.isDrive
                                             ? fileManagerIcon(
-                                                BdIcons.hardDrive,
+                                                NdIcons.hardDrive,
                                                 Theme.of(context)
                                                     .iconTheme
                                                     .color
                                                     ?.withOpacity(0.7))
                                             : fileManagerIcon(
                                                 entry.isFile
-                                                    ? BdIcons.description
-                                                    : BdIcons.folder,
+                                                    ? NdIcons.description
+                                                    : NdIcons.folder,
                                                 Theme.of(context)
                                                     .tabBarTheme
                                                     .labelColor),
@@ -1189,7 +1189,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                                 style: TextStyle(
                                                     color: selectedItems.items
                                                             .contains(entry)
-                                                        ? context.bd.onAccent
+                                                        ? context.nd.onAccent
                                                         : null),
                                                 overflow:
                                                     TextOverflow.ellipsis))
@@ -1217,7 +1217,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                           fontSize: 12,
                                           color: selectedItems.items
                                                   .contains(entry)
-                                              ? context.bd.onAccent
+                                              ? context.nd.onAccent
                                                   .withOpacity(0.7)
                                               : MyTheme.darkGray,
                                         ),
@@ -1245,7 +1245,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                         fontSize: 10,
                                         color:
                                             selectedItems.items.contains(entry)
-                                                ? context.bd.onAccent
+                                                ? context.nd.onAccent
                                                     .withOpacity(0.7)
                                                 : MyTheme.darkGray),
                                   ),
@@ -1440,8 +1440,8 @@ class _FileManagerViewState extends State<FileManagerView> {
                     ascending.value != null
                         ? Icon(
                             ascending.value!
-                                ? BdIcons.expandLess
-                                : BdIcons.expandMore,
+                                ? NdIcons.expandLess
+                                : NdIcons.expandMore,
                           )
                         : SizedBox()
                   ],
@@ -1483,7 +1483,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                     },
                     child: BreadCrumb(
                       items: items,
-                      divider: const Icon(BdIcons.chevronRight),
+                      divider: const Icon(NdIcons.chevronRight),
                       overflow: ScrollableOverflow(
                         controller: _breadCrumbScroller,
                       ),
@@ -1492,7 +1492,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                 ),
                 ActionIcon(
                   message: "",
-                  icon: BdIcons.expandMore,
+                  icon: NdIcons.expandMore,
                   onTap: () async {
                     final renderBox = _locationBarKey.currentContext
                         ?.findRenderObject() as RenderBox;
@@ -1532,7 +1532,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                           menuItems.add(MenuEntryButton(
                               childBuilder: (TextStyle? style) =>
                                   Row(children: [
-                                    Icon(BdIcons.hardDrive,
+                                    Icon(NdIcons.hardDrive,
                                         size: 20,
                                         color: Theme.of(context)
                                             .iconTheme
@@ -1637,8 +1637,8 @@ class _FileManagerViewState extends State<FileManagerView> {
       children: [
         fileManagerIcon(
             _locationStatus.value == LocationStatus.pathLocation
-                ? BdIcons.folder
-                : BdIcons.search,
+                ? NdIcons.folder
+                : NdIcons.search,
             Theme.of(context).tabBarTheme.labelColor),
         Expanded(
           child: TextField(
@@ -1676,7 +1676,7 @@ Widget fileManagerIcon(IconData icon, Color? color) => SizedBox(
 Widget buildWindowsThisPC(BuildContext context, [TextStyle? textStyle]) {
   final color = Theme.of(context).iconTheme.color?.withOpacity(0.7);
   return Row(children: [
-    Icon(BdIcons.computer, size: 20, color: color),
+    Icon(NdIcons.computer, size: 20, color: color),
     SizedBox(width: 10),
     Text(translate('This PC'), style: textStyle)
   ]);

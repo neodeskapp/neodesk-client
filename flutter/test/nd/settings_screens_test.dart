@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart' show translate;
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/install_view.dart';
 import 'package:flutter_hbb/desktop/pages/settings/settings_index.dart';
 import 'package:flutter_hbb/desktop/pages/settings/settings_widgets.dart';
-import 'package:flutter_hbb/desktop/widgets/bd_toolbar_button.dart';
+import 'package:flutter_hbb/desktop/widgets/nd_toolbar_button.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fixtures.dart';
@@ -15,13 +15,13 @@ Widget _row(SettingsIndexEntry e, {bool locked = false}) {
   Widget control;
   switch (e.control) {
     case 'switch':
-      control = BdSwitch(value: e.on, onChanged: locked ? null : (_) {});
+      control = NdSwitch(value: e.on, onChanged: locked ? null : (_) {});
       break;
     case 'seg':
       final current = int.tryParse(e.value) ?? 0;
-      control = BdSegmented<int>(
+      control = NdSegmented<int>(
         segments: [
-          for (var i = 0; i < e.options.length; i++) BdSegment(i, e.options[i])
+          for (var i = 0; i < e.options.length; i++) NdSegment(i, e.options[i])
         ],
         value: e.options.length > 2 && e.label == 'One-time password length'
             ? 1
@@ -30,16 +30,16 @@ Widget _row(SettingsIndexEntry e, {bool locked = false}) {
       );
       break;
     case 'select':
-      control = BdSelect<String>(
+      control = NdSelect<String>(
         width: 220,
-        options: [BdOption(e.value, e.value)],
+        options: [NdOption(e.value, e.value)],
         value: e.value,
         onChanged: locked ? null : (_) {},
       );
       break;
     default:
-      control = BdButton(
-          label: e.value, size: BdButtonSize.sm, onPressed: locked ? null : () {});
+      control = NdButton(
+          label: e.value, size: NdButtonSize.sm, onPressed: locked ? null : () {});
   }
   return SettingsRow(
     label: translate(e.label),
@@ -89,12 +89,12 @@ Widget _settings(String group, {bool locked = false}) {
       onSource: () {},
       onUpstream: () {},
       onCheckUpdates: () {},
-      updateResult: tr('bd-about-latest'),
+      updateResult: tr('nd-about-latest'),
     );
   } else {
     content = SettingsGroupPage(
-      title: tr('bd-set-$group'),
-      lead: tr('bd-set-$group-lead'),
+      title: tr('nd-set-$group'),
+      lead: tr('nd-set-$group-lead'),
       children: [
         if (locked) SettingsLockNotice(onUnlock: () {}),
         if (group == 'server')
@@ -106,9 +106,9 @@ Widget _settings(String group, {bool locked = false}) {
             keyText: '0eVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=',
             joinedLine: 'Joined on 22 Nov 2026 with an invite from Fernhill IT.',
             actions: [
-              BdButton(label: tr('bd-join-a-server'), onPressed: () {}),
-              BdButton(label: tr('bd-set-up-by-hand'), onPressed: () {}),
-              BdButton(label: tr('bd-set-pair-code'), onPressed: () {}),
+              NdButton(label: tr('nd-join-a-server'), onPressed: () {}),
+              NdButton(label: tr('nd-set-up-by-hand'), onPressed: () {}),
+              NdButton(label: tr('nd-set-pair-code'), onPressed: () {}),
             ],
           ),
         ..._sections(group, locked: locked),
@@ -120,11 +120,11 @@ Widget _settings(String group, {bool locked = false}) {
       SettingsNav<String>(
         items: [
           for (final g in _groups)
-            SettingsNavItem(g, tr('bd-set-$g'), dividerBefore: g == 'about'),
+            SettingsNavItem(g, tr('nd-set-$g'), dividerBefore: g == 'about'),
         ],
         value: group,
         onChanged: (_) {},
-        search: BdSearchField(placeholder: tr('bd-set-search'), height: 32),
+        search: NdSearchField(placeholder: tr('nd-set-search'), height: 32),
       ),
       Expanded(child: content),
     ]),
@@ -150,7 +150,7 @@ void main() {
     useLanguage('en');
     expect(kSettingsIndex.length, 95);
     for (final e in kSettingsIndex) {
-      expect(translate(e.label), isNot(e.label.startsWith('bd-') ? e.label : ''),
+      expect(translate(e.label), isNot(e.label.startsWith('nd-') ? e.label : ''),
           reason: e.label);
       expect(translateOrNull(e.desc), isNotNull, reason: e.desc);
     }
@@ -180,14 +180,14 @@ void main() {
       addTearDown(path.dispose);
       await pumpScreen(
         tester,
-        BdWindowFrame(
-          titleBar: BdTitleBar(
-            brand: BdTitleBrand(title: tr('bd-install-title')),
-            controls: BdWindowControls(onClose: () {}),
+        NdWindowFrame(
+          titleBar: NdTitleBar(
+            brand: NdTitleBrand(title: tr('nd-install-title')),
+            controls: NdWindowControls(onClose: () {}),
           ),
           child: InstallView(
-            lead: tr('bd-install-lead-join', [fernCompany, fernServer]),
-            installingLead: tr('bd-install-installing-join', [fernCompany]),
+            lead: tr('nd-install-lead-join', [fernCompany, fernServer]),
+            installingLead: tr('nd-install-installing-join', [fernCompany]),
             pathController: path,
             startMenu: true,
             desktopIcon: true,
@@ -206,7 +206,7 @@ void main() {
                 ? InstallStep.copying
                 : InstallStep.permission,
             copyPercent: state == 'copying' ? 45 : null,
-            error: state == 'failed' ? tr('bd-install-cancelled') : null,
+            error: state == 'failed' ? tr('nd-install-cancelled') : null,
           ),
         ),
         size: const Size(680, 560),
@@ -220,7 +220,7 @@ void main() {
         case 'copying':
           expect(find.text('Copying NeoDesk to this computer (45%)'),
               findsOneWidget);
-          expect(find.byType(BdSpinner), findsOneWidget);
+          expect(find.byType(NdSpinner), findsOneWidget);
           break;
         case 'failed':
           expect(find.textContaining('Windows did not get permission'),
@@ -236,58 +236,58 @@ void main() {
     await pumpScreen(
       tester,
       Builder(
-        builder: (context) => BdWindowFrame(
-          titleBar: BdTitleBar(
-            brand: const BdLogoMark(size: 18),
+        builder: (context) => NdWindowFrame(
+          titleBar: NdTitleBar(
+            brand: const NdLogoMark(size: 18),
             tabs: [
-              BdWindowTab(
+              NdWindowTab(
                   label: 'Reception PC',
-                  leading: const BdOsMark(os: BdOs.windows),
+                  leading: const NdOsMark(os: NdOs.windows),
                   selected: true,
                   onClose: () {}),
             ],
-            controls: BdWindowControls(
+            controls: NdWindowControls(
                 onMinimize: () {}, onMaximize: () {}, onClose: () {}),
           ),
           child: Container(
-            color: context.bd.canvas,
+            color: context.nd.canvas,
             alignment: Alignment.topCenter,
             padding: const EdgeInsets.only(top: 8),
             child: Container(
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
-                color: context.bd.bgFloat,
-                borderRadius: BdSize.r,
-                border: Border.all(color: context.bd.rule),
-                boxShadow: context.bd.shadowFloat,
+                color: context.nd.bgFloat,
+                borderRadius: NdSize.r,
+                border: Border.all(color: context.nd.rule),
+                boxShadow: context.nd.shadowFloat,
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                BdToolbarButton(
-                    icon: BdIcons.keyboard,
-                    label: tr('bd-tb-keyboard'),
+                NdToolbarButton(
+                    icon: NdIcons.keyboard,
+                    label: tr('nd-tb-keyboard'),
                     onPressed: () {}),
-                BdToolbarButton(
-                    icon: BdIcons.folder,
-                    label: tr('bd-tb-files'),
+                NdToolbarButton(
+                    icon: NdIcons.folder,
+                    label: tr('nd-tb-files'),
                     onPressed: () {}),
-                BdToolbarButton(
-                    icon: BdIcons.chat, label: 'Chat', onPressed: () {}),
-                BdToolbarButton(
-                    icon: BdIcons.fullscreen,
-                    label: tr('bd-tb-full-screen'),
+                NdToolbarButton(
+                    icon: NdIcons.chat, label: 'Chat', onPressed: () {}),
+                NdToolbarButton(
+                    icon: NdIcons.fullscreen,
+                    label: tr('nd-tb-full-screen'),
                     onPressed: () {}),
-                BdToolbarButton(
-                    icon: BdIcons.moreHoriz,
-                    label: tr('bd-tb-more'),
+                NdToolbarButton(
+                    icon: NdIcons.moreHoriz,
+                    label: tr('nd-tb-more'),
                     onPressed: () {}),
                 Container(
                     width: 1,
                     height: 24,
                     margin: const EdgeInsets.symmetric(horizontal: 6),
-                    color: context.bd.rule),
-                BdToolbarButton(
-                    icon: BdIcons.callEnd,
-                    label: tr('bd-tb-end'),
+                    color: context.nd.rule),
+                NdToolbarButton(
+                    icon: NdIcons.callEnd,
+                    label: tr('nd-tb-end'),
                     danger: true,
                     onPressed: () {}),
               ]),

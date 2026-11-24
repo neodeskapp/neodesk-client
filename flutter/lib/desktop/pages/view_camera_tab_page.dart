@@ -21,7 +21,7 @@ import 'package:get/get.dart';
 import 'package:bot_toast/bot_toast.dart';
 
 import '../../models/platform_model.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class _MenuTheme {
   static Color get blueColor => MyTheme.button;
@@ -43,8 +43,8 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
   final tabController =
       Get.put(DesktopTabController(tabType: DesktopTabType.viewCamera));
   final contentKey = UniqueKey();
-  static const IconData selectedIcon = BdIcons.desktopWindows;
-  static const IconData unselectedIcon = BdIcons.desktopWindows;
+  static const IconData selectedIcon = NdIcons.desktopWindows;
+  static const IconData unselectedIcon = NdIcons.desktopWindows;
 
   String? peerId;
   bool _isScreenRectSet = false;

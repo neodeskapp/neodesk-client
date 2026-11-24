@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 import './material_mod_popup_menu.dart' as mod_menu;
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 // https://stackoverflow.com/questions/68318314/flutter-popup-menu-inside-popup-menu
 class PopupMenuChildrenItem<T> extends mod_menu.PopupMenuEntry<T> {
@@ -128,7 +128,7 @@ abstract class MenuEntryBase<T> {
       fontSize: MenuConfig.fontSize,
       fontWeight: FontWeight.normal);
   disabledStyle() => TextStyle(
-      color: bdColors.textMuted,
+      color: ndColors.textMuted,
       fontSize: MenuConfig.fontSize,
       fontWeight: FontWeight.normal);
 }
@@ -247,10 +247,10 @@ class MenuEntryRadios<T> extends MenuEntryBase<T> {
                             focusColor: Colors.transparent,
                             onPressed: () {},
                             icon: Icon(
-                              BdIcons.check,
+                              NdIcons.check,
                               color: (opt.enabled ?? true.obs).isTrue
                                   ? conf.commonColor
-                                  : context.bd.textMuted,
+                                  : context.nd.textMuted,
                             ))
                         : const SizedBox.shrink()),
                   ))),
@@ -363,7 +363,7 @@ class MenuEntrySubRadios<T> extends MenuEntryBase<T> {
                                 focusColor: Colors.transparent,
                                 onPressed: () {},
                                 icon: Icon(
-                                  BdIcons.check,
+                                  NdIcons.check,
                                   color: conf.commonColor,
                                 ))
                             : const SizedBox.shrink())),
@@ -407,7 +407,7 @@ class MenuEntrySubRadios<T> extends MenuEntryBase<T> {
               child: Align(
             alignment: Alignment.centerRight,
             child: Icon(
-              BdIcons.chevronRight,
+              NdIcons.chevronRight,
               color: conf.commonColor,
             ),
           ))
@@ -681,10 +681,10 @@ class MenuEntrySubMenu<T> extends MenuEntryBase<T> {
               child: Align(
             alignment: Alignment.centerRight,
             child: Obx(() => Icon(
-                  BdIcons.chevronRight,
+                  NdIcons.chevronRight,
                   color: super.enabled!.value
                       ? conf.commonColor
-                      : context.bd.textMuted,
+                      : context.nd.textMuted,
                 )),
           ))
         ]),

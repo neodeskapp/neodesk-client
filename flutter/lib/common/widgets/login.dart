@@ -11,10 +11,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 import './dialog.dart';
 import './oidc_auth_status.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 const kOpSvgList = [
   'github',
@@ -86,7 +86,7 @@ class _IconOP extends StatelessWidget {
                   'assets/auth-$svgFile.svg',
                   width: 20,
                 )
-              : Icon(BdIcons.howToReg, size: 20, color: bdColors.accent),
+              : Icon(NdIcons.howToReg, size: 20, color: ndColors.accent),
     );
   }
 }
@@ -554,7 +554,7 @@ class _WidgetOPState extends State<WidgetOP> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(BdIcons.error,
+                            Icon(NdIcons.error,
                                 color: errorColor, size: 16),
                             const SizedBox(width: 6),
                             Flexible(
@@ -885,7 +885,7 @@ Future<bool?> _openLoginDialog() async {
                 if (!inProgress)
                   SelectableText(
                     error.toString(),
-                    style: TextStyle(fontSize: 11, color: context.bd.danger),
+                    style: TextStyle(fontSize: 11, color: context.nd.danger),
                     textAlign: TextAlign.center,
                   ),
               ],
@@ -948,12 +948,12 @@ Future<bool?> _openLoginDialog() async {
           onExit: (_) => setState(() => isCloseHovered = false),
           child: InkWell(
             child: Icon(
-              BdIcons.close,
+              NdIcons.close,
               size: 25,
               // No need to handle the branch of null.
               // Because we can ensure the color is not null when debug.
               color: isCloseHovered
-                  ? context.bd.onWindowCloseHover
+                  ? context.nd.onWindowCloseHover
                   : Theme.of(context)
                       .textTheme
                       .titleLarge
@@ -961,7 +961,7 @@ Future<bool?> _openLoginDialog() async {
                       ?.withOpacity(0.55),
             ),
             onTap: onDialogCancel,
-            hoverColor: context.bd.windowCloseHover,
+            hoverColor: context.nd.windowCloseHover,
             borderRadius: BorderRadius.circular(5),
           ),
         ).marginOnly(top: 10, right: 15),
@@ -1074,7 +1074,7 @@ Future<bool?> verificationCodeDialog(
                 offstage: !isEmailVerification || user?.email == null,
                 child: TextField(
                   decoration: InputDecoration(
-                      labelText: "Email", prefixIcon: Icon(BdIcons.mail)),
+                      labelText: "Email", prefixIcon: Icon(NdIcons.mail)),
                   readOnly: true,
                   controller: TextEditingController(text: user?.email),
                 ).workaroundFreezeLinuxMint()),

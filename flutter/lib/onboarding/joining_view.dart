@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 import 'onboarding_service.dart';
 
@@ -37,8 +37,8 @@ class JoiningView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
-    final c = context.bd;
+    final t = context.ndText;
+    final c = context.nd;
     final children = <Widget>[];
     final company = (state.company ?? '').trim();
     if (company.isNotEmpty && state.phase != OnboardingPhase.joinFailed) {
@@ -60,25 +60,25 @@ class JoiningView extends StatelessWidget {
       case OnboardingPhase.joined:
         final id = deviceId ?? state.deviceId ?? '';
         children.addAll([
-          _title(tr('bd-join-done-title', [_company]), t.title),
+          _title(tr('nd-join-done-title', [_company]), t.title),
           const SizedBox(height: 12),
-          Text(tr('bd-join-done-lead', [_company]), style: t.lead),
+          Text(tr('nd-join-done-lead', [_company]), style: t.lead),
           const SizedBox(height: 32),
           SizedBox(
             width: 436,
-            child: BdFacts(facts: [
+            child: NdFacts(facts: [
               if ((state.deviceName ?? '').isNotEmpty)
-                BdFact(tr('bd-fact-name'), state.deviceName!),
+                NdFact(tr('nd-fact-name'), state.deviceName!),
               if ((state.folder ?? '').isNotEmpty)
-                BdFact(tr('bd-fact-folder'), state.folder!),
-              if (id.isNotEmpty) BdFact(tr('bd-fact-id'), formatBdId(id), mono: true),
+                NdFact(tr('nd-fact-folder'), state.folder!),
+              if (id.isNotEmpty) NdFact(tr('nd-fact-id'), formatNdId(id), mono: true),
               if ((state.server ?? '').isNotEmpty)
-                BdFact(tr('bd-fact-server'), state.server!),
+                NdFact(tr('nd-fact-server'), state.server!),
             ]),
           ),
           const SizedBox(height: 24),
-          BdButton.primary(
-              label: tr('bd-done'), size: BdButtonSize.lg, onPressed: onDone),
+          NdButton.primary(
+              label: tr('nd-done'), size: NdButtonSize.lg, onPressed: onDone),
         ]);
         break;
       case OnboardingPhase.joinFailed:
@@ -92,15 +92,15 @@ class JoiningView extends StatelessWidget {
                 .trim();
         final tryAgain = refused ? onTryAgain : null;
         children.addAll([
-          _title(tr('bd-join-failed-title'), t.title),
+          _title(tr('nd-join-failed-title'), t.title),
           const SizedBox(height: 12),
           Text(_failedLead(kind), style: t.lead),
           const SizedBox(height: 24),
-          BdNotice(
-            tone: BdTone.danger,
+          NdNotice(
+            tone: NdTone.danger,
             text: kind == OnboardingError.unreachable
                 ? onboardingFailedReach(state.server)
-                : tr('bd-join-failed-answer', [
+                : tr('nd-join-failed-answer', [
                     state.server ?? '',
                     _withoutFinalStop(
                         answer.isNotEmpty ? answer : _shortReason(kind))
@@ -109,51 +109,51 @@ class JoiningView extends StatelessWidget {
           const SizedBox(height: 24),
           Text(
               tr(refused
-                  ? 'bd-join-failed-next-refused'
-                  : 'bd-join-failed-next'),
+                  ? 'nd-join-failed-next-refused'
+                  : 'nd-join-failed-next'),
               style: t.body.copyWith(fontSize: 15, height: 22 / 15)),
           const SizedBox(height: 24),
           Wrap(spacing: 8, runSpacing: 8, children: [
             if (tryAgain != null)
-              BdButton.primary(
-                  label: tr('bd-try-again'),
-                  size: BdButtonSize.lg,
+              NdButton.primary(
+                  label: tr('nd-try-again'),
+                  size: NdButtonSize.lg,
                   onPressed: tryAgain),
             tryAgain != null
-                ? BdButton(
-                    label: tr('bd-try-another-code'),
-                    size: BdButtonSize.lg,
+                ? NdButton(
+                    label: tr('nd-try-another-code'),
+                    size: NdButtonSize.lg,
                     onPressed: onTryAnother)
-                : BdButton.primary(
-                    label: tr('bd-try-another-code'),
-                    size: BdButtonSize.lg,
+                : NdButton.primary(
+                    label: tr('nd-try-another-code'),
+                    size: NdButtonSize.lg,
                     onPressed: onTryAnother),
-            BdButton(
-                label: tr('bd-set-up-by-hand'),
-                size: BdButtonSize.lg,
+            NdButton(
+                label: tr('nd-set-up-by-hand'),
+                size: NdButtonSize.lg,
                 onPressed: onSetUpByHand),
           ]),
         ]);
         break;
       default:
         final step = state.joinStep.clamp(0, 3);
-        BdStepState st(int i) => step > i
-            ? BdStepState.done
-            : (step == i ? BdStepState.running : BdStepState.todo);
+        NdStepState st(int i) => step > i
+            ? NdStepState.done
+            : (step == i ? NdStepState.running : NdStepState.todo);
         children.addAll([
-          _title(tr('bd-join-progress-title', [_company]), t.title),
+          _title(tr('nd-join-progress-title', [_company]), t.title),
           const SizedBox(height: 24),
-          BdStepRow(
+          NdStepRow(
               state: st(0),
               text: step > 0
-                  ? tr('bd-join-step-checked')
-                  : tr('bd-join-step-checking')),
-          BdStepRow(
+                  ? tr('nd-join-step-checked')
+                  : tr('nd-join-step-checking')),
+          NdStepRow(
               state: st(1),
-              text: tr('bd-join-step-settings', [state.server ?? ''])),
-          BdStepRow(state: st(2), text: tr('bd-join-step-adding', [_company])),
+              text: tr('nd-join-step-settings', [state.server ?? ''])),
+          NdStepRow(state: st(2), text: tr('nd-join-step-adding', [_company])),
           const SizedBox(height: 24),
-          Text(tr('bd-join-progress-hint'), style: t.small),
+          Text(tr('nd-join-progress-hint'), style: t.small),
         ]);
     }
 
@@ -188,12 +188,12 @@ class JoiningView extends StatelessWidget {
       child: Text(text, style: style));
 
   String _failedLead(OnboardingError kind) => switch (kind) {
-        OnboardingError.usedUp => tr('bd-join-failed-lead-used'),
-        OnboardingError.expired => tr('bd-join-failed-lead-expired'),
-        OnboardingError.unreachable => tr('bd-join-failed-lead-unreachable'),
-        OnboardingError.tooManyTries => tr('bd-invite-error-too-many'),
-        OnboardingError.refused => tr('bd-join-failed-lead-refused'),
-        _ => tr('bd-join-failed-lead-other'),
+        OnboardingError.usedUp => tr('nd-join-failed-lead-used'),
+        OnboardingError.expired => tr('nd-join-failed-lead-expired'),
+        OnboardingError.unreachable => tr('nd-join-failed-lead-unreachable'),
+        OnboardingError.tooManyTries => tr('nd-invite-error-too-many'),
+        OnboardingError.refused => tr('nd-join-failed-lead-refused'),
+        _ => tr('nd-join-failed-lead-other'),
       };
 
   /// The notice ends the sentence itself.
@@ -201,18 +201,18 @@ class JoiningView extends StatelessWidget {
       text.endsWith('.') ? text.substring(0, text.length - 1) : text;
 
   String _shortReason(OnboardingError kind) => switch (kind) {
-        OnboardingError.usedUp => tr('bd-reason-used'),
-        OnboardingError.expired => tr('bd-reason-expired'),
-        OnboardingError.tooManyTries => tr('bd-reason-too-many'),
-        _ => tr('bd-reason-other'),
+        OnboardingError.usedUp => tr('nd-reason-used'),
+        OnboardingError.expired => tr('nd-reason-expired'),
+        OnboardingError.tooManyTries => tr('nd-reason-too-many'),
+        _ => tr('nd-reason-other'),
       };
 }
 
 String onboardingFailedReach(String? server) =>
-    tr('bd-invite-error-unreachable', [server ?? '']);
+    tr('nd-invite-error-unreachable', [server ?? '']);
 
 /// An ID grouped in threes with spaces: 418 205 739.
-String formatBdId(String id) {
+String formatNdId(String id) {
   final digits = id.replaceAll(' ', '');
   if (!RegExp(r'^\d+$').hasMatch(digits)) return id;
   final b = StringBuffer();

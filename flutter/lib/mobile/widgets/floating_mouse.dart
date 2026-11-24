@@ -4,7 +4,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/utils/image.dart';
@@ -12,9 +12,9 @@ import 'package:provider/provider.dart';
 
 const int _kDotCount = 60;
 const double _kDotAngle = 2 * pi / _kDotCount;
-Color get _kDefaultColor => bdColors.border.withOpacity(0.7);
-Color get _kDefaultHighlightColor => bdColors.onCanvas.withOpacity(0.7);
-Color get _kTapDownColor => bdColors.accent.withOpacity(0.7);
+Color get _kDefaultColor => ndColors.border.withOpacity(0.7);
+Color get _kDefaultHighlightColor => ndColors.onCanvas.withOpacity(0.7);
+Color get _kTapDownColor => ndColors.accent.withOpacity(0.7);
 const double _baseMouseWidth = 112.0;
 const double _baseMouseHeight = 138.0;
 const double _kShowPressedScale = 1.2;
@@ -700,12 +700,12 @@ class _FloatingMouseState extends State<FloatingMouse> {
                         width: 14 * _mouseScale,
                         height: 14 * _mouseScale,
                         decoration: BoxDecoration(
-                          color: context.bd.border,
+                          color: context.nd.border,
                           shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,
                         child: Icon(Icons.close,
-                            color: context.bd.onCanvas,
+                            color: context.nd.onCanvas,
                             size: 12 * _mouseScale),
                       ),
                     ),
@@ -1085,10 +1085,10 @@ class DottedCirclePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final radius = 48.0 * scale;
     final circlePaint = Paint()
-      ..color = bdColors.border
+      ..color = ndColors.border
       ..style = PaintingStyle.fill;
     final pointerPaint = Paint()
-      ..color = bdColors.accent
+      ..color = ndColors.accent
       ..style = PaintingStyle.fill;
 
     const dotRadius = 2.5;

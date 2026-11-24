@@ -1,6 +1,6 @@
 // The NeoDesk theme: the one place in lib/ where colour values live.
 //
-// Every other file reads colours from [BdColors] (context.bd, or bdColors
+// Every other file reads colours from [NdColors] (context.nd, or ndColors
 // where no BuildContext is at hand). tool/check_colours.py fails the build
 // when a colour literal shows up anywhere else.
 //
@@ -14,8 +14,8 @@ import 'package:flutter/material.dart';
 // Colour tokens
 // ---------------------------------------------------------------------------
 
-class BdColors extends ThemeExtension<BdColors> {
-  const BdColors({
+class NdColors extends ThemeExtension<NdColors> {
+  const NdColors({
     required this.brightness,
     required this.bg,
     required this.bgSubtle,
@@ -127,7 +127,7 @@ class BdColors extends ThemeExtension<BdColors> {
 
   List<Color> get avatars => [avatar1, avatar2, avatar3];
 
-  static const light = BdColors(
+  static const light = NdColors(
     brightness: Brightness.light,
     bg: Color(0xFFFFFFFF),
     bgSubtle: Color(0xFFF3F4F4),
@@ -167,7 +167,7 @@ class BdColors extends ThemeExtension<BdColors> {
     black: Color(0xFF000000),
   );
 
-  static const dark = BdColors(
+  static const dark = NdColors(
     brightness: Brightness.dark,
     bg: Color(0xFF141616),
     bgSubtle: Color(0xFF1B1E1E),
@@ -209,21 +209,21 @@ class BdColors extends ThemeExtension<BdColors> {
 
   /// These tokens with a server's accent colour run through [deriveAccent].
   /// A null or unreadable [hex] keeps the brand blue.
-  BdColors withServerAccent(String? hex) {
+  NdColors withServerAccent(String? hex) {
     final input = parseHexColor(hex ?? '');
     if (input == null) return this;
     final a = deriveAccent(input, this, brightness);
     return copyWith(accent: a.accent, accentHover: a.hover, onAccent: a.onAccent)
-        as BdColors;
+        as NdColors;
   }
 
   @override
-  ThemeExtension<BdColors> copyWith({
+  ThemeExtension<NdColors> copyWith({
     Color? accent,
     Color? accentHover,
     Color? onAccent,
   }) {
-    return BdColors(
+    return NdColors(
       brightness: brightness,
       bg: bg,
       bgSubtle: bgSubtle,
@@ -265,20 +265,20 @@ class BdColors extends ThemeExtension<BdColors> {
   }
 
   @override
-  ThemeExtension<BdColors> lerp(ThemeExtension<BdColors>? other, double t) {
+  ThemeExtension<NdColors> lerp(ThemeExtension<NdColors>? other, double t) {
     // Theme changes are instant (no animated colour lerp).
-    if (other is! BdColors) return this;
+    if (other is! NdColors) return this;
     return t < 0.5 ? this : other;
   }
 
-  static BdColors of(BuildContext context) =>
-      Theme.of(context).extension<BdColors>() ??
+  static NdColors of(BuildContext context) =>
+      Theme.of(context).extension<NdColors>() ??
       (Theme.of(context).brightness == Brightness.dark ? dark : light);
 }
 
-extension BdContext on BuildContext {
-  BdColors get bd => BdColors.of(this);
-  BdText get bdText => BdText.of(this);
+extension NdContext on BuildContext {
+  NdColors get nd => NdColors.of(this);
+  NdText get ndText => NdText.of(this);
 }
 
 /// `#RRGGBB` or `#AARRGGBB` (leading `#` optional), or null.
@@ -293,8 +293,8 @@ Color? parseHexColor(String raw) {
 }
 
 /// The palette of the window being drawn, for code without a BuildContext.
-/// The app's builder keeps it in step with the theme (see [BdTheme.track]).
-BdColors get bdColors => BdTheme.current;
+/// The app's builder keeps it in step with the theme (see [NdTheme.track]).
+NdColors get ndColors => NdTheme.current;
 
 // ---------------------------------------------------------------------------
 // Server accent rule (port of deriveAccent() in tools/colour.mjs)
@@ -360,7 +360,7 @@ const _inkLight = Color(0xFFFFFFFF), _inkDark = Color(0xFF0C1B1E);
 /// Turns a server's accent into accent, hover and ink for one theme, so it
 /// reaches 4.5:1 as text on every surface and carries 4.5:1 ink.
 ({Color accent, Color hover, Color onAccent}) deriveAccent(
-    Color input, BdColors t, Brightness mode) {
+    Color input, NdColors t, Brightness mode) {
   final surfaces = [t.bg, t.bgSubtle, t.bgFloat];
   final dir = mode == Brightness.light ? -1 : 1;
   final o = toOklch(input);
@@ -388,15 +388,15 @@ const _inkLight = Color(0xFFFFFFFF), _inkDark = Color(0xFF0C1B1E);
 // Type
 // ---------------------------------------------------------------------------
 
-const kBdFontSans = 'IBMPlexSans';
-const kBdFontMono = 'IBMPlexMono';
-const kBdFontDisplay = 'FunnelDisplay';
-const kBdSansFallback = <String>['Segoe UI', 'Noto Sans', 'sans-serif'];
-const kBdMonoFallback = <String>['Consolas', 'Menlo', 'monospace'];
-const kBdDisplayFallback = <String>[kBdFontSans, 'Segoe UI', 'Noto Sans'];
+const kNdFontSans = 'IBMPlexSans';
+const kNdFontMono = 'IBMPlexMono';
+const kNdFontDisplay = 'FunnelDisplay';
+const kNdSansFallback = <String>['Segoe UI', 'Noto Sans', 'sans-serif'];
+const kNdMonoFallback = <String>['Consolas', 'Menlo', 'monospace'];
+const kNdDisplayFallback = <String>[kNdFontSans, 'Segoe UI', 'Noto Sans'];
 
-class BdText extends ThemeExtension<BdText> {
-  const BdText({
+class NdText extends ThemeExtension<NdText> {
+  const NdText({
     required this.display,
     required this.title,
     required this.titleMd,
@@ -425,8 +425,8 @@ class BdText extends ThemeExtension<BdText> {
   final TextStyle mono;
 
   static TextStyle _s(double size, double line, FontWeight w, Color color,
-          {String family = kBdFontSans,
-          List<String> fallback = kBdSansFallback,
+          {String family = kNdFontSans,
+          List<String> fallback = kNdSansFallback,
           double spacingEm = 0}) =>
       TextStyle(
         inherit: false,
@@ -442,18 +442,18 @@ class BdText extends ThemeExtension<BdText> {
         decoration: TextDecoration.none,
       );
 
-  factory BdText.from(BdColors c) => BdText(
+  factory NdText.from(NdColors c) => NdText(
         display: _s(44, 48, FontWeight.w700, c.text,
-            family: kBdFontDisplay,
-            fallback: kBdDisplayFallback,
+            family: kNdFontDisplay,
+            fallback: kNdDisplayFallback,
             spacingEm: -0.03),
         title: _s(28, 34, FontWeight.w700, c.text,
-            family: kBdFontDisplay,
-            fallback: kBdDisplayFallback,
+            family: kNdFontDisplay,
+            fallback: kNdDisplayFallback,
             spacingEm: -0.02),
         titleMd: _s(22, 28, FontWeight.w700, c.text,
-            family: kBdFontDisplay,
-            fallback: kBdDisplayFallback,
+            family: kNdFontDisplay,
+            fallback: kNdDisplayFallback,
             spacingEm: -0.015),
         heading: _s(16, 22, FontWeight.w600, c.text),
         lead: _s(16, 24, FontWeight.w400, c.textMuted),
@@ -462,31 +462,31 @@ class BdText extends ThemeExtension<BdText> {
         small: _s(13, 18, FontWeight.w400, c.textMuted),
         caption: _s(12, 16, FontWeight.w400, c.textMuted),
         id: _s(30, 36, FontWeight.w600, c.text,
-            family: kBdFontMono, fallback: kBdMonoFallback, spacingEm: 0.02),
+            family: kNdFontMono, fallback: kNdMonoFallback, spacingEm: 0.02),
         password: _s(22, 28, FontWeight.w600, c.text,
-            family: kBdFontMono, fallback: kBdMonoFallback, spacingEm: 0.06),
+            family: kNdFontMono, fallback: kNdMonoFallback, spacingEm: 0.06),
         mono: _s(13, 18, FontWeight.w400, c.text,
-            family: kBdFontMono, fallback: kBdMonoFallback),
+            family: kNdFontMono, fallback: kNdMonoFallback),
       );
 
-  static BdText of(BuildContext context) =>
-      Theme.of(context).extension<BdText>() ??
-      BdText.from(BdColors.of(context));
+  static NdText of(BuildContext context) =>
+      Theme.of(context).extension<NdText>() ??
+      NdText.from(NdColors.of(context));
 
   @override
-  ThemeExtension<BdText> copyWith() => this;
+  ThemeExtension<NdText> copyWith() => this;
 
   @override
-  ThemeExtension<BdText> lerp(ThemeExtension<BdText>? other, double t) =>
-      other is BdText && t >= 0.5 ? other : this;
+  ThemeExtension<NdText> lerp(ThemeExtension<NdText>? other, double t) =>
+      other is NdText && t >= 0.5 ? other : this;
 }
 
 // ---------------------------------------------------------------------------
 // Sizes
 // ---------------------------------------------------------------------------
 
-class BdSize {
-  BdSize._();
+class NdSize {
+  NdSize._();
   static const double radius = 4;
   static const double radiusSm = 3;
   static const double controlSm = 30;
@@ -503,20 +503,20 @@ class BdSize {
 // Material theme built from the tokens
 // ---------------------------------------------------------------------------
 
-class BdTheme {
-  BdTheme._();
+class NdTheme {
+  NdTheme._();
 
-  static BdColors _light = BdColors.light;
-  static BdColors _dark = BdColors.dark;
+  static NdColors _light = NdColors.light;
+  static NdColors _dark = NdColors.dark;
   static Brightness _brightness = Brightness.light;
   static String _accentHex = '';
 
   /// The palette of the current window, for code without a BuildContext.
-  static BdColors get current =>
+  static NdColors get current =>
       _brightness == Brightness.dark ? _dark : _light;
 
-  static BdColors get lightColors => _light;
-  static BdColors get darkColors => _dark;
+  static NdColors get lightColors => _light;
+  static NdColors get darkColors => _dark;
 
   /// Applies a server's accent (hex, empty for none) to both palettes.
   /// Returns true when it changed anything.
@@ -524,8 +524,8 @@ class BdTheme {
     final h = hex.trim();
     if (h == _accentHex) return false;
     _accentHex = h;
-    _light = BdColors.light.withServerAccent(h);
-    _dark = BdColors.dark.withServerAccent(h);
+    _light = NdColors.light.withServerAccent(h);
+    _dark = NdColors.dark.withServerAccent(h);
     _cache.clear();
     return true;
   }
@@ -544,7 +544,7 @@ class BdTheme {
   /// [extra] adds theme extensions built from the same tokens.
   static ThemeData theme(Brightness brightness,
       {required bool desktop,
-      List<ThemeExtension<dynamic>> Function(BdColors c)? extra}) {
+      List<ThemeExtension<dynamic>> Function(NdColors c)? extra}) {
     final key = '$brightness-$desktop-$_accentHex-${extra != null}';
     return _cache[key] ??= build(
         brightness == Brightness.dark ? _dark : _light,
@@ -552,14 +552,14 @@ class BdTheme {
         extra: extra);
   }
 
-  static ThemeData build(BdColors c,
+  static ThemeData build(NdColors c,
       {required bool desktop,
-      List<ThemeExtension<dynamic>> Function(BdColors c)? extra}) {
-    final t = BdText.from(c);
+      List<ThemeExtension<dynamic>> Function(NdColors c)? extra}) {
+    final t = NdText.from(c);
     final dark = c.isDark;
-    final shape = RoundedRectangleBorder(borderRadius: BdSize.r);
+    final shape = RoundedRectangleBorder(borderRadius: NdSize.r);
     final fieldBorder = OutlineInputBorder(
-      borderRadius: BdSize.r,
+      borderRadius: NdSize.r,
       borderSide: BorderSide(color: c.border, width: 1),
     );
     final scheme = (dark ? ColorScheme.dark() : ColorScheme.light()).copyWith(
@@ -600,8 +600,8 @@ class BdTheme {
     return ThemeData(
       useMaterial3: false,
       brightness: c.brightness,
-      fontFamily: kBdFontSans,
-      fontFamilyFallback: kBdSansFallback,
+      fontFamily: kNdFontSans,
+      fontFamilyFallback: kNdSansFallback,
       colorScheme: scheme,
       primaryColor: c.accent,
       canvasColor: c.bg,
@@ -637,7 +637,7 @@ class BdTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: RoundedRectangleBorder(
-            borderRadius: BdSize.r, side: BorderSide(color: c.rule)),
+            borderRadius: NdSize.r, side: BorderSide(color: c.rule)),
         titleTextStyle: m(t.titleMd),
         contentTextStyle: m(t.body),
       ),
@@ -648,7 +648,7 @@ class BdTheme {
         shadowColor: c.shadowFar,
         textStyle: m(t.body),
         shape: RoundedRectangleBorder(
-            borderRadius: BdSize.r, side: BorderSide(color: c.rule)),
+            borderRadius: NdSize.r, side: BorderSide(color: c.rule)),
       ),
       menuTheme: MenuThemeData(style: _menuStyle(c)),
       menuBarTheme: MenuBarThemeData(style: _menuStyle(c)),
@@ -678,7 +678,7 @@ class BdTheme {
       tooltipTheme: TooltipThemeData(
         waitDuration: const Duration(milliseconds: 800),
         textStyle: m(t.small.copyWith(color: c.bg)),
-        decoration: BoxDecoration(color: c.text, borderRadius: BdSize.r),
+        decoration: BoxDecoration(color: c.text, borderRadius: NdSize.r),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
       scrollbarTheme: ScrollbarThemeData(
@@ -728,7 +728,7 @@ class BdTheme {
           disabledForegroundColor: c.onAccent.withOpacity(0.8),
           elevation: 0,
           shadowColor: Colors.transparent,
-          minimumSize: const Size(0, BdSize.control),
+          minimumSize: const Size(0, NdSize.control),
           padding: const EdgeInsets.symmetric(horizontal: 14),
           textStyle: m(t.label),
           shape: shape,
@@ -750,7 +750,7 @@ class BdTheme {
           disabledForegroundColor: c.text.withOpacity(0.45),
           backgroundColor: Colors.transparent,
           side: BorderSide(color: c.border),
-          minimumSize: const Size(0, BdSize.control),
+          minimumSize: const Size(0, NdSize.control),
           padding: const EdgeInsets.symmetric(horizontal: 14),
           textStyle: m(t.label),
           shape: shape,
@@ -765,7 +765,7 @@ class BdTheme {
         style: TextButton.styleFrom(
           foregroundColor: c.accent,
           disabledForegroundColor: c.textMuted,
-          minimumSize: const Size(0, BdSize.control),
+          minimumSize: const Size(0, NdSize.control),
           padding: const EdgeInsets.symmetric(horizontal: 10),
           textStyle: m(t.label),
           shape: shape,
@@ -787,7 +787,7 @@ class BdTheme {
       checkboxTheme: CheckboxThemeData(
         splashRadius: desktop ? 0 : kRadialReactionRadius,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(BdSize.radiusSm)),
+            borderRadius: BorderRadius.circular(NdSize.radiusSm)),
         side: BorderSide(color: c.border),
         fillColor: WidgetStateProperty.resolveWith((s) =>
             s.contains(WidgetState.selected) ? c.accent : Colors.transparent),
@@ -850,7 +850,7 @@ class BdTheme {
         backgroundColor: c.bgFloat,
         contentTextStyle: m(t.body),
         shape: RoundedRectangleBorder(
-            borderRadius: BdSize.r, side: BorderSide(color: c.rule)),
+            borderRadius: NdSize.r, side: BorderSide(color: c.rule)),
       ),
       bottomSheetTheme: BottomSheetThemeData(
           backgroundColor: c.bgFloat, modalBackgroundColor: c.bgFloat),
@@ -867,7 +867,7 @@ class BdTheme {
     );
   }
 
-  static MenuStyle _menuStyle(BdColors c) => MenuStyle(
+  static MenuStyle _menuStyle(NdColors c) => MenuStyle(
         backgroundColor: WidgetStatePropertyAll(c.bgFloat),
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
         elevation: const WidgetStatePropertyAll(6),
@@ -875,7 +875,7 @@ class BdTheme {
         padding: const WidgetStatePropertyAll(
             EdgeInsets.symmetric(vertical: 4)),
         shape: WidgetStatePropertyAll(RoundedRectangleBorder(
-            borderRadius: BdSize.r, side: BorderSide(color: c.rule))),
+            borderRadius: NdSize.r, side: BorderSide(color: c.rule))),
       );
 }
 
@@ -884,8 +884,8 @@ class BdTheme {
 // ---------------------------------------------------------------------------
 
 /// Chip colours of the old password rules list and the peer tag palette.
-class BdPalette {
-  BdPalette._();
+class NdPalette {
+  NdPalette._();
 
   /// Tag colours offered when someone colours an address book tag.
   static const tagColors = <Color>[

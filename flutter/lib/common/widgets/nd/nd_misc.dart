@@ -5,14 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../../theme/bd_theme.dart';
-import 'bd_button.dart';
-import 'bd_icons.dart';
+import '../../theme/nd_theme.dart';
+import 'nd_button.dart';
+import 'nd_icons.dart';
 
 /// bgSubtle with 4 px corners; only for the ID and password, code boxes and
 /// copy fields.
-class BdPanel extends StatelessWidget {
-  const BdPanel({super.key, required this.child, this.padding});
+class NdPanel extends StatelessWidget {
+  const NdPanel({super.key, required this.child, this.padding});
   final Widget child;
   final EdgeInsetsGeometry? padding;
 
@@ -20,44 +20,44 @@ class BdPanel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: padding,
         decoration:
-            BoxDecoration(color: context.bd.bgSubtle, borderRadius: BdSize.r),
+            BoxDecoration(color: context.nd.bgSubtle, borderRadius: NdSize.r),
         child: child,
       );
 }
 
-class BdRule extends StatelessWidget {
-  const BdRule({super.key, this.vertical = false});
+class NdRule extends StatelessWidget {
+  const NdRule({super.key, this.vertical = false});
   final bool vertical;
 
   @override
   Widget build(BuildContext context) => Container(
         width: vertical ? 1 : null,
         height: vertical ? null : 1,
-        color: context.bd.rule,
+        color: context.nd.rule,
       );
 }
 
 /// A Copy button whose label reads "Copied" for 1.5 s after a click.
-class BdCopyButton extends StatefulWidget {
-  const BdCopyButton({
+class NdCopyButton extends StatefulWidget {
+  const NdCopyButton({
     super.key,
     required this.value,
     required this.label,
     required this.copiedLabel,
-    this.size = BdButtonSize.sm,
+    this.size = NdButtonSize.sm,
   });
 
   /// What goes on the clipboard (IDs without spaces).
   final String Function() value;
   final String label;
   final String copiedLabel;
-  final BdButtonSize size;
+  final NdButtonSize size;
 
   @override
-  State<BdCopyButton> createState() => _BdCopyButtonState();
+  State<NdCopyButton> createState() => _NdCopyButtonState();
 }
 
-class _BdCopyButtonState extends State<BdCopyButton> {
+class _NdCopyButtonState extends State<NdCopyButton> {
   Timer? _timer;
   bool _copied = false;
 
@@ -77,7 +77,7 @@ class _BdCopyButtonState extends State<BdCopyButton> {
   }
 
   @override
-  Widget build(BuildContext context) => BdButton(
+  Widget build(BuildContext context) => NdButton(
         label: _copied ? widget.copiedLabel : widget.label,
         onPressed: _copy,
         size: widget.size,
@@ -85,8 +85,8 @@ class _BdCopyButtonState extends State<BdCopyButton> {
 }
 
 /// A value people copy, in mono on bgSubtle, with Copy at the end.
-class BdCopyField extends StatelessWidget {
-  const BdCopyField({
+class NdCopyField extends StatelessWidget {
+  const NdCopyField({
     super.key,
     required this.value,
     required this.copyLabel,
@@ -99,14 +99,14 @@ class BdCopyField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     return Container(
-      height: BdSize.controlLg,
+      height: NdSize.controlLg,
       padding: const EdgeInsets.only(left: 12, right: 4),
       decoration: BoxDecoration(
         color: c.bgSubtle,
-        borderRadius: BdSize.r,
+        borderRadius: NdSize.r,
         border: Border.all(color: c.rule),
       ),
       child: Row(children: [
@@ -117,15 +117,15 @@ class BdCopyField extends StatelessWidget {
               overflow: TextOverflow.ellipsis),
         ),
         const SizedBox(width: 8),
-        BdCopyButton(
+        NdCopyButton(
             value: () => value, label: copyLabel, copiedLabel: copiedLabel),
       ]),
     );
   }
 }
 
-class BdFact {
-  const BdFact(this.label, this.value, {this.mono = false, this.child});
+class NdFact {
+  const NdFact(this.label, this.value, {this.mono = false, this.child});
   final String label;
   final String value;
   final bool mono;
@@ -133,17 +133,17 @@ class BdFact {
 }
 
 /// Label and value pairs, label muted, rules between rows.
-class BdFacts extends StatelessWidget {
-  const BdFacts({super.key, required this.facts, this.labelWidth});
-  final List<BdFact> facts;
+class NdFacts extends StatelessWidget {
+  const NdFacts({super.key, required this.facts, this.labelWidth});
+  final List<NdFact> facts;
 
   /// Fixed label column; by default the widest label decides.
   final double? labelWidth;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final rows = <TableRow>[];
     for (final f in facts) {
       final cellDeco = BoxDecoration(
@@ -176,22 +176,22 @@ class BdFacts extends StatelessWidget {
   }
 }
 
-enum BdTone { info, warning, danger, good }
+enum NdTone { info, warning, danger, good }
 
-Color bdToneColor(BdColors c, BdTone tone) => switch (tone) {
-      BdTone.info => c.info,
-      BdTone.warning => c.warning,
-      BdTone.danger => c.danger,
-      BdTone.good => c.success,
+Color ndToneColor(NdColors c, NdTone tone) => switch (tone) {
+      NdTone.info => c.info,
+      NdTone.warning => c.warning,
+      NdTone.danger => c.danger,
+      NdTone.good => c.success,
     };
 
 /// One message that must be seen: icon, text, optional action, a 3 px start
 /// border in the tone and a 9 % tone background.
-class BdNotice extends StatelessWidget {
-  const BdNotice({
+class NdNotice extends StatelessWidget {
+  const NdNotice({
     super.key,
     required this.text,
-    this.tone = BdTone.info,
+    this.tone = NdTone.info,
     this.icon,
     this.title,
     this.action,
@@ -199,7 +199,7 @@ class BdNotice extends StatelessWidget {
   });
 
   final String text;
-  final BdTone tone;
+  final NdTone tone;
   final IconData? icon;
   final String? title;
   final Widget? action;
@@ -207,20 +207,20 @@ class BdNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
-    final color = bdToneColor(c, tone);
+    final c = context.nd;
+    final t = context.ndText;
+    final color = ndToneColor(c, tone);
     final ic = icon ??
         switch (tone) {
-          BdTone.info => BdIcons.info,
-          BdTone.warning => BdIcons.warning,
-          BdTone.danger => BdIcons.error,
-          BdTone.good => BdIcons.checkCircle,
+          NdTone.info => NdIcons.info,
+          NdTone.warning => NdIcons.warning,
+          NdTone.danger => NdIcons.error,
+          NdTone.good => NdIcons.checkCircle,
         };
     return Container(
       decoration: BoxDecoration(
-        color: tone == BdTone.info ? c.bgSubtle : c.noticeBg(color),
-        borderRadius: BdSize.r,
+        color: tone == NdTone.info ? c.bgSubtle : c.noticeBg(color),
+        borderRadius: NdSize.r,
       ),
       child: IntrinsicHeight(
         child: Row(
@@ -231,7 +231,7 @@ class BdNotice extends StatelessWidget {
               decoration: BoxDecoration(
                 color: color,
                 borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(BdSize.radius)),
+                    left: Radius.circular(NdSize.radius)),
               ),
             ),
             Expanded(
@@ -270,24 +270,24 @@ class BdNotice extends StatelessWidget {
   }
 }
 
-enum BdStatusKind { good, wait, bad, offline }
+enum NdStatusKind { good, wait, bad, offline }
 
 /// An 8 px mark and a word. Never a pill.
-class BdStatus extends StatelessWidget {
-  const BdStatus({super.key, required this.kind, required this.text,
+class NdStatus extends StatelessWidget {
+  const NdStatus({super.key, required this.kind, required this.text,
       this.textWidget, this.style});
-  final BdStatusKind kind;
+  final NdStatusKind kind;
   final String text;
   final Widget? textWidget;
   final TextStyle? style;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        BdStatusMark(kind: kind),
+        NdStatusMark(kind: kind),
         const SizedBox(width: 8),
         Flexible(child: textWidget ?? Text(text, style: style ?? t.body)),
       ],
@@ -295,14 +295,14 @@ class BdStatus extends StatelessWidget {
   }
 }
 
-class BdStatusMark extends StatelessWidget {
-  const BdStatusMark({super.key, required this.kind});
-  final BdStatusKind kind;
+class NdStatusMark extends StatelessWidget {
+  const NdStatusMark({super.key, required this.kind});
+  final NdStatusKind kind;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    if (kind == BdStatusKind.offline) {
+    final c = context.nd;
+    if (kind == NdStatusKind.offline) {
       return Container(
         width: 8,
         height: 8,
@@ -313,8 +313,8 @@ class BdStatusMark extends StatelessWidget {
       );
     }
     final color = switch (kind) {
-      BdStatusKind.good => c.success,
-      BdStatusKind.wait => c.warning,
+      NdStatusKind.good => c.success,
+      NdStatusKind.wait => c.warning,
       _ => c.danger,
     };
     return Container(
@@ -327,16 +327,16 @@ class BdStatusMark extends StatelessWidget {
 
 /// A 16 px ring, accent on rule, only while the app waits on the network.
 /// With reduced motion it stands still.
-class BdSpinner extends StatefulWidget {
-  const BdSpinner({super.key, this.size = 16, this.color});
+class NdSpinner extends StatefulWidget {
+  const NdSpinner({super.key, this.size = 16, this.color});
   final double size;
   final Color? color;
 
   @override
-  State<BdSpinner> createState() => _BdSpinnerState();
+  State<NdSpinner> createState() => _NdSpinnerState();
 }
 
-class _BdSpinnerState extends State<BdSpinner>
+class _NdSpinnerState extends State<NdSpinner>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 900));
@@ -360,7 +360,7 @@ class _BdSpinnerState extends State<BdSpinner>
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
+    final c = context.nd;
     return AnimatedBuilder(
       animation: _c,
       builder: (_, __) => CustomPaint(
@@ -398,8 +398,8 @@ class _RingPainter extends CustomPainter {
 }
 
 /// Initials in a 4 px box in one of the avatar colours on a 16 % tint.
-class BdAvatar extends StatelessWidget {
-  const BdAvatar({super.key, required this.name, this.size = 40});
+class NdAvatar extends StatelessWidget {
+  const NdAvatar({super.key, required this.name, this.size = 40});
   final String name;
   final double size;
 
@@ -414,8 +414,8 @@ class BdAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final color =
         c.avatars[name.codeUnits.fold<int>(0, (a, b) => a + b) % 3];
     return Container(
@@ -423,7 +423,7 @@ class BdAvatar extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration:
-          BoxDecoration(color: c.tint16(color), borderRadius: BdSize.r),
+          BoxDecoration(color: c.tint16(color), borderRadius: NdSize.r),
       child: Text(initials(name),
           style: t.label.copyWith(
               fontSize: size >= 48 ? 17 : 15,
@@ -436,23 +436,23 @@ class BdAvatar extends StatelessWidget {
 
 /// The NeoDesk mark (rounded square, circle, overlap) in the logo
 /// colours of the theme. Never the accent.
-class BdLogoMark extends StatelessWidget {
-  const BdLogoMark({super.key, this.size = 18});
+class NdLogoMark extends StatelessWidget {
+  const NdLogoMark({super.key, this.size = 18});
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
+    final c = context.nd;
     return CustomPaint(
       size: Size.square(size),
-      painter: BdMarkPainter(c.logoSquare, c.logoCircle, c.logoOverlap),
+      painter: NdMarkPainter(c.logoSquare, c.logoCircle, c.logoOverlap),
     );
   }
 }
 
 /// Draws the mark in a 44 unit box (viewBox 10 10 44 44 of the brand SVG).
-class BdMarkPainter extends CustomPainter {
-  BdMarkPainter(this.square, this.circle, this.overlap, {this.unit});
+class NdMarkPainter extends CustomPainter {
+  NdMarkPainter(this.square, this.circle, this.overlap, {this.unit});
   final Color square, circle, overlap;
   final double? unit;
 
@@ -476,64 +476,64 @@ class BdMarkPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(BdMarkPainter oldDelegate) =>
+  bool shouldRepaint(NdMarkPainter oldDelegate) =>
       oldDelegate.square != square ||
       oldDelegate.circle != circle ||
       oldDelegate.overlap != overlap;
 }
 
 /// The mark and the "neodesk" wordmark.
-class BdWordmark extends StatelessWidget {
-  const BdWordmark({super.key, this.height = 18});
+class NdWordmark extends StatelessWidget {
+  const NdWordmark({super.key, this.height = 18});
   final double height;
 
   @override
   Widget build(BuildContext context) {
-    final dark = context.bd.isDark;
+    final dark = context.nd.isDark;
     return SvgPicture.asset(
-      dark ? 'assets/bd-logo-dark.svg' : 'assets/bd-logo-light.svg',
+      dark ? 'assets/nd-logo-dark.svg' : 'assets/nd-logo-light.svg',
       height: height,
       semanticsLabel: 'NeoDesk',
     );
   }
 }
 
-enum BdOs { windows, apple, linux, android, other }
+enum NdOs { windows, apple, linux, android, other }
 
-BdOs bdOsFromPlatform(String platform) {
+NdOs ndOsFromPlatform(String platform) {
   final p = platform.toLowerCase();
-  if (p.contains('win')) return BdOs.windows;
+  if (p.contains('win')) return NdOs.windows;
   if (p.contains('mac') || p.contains('ios') || p.contains('darwin')) {
-    return BdOs.apple;
+    return NdOs.apple;
   }
-  if (p.contains('android')) return BdOs.android;
+  if (p.contains('android')) return NdOs.android;
   if (p.contains('linux') || p.contains('ubuntu') || p.contains('debian')) {
-    return BdOs.linux;
+    return NdOs.linux;
   }
-  return BdOs.other;
+  return NdOs.other;
 }
 
 /// The operating system mark (Phosphor fill) in its system colour, or in
 /// [color] where it sits on a coloured tile.
-class BdOsMark extends StatelessWidget {
-  const BdOsMark({super.key, required this.os, this.size = 16, this.color});
-  final BdOs os;
+class NdOsMark extends StatelessWidget {
+  const NdOsMark({super.key, required this.os, this.size = 16, this.color});
+  final NdOs os;
   final double size;
   final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
+    final c = context.nd;
     final (asset, systemColor) = switch (os) {
-      BdOs.windows => ('assets/bd-os-windows.svg', c.osWindows),
-      BdOs.apple => ('assets/bd-os-apple.svg', c.osApple),
-      BdOs.linux => ('assets/bd-os-linux.svg', c.osLinux),
-      BdOs.android => ('assets/bd-os-android.svg', c.success),
-      BdOs.other => ('', c.textMuted),
+      NdOs.windows => ('assets/nd-os-windows.svg', c.osWindows),
+      NdOs.apple => ('assets/nd-os-apple.svg', c.osApple),
+      NdOs.linux => ('assets/nd-os-linux.svg', c.osLinux),
+      NdOs.android => ('assets/nd-os-android.svg', c.success),
+      NdOs.other => ('', c.textMuted),
     };
     final fg = color ?? systemColor;
     if (asset.isEmpty) {
-      return Icon(BdIcons.computer, size: size, color: fg);
+      return Icon(NdIcons.computer, size: size, color: fg);
     }
     return SvgPicture.asset(asset,
         width: size,
@@ -544,8 +544,8 @@ class BdOsMark extends StatelessWidget {
 
 /// The Dialog component: bgFloat, 4 px corners, rule border, shadow, title
 /// in title-md with a close button, actions at the end, primary last.
-class BdDialog extends StatelessWidget {
-  const BdDialog({
+class NdDialog extends StatelessWidget {
+  const NdDialog({
     super.key,
     required this.title,
     required this.children,
@@ -566,13 +566,13 @@ class BdDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     return Container(
       width: width,
       decoration: BoxDecoration(
         color: c.bgFloat,
-        borderRadius: BdSize.r,
+        borderRadius: NdSize.r,
         border: Border.all(color: c.rule),
         boxShadow: c.shadowFloat,
       ),
@@ -589,8 +589,8 @@ class BdDialog extends StatelessWidget {
                 children: [
                   Expanded(child: Text(title, style: t.titleMd)),
                   if (onClose != null)
-                    BdIconButton(
-                        icon: BdIcons.close,
+                    NdIconButton(
+                        icon: NdIcons.close,
                         tooltip: closeTooltip,
                         onPressed: onClose,
                         iconSize: 20,
@@ -634,8 +634,8 @@ class BdDialog extends StatelessWidget {
 
 /// A row with a chevron that shows or hides [child] (Relay and API server,
 /// install Options).
-class BdDisclosure extends StatelessWidget {
-  const BdDisclosure({
+class NdDisclosure extends StatelessWidget {
+  const NdDisclosure({
     super.key,
     required this.label,
     required this.open,
@@ -652,8 +652,8 @@ class BdDisclosure extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -666,7 +666,7 @@ class BdDisclosure extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(open ? BdIcons.expandMore : BdIcons.chevronRight,
+                Icon(open ? NdIcons.expandMore : NdIcons.chevronRight,
                     size: 18, color: c.text),
                 const SizedBox(width: 10),
                 Text(label, style: t.label.copyWith(fontSize: 15)),
@@ -685,21 +685,21 @@ class BdDisclosure extends StatelessWidget {
 }
 
 /// Steps with a state mark (joining): done, running, to do.
-enum BdStepState { done, running, todo }
+enum NdStepState { done, running, todo }
 
-class BdStepRow extends StatelessWidget {
-  const BdStepRow({super.key, required this.state, required this.text});
-  final BdStepState state;
+class NdStepRow extends StatelessWidget {
+  const NdStepRow({super.key, required this.state, required this.text});
+  final NdStepState state;
   final String text;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final Widget mark = switch (state) {
-      BdStepState.done => Icon(BdIcons.check, size: 20, color: c.success),
-      BdStepState.running => const BdSpinner(size: 16),
-      BdStepState.todo => Container(
+      NdStepState.done => Icon(NdIcons.check, size: 20, color: c.success),
+      NdStepState.running => const NdSpinner(size: 16),
+      NdStepState.todo => Container(
           width: 11,
           height: 11,
           decoration: BoxDecoration(
@@ -719,7 +719,7 @@ class BdStepRow extends StatelessWidget {
                 style: t.body.copyWith(
                     fontSize: 15,
                     height: 22 / 15,
-                    color: state == BdStepState.todo ? c.textMuted : c.text)),
+                    color: state == NdStepState.todo ? c.textMuted : c.text)),
           ),
         ],
       ),

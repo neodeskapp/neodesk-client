@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../theme/bd_theme.dart';
-import 'bd_icons.dart';
-import 'bd_menu.dart';
+import '../../theme/nd_theme.dart';
+import 'nd_icons.dart';
+import 'nd_menu.dart';
 
 /// A text field with the label above, a hint or an error below.
 /// Large fields (44 high) are for onboarding, the connect field and quick
 /// support; they can hold a button at the end ([trailing], e.g. Paste).
-class BdField extends StatefulWidget {
-  const BdField({
+class NdField extends StatefulWidget {
+  const NdField({
     super.key,
     this.label,
     this.hint,
@@ -59,10 +59,10 @@ class BdField extends StatefulWidget {
   final TextAlignVertical? textAlignVertical;
 
   @override
-  State<BdField> createState() => _BdFieldState();
+  State<NdField> createState() => _NdFieldState();
 }
 
-class _BdFieldState extends State<BdField> {
+class _NdFieldState extends State<NdField> {
   FocusNode? _own;
   FocusNode get _node => widget.focusNode ?? (_own ??= FocusNode());
   bool _focused = false;
@@ -74,7 +74,7 @@ class _BdFieldState extends State<BdField> {
   }
 
   @override
-  void didUpdateWidget(covariant BdField old) {
+  void didUpdateWidget(covariant NdField old) {
     super.didUpdateWidget(old);
     if (old.focusNode != widget.focusNode) {
       (old.focusNode ?? _own)?.removeListener(_onFocus);
@@ -97,11 +97,11 @@ class _BdFieldState extends State<BdField> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final invalid = widget.error != null && widget.error!.isNotEmpty;
     final h = widget.height ??
-        (widget.large ? BdSize.controlLg : BdSize.control);
+        (widget.large ? NdSize.controlLg : NdSize.control);
     final fontSize = widget.large ? 16.0 : 14.0;
     final base = widget.mono ? t.mono : t.body;
     final style = base.copyWith(
@@ -118,7 +118,7 @@ class _BdFieldState extends State<BdField> {
           right: widget.trailing != null ? 4 : (widget.large ? 12 : 10)),
       decoration: BoxDecoration(
         color: widget.enabled ? c.bg : c.bgSubtle,
-        borderRadius: BdSize.r,
+        borderRadius: NdSize.r,
         border: Border.all(color: borderColor, width: 1),
       ),
       child: Row(
@@ -174,7 +174,7 @@ class _BdFieldState extends State<BdField> {
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(BdSize.radius + 2),
+                borderRadius: BorderRadius.circular(NdSize.radius + 2),
                 border: Border.all(
                     color: invalid ? c.danger : c.accent, width: 2),
               ),
@@ -190,7 +190,7 @@ class _BdFieldState extends State<BdField> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: 1),
-                child: Icon(BdIcons.error, size: 16, color: c.danger),
+                child: Icon(NdIcons.error, size: 16, color: c.danger),
               ),
               const SizedBox(width: 6),
               Expanded(
@@ -219,14 +219,14 @@ class _BdFieldState extends State<BdField> {
 }
 
 /// The search field of the computer list and the settings navigation.
-class BdSearchField extends StatelessWidget {
-  const BdSearchField({
+class NdSearchField extends StatelessWidget {
+  const NdSearchField({
     super.key,
     required this.placeholder,
     this.controller,
     this.onChanged,
     this.width,
-    this.height = BdSize.control,
+    this.height = NdSize.control,
     this.focusNode,
   });
 
@@ -238,19 +238,19 @@ class BdSearchField extends StatelessWidget {
   final FocusNode? focusNode;
 
   @override
-  Widget build(BuildContext context) => BdField(
+  Widget build(BuildContext context) => NdField(
         controller: controller,
         focusNode: focusNode,
         placeholder: placeholder,
-        prefixIcon: BdIcons.search,
+        prefixIcon: NdIcons.search,
         onChanged: onChanged,
         width: width,
         height: height,
       );
 }
 
-class BdOption<T> {
-  const BdOption(this.value, this.label, {this.prefix});
+class NdOption<T> {
+  const NdOption(this.value, this.label, {this.prefix});
   final T value;
   final String label;
 
@@ -260,8 +260,8 @@ class BdOption<T> {
 }
 
 /// A field with expand_more that opens a menu of choices.
-class BdSelect<T> extends StatefulWidget {
-  const BdSelect({
+class NdSelect<T> extends StatefulWidget {
+  const NdSelect({
     super.key,
     required this.options,
     required this.value,
@@ -270,24 +270,24 @@ class BdSelect<T> extends StatefulWidget {
     this.placeholder,
   });
 
-  final List<BdOption<T>> options;
+  final List<NdOption<T>> options;
   final T? value;
   final ValueChanged<T>? onChanged;
   final double width;
   final String? placeholder;
 
   @override
-  State<BdSelect<T>> createState() => _BdSelectState<T>();
+  State<NdSelect<T>> createState() => _NdSelectState<T>();
 }
 
-class _BdSelectState<T> extends State<BdSelect<T>> {
+class _NdSelectState<T> extends State<NdSelect<T>> {
   final _controller = MenuController();
   bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final enabled = widget.onChanged != null;
     String label = widget.placeholder ?? '';
     Widget? prefix;
@@ -299,16 +299,16 @@ class _BdSelectState<T> extends State<BdSelect<T>> {
     }
     return MenuAnchor(
       controller: _controller,
-      style: bdMenuStyle(context, minWidth: widget.width),
+      style: ndMenuStyle(context, minWidth: widget.width),
       alignmentOffset: const Offset(0, 4),
       menuChildren: [
         for (final o in widget.options)
-          BdMenuItem(
+          NdMenuItem(
             label: o.label,
             prefix: o.prefix,
             leading: o.value == widget.value
-                ? BdMenuLead.check
-                : BdMenuLead.none,
+                ? NdMenuLead.check
+                : NdMenuLead.none,
             onPressed: () => widget.onChanged?.call(o.value),
           ),
       ],
@@ -325,11 +325,11 @@ class _BdSelectState<T> extends State<BdSelect<T>> {
             opacity: enabled ? 1 : 0.45,
             child: Container(
               width: widget.width,
-              height: BdSize.control,
+              height: NdSize.control,
               padding: const EdgeInsets.only(left: 10, right: 8),
               decoration: BoxDecoration(
                 color: _hover && enabled ? c.bgSubtle : c.bg,
-                borderRadius: BdSize.r,
+                borderRadius: NdSize.r,
                 border: Border.all(
                     color: controller.isOpen ? c.accent : c.border),
               ),
@@ -342,7 +342,7 @@ class _BdSelectState<T> extends State<BdSelect<T>> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                   ),
-                  Icon(BdIcons.expandMore, size: 18, color: c.textMuted),
+                  Icon(NdIcons.expandMore, size: 18, color: c.textMuted),
                 ],
               ),
             ),

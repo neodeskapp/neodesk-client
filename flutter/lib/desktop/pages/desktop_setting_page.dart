@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/settings/settings_index.dart';
 import 'package:flutter_hbb/desktop/pages/settings/settings_widgets.dart';
 import 'package:flutter_hbb/onboarding/onboarding_flow.dart';
@@ -191,15 +191,15 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
   String _groupLabel(SettingsTabKey key) {
     switch (key) {
       case SettingsTabKey.general:
-        return tr('bd-set-general');
+        return tr('nd-set-general');
       case SettingsTabKey.safety:
-        return tr('bd-set-security');
+        return tr('nd-set-security');
       case SettingsTabKey.network:
-        return tr('bd-set-server');
+        return tr('nd-set-server');
       case SettingsTabKey.display:
-        return tr('bd-set-advanced');
+        return tr('nd-set-advanced');
       default:
-        return tr('bd-set-about');
+        return tr('nd-set-about');
     }
   }
 
@@ -231,8 +231,8 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
       switch (tab) {
         case SettingsTabKey.general:
           children.add(SettingsGroupPage(
-            title: tr('bd-set-general'),
-            lead: tr('bd-set-general-lead'),
+            title: tr('nd-set-general'),
+            lead: tr('nd-set-general-lead'),
             children: [
               const _General(part: _GeneralPart.general),
               if (!bind.isDisableAccount()) const _Account(),
@@ -242,15 +242,15 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           break;
         case SettingsTabKey.safety:
           children.add(SettingsGroupPage(
-            title: tr('bd-set-security'),
-            lead: tr('bd-set-security-lead'),
+            title: tr('nd-set-security'),
+            lead: tr('nd-set-security-lead'),
             children: const [_Safety()],
           ));
           break;
         case SettingsTabKey.network:
           children.add(SettingsGroupPage(
-            title: tr('bd-set-server'),
-            lead: tr('bd-set-server-lead'),
+            title: tr('nd-set-server'),
+            lead: tr('nd-set-server-lead'),
             children: const [_Network()],
           ));
           break;
@@ -261,8 +261,8 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
                       key: kOptionHideRemotePrinterSetting) !=
                   'Y';
           children.add(SettingsGroupPage(
-            title: tr('bd-set-advanced'),
-            lead: tr('bd-set-advanced-lead'),
+            title: tr('nd-set-advanced'),
+            lead: tr('nd-set-advanced-lead'),
             children: [
               if (!bind.isIncomingOnly()) const _Display(),
               const _General(part: _GeneralPart.toolbar),
@@ -318,7 +318,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
             block: videoConnBlock,
           ),
         ),
-        if (videoConnBlock) Container(color: context.bd.scrim)
+        if (videoConnBlock) Container(color: context.nd.scrim)
       ]);
     });
   }
@@ -334,15 +334,15 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           ],
           value: _query.value.isEmpty ? selectedTab.value : null,
           onChanged: _select,
-          search: BdSearchField(
-            placeholder: tr('bd-set-search'),
+          search: NdSearchField(
+            placeholder: tr('nd-set-search'),
             controller: _search,
             height: 32,
             onChanged: (v) => _query.value = v,
           ),
         ));
     return Scaffold(
-      backgroundColor: context.bd.bg,
+      backgroundColor: context.nd.bg,
       body: _buildBlock(
         children: <Widget>[
           if (isWeb)
@@ -350,12 +350,12 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
               onPressed: () {
                 if (Navigator.canPop(context)) Navigator.pop(context);
               },
-              icon: Icon(BdIcons.arrowBack),
+              icon: Icon(NdIcons.arrowBack),
             ),
           nav,
           Expanded(
             child: Container(
-              color: context.bd.bg,
+              color: context.nd.bg,
               child: Obx(() => Stack(children: [
                     Offstage(
                       offstage: _query.value.isNotEmpty,
@@ -405,10 +405,10 @@ class _GeneralState extends State<_General> {
     final children = <Widget>[];
     switch (widget.part) {
       case _GeneralPart.general:
-        children.add(_Card(title: 'bd-sec-language-and-look', children: [
+        children.add(_Card(title: 'nd-sec-language-and-look', children: [
           SettingsRow(
             label: translate('Language'),
-            description: translateOrNull('bd-desc:Language'),
+            description: translateOrNull('nd-desc:Language'),
             control: language(),
           ),
           theme(),
@@ -427,10 +427,10 @@ class _GeneralState extends State<_General> {
                 isServer: true),
         ];
         if (updates.isNotEmpty) {
-          children.add(_Card(title: 'bd-sec-updates', children: updates));
+          children.add(_Card(title: 'nd-sec-updates', children: updates));
         }
         if (!incomingOnly) {
-          children.add(_Card(title: 'bd-sec-sessions-you-start', children: [
+          children.add(_Card(title: 'nd-sec-sessions-you-start', children: [
             if (!isWeb)
               _OptionCheckBox(context, 'Open connection in new tab',
                   kOptionOpenNewConnInTabs,
@@ -464,7 +464,7 @@ class _GeneralState extends State<_General> {
         break;
       case _GeneralPart.toolbar:
         if (incomingOnly) break;
-        children.add(_Card(title: 'bd-sec-toolbar', children: [
+        children.add(_Card(title: 'nd-sec-toolbar', children: [
           _OptionCheckBox(
             context,
             'allow-remote-toolbar-docking-any-edge',
@@ -501,7 +501,7 @@ class _GeneralState extends State<_General> {
         break;
       case _GeneralPart.thisComputer:
         if (isWeb) break;
-        children.add(_Card(title: 'bd-sec-this-computer-during-sessions', children: [
+        children.add(_Card(title: 'nd-sec-this-computer-during-sessions', children: [
           if (!outgoingOnly) wallpaper(),
           if (!outgoingOnly)
             _OptionCheckBox(context, 'Adaptive bitrate', kOptionEnableAbr),
@@ -515,7 +515,7 @@ class _GeneralState extends State<_General> {
         break;
       case _GeneralPart.network:
         if (isWeb || incomingOnly) break;
-        children.add(_Card(title: 'bd-sec-network', children: [
+        children.add(_Card(title: 'nd-sec-network', children: [
           _OptionCheckBox(context, 'Enable UDP hole punching',
               kOptionEnableUdpPunch,
               isServer: false),
@@ -529,7 +529,7 @@ class _GeneralState extends State<_General> {
         break;
       case _GeneralPart.drawing:
         if (isWeb || incomingOnly) break;
-        children.add(_Card(title: 'bd-sec-drawing', children: [
+        children.add(_Card(title: 'nd-sec-drawing', children: [
           if (isLinux)
             _OptionCheckBox(context, 'Always use software rendering',
                 kOptionAllowAlwaysSoftwareRender),
@@ -560,13 +560,13 @@ class _GeneralState extends State<_General> {
 
     final isOptFixed = isOptionFixed(kCommConfKeyTheme);
     return SettingsRow(
-      label: tr('bd-set-appearance'),
-      description: translateOrNull('bd-desc:Theme'),
-      control: BdSegmented<String>(
+      label: tr('nd-set-appearance'),
+      description: translateOrNull('nd-desc:Theme'),
+      control: NdSegmented<String>(
         segments: [
-          BdSegment('light', tr('bd-set-light')),
-          BdSegment('dark', tr('bd-set-dark')),
-          BdSegment('system', tr('bd-set-system')),
+          NdSegment('light', tr('nd-set-light')),
+          NdSegment('dark', tr('nd-set-dark')),
+          NdSegment('system', tr('nd-set-system')),
         ],
         value: current,
         onChanged: isOptFixed ? null : onChanged,
@@ -634,11 +634,11 @@ class _GeneralState extends State<_General> {
     builder(devices, currentDevice, setDevice) {
       return SettingsRow(
         label: translate('Audio Input Device'),
-        description: translateOrNull('bd-desc:Audio Input Device'),
-        control: BdSelect<String>(
+        description: translateOrNull('nd-desc:Audio Input Device'),
+        control: NdSelect<String>(
           width: 240,
           options: [
-            for (final d in devices) BdOption<String>(d as String, d),
+            for (final d in devices) NdOption<String>(d as String, d),
           ],
           value: currentDevice,
           onChanged: (key) async {
@@ -680,14 +680,14 @@ class _GeneralState extends State<_General> {
           below: GestureDetector(
             onTap: exists ? () => launchUrl(Uri.file(dir)) : null,
             child: Text(dir,
-                style: context.bdText.mono.copyWith(
+                style: context.ndText.mono.copyWith(
                     fontSize: 13,
                     decoration: exists ? TextDecoration.underline : null)),
           ),
           control: change
-              ? BdButton(
+              ? NdButton(
                   label: translate('Change'),
-                  size: BdButtonSize.sm,
+                  size: NdButtonSize.sm,
                   onPressed: isOptionFixed(kOptionVideoSaveDirectory)
                       ? null
                       : () async {
@@ -710,7 +710,7 @@ class _GeneralState extends State<_General> {
         );
       }
 
-      return _Card(title: 'bd-sec-recording', children: [
+      return _Card(title: 'nd-sec-recording', children: [
         if (!bind.isIncomingOnly())
           _OptionCheckBox(context, 'Automatically record outgoing sessions',
               kOptionAllowAutoRecordOutgoing,
@@ -719,9 +719,9 @@ class _GeneralState extends State<_General> {
           _OptionCheckBox(context, 'Automatically record incoming sessions',
               kOptionAllowAutoRecordIncoming),
         if (showRootDir && !bind.isOutgoingOnly())
-          folder('bd-set-recordings-incoming', root_dir, root_dir_exists),
+          folder('nd-set-recordings-incoming', root_dir, root_dir_exists),
         if (!(showRootDir && bind.isIncomingOnly()))
-          folder('bd-set-recordings-folder', user_dir, user_dir_exists,
+          folder('nd-set-recordings-folder', user_dir, user_dir_exists,
               change: true),
       ]);
     });
@@ -744,11 +744,11 @@ class _GeneralState extends State<_General> {
         currentKey = defaultOptionLang;
       }
       final isOptFixed = isOptionFixed(kCommConfKeyLang);
-      return BdSelect<String>(
+      return NdSelect<String>(
         width: 240,
         options: [
           for (var i = 0; i < keys.length; i++)
-            BdOption(keys[i], values[i], prefix: BdLangFlag(keys[i])),
+            NdOption(keys[i], values[i], prefix: NdLangFlag(keys[i])),
         ],
         value: currentKey,
         onChanged: isOptFixed
@@ -820,11 +820,11 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
         bind.mainGetBuildinOption(key: kOptionHideStopService) == 'Y';
     return Obx(() {
       if (hideStopService && !_serviceStop.value) return const Offstage();
-      return _Card(title: 'bd-sec-connections-to-this-computer', children: [
+      return _Card(title: 'nd-sec-connections-to-this-computer', children: [
         SettingsRow(
-          label: tr('bd-set-allow-connections'),
-          description: translateOrNull('bd-desc:bd-set-allow-connections'),
-          control: BdSwitch(
+          label: tr('nd-set-allow-connections'),
+          description: translateOrNull('nd-desc:nd-set-allow-connections'),
+          control: NdSwitch(
             value: !_serviceStop.value,
             onChanged: (v) async {
               await start_service(v);
@@ -1362,8 +1362,8 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                   Offstage(
                     offstage: !hasWhitelist.value,
                     child: MouseRegion(
-                      child: Icon(BdIcons.warning,
-                              color: context.bd.warning)
+                      child: Icon(NdIcons.warning,
+                              color: context.nd.warning)
                           .marginOnly(right: 5),
                       cursor: SystemMouseCursors.click,
                     ),
@@ -1412,8 +1412,8 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                 Offstage(
                   offstage: !hasIdWhitelist.value,
                   child: MouseRegion(
-                    child: Icon(BdIcons.warning,
-                            color: context.bd.warning)
+                    child: Icon(NdIcons.warning,
+                            color: context.nd.warning)
                         .marginOnly(right: 5),
                     cursor: SystemMouseCursors.click,
                   ),
@@ -1627,29 +1627,29 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
               actions: hideServer
                   ? const []
                   : [
-                      BdButton(
-                        label: tr('bd-join-a-server'),
+                      NdButton(
+                        label: tr('nd-join-a-server'),
                         onPressed: () => showJoinServerDialog(
                             OnboardingService.instance,
                             currentServer: config.idServer,
                             knownConsole: (options['neodesk-console'] ?? '')
                                 .toString()),
                       ),
-                      BdButton(
-                        label: tr('bd-set-up-by-hand'),
+                      NdButton(
+                        label: tr('nd-set-up-by-hand'),
                         onPressed: () async {
                           await showSetupByHand();
                           if (mounted) setState(() {});
                         },
                       ),
-                      BdButton(
-                        label: tr('bd-set-pair-code'),
+                      NdButton(
+                        label: tr('nd-set-pair-code'),
                         onPressed: showPairWithCodeDialog,
                       ),
                       if (config.key.isNotEmpty)
-                        BdButton(
-                          label: tr('bd-set-copy-key'),
-                          kind: BdButtonKind.ghost,
+                        NdButton(
+                          label: tr('nd-set-copy-key'),
+                          kind: NdButtonKind.ghost,
                           onPressed: () => Clipboard.setData(
                               ClipboardData(text: config.key)),
                         ),
@@ -1676,8 +1676,8 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
             {bool Function()? get, Future<void> Function(bool)? set}) =>
         SettingsRow(
           label: translate(label),
-          description: translateOrNull('bd-desc:$label'),
-          control: BdSwitch(
+          description: translateOrNull('nd-desc:$label'),
+          control: NdSwitch(
             value: get != null ? get() : mainGetBoolOptionSync(optionKey),
             onChanged: locked || isOptionFixed(optionKey)
                 ? null
@@ -1693,15 +1693,15 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
         );
 
     return _Card(
-      title: 'bd-sec-connection',
+      title: 'nd-sec-connection',
       children: [
         if (!hideProxy)
           SettingsRow(
             label: translate('Socks5/Http(s) Proxy'),
-            description: translateOrNull('bd-desc:Socks5/Http(s) Proxy'),
-            control: BdButton(
-                label: tr('bd-set-up'),
-                size: BdButtonSize.sm,
+            description: translateOrNull('nd-desc:Socks5/Http(s) Proxy'),
+            control: NdButton(
+                label: tr('nd-set-up'),
+                size: NdButtonSize.sm,
                 onPressed: locked ? null : changeSocks5Proxy),
           ),
         if (!hideWebSocket) switchRow('Use WebSocket', kOptionAllowWebSocket),
@@ -1741,7 +1741,7 @@ class _Display extends StatefulWidget {
 class _DisplayState extends State<_Display> {
   @override
   Widget build(BuildContext context) {
-    return _Card(title: 'bd-sec-new-sessions-you-start', children: [
+    return _Card(title: 'nd-sec-new-sessions-you-start', children: [
       viewStyle(context),
       scrollStyle(context),
       imageQuality(context),
@@ -2016,7 +2016,7 @@ class _AccountState extends State<_Account> {
   @override
   Widget build(BuildContext context) {
     return _Card(
-        title: 'bd-sec-account', children: [accountAction(), useInfo()]);
+        title: 'nd-sec-account', children: [accountAction(), useInfo()]);
   }
 
   Widget accountAction() {
@@ -2154,7 +2154,7 @@ class _Printer extends StatefulWidget {
 class __PrinterState extends State<_Printer> {
   @override
   Widget build(BuildContext context) {
-    return _Card(title: 'bd-sec-printing', children: [
+    return _Card(title: 'nd-sec-printing', children: [
       outgoing(context),
       incoming(context),
     ]);
@@ -2207,7 +2207,7 @@ class __PrinterState extends State<_Printer> {
                   child: Text(failedMsg.value,
                           style: DefaultTextStyle.of(context)
                               .style
-                              .copyWith(color: context.bd.danger))
+                              .copyWith(color: context.nd.danger))
                       .marginOnly(bottom: 10.0)),
         ),
         _Button('Install {$appName} Printer', () {
@@ -2544,7 +2544,7 @@ class _BrandingState extends State<_Branding> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Card(title: 'bd-sec-reports-and-branding', children: [
+        _Card(title: 'nd-sec-reports-and-branding', children: [
           if (managed)
             Text(
               translate('Managed by NeoDesk server'),
@@ -2561,7 +2561,7 @@ class _BrandingState extends State<_Branding> {
           _field('Website', kOptionBrandingWebsite, _websiteController,
               hint: 'https://'),
           _colorField('Accent color', kOptionBrandingAccentColor,
-              _accentController, BdColors.light.accent),
+              _accentController, NdColors.light.accent),
           if (!managed)
             Row(
               children: [
@@ -2687,9 +2687,9 @@ Widget _OptionCheckBox(
   return Obx(() => SettingsRow(
         label: translate(label),
         description: isOptFixed && BrandingModel.current.hasCompanyName
-            ? tr('bd-set-fixed-by',
+            ? tr('nd-set-fixed-by',
                 [BrandingModel.current.companyName.value.trim()])
-            : translateOrNull('bd-desc:$label'),
+            : translateOrNull('nd-desc:$label'),
         enabled: canChange || !enabled,
         control: Row(mainAxisSize: MainAxisSize.min, children: [
           if (extra != null) ...[extra, const SizedBox(width: 12)],
@@ -2697,7 +2697,7 @@ Widget _OptionCheckBox(
             checkedIcon,
             const SizedBox(width: 8),
           ],
-          BdSwitch(
+          NdSwitch(
             value: ref.value,
             semanticLabel: translate(label),
             onChanged: canChange ? (v) => onChanged(v) : null,
@@ -2724,12 +2724,12 @@ Widget _Radio<T>(BuildContext context,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(children: [
-            BdRadioMark(selected: value == groupValue),
+            NdRadioMark(selected: value == groupValue),
             const SizedBox(width: 10),
             Expanded(
               child: Text(translate(label),
                   overflow: autoNewLine ? null : TextOverflow.ellipsis,
-                  style: context.bdText.body),
+                  style: context.ndText.body),
             ),
           ]),
         ),
@@ -2881,7 +2881,7 @@ class _WaylandCardState extends State<WaylandCard> {
                 child: Text(_clearShortcutsInhibitorFailedMsg.value,
                         style: DefaultTextStyle.of(context)
                             .style
-                            .copyWith(color: context.bd.danger))
+                            .copyWith(color: context.nd.danger))
                     .marginOnly(bottom: 10.0)),
       ),
       _Button(
@@ -2900,9 +2900,9 @@ class _WaylandCardState extends State<WaylandCard> {
 // ignore: non_constant_identifier_names
 Widget _Button(String label, Function() onPressed,
     {bool enabled = true, String? tip, ButtonStyle? style}) {
-  Widget button = BdButton(
+  Widget button = NdButton(
     label: translate(label),
-    size: BdButtonSize.sm,
+    size: NdButtonSize.sm,
     onPressed: enabled ? onPressed : null,
   );
   if (tip != null) {
@@ -2919,9 +2919,9 @@ Widget _SubButton(String label, Function() onPressed, [bool enabled = true]) {
   return Padding(
     padding: const EdgeInsets.only(left: 26, top: 4, bottom: 4),
     child: Row(children: [
-      BdButton(
+      NdButton(
         label: translate(label),
-        size: BdButtonSize.sm,
+        size: NdButtonSize.sm,
         onPressed: enabled ? onPressed : null,
       ),
     ]),
@@ -2937,8 +2937,8 @@ Widget _SubLabeledWidget(BuildContext context, String label, Widget child,
       children: [
         Text(
           translate(label),
-          style: context.bdText.body.copyWith(
-              color: enabled ? context.bd.text : context.bd.textMuted),
+          style: context.ndText.body.copyWith(
+              color: enabled ? context.nd.text : context.nd.textMuted),
         ),
         const SizedBox(width: 12),
         child,
@@ -3116,7 +3116,7 @@ void changeSocks5Proxy() async {
                               waitDuration: Duration(milliseconds: 0),
                               message: translate("default_proxy_tip"),
                               child: Icon(
-                                BdIcons.help,
+                                NdIcons.help,
                                 size: 16,
                                 color: Theme.of(context)
                                     .textTheme
@@ -3181,8 +3181,8 @@ void changeSocks5Proxy() async {
                             suffixIcon: IconButton(
                                 onPressed: () => obscure.value = !obscure.value,
                                 icon: Icon(obscure.value
-                                    ? BdIcons.visibilityOff
-                                    : BdIcons.visibility))),
+                                    ? NdIcons.visibilityOff
+                                    : NdIcons.visibility))),
                         controller: pwdController,
                         enabled: !isOptFixed,
                         maxLength: bind.mainMaxEncryptLen(),

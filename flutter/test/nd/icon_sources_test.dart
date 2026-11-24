@@ -1,10 +1,10 @@
-// Every icon the desktop app draws comes from BdIcons (Material Symbols,
+// Every icon the desktop app draws comes from NdIcons (Material Symbols,
 // DESIGN.md Icons). This test reads the sources the desktop app is built
 // from (lib/ without lib/mobile and lib/web) and fails on any other icon
 // source:
 //
 // - Material Icons (Icons.*), Cupertino icons, RustDesk's IconFont,
-// - IconData made outside bd_icons.dart (icon fonts of their own),
+// - IconData made outside nd_icons.dart (icon fonts of their own),
 // - SVG or PNG assets other than the kept pictures listed below,
 // - the retired icon fonts in pubspec.yaml or in assets/.
 
@@ -14,8 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Asset paths the app may still name, with the reason they stay.
 const _keptAssets = <String, String>{
-  'assets/bd-logo-': 'the NeoDesk logo',
-  'assets/bd-os-': 'operating system marks (Phosphor, as in the console)',
+  'assets/nd-logo-': 'the NeoDesk logo',
+  'assets/nd-os-': 'operating system marks (Phosphor, as in the console)',
   'assets/flags/': 'language flags (Twemoji)',
   r'assets/auth-$svgFile.svg': 'logos of the sign-in providers',
   'assets/icon.svg': 'the app icon',
@@ -26,7 +26,7 @@ const _keptAssets = <String, String>{
 
 /// Files that pass a variable to SvgPicture.asset, with the reason.
 const _variableSvgFiles = <String, String>{
-  'lib/common/widgets/bd/bd_misc.dart': 'logo and OS marks',
+  'lib/common/widgets/nd/nd_misc.dart': 'logo and OS marks',
 };
 
 const _retiredFonts = [
@@ -94,7 +94,7 @@ List<String> scanSources([Directory? base]) {
       final line = code[i];
       for (final e in _forbidden.entries) {
         if (e.value == _ownFont &&
-            path == 'lib/common/widgets/bd/bd_icons.dart') {
+            path == 'lib/common/widgets/nd/nd_icons.dart') {
           continue;
         }
         if (e.key.hasMatch(line)) {
@@ -135,7 +135,7 @@ List<String> scanFonts() {
 }
 
 void main() {
-  test('the desktop sources draw icons only from BdIcons', () {
+  test('the desktop sources draw icons only from NdIcons', () {
     final findings = scanSources();
     expect(findings, isEmpty, reason: findings.join('\n'));
   });

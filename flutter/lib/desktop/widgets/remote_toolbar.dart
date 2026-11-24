@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
-import 'package:flutter_hbb/desktop/widgets/bd_toolbar_button.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_hbb/desktop/widgets/nd_toolbar_button.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
@@ -190,13 +190,13 @@ int _monitorMenuQuarterTurns(_ToolbarEdge edge) {
 IconData _toolbarCollapseIcon(_ToolbarEdge edge, bool isCollapsed) {
   switch (edge) {
     case _ToolbarEdge.top:
-      return isCollapsed ? BdIcons.expandMore : BdIcons.expandLess;
+      return isCollapsed ? NdIcons.expandMore : NdIcons.expandLess;
     case _ToolbarEdge.bottom:
-      return isCollapsed ? BdIcons.expandLess : BdIcons.expandMore;
+      return isCollapsed ? NdIcons.expandLess : NdIcons.expandMore;
     case _ToolbarEdge.left:
-      return isCollapsed ? BdIcons.chevronRight : BdIcons.chevronLeft;
+      return isCollapsed ? NdIcons.chevronRight : NdIcons.chevronLeft;
     case _ToolbarEdge.right:
-      return isCollapsed ? BdIcons.chevronLeft : BdIcons.chevronRight;
+      return isCollapsed ? NdIcons.chevronLeft : NdIcons.chevronRight;
   }
 }
 
@@ -325,13 +325,13 @@ class ToolbarState {
 }
 
 class _ToolbarTheme {
-  static Color get blueColor => bdColors.accent;
-  static Color get hoverBlueColor => bdColors.accentHover;
-  static Color get inactiveColor => bdColors.textMuted;
-  static Color get hoverInactiveColor => bdColors.text;
+  static Color get blueColor => ndColors.accent;
+  static Color get hoverBlueColor => ndColors.accentHover;
+  static Color get inactiveColor => ndColors.textMuted;
+  static Color get hoverInactiveColor => ndColors.text;
 
-  static Color get redColor => bdColors.danger;
-  static Color get hoverRedColor => bdColors.dangerHover;
+  static Color get redColor => ndColors.danger;
+  static Color get hoverRedColor => ndColors.dangerHover;
   // kMinInteractiveDimension
   static const double height = 20.0;
   static const double dividerHeight = 12.0;
@@ -346,12 +346,12 @@ class _ToolbarTheme {
 
   static const double menuButtonBorderRadius = 4.0;
 
-  static Color borderColor(BuildContext context) => context.bd.rule;
+  static Color borderColor(BuildContext context) => context.nd.rule;
 
-  static Color? dividerColor(BuildContext context) => context.bd.rule;
+  static Color? dividerColor(BuildContext context) => context.nd.rule;
 
   static MenuStyle defaultMenuStyle(BuildContext context) =>
-      bdMenuStyle(context);
+      ndMenuStyle(context);
   static final defaultMenuButtonStyle = ButtonStyle(
     backgroundColor: WidgetStatePropertyAll(Colors.transparent),
     padding: WidgetStatePropertyAll(EdgeInsets.zero),
@@ -806,15 +806,15 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     final controls = toolbarControls(context, widget.id, widget.ffi);
     final transfer = _findControl(controls, ['Transfer file']);
     if (isDefaultConn && transfer != null) {
-      toolbarItems.add(BdToolbarButton(
-        icon: BdIcons.folder,
-        label: tr('bd-tb-files'),
+      toolbarItems.add(NdToolbarButton(
+        icon: NdIcons.folder,
+        label: tr('nd-tb-files'),
         showLabel: labels && !narrow,
         onPressed: transfer.onPressed,
       ));
     }
-    toolbarItems.add(BdToolbarButton(
-      icon: BdIcons.chat,
+    toolbarItems.add(NdToolbarButton(
+      icon: NdIcons.chat,
       label: translate('Chat'),
       showLabel: labels && !narrow,
       onPressed: () {
@@ -825,9 +825,9 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     ));
     toolbarItems.add(Obx(() {
       final full = stateGlobal.fullscreen.isTrue;
-      return BdToolbarButton(
-        icon: full ? BdIcons.fullscreenExit : BdIcons.fullscreen,
-        label: full ? tr('bd-tb-exit-full-screen') : tr('bd-tb-full-screen'),
+      return NdToolbarButton(
+        icon: full ? NdIcons.fullscreenExit : NdIcons.fullscreen,
+        label: full ? tr('nd-tb-exit-full-screen') : tr('nd-tb-full-screen'),
         showLabel: labels && !narrow,
         onPressed: () => _setFullscreen(!full),
       );
@@ -847,7 +847,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       width: isHorizontal ? 1 : 24,
       height: isHorizontal ? 24 : 1,
       margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      color: context.bd.rule,
+      color: context.nd.rule,
     ));
     toolbarItems.add(_CloseMenu(id: widget.id, ffi: widget.ffi, showLabel: labels));
     final toolbarBorderRadius = BorderRadius.all(Radius.circular(4.0));
@@ -863,10 +863,10 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       margin: EdgeInsets.only(top: edge == _ToolbarEdge.top ? 8 : 0),
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: context.bd.bgFloat,
+        color: context.nd.bgFloat,
         borderRadius: toolbarBorderRadius,
-        border: Border.all(color: context.bd.rule),
-        boxShadow: context.bd.shadowFloat,
+        border: Border.all(color: context.nd.rule),
+        boxShadow: context.nd.shadowFloat,
       ),
       child: SingleChildScrollView(
         scrollDirection: innerAxis,
@@ -984,14 +984,14 @@ class _MainMonitorSwitchButton extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(BdIcons.monitorFilled, size: 32, color: bdColors.onAccent),
+              Icon(NdIcons.monitorFilled, size: 32, color: ndColors.onAccent),
               Transform.translate(
                 offset: _monitorScreenOffset(32),
                 child: Text(
                   label,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: bdColors.accent,
+                    color: ndColors.accent,
                     fontSize: 11,
                     height: 1,
                     fontWeight: FontWeight.bold,
@@ -1041,7 +1041,7 @@ class _MonitorMenu extends StatelessWidget {
   Widget buildMonitorMenu(BuildContext context) {
     final width = SimpleWrapper<double>(0);
     final monitorsIcon =
-        globalMonitorsWidget(width, bdColors.onAccent, bdColors.text.withOpacity(0.38));
+        globalMonitorsWidget(width, ndColors.onAccent, ndColors.text.withOpacity(0.38));
     return _IconSubmenuButton(
         tooltip: 'Select Monitor',
         icon: monitorsIcon,
@@ -1108,7 +1108,7 @@ class _MonitorMenu extends StatelessWidget {
           Widget? monitorsIcon;
           if (isAllMonitors) {
             monitorsIcon = globalMonitorsWidget(
-                width, bdColors.onAccent, _ToolbarTheme.blueColor);
+                width, ndColors.onAccent, _ToolbarTheme.blueColor);
           }
           return _IconMenuButton(
             tooltip: isMulti
@@ -1135,8 +1135,8 @@ class _MonitorMenu extends StatelessWidget {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        Icon(BdIcons.rectangleFilled,
-                            size: 28, color: bdColors.onAccent),
+                        Icon(NdIcons.rectangleFilled,
+                            size: 28, color: ndColors.onAccent),
                         Obx(() => buildOneMonitorButton(i, display.value)),
                       ],
                     ),
@@ -1187,10 +1187,10 @@ class _MonitorMenu extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(
-                color: bdColors.border,
+                color: ndColors.border,
                 width: 1.0,
               ),
-              color: display.value == i ? activeBgColor : bdColors.onAccent,
+              color: display.value == i ? activeBgColor : ndColors.onAccent,
             ),
             child: Center(
                 child: Text(
@@ -1651,7 +1651,7 @@ class _DisplayMenuState extends State<_DisplayMenu> {
     final isDefaultConn = ffi.connType == ConnType.defaultConn;
 
     // The More menu (DESIGN.md, Remote session, More menu).
-    menuChildrenGetter(_BdToolbarSubmenuState state) {
+    menuChildrenGetter(_NdToolbarSubmenuState state) {
       final controls = toolbarControls(context, id, ffi);
       final used = <TTextMenu>{};
       TTextMenu? take(List<String> keys) {
@@ -1703,13 +1703,13 @@ class _DisplayMenuState extends State<_DisplayMenu> {
       return <Widget>[
         if (!isWeb && isDefaultConn)
           MenuButton(
-            child: Text(tr('bd-tb-voice-call')),
+            child: Text(tr('nd-tb-voice-call')),
             ffi: ffi,
             onPressed: () => bind.sessionRequestVoiceCall(sessionId: ffi.sessionId),
           ),
         if (!isWeb && canRecord && !recordingModel.start)
           MenuButton(
-            child: Text(tr('bd-tb-record')),
+            child: Text(tr('nd-tb-record')),
             ffi: ffi,
             onPressed: () => recordingModel.toggle(),
           ),
@@ -1718,7 +1718,7 @@ class _DisplayMenuState extends State<_DisplayMenu> {
         Divider(),
         _SubmenuButton(
           ffi: ffi,
-          child: Text(tr('bd-tb-display')),
+          child: Text(tr('nd-tb-display')),
           menuChildren: [
             _screenAdjustor.adjustWindow(context),
             viewStyle(customPercent: _customPercent),
@@ -1744,7 +1744,7 @@ class _DisplayMenuState extends State<_DisplayMenu> {
         ),
         _SubmenuButton(
           ffi: ffi,
-          child: Text(tr('bd-tb-image-quality')),
+          child: Text(tr('nd-tb-image-quality')),
           menuChildren: [
             imageQualityItems(),
             fpsMode(),
@@ -1755,12 +1755,12 @@ class _DisplayMenuState extends State<_DisplayMenu> {
         if (isDefaultConn)
           _SubmenuButton(
             ffi: ffi,
-            child: Text(tr('bd-tb-cursor')),
+            child: Text(tr('nd-tb-cursor')),
             menuChildren: [cursorToggles()],
           ),
         _SubmenuButton(
           ffi: ffi,
-          child: Text(tr('bd-tb-sound-clipboard')),
+          child: Text(tr('nd-tb-sound-clipboard')),
           menuChildren: [
             toggles(only: const [
               'Mute',
@@ -1771,7 +1771,7 @@ class _DisplayMenuState extends State<_DisplayMenu> {
         ),
         _SubmenuButton(
           ffi: ffi,
-          child: Text(tr('bd-tb-their-computer')),
+          child: Text(tr('nd-tb-their-computer')),
           menuChildren: [
             ...theirs.map((e) => item(e)),
             toggles(only: const ['Lock after session end']),
@@ -1797,18 +1797,18 @@ class _DisplayMenuState extends State<_DisplayMenu> {
         if (openAs.isNotEmpty)
           _SubmenuButton(
             ffi: ffi,
-            child: Text(tr('bd-tb-open-as')),
+            child: Text(tr('nd-tb-open-as')),
             menuChildren: openAs.map((e) => item(e)).toList(),
           ),
         Divider(),
-        if (note != null) item(note, label: tr('bd-tb-note')),
-        if (refresh != null) item(refresh, label: tr('bd-tb-refresh')),
+        if (note != null) item(note, label: tr('nd-tb-note')),
+        if (refresh != null) item(refresh, label: tr('nd-tb-refresh')),
         if (isDefaultConn) _KeyboardMenu(id: id, ffi: ffi).viewMode(),
         Obx(() => CkbMenuButton(
               value: widget.state.pin,
               onChanged: (_) => widget.state.switchPin(),
               ffi: ffi,
-              child: Text(tr('bd-tb-keep-open')),
+              child: Text(tr('nd-tb-keep-open')),
             )),
         if (rest.isNotEmpty) ...[
           Divider(),
@@ -1817,9 +1817,9 @@ class _DisplayMenuState extends State<_DisplayMenu> {
       ];
     }
 
-    return _BdToolbarSubmenu(
-      icon: BdIcons.moreHoriz,
-      label: tr('bd-tb-more'),
+    return _NdToolbarSubmenu(
+      icon: NdIcons.moreHoriz,
+      label: tr('nd-tb-more'),
       showLabel: widget.showLabel,
       ffi: widget.ffi,
       menuChildrenGetter: menuChildrenGetter,
@@ -2153,7 +2153,7 @@ class _CustomScaleMenuControlsState
               iconSize: 16,
               padding: EdgeInsets.all(1),
               constraints: smallBtnConstraints,
-              icon: const Icon(BdIcons.remove),
+              icon: const Icon(NdIcons.remove),
               onPressed: () => nudgeScale(-1),
             ),
           ),
@@ -2164,7 +2164,7 @@ class _CustomScaleMenuControlsState
               iconSize: 16,
               padding: EdgeInsets.all(1),
               constraints: smallBtnConstraints,
-              icon: const Icon(BdIcons.add),
+              icon: const Icon(NdIcons.add),
               onPressed: () => nudgeScale(1),
             ),
           ),
@@ -2227,7 +2227,7 @@ class _RectValueThumbShape extends SliderComponentShape {
     );
     final Color? evaluatedColor = colorTween.evaluate(enableAnimation);
     final Color? thumbColor = sliderTheme.thumbColor;
-    final Color fillColor = evaluatedColor ?? thumbColor ?? bdColors.accent;
+    final Color fillColor = evaluatedColor ?? thumbColor ?? ndColors.accent;
 
     final RRect rrect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: center, width: width, height: height),
@@ -2243,7 +2243,7 @@ class _RectValueThumbShape extends SliderComponentShape {
     final TextSpan span = TextSpan(
       text: '$displayValue$unit',
       style: TextStyle(
-        color: bdColors.onAccent,
+        color: ndColors.onAccent,
         fontSize: 12,
         fontWeight: FontWeight.w600,
       ),
@@ -2635,9 +2635,9 @@ class _KeyboardMenu extends StatelessWidget {
       return keys;
     }
 
-    return _BdToolbarSubmenu(
-        icon: BdIcons.keyboard,
-        label: tr('bd-tb-keyboard'),
+    return _NdToolbarSubmenu(
+        icon: NdIcons.keyboard,
+        label: tr('nd-tb-keyboard'),
         showLabel: showLabel,
         ffi: ffi,
         menuChildrenGetter: (_) => [
@@ -2746,7 +2746,7 @@ class _KeyboardMenu extends StatelessWidget {
         MenuButton(
           child: Text(
               '${translate('Local keyboard type')}: ${KBLayoutType.value}'),
-          trailingIcon: const Icon(BdIcons.settings),
+          trailingIcon: const Icon(NdIcons.settings),
           ffi: ffi,
           onPressed: enabled
               ? () => showKBLayoutTypeChooser(localPlatform, ffi.dialogManager)
@@ -2901,7 +2901,7 @@ class _ChatMenuState extends State<_ChatMenu> {
       return _IconSubmenuButton(
           tooltip: 'Chat',
           key: chatButtonKey,
-          icon: _accentIcon(BdIcons.chat),
+          icon: _accentIcon(NdIcons.chat),
           ffi: widget.ffi,
           color: _ToolbarTheme.blueColor,
           hoverColor: _ToolbarTheme.hoverBlueColor,
@@ -2911,7 +2911,7 @@ class _ChatMenuState extends State<_ChatMenu> {
 
   buildTextChatButton() {
     return _IconMenuButton(
-      icon: _accentIcon(BdIcons.chat),
+      icon: _accentIcon(NdIcons.chat),
       tooltip: 'Text chat',
       key: chatButtonKey,
       onPressed: _textChatOnPressed,
@@ -3006,7 +3006,7 @@ class _VoiceCallMenu extends StatelessWidget {
           case VoiceCallStatus.connected:
             return _IconSubmenuButton(
               tooltip: 'Voice call',
-              icon: _accentIcon(BdIcons.phoneInTalk),
+              icon: _accentIcon(NdIcons.phoneInTalk),
               color: _ToolbarTheme.blueColor,
               hoverColor: _ToolbarTheme.hoverBlueColor,
               menuChildrenGetter: menuChildrenGetter,
@@ -3021,7 +3021,7 @@ class _VoiceCallMenu extends StatelessWidget {
 
   Widget buildCallWaiting(BuildContext context) {
     return _IconMenuButton(
-      icon: _accentIcon(BdIcons.ringVolume),
+      icon: _accentIcon(NdIcons.ringVolume),
       tooltip: "Waiting",
       onPressed: () => bind.sessionCloseVoiceCall(sessionId: ffi.sessionId),
       color: _ToolbarTheme.redColor,
@@ -3045,10 +3045,10 @@ class _RecordMenu extends StatelessWidget {
     final visible = !hideRecordingButton &&
         (recordingModel.start || ffi.permissions['recording'] != false);
     if (!visible || !recordingModel.start) return Offstage();
-    return BdToolbarButton(
-      icon: BdIcons.fiberManualRecord,
-      iconColor: context.bd.danger,
-      label: tr('bd-tb-recording'),
+    return NdToolbarButton(
+      icon: NdIcons.fiberManualRecord,
+      iconColor: context.nd.danger,
+      label: tr('nd-tb-recording'),
       tooltip: translate('Stop session recording'),
       showLabel: showLabel,
       onPressed: () => recordingModel.toggle(),
@@ -3066,9 +3066,9 @@ class _CloseMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BdToolbarButton(
-      icon: BdIcons.callEnd,
-      label: tr('bd-tb-end'),
+    return NdToolbarButton(
+      icon: NdIcons.callEnd,
+      label: tr('nd-tb-end'),
       showLabel: showLabel,
       danger: true,
       onPressed: () async {
@@ -3127,8 +3127,8 @@ TTextMenu? _findControl(List<TTextMenu> controls, List<String> keys) {
 }
 
 /// A toolbar button that opens a menu (Keyboard, More), with expand_more.
-class _BdToolbarSubmenu extends StatefulWidget {
-  const _BdToolbarSubmenu({
+class _NdToolbarSubmenu extends StatefulWidget {
+  const _NdToolbarSubmenu({
     required this.icon,
     required this.label,
     required this.menuChildrenGetter,
@@ -3138,15 +3138,15 @@ class _BdToolbarSubmenu extends StatefulWidget {
 
   final IconData icon;
   final String label;
-  final List<Widget> Function(_BdToolbarSubmenuState state) menuChildrenGetter;
+  final List<Widget> Function(_NdToolbarSubmenuState state) menuChildrenGetter;
   final FFI ffi;
   final bool showLabel;
 
   @override
-  State<_BdToolbarSubmenu> createState() => _BdToolbarSubmenuState();
+  State<_NdToolbarSubmenu> createState() => _NdToolbarSubmenuState();
 }
 
-class _BdToolbarSubmenuState extends State<_BdToolbarSubmenu> {
+class _NdToolbarSubmenuState extends State<_NdToolbarSubmenu> {
   bool _hover = false;
   bool _open = false;
 
@@ -3157,10 +3157,10 @@ class _BdToolbarSubmenuState extends State<_BdToolbarSubmenu> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final button = SubmenuButton(
-      menuStyle: bdMenuStyle(context),
+      menuStyle: ndMenuStyle(context),
       style: _ToolbarTheme.defaultMenuButtonStyle,
       alignmentOffset: const Offset(0, 6),
       onHover: (v) => setState(() => _hover = v),
@@ -3178,7 +3178,7 @@ class _BdToolbarSubmenuState extends State<_BdToolbarSubmenu> {
               left: widget.showLabel ? 10 : 8, right: widget.showLabel ? 6 : 8),
           decoration: BoxDecoration(
             color: _open ? c.accentTint : (_hover ? c.hover : Colors.transparent),
-            borderRadius: BdSize.r,
+            borderRadius: NdSize.r,
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(widget.icon, size: 20, color: c.text),
@@ -3187,7 +3187,7 @@ class _BdToolbarSubmenuState extends State<_BdToolbarSubmenu> {
               Text(widget.label,
                   style: t.label.copyWith(fontSize: 13, height: 18 / 13)),
               const SizedBox(width: 4),
-              Icon(BdIcons.expandMore, size: 18, color: c.textMuted),
+              Icon(NdIcons.expandMore, size: 18, color: c.textMuted),
             ],
           ]),
         ),
@@ -3211,9 +3211,9 @@ class _BdToolbarSubmenuState extends State<_BdToolbarSubmenu> {
 
 /// A 20 px toolbar icon on the accent of the square menu buttons.
 Widget _accentIcon(IconData icon) =>
-    Center(child: Icon(icon, size: 20, color: bdColors.onAccent));
+    Center(child: Icon(icon, size: 20, color: ndColors.onAccent));
 
-/// Where the number sits on the screen of BdIcons.monitorFilled drawn at
+/// Where the number sits on the screen of NdIcons.monitorFilled drawn at
 /// [size]: the screen's centre is a tenth of the size above the glyph's.
 Offset _monitorScreenOffset(double size) => Offset(0, -size / 10);
 
@@ -3372,10 +3372,10 @@ class _SubmenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BdSubmenuMark(
+    return NdSubmenuMark(
       child: SubmenuButton(
         key: key,
-        style: bdSubmenuItemStyle(context),
+        style: ndSubmenuItemStyle(context),
         leadingIcon: const SizedBox(width: 18),
         child: child,
         menuChildren:
@@ -3403,7 +3403,7 @@ class MenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return MenuItemButton(
         key: key,
-        style: bdMenuItemStyle(context),
+        style: ndMenuItemStyle(context),
         leadingIcon: const SizedBox(width: 18),
         onPressed: onPressed != null
             ? () {
@@ -3436,11 +3436,11 @@ class CkbMenuButton extends StatelessWidget {
     final on = value == true;
     return MenuItemButton(
       key: key,
-      style: bdMenuItemStyle(context),
+      style: ndMenuItemStyle(context),
       leadingIcon: SizedBox(
         width: 18,
         child: on
-            ? Icon(BdIcons.check, size: 18, color: context.bd.accent)
+            ? Icon(NdIcons.check, size: 18, color: context.nd.accent)
             : null,
       ),
       child: child,
@@ -3476,10 +3476,10 @@ class RdoMenuButton<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
+    final c = context.nd;
     final on = value == groupValue;
     return MenuItemButton(
-      style: bdMenuItemStyle(context),
+      style: ndMenuItemStyle(context),
       closeOnActivate: closeOnActivate,
       leadingIcon: SizedBox(
         width: 18,
@@ -3741,7 +3741,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
         // unmoored. When multi-edge is on we need 2D drag for snap-to-edge.
         axis: widget.multiEdgeEnabled ? null : Axis.horizontal,
         child: Icon(
-          widget.isHorizontal ? BdIcons.dragIndicator : BdIcons.dragHandle,
+          widget.isHorizontal ? NdIcons.dragIndicator : NdIcons.dragHandle,
           size: 20,
           color: MyTheme.color(context).drag_indicator,
         ),
@@ -3811,8 +3811,8 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
                     isFullscreen.isTrue ? 'Exit Fullscreen' : 'Fullscreen'),
                 child: Icon(
                   isFullscreen.isTrue
-                      ? BdIcons.fullscreenExit
-                      : BdIcons.fullscreen,
+                      ? NdIcons.fullscreenExit
+                      : NdIcons.fullscreen,
                   size: iconSize,
                 ),
               ),
@@ -3825,7 +3825,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
                   Tooltip(
                     message: translate('Minimize'),
                     child: Icon(
-                      BdIcons.remove,
+                      NdIcons.remove,
                       size: iconSize,
                     ),
                   ),
@@ -3854,7 +3854,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
                 Tooltip(
                   message: translate('Close'),
                   child: Icon(
-                    BdIcons.close,
+                    NdIcons.close,
                     size: iconSize,
                     color: _ToolbarTheme.redColor,
                   ),
@@ -4009,14 +4009,14 @@ class _MinimizedMonitorSwitchButton extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(BdIcons.monitorFilled,
+              Icon(NdIcons.monitorFilled,
                   size: iconSize, color: _ToolbarTheme.blueColor),
               Transform.translate(
                 offset: _monitorScreenOffset(iconSize),
                 child: Text(
                   label,
                   style: TextStyle(
-                    color: bdColors.onAccent,
+                    color: ndColors.onAccent,
                     fontSize: 9,
                     height: 1,
                     fontWeight: FontWeight.bold,

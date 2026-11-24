@@ -219,7 +219,7 @@ fn make_tray() -> hbb_common::ResultType<()> {
                 format!(
                     "{}\n{}",
                     crate::get_app_name(),
-                    translate("bd-tray-id-copied".to_owned())
+                    translate("nd-tray-id-copied".to_owned())
                 )
             } else {
                 tooltip(sessions, &tray_menu.status())

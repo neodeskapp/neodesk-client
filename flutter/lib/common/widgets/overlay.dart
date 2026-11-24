@@ -2,7 +2,7 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:debounce_throttle/debounce_throttle.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
@@ -12,7 +12,7 @@ import '../../desktop/widgets/tabbar_widget.dart';
 import '../../models/chat_model.dart';
 import '../../models/model.dart';
 import 'chat_page.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class DraggableChatWindow extends StatelessWidget {
   const DraggableChatWindow(
@@ -87,7 +87,7 @@ class DraggableChatWindow extends StatelessWidget {
               child: Text(
                 translate("Chat"),
                 style: TextStyle(
-                    color: context.bd.onAccent,
+                    color: context.nd.onAccent,
                     fontFamily: 'WorkSans',
                     fontWeight: FontWeight.bold,
                     fontSize: 20),
@@ -100,8 +100,8 @@ class DraggableChatWindow extends StatelessWidget {
                     chatModel.hideChatWindowOverlay();
                   },
                   icon: Icon(
-                    BdIcons.expandMore,
-                    color: context.bd.onAccent,
+                    NdIcons.expandMore,
+                    color: context.nd.onAccent,
                   )),
               IconButton(
                   onPressed: () {
@@ -109,8 +109,8 @@ class DraggableChatWindow extends StatelessWidget {
                     chatModel.hideChatIconOverlay();
                   },
                   icon: Icon(
-                    BdIcons.close,
-                    color: context.bd.onAccent,
+                    NdIcons.close,
+                    color: context.nd.onAccent,
                   ))
             ],
           )
@@ -153,7 +153,7 @@ class ChatWindowTitleBar extends StatelessWidget {
               child: Obx(() => Opacity(
                   opacity: focused.value ? 1.0 : 0.4,
                   child: Row(children: [
-                    Icon(BdIcons.chat,
+                    Icon(NdIcons.chat,
                         size: 20, color: Theme.of(context).colorScheme.primary),
                     SizedBox(width: 6),
                     Text(translate("Chat"))
@@ -162,7 +162,7 @@ class ChatWindowTitleBar extends StatelessWidget {
               padding: EdgeInsets.all(2),
               child: ActionIcon(
                 message: 'Close',
-                icon: BdIcons.close,
+                icon: NdIcons.close,
                 onTap: onClose,
                 isClose: true,
                 boxSize: 32,
@@ -232,22 +232,22 @@ class DraggableMobileActions extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         IconButton(
-                            color: bdColors.onCanvas,
+                            color: ndColors.onCanvas,
                             onPressed: onBackPressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
-                            icon: const Icon(BdIcons.arrowBack),
+                            icon: const Icon(NdIcons.arrowBack),
                             iconSize: 24 * scale),
                         IconButton(
-                            color: bdColors.onCanvas,
+                            color: ndColors.onCanvas,
                             onPressed: onHomePressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
-                            icon: const Icon(BdIcons.home),
+                            icon: const Icon(NdIcons.home),
                             iconSize: 24 * scale),
                         IconButton(
-                            color: bdColors.onCanvas,
+                            color: ndColors.onCanvas,
                             onPressed: onRecentPressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
-                            icon: const Icon(BdIcons.moreHoriz),
+                            icon: const Icon(NdIcons.moreHoriz),
                             iconSize: 24 * scale),
                         const VerticalDivider(
                           width: 0,
@@ -256,10 +256,10 @@ class DraggableMobileActions extends StatelessWidget {
                           endIndent: 10,
                         ),
                         IconButton(
-                            color: bdColors.onCanvas,
+                            color: ndColors.onCanvas,
                             onPressed: onHidePressed,
                             splashRadius: kDesktopIconButtonSplashRadius,
-                            icon: const Icon(BdIcons.expandMore),
+                            icon: const Icon(NdIcons.expandMore),
                             iconSize: 24 * scale),
                       ],
                     ),
@@ -589,14 +589,14 @@ class QualityMonitor extends StatelessWidget {
         Expanded(
             flex: 8,
             child: AutoSizeText(info,
-                style: TextStyle(color: bdColors.onCanvas.withOpacity(0.82)),
+                style: TextStyle(color: ndColors.onCanvas.withOpacity(0.82)),
                 textAlign: TextAlign.right,
                 maxLines: 1)),
         Spacer(flex: 1),
         Expanded(
             flex: 8,
             child: AutoSizeText(value ?? '',
-                style: TextStyle(color: rightColor ?? bdColors.onCanvas),
+                style: TextStyle(color: rightColor ?? ndColors.onCanvas),
                 maxLines: 1)),
       ],
     );
@@ -622,7 +622,7 @@ class QualityMonitor extends StatelessWidget {
                           "Delay",
                           "${qualityMonitorModel.data.delay == null ? '-' : (qualityMonitorModel.data.fps ?? "").replaceAll(' ', '').replaceAll('0', '').isEmpty ? 0 : qualityMonitorModel.data.delay}ms",
                           // The canvas is dark in both themes.
-                          rightColor: BdTheme.darkColors.success),
+                          rightColor: NdTheme.darkColors.success),
                       _row("Target Bitrate",
                           "${qualityMonitorModel.data.targetBitrate ?? '-'}kb"),
                       _row(

@@ -11,7 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 import '../../common/widgets/peer_tab_page.dart';
 import '../../common/widgets/autocomplete.dart';
 import '../../consts.dart';
@@ -139,11 +139,11 @@ class _ConnectionPageState extends State<ConnectionPage> {
             child: Container(
                 alignment: AlignmentDirectional.center,
                 width: double.infinity,
-                color: context.bd.accent,
+                color: context.nd.accent,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(translate('Download new version'),
                     style: TextStyle(
-                        color: context.bd.onAccent,
+                        color: context.nd.onAccent,
                         fontWeight: FontWeight.bold))));
   }
 
@@ -285,7 +285,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
                               decoration: BoxDecoration(
                                 boxShadow: [
                                   BoxShadow(
-                                    color: context.bd.shadowFar,
+                                    color: context.nd.shadowFar,
                                     blurRadius: 5,
                                     spreadRadius: 1,
                                   ),

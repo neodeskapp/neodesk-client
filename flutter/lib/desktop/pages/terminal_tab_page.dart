@@ -18,7 +18,7 @@ import 'terminal_connection_manager.dart';
 import '../widgets/material_mod_popup_menu.dart' as mod_menu;
 import '../widgets/popup_menu.dart';
 import 'package:bot_toast/bot_toast.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class TerminalTabPage extends StatefulWidget {
   final Map<String, dynamic> params;
@@ -32,8 +32,8 @@ class TerminalTabPage extends StatefulWidget {
 class _TerminalTabPageState extends State<TerminalTabPage> {
   DesktopTabController get tabController => Get.find<DesktopTabController>();
 
-  static const IconData selectedIcon = BdIcons.terminal;
-  static const IconData unselectedIcon = BdIcons.terminal;
+  static const IconData selectedIcon = NdIcons.terminal;
+  static const IconData unselectedIcon = NdIcons.terminal;
   int _nextTerminalId = 1;
   // Lightweight idempotency guard for async close operations
   final Set<String> _closingTabs = {};
@@ -588,7 +588,7 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
   Widget _buildAddButton() {
     return ActionIcon(
       message: 'New tab',
-      icon: BdIcons.add,
+      icon: NdIcons.add,
       onTap: () {
         _addNewTerminalForCurrentPeer();
       },

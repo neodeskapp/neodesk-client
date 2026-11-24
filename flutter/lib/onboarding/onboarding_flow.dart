@@ -3,8 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_dialog_host.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_dialog_host.dart';
 import 'package:flutter_hbb/common/widgets/branding_logo.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
@@ -159,7 +159,7 @@ Future<void> showSetupByHand() async {
   final current = ServerConfig.fromOptions(options);
   final locked = isOptionFixed('custom-rendezvous-server') ||
       bind.mainGetBuildinOption(key: kOptionHideServerSetting) == 'Y';
-  await showBdDialog<void>((close, setState) => SetupByHandDialog(
+  await showNdDialog<void>((close, setState) => SetupByHandDialog(
         initial: HandSetup(
           idServer: current.idServer,
           key: current.key,
@@ -206,36 +206,36 @@ Future<void> showJoinServerDialog(OnboardingService service,
   final server = TextEditingController(text: knownConsole);
   String? error;
   String? serverError;
-  await showBdDialog<void>((close, setState) {
+  await showNdDialog<void>((close, setState) {
     Future<void> submit() async {
       final input = InviteInput.parse(controller.text);
       if (input.kind == InviteKind.invalid || input.kind == InviteKind.empty) {
-        setState(() => error = tr('bd-invite-error-not-invite'));
+        setState(() => error = tr('nd-invite-error-not-invite'));
         return;
       }
       final text = joinTextFor(controller.text, server.text);
       if (text == null) {
-        setState(() => serverError = tr('bd-invite-server-missing'));
+        setState(() => serverError = tr('nd-invite-server-missing'));
         return;
       }
       final newHost = InviteInput.parse(text).host ?? '';
       if (currentServer.isNotEmpty &&
           newHost.isNotEmpty &&
           newHost != currentServer) {
-        final go = await showBdDialog<bool>((c2, _) => BdDialog(
-              title: tr('bd-join-leave-title'),
+        final go = await showNdDialog<bool>((c2, _) => NdDialog(
+              title: tr('nd-join-leave-title'),
               width: 480,
               onClose: () => c2(false),
               closeTooltip: translate('Close'),
               children: [
-                Text(tr('bd-join-leave', [currentServer, newHost]),
-                    style: Get.context!.bdText.body),
+                Text(tr('nd-join-leave', [currentServer, newHost]),
+                    style: Get.context!.ndText.body),
               ],
               actions: [
-                BdButton(
+                NdButton(
                     label: translate('Cancel'), onPressed: () => c2(false)),
-                BdButton.primary(
-                    label: tr('bd-join'), onPressed: () => c2(true)),
+                NdButton.primary(
+                    label: tr('nd-join'), onPressed: () => c2(true)),
               ],
             ));
         if (go != true) return;
@@ -244,15 +244,15 @@ Future<void> showJoinServerDialog(OnboardingService service,
       await service.redeemJoin(text);
     }
 
-    return BdDialog(
-      title: tr('bd-join-a-server'),
+    return NdDialog(
+      title: tr('nd-join-a-server'),
       width: 520,
       onClose: close,
       closeTooltip: translate('Close'),
       children: [
-        BdField(
-          label: tr('bd-invite-field'),
-          hint: tr('bd-invite-hint'),
+        NdField(
+          label: tr('nd-invite-field'),
+          hint: tr('nd-invite-hint'),
           error: error,
           controller: controller,
           large: true,
@@ -262,9 +262,9 @@ Future<void> showJoinServerDialog(OnboardingService service,
           onSubmitted: (_) => submit(),
         ),
         if (InviteInput.parse(controller.text).needsServer)
-          BdField(
-            label: tr('bd-invite-server-field'),
-            hint: tr('bd-invite-server-hint'),
+          NdField(
+            label: tr('nd-invite-server-field'),
+            hint: tr('nd-invite-server-hint'),
             error: serverError,
             controller: server,
             large: true,
@@ -273,8 +273,8 @@ Future<void> showJoinServerDialog(OnboardingService service,
           ),
       ],
       actions: [
-        BdButton(label: translate('Cancel'), onPressed: close),
-        BdButton.primary(label: translate('Continue'), onPressed: submit),
+        NdButton(label: translate('Cancel'), onPressed: close),
+        NdButton.primary(label: translate('Continue'), onPressed: submit),
       ],
     );
   });
@@ -325,23 +325,23 @@ Future<void> _askBeforeJoining(
     } catch (_) {}
   }
   final host = input.host ?? '';
-  final ok = await showBdDialog<bool>((close, _) {
-    final t = globalKey.currentContext!.bdText;
-    return BdDialog(
-      title: tr('bd-join-link-title', [host]),
+  final ok = await showNdDialog<bool>((close, _) {
+    final t = globalKey.currentContext!.ndText;
+    return NdDialog(
+      title: tr('nd-join-link-title', [host]),
       width: 480,
       onClose: () => close(false),
       closeTooltip: translate('Close'),
       children: [
-        Text(tr('bd-join-link-text', [host]), style: t.body),
+        Text(tr('nd-join-link-text', [host]), style: t.body),
         if (input.isPlainHttp)
-          BdNotice(
-              tone: BdTone.warning, text: tr('bd-invite-insecure', [host])),
+          NdNotice(
+              tone: NdTone.warning, text: tr('nd-invite-insecure', [host])),
       ],
       actions: [
-        BdButton(label: translate('Cancel'), onPressed: () => close(false)),
-        BdButton.primary(
-            label: input.isPlainHttp ? tr('bd-continue-anyway') : tr('bd-join'),
+        NdButton(label: translate('Cancel'), onPressed: () => close(false)),
+        NdButton.primary(
+            label: input.isPlainHttp ? tr('nd-continue-anyway') : tr('nd-join'),
             onPressed: () => close(true)),
       ],
     );

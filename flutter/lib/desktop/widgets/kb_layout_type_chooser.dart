@@ -5,7 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 
 typedef KBChosenCallback = Future<bool> Function(String);
 
@@ -41,7 +41,7 @@ class _KBImage extends StatelessWidget {
           borderRadius: BorderRadius.circular(_kBorderRadius),
           border: Border.all(
             color: chosenType.value == kbLayoutType
-                ? context.bd.accent
+                ? context.nd.accent
                 : Colors.transparent,
             width: _kImageBoarderWidth,
           ),

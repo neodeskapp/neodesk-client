@@ -4,7 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_status.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
 import 'package:flutter_hbb/consts.dart';
@@ -243,10 +243,10 @@ class _ConnectionPageState extends State<ConnectionPage>
           field: _buildRemoteIDTextField(context),
           onConnect: onConnect,
           moreWays: [
-            (tr('bd-home-files-only'), () => onConnect(isFileTransfer: true)),
-            (tr('bd-home-camera'), () => onConnect(isViewCamera: true)),
-            (tr('bd-home-terminal'), () => onConnect(isTerminal: true)),
-            (tr('bd-home-tunnel'), () => onConnect(isTcpTunneling: true)),
+            (tr('nd-home-files-only'), () => onConnect(isFileTransfer: true)),
+            (tr('nd-home-camera'), () => onConnect(isViewCamera: true)),
+            (tr('nd-home-terminal'), () => onConnect(isTerminal: true)),
+            (tr('nd-home-tunnel'), () => onConnect(isTcpTunneling: true)),
           ],
         ),
         const SizedBox(height: 22),
@@ -273,8 +273,8 @@ class _ConnectionPageState extends State<ConnectionPage>
   /// UI for the remote ID TextField.
   /// Search for a peer.
   Widget _buildRemoteIDTextField(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     return RawAutocomplete<Peer>(
                   optionsBuilder: (TextEditingValue textEditingValue) {
                     if (textEditingValue.text == '') {
@@ -346,13 +346,13 @@ class _ConnectionPageState extends State<ConnectionPage>
                               filled: false,
                               counterText: '',
                               constraints: const BoxConstraints(
-                                  minHeight: BdSize.controlLg,
-                                  maxHeight: BdSize.controlLg),
+                                  minHeight: NdSize.controlLg,
+                                  maxHeight: NdSize.controlLg),
                               enabledBorder: OutlineInputBorder(
-                                  borderRadius: BdSize.r,
+                                  borderRadius: NdSize.r,
                                   borderSide: BorderSide(color: c.border)),
                               focusedBorder: OutlineInputBorder(
-                                  borderRadius: BdSize.r,
+                                  borderRadius: NdSize.r,
                                   borderSide:
                                       BorderSide(color: c.accent, width: 2)),
                               hintText: _idInputFocused.value

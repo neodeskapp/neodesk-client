@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,17 +20,17 @@ List<String> _clientLanguages() {
 }
 
 void main() {
-  setUpAll(loadBdFonts);
+  setUpAll(loadNdFonts);
 
   test('every client language has a flag file or is one without a country', () {
     final langs = _clientLanguages();
     expect(langs, contains('de'));
     for (final code in langs) {
       if (_noFlag.contains(code)) {
-        expect(kBdLangFlags, isNot(contains(code)), reason: code);
+        expect(kNdLangFlags, isNot(contains(code)), reason: code);
         continue;
       }
-      expect(kBdLangFlags, contains(code), reason: code);
+      expect(kNdLangFlags, contains(code), reason: code);
       expect(File('assets/flags/$code.svg').existsSync(), isTrue,
           reason: 'assets/flags/$code.svg');
     }
@@ -46,7 +46,7 @@ void main() {
         brightness: b,
         Align(
           alignment: Alignment.topCenter,
-          child: BdSelect<String>(
+          child: NdSelect<String>(
             width: 240,
             options: [
               for (final o in const [
@@ -55,7 +55,7 @@ void main() {
                 ['eo', 'Esperanto'],
                 ['fr', 'Français'],
               ])
-                BdOption(o[0], o[1], prefix: BdLangFlag(o[0])),
+                NdOption(o[0], o[1], prefix: NdLangFlag(o[0])),
             ],
             value: 'de',
             onChanged: (_) {},

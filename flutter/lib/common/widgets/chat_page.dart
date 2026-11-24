@@ -1,13 +1,13 @@
 import 'package:dash_chat_2/dash_chat_2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
 import '../../mobile/pages/home_page.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 enum ChatPageType {
   mobileMain,
@@ -33,7 +33,7 @@ class ChatPage extends StatelessWidget implements PageShape {
     PopupMenuButton<MessageKey>(
         tooltip: "",
         icon: unreadTopRightBuilder(gFFI.chatModel.mobileUnreadSum,
-            icon: Icon(BdIcons.group)),
+            icon: Icon(NdIcons.group)),
         itemBuilder: (context) {
           // only mobile need [appBarActions], just bind gFFI.chatModel
           final chatModel = gFFI.chatModel;
@@ -49,8 +49,8 @@ class ChatPage extends StatelessWidget implements PageShape {
                 children: [
                   Icon(
                           key.isOut
-                              ? BdIcons.callMade
-                              : BdIcons.callReceived,
+                              ? NdIcons.callMade
+                              : NdIcons.callReceived,
                           color: MyTheme.accent)
                       .marginOnly(right: 6),
                   Text("${user.firstName}   ${user.id}"),
@@ -60,7 +60,7 @@ class ChatPage extends StatelessWidget implements PageShape {
                       height: 10,
                       decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: context.bd.success),
+                          color: context.nd.success),
                     ).marginSymmetric(horizontal: 2),
                   if (client != null)
                     unreadMessageCountBuilder(client.unreadChatMessageCount)
@@ -113,7 +113,7 @@ class ChatPage extends StatelessWidget implements PageShape {
                         backgroundColor:
                             Theme.of(context).scaffoldBackgroundColor,
                         textColor: Theme.of(context).primaryColor,
-                        icon: BdIcons.arrowDownward,
+                        icon: NdIcons.arrowDownward,
                       ),
                     ),
                     inputOptions: InputOptions(
@@ -143,19 +143,19 @@ class ChatPage extends StatelessWidget implements PageShape {
                         child: Padding(
                           padding:
                               EdgeInsets.symmetric(horizontal: 6, vertical: 0),
-                          child: Icon(BdIcons.send, color: MyTheme.accent),
+                          child: Icon(NdIcons.send, color: MyTheme.accent),
                         ),
                       ),
                     ),
                     messageOptions: MessageOptions(
                       showOtherUsersAvatar: false,
                       showOtherUsersName: false,
-                      textColor: context.bd.text,
+                      textColor: context.nd.text,
                       maxWidth: constraints.maxWidth * 0.7,
                       messageTextBuilder: (message, _, __) {
                         final isOwnMessage = message.user.id.isBlank!;
                         final textColor =
-                            isOwnMessage ? context.bd.onAccent : context.bd.text;
+                            isOwnMessage ? context.nd.onAccent : context.nd.text;
                         return Column(
                           crossAxisAlignment: isOwnMessage
                               ? CrossAxisAlignment.end
@@ -178,7 +178,7 @@ class ChatPage extends StatelessWidget implements PageShape {
                         final isOwnMessage = message.user.id.isBlank!;
                         return defaultMessageDecoration(
                           color:
-                              isOwnMessage ? MyTheme.accent : context.bd.bgSubtle,
+                              isOwnMessage ? MyTheme.accent : context.nd.bgSubtle,
                           borderTopLeft: 8,
                           borderTopRight: 8,
                           borderBottomRight: isOwnMessage ? 2 : 8,

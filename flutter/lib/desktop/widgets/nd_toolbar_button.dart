@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 /// A toolbar button: 36 high, 20 px icon and a 13 / 500 label.
-class BdToolbarButton extends StatefulWidget {
-  const BdToolbarButton({
+class NdToolbarButton extends StatefulWidget {
+  const NdToolbarButton({
     required this.icon,
     required this.label,
     required this.onPressed,
@@ -22,16 +22,16 @@ class BdToolbarButton extends StatefulWidget {
   final String? tooltip;
 
   @override
-  State<BdToolbarButton> createState() => BdToolbarButtonState();
+  State<NdToolbarButton> createState() => NdToolbarButtonState();
 }
 
-class BdToolbarButtonState extends State<BdToolbarButton> {
+class NdToolbarButtonState extends State<NdToolbarButton> {
   bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final enabled = widget.onPressed != null;
     final fg = widget.danger ? c.danger : c.text;
     Widget content = Row(mainAxisSize: MainAxisSize.min, children: [
@@ -62,7 +62,7 @@ class BdToolbarButtonState extends State<BdToolbarButton> {
                   vertical: 4),
               decoration: BoxDecoration(
                 color: _hover && enabled ? c.hover : Colors.transparent,
-                borderRadius: BdSize.r,
+                borderRadius: NdSize.r,
               ),
               child: content,
             ),

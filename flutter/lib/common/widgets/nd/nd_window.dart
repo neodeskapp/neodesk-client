@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart' show translate;
 
-import '../../theme/bd_theme.dart';
-import 'bd_icons.dart';
-import 'bd_misc.dart';
+import '../../theme/nd_theme.dart';
+import 'nd_icons.dart';
+import 'nd_misc.dart';
 
 /// translate() with {} placeholders filled from [args] in order.
 String tr(String key, [List<Object?> args = const []]) {
@@ -14,8 +14,8 @@ String tr(String key, [List<Object?> args = const []]) {
   return s;
 }
 
-class BdWindowTab {
-  const BdWindowTab({
+class NdWindowTab {
+  const NdWindowTab({
     required this.label,
     this.icon,
     this.leading,
@@ -34,8 +34,8 @@ class BdWindowTab {
 
 /// The window's three buttons (Windows layout, also used on Linux when the
 /// window manager draws none). 46 x 40, close hovers red.
-class BdWindowControls extends StatelessWidget {
-  const BdWindowControls({
+class NdWindowControls extends StatelessWidget {
+  const NdWindowControls({
     super.key,
     this.onMinimize,
     this.onMaximize,
@@ -54,20 +54,20 @@ class BdWindowControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       if (onMinimize != null)
-        BdWinButton(
-            glyph: BdWinGlyph.minimize,
+        NdWinButton(
+            glyph: NdWinGlyph.minimize,
             tooltip: translate('Minimize'),
             onTap: onMinimize,
             height: height),
       if (onMaximize != null)
-        BdWinButton(
-            glyph: maximized ? BdWinGlyph.restore : BdWinGlyph.maximize,
+        NdWinButton(
+            glyph: maximized ? NdWinGlyph.restore : NdWinGlyph.maximize,
             tooltip: translate(maximized ? 'Restore' : 'Maximize'),
             onTap: onMaximize,
             height: height),
       if (onClose != null)
-        BdWinButton(
-            glyph: BdWinGlyph.close,
+        NdWinButton(
+            glyph: NdWinGlyph.close,
             tooltip: translate('Close'),
             onTap: onClose,
             height: height,
@@ -76,14 +76,14 @@ class BdWindowControls extends StatelessWidget {
   }
 }
 
-enum BdWinGlyph { minimize, maximize, restore, close }
+enum NdWinGlyph { minimize, maximize, restore, close }
 
 /// The window buttons' glyphs: 10 px with a 1 px line, as Windows draws
 /// its own, so the four have the same size and weight. Icon fonts draw a
 /// short heavy dash, a large thin square and a mid-size cross.
-class BdWinGlyphPainter extends CustomPainter {
-  const BdWinGlyphPainter(this.glyph, this.color);
-  final BdWinGlyph glyph;
+class NdWinGlyphPainter extends CustomPainter {
+  const NdWinGlyphPainter(this.glyph, this.color);
+  final NdWinGlyph glyph;
   final Color color;
 
   static const double size = 10;
@@ -96,11 +96,11 @@ class BdWinGlyphPainter extends CustomPainter {
       ..strokeWidth = 1;
     // Straight lines sit on half pixels so they cover whole pixels.
     switch (glyph) {
-      case BdWinGlyph.minimize:
+      case NdWinGlyph.minimize:
         canvas.drawLine(const Offset(0, 4.5), const Offset(10, 4.5), p);
-      case BdWinGlyph.maximize:
+      case NdWinGlyph.maximize:
         canvas.drawRect(const Rect.fromLTRB(0.5, 0.5, 9.5, 9.5), p);
-      case BdWinGlyph.restore:
+      case NdWinGlyph.restore:
         canvas.drawRect(const Rect.fromLTRB(0.5, 2.5, 7.5, 9.5), p);
         canvas.drawPath(
             Path()
@@ -110,7 +110,7 @@ class BdWinGlyphPainter extends CustomPainter {
               ..lineTo(9.5, 7.5)
               ..lineTo(7.5, 7.5),
             p);
-      case BdWinGlyph.close:
+      case NdWinGlyph.close:
         p.isAntiAlias = true;
         canvas.drawLine(Offset.zero, const Offset(10, 10), p);
         canvas.drawLine(const Offset(10, 0), const Offset(0, 10), p);
@@ -118,13 +118,13 @@ class BdWinGlyphPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(BdWinGlyphPainter oldDelegate) =>
+  bool shouldRepaint(NdWinGlyphPainter oldDelegate) =>
       oldDelegate.glyph != glyph || oldDelegate.color != color;
 }
 
 /// One window button, 46 x [height]; the close button hovers red.
-class BdWinButton extends StatefulWidget {
-  const BdWinButton({
+class NdWinButton extends StatefulWidget {
+  const NdWinButton({
     super.key,
     required this.glyph,
     required this.tooltip,
@@ -133,22 +133,22 @@ class BdWinButton extends StatefulWidget {
     this.isClose = false,
   });
 
-  final BdWinGlyph glyph;
+  final NdWinGlyph glyph;
   final String tooltip;
   final VoidCallback? onTap;
   final double height;
   final bool isClose;
 
   @override
-  State<BdWinButton> createState() => _WinButtonState();
+  State<NdWinButton> createState() => _WinButtonState();
 }
 
-class _WinButtonState extends State<BdWinButton> {
+class _WinButtonState extends State<NdWinButton> {
   bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
+    final c = context.nd;
     final bg = _hover
         ? (widget.isClose ? c.windowCloseHover : c.hover)
         : Colors.transparent;
@@ -170,8 +170,8 @@ class _WinButtonState extends State<BdWinButton> {
             color: bg,
             alignment: Alignment.center,
             child: CustomPaint(
-              size: const Size.square(BdWinGlyphPainter.size),
-              painter: BdWinGlyphPainter(widget.glyph, fg),
+              size: const Size.square(NdWinGlyphPainter.size),
+              painter: NdWinGlyphPainter(widget.glyph, fg),
             ),
           ),
         ),
@@ -182,8 +182,8 @@ class _WinButtonState extends State<BdWinButton> {
 
 /// The 40 px title bar: brand at the start, tabs when more than one page is
 /// open, then [actions] and the window controls.
-class BdTitleBar extends StatelessWidget {
-  const BdTitleBar({
+class NdTitleBar extends StatelessWidget {
+  const NdTitleBar({
     super.key,
     required this.brand,
     this.tabs = const [],
@@ -193,14 +193,14 @@ class BdTitleBar extends StatelessWidget {
   });
 
   final Widget brand;
-  final List<BdWindowTab> tabs;
+  final List<NdWindowTab> tabs;
   final List<Widget> actions;
   final Widget? controls;
   final double height;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
+    final c = context.nd;
     return Container(
       height: height,
       decoration: BoxDecoration(
@@ -228,7 +228,7 @@ class BdTitleBar extends StatelessWidget {
 
 class _TitleTab extends StatefulWidget {
   const _TitleTab({required this.tab, required this.first});
-  final BdWindowTab tab;
+  final NdWindowTab tab;
   final bool first;
 
   @override
@@ -240,8 +240,8 @@ class _TitleTabState extends State<_TitleTab> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final tab = widget.tab;
     final sel = tab.selected;
     return MouseRegion(
@@ -284,7 +284,7 @@ class _TitleTabState extends State<_TitleTab> {
                     onTap: tab.onClose,
                     child: Tooltip(
                       message: translate('Close'),
-                      child: Icon(BdIcons.close, size: 16, color: c.textMuted),
+                      child: Icon(NdIcons.close, size: 16, color: c.textMuted),
                     ),
                   ),
                 ] else
@@ -299,24 +299,24 @@ class _TitleTabState extends State<_TitleTab> {
 }
 
 /// A text button in the title bar (Settings, Back).
-class BdTitleBarText extends StatefulWidget {
-  const BdTitleBarText(
+class NdTitleBarText extends StatefulWidget {
+  const NdTitleBarText(
       {super.key, required this.label, required this.onTap, this.icon});
   final String label;
   final VoidCallback onTap;
   final IconData? icon;
 
   @override
-  State<BdTitleBarText> createState() => _BdTitleBarTextState();
+  State<NdTitleBarText> createState() => _NdTitleBarTextState();
 }
 
-class _BdTitleBarTextState extends State<BdTitleBarText> {
+class _NdTitleBarTextState extends State<NdTitleBarText> {
   bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     return Center(
       child: MouseRegion(
         onEnter: (_) => setState(() => _hover = true),
@@ -329,7 +329,7 @@ class _BdTitleBarTextState extends State<BdTitleBarText> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: _hover ? c.hover : Colors.transparent,
-              borderRadius: BdSize.r,
+              borderRadius: NdSize.r,
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               if (widget.icon != null) ...[
@@ -349,8 +349,8 @@ class _BdTitleBarTextState extends State<BdTitleBarText> {
 /// The brand at the start of the title bar: the server's logo and name
 /// when the branding has them, otherwise the NeoDesk mark (and wordmark
 /// when [wordmark]).
-class BdTitleBrand extends StatelessWidget {
-  const BdTitleBrand({
+class NdTitleBrand extends StatelessWidget {
+  const NdTitleBrand({
     super.key,
     this.wordmark = true,
     this.serverLogo,
@@ -367,7 +367,7 @@ class BdTitleBrand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     if (serverName != null && serverName!.isNotEmpty) {
       return Row(mainAxisSize: MainAxisSize.min, children: [
         if (serverLogo != null) ...[
@@ -380,25 +380,25 @@ class BdTitleBrand extends StatelessWidget {
     }
     if (title != null) {
       return Row(mainAxisSize: MainAxisSize.min, children: [
-        const BdLogoMark(size: 18),
+        const NdLogoMark(size: 18),
         const SizedBox(width: 8),
         Text(title!, style: t.label.copyWith(fontWeight: FontWeight.w500)),
       ]);
     }
-    return wordmark ? const BdWordmark(height: 18) : const BdLogoMark(size: 18);
+    return wordmark ? const NdWordmark(height: 18) : const NdLogoMark(size: 18);
   }
 }
 
 /// A window drawn by the app: title bar on top, page below on bg.
-class BdWindowFrame extends StatelessWidget {
-  const BdWindowFrame({super.key, required this.titleBar, required this.child});
+class NdWindowFrame extends StatelessWidget {
+  const NdWindowFrame({super.key, required this.titleBar, required this.child});
   final Widget titleBar;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: context.bd.bg,
+      color: context.nd.bg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [titleBar, Expanded(child: child)],

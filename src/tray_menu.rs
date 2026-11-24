@@ -130,7 +130,7 @@ impl TrayMenu {
                     enabled,
                 } => {
                     let text = if action == Action::CopyId && self.copied_at.is_some() {
-                        translate("bd-tray-id-copied".to_owned())
+                        translate("nd-tray-id-copied".to_owned())
                     } else {
                         translate(key.to_owned()).replace("{}", &arg)
                     };
@@ -253,7 +253,7 @@ fn notify_copied(id: &str) {
         log::debug!("Failed to register {app_id} for notifications: {err}");
     }
     Toast::new(&app_id)
-        .title(&translate("bd-tray-id-copied".to_owned()))
+        .title(&translate("nd-tray-id-copied".to_owned()))
         .text1(id)
         .sound(None)
         .duration(ToastDuration::Short)

@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_dialog_host.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_dialog_host.dart';
 import 'package:flutter_hbb/common/widgets/branding_logo.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
 import 'package:window_manager/window_manager.dart';
@@ -119,17 +119,17 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
   Future<void> _close() async {
     if (_connected) {
       final name = (_state.supporterName ?? '').trim();
-      final ok = await showBdDialog<bool>((close, _) => BdDialog(
-            title: tr('bd-qs-end-confirm', [name]),
+      final ok = await showNdDialog<bool>((close, _) => NdDialog(
+            title: tr('nd-qs-end-confirm', [name]),
             width: 400,
             onClose: () => close(false),
             closeTooltip: translate('Close'),
             children: const [],
             actions: [
-              BdButton(label: translate('Cancel'), onPressed: () => close(false)),
-              BdButton(
-                  label: tr('bd-end-session'),
-                  kind: BdButtonKind.danger,
+              NdButton(label: translate('Cancel'), onPressed: () => close(false)),
+              NdButton(
+                  label: tr('nd-end-session'),
+                  kind: NdButtonKind.danger,
                   onPressed: () => close(true)),
             ],
           ));
@@ -201,13 +201,13 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
         ),
       );
     }
-    return BdWindowFrame(
+    return NdWindowFrame(
       titleBar: GestureDetector(
         onPanStart: (_) => windowManager.startDragging(),
-        child: BdTitleBar(
+        child: NdTitleBar(
           height: 36,
-          brand: BdTitleBrand(title: tr('bd-qs-window-title')),
-          controls: BdWindowControls(
+          brand: NdTitleBrand(title: tr('nd-qs-window-title')),
+          controls: NdWindowControls(
             height: 36,
             onMinimize: () => windowManager.minimize(),
             onClose: _close,

@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/install_view.dart';
 import 'package:flutter_hbb/onboarding/onboarding_service.dart';
 import 'package:flutter_hbb/common.dart';
@@ -51,7 +51,7 @@ class _InstallPageState extends State<InstallPage> {
       enableResizeEdges: windowManagerEnableResizeEdges,
       child: Container(
         child: Scaffold(
-            backgroundColor: context.bd.bg,
+            backgroundColor: context.nd.bg,
             body: DesktopTab(
                 controller: tabController,
                 showMinimize: false,
@@ -119,7 +119,7 @@ class _InstallPageBodyState extends State<_InstallPageBody>
     final company = (st.company ?? '').trim();
     final server = (st.server ?? '').trim();
     if (server.isNotEmpty && st.phase != OnboardingPhase.joined) {
-      return tr('bd-install-installing-join',
+      return tr('nd-install-installing-join',
           [company.isNotEmpty ? company : server]);
     }
     return null;
@@ -133,10 +133,10 @@ class _InstallPageBodyState extends State<_InstallPageBody>
     if (server.isNotEmpty && st.phase != OnboardingPhase.joined) {
       // Without a company name the server is named once.
       return company.isNotEmpty
-          ? tr('bd-install-lead-join', [company, server])
-          : tr('bd-install-lead-join-server', [server]);
+          ? tr('nd-install-lead-join', [company, server])
+          : tr('nd-install-lead-join-server', [server]);
     }
-    return tr('bd-install-lead');
+    return tr('nd-install-lead');
   }
 
   @override
@@ -210,8 +210,8 @@ class _InstallPageBodyState extends State<_InstallPageBody>
       case 'failed':
         _progressTimer?.cancel();
         error.value = p['cancelled'] == true
-            ? tr('bd-install-cancelled')
-            : tr('bd-install-failed', [p['error'] ?? '']);
+            ? tr('nd-install-cancelled')
+            : tr('nd-install-failed', [p['error'] ?? '']);
         showProgress.value = false;
         btnEnabled.value = true;
         break;

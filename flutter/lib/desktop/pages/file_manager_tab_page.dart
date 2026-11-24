@@ -12,7 +12,7 @@ import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:get/get.dart';
 
 import '../../models/platform_model.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 /// File Transfer for multi tabs
 class FileManagerTabPage extends StatefulWidget {
@@ -27,8 +27,8 @@ class FileManagerTabPage extends StatefulWidget {
 class _FileManagerTabPageState extends State<FileManagerTabPage> {
   DesktopTabController get tabController => Get.find<DesktopTabController>();
 
-  static const IconData selectedIcon = BdIcons.folder;
-  static const IconData unselectedIcon = BdIcons.folder;
+  static const IconData selectedIcon = NdIcons.folder;
+  static const IconData unselectedIcon = NdIcons.folder;
 
   _FileManagerTabPageState(Map<String, dynamic> params) {
     Get.put(DesktopTabController(tabType: DesktopTabType.fileTransfer));

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 
 class Button extends StatefulWidget {
   final GestureTapCallback onTap;
@@ -78,7 +78,7 @@ class _ButtonState extends State<Button> {
                       color: widget.isOutline
                           ? widget.textColor ??
                               Theme.of(context).textTheme.titleLarge?.color
-                          : context.bd.onAccent),
+                          : context.nd.onAccent),
                 ).marginSymmetric(horizontal: 12),
               )),
         ));
@@ -161,7 +161,7 @@ class _FixedWidthButtonState extends State<FixedWidthButton> {
                         color: widget.isOutline
                             ? widget.textColor ??
                                 Theme.of(context).textTheme.titleLarge?.color
-                            : context.bd.onAccent),
+                            : context.nd.onAccent),
                   ).marginSymmetric(horizontal: 12),
                 ),
               ],

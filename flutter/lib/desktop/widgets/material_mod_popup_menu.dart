@@ -7,7 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/desktop/widgets/menu_button.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 // Examples can assume:
 // enum Commands { heroAndScholar, hurricaneCame }
@@ -404,7 +404,7 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
 ///
 /// A [CheckedPopupMenuItem] is kMinInteractiveDimension pixels high, which
 /// matches the default minimum height of a [PopupMenuItem]. The horizontal
-/// layout uses [ListTile]; the checkmark is the [BdIcons.check] icon, shown in the
+/// layout uses [ListTile]; the checkmark is the [NdIcons.check] icon, shown in the
 /// [ListTile.leading] position.
 ///
 /// {@tool snippet}
@@ -487,7 +487,7 @@ class CheckedPopupMenuItem<T> extends PopupMenuItem<T> {
   ///
   /// Defaults to false.
   ///
-  /// When true, a [BdIcons.check] checkmark is displayed.
+  /// When true, a [NdIcons.check] checkmark is displayed.
   ///
   /// When this popup menu item is selected, the checkmark will fade in or out
   /// as appropriate to represent the implied new state.
@@ -499,7 +499,7 @@ class CheckedPopupMenuItem<T> extends PopupMenuItem<T> {
   /// the child. The text should be short enough that it won't wrap.
   ///
   /// This widget is placed in the [ListTile.title] slot of a [ListTile] whose
-  /// [ListTile.leading] slot is a [BdIcons.check] icon.
+  /// [ListTile.leading] slot is a [NdIcons.check] icon.
   @override
   Widget? get child => super.child;
 
@@ -540,7 +540,7 @@ class _CheckedPopupMenuItemState<T>
       enabled: widget.enabled,
       leading: FadeTransition(
         opacity: _opacity,
-        child: Icon(_controller.isDismissed ? null : BdIcons.check),
+        child: Icon(_controller.isDismissed ? null : NdIcons.check),
       ),
       title: widget.child,
     );
@@ -1401,7 +1401,7 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
     }
 
     return MenuButton(
-      child: widget.icon ?? Icon(BdIcons.moreVert),
+      child: widget.icon ?? Icon(NdIcons.moreVert),
       tooltip:
           widget.tooltip ?? MaterialLocalizations.of(context).showMenuTooltip,
       onPressed: widget.enabled ? showButtonMenu : null,

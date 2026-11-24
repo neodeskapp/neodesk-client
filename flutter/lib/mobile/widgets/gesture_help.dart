@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:get/get.dart';
@@ -97,10 +97,10 @@ class _GestureHelpState extends State<GestureHelp> {
                     children: [
                       ToggleSwitch(
                         initialLabelIndex: _selectedIndex,
-                        activeFgColor: context.bd.onAccent,
-                        inactiveFgColor: context.bd.textMuted,
-                        activeBgColor: [context.bd.accent],
-                        inactiveBgColor: context.bd.bgSubtle,
+                        activeFgColor: context.nd.onAccent,
+                        inactiveFgColor: context.nd.textMuted,
+                        activeBgColor: [context.nd.accent],
+                        inactiveBgColor: context.nd.bgSubtle,
                         totalSwitches: 2,
                         minWidth: 150,
                         fontSize: 15,

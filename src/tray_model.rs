@@ -3,7 +3,7 @@
 //!
 //! The first line says the same as the status line on Home
 //! (flutter/lib/desktop/pages/home/home_status.dart), shorter: both follow
-//! the cases in flutter/test/bd/home_status_cases.txt, and both tests read
+//! the cases in flutter/test/nd/home_status_cases.txt, and both tests read
 //! that file.
 //!
 //! This file uses nothing but std, so its tests also run on their own:
@@ -129,16 +129,16 @@ impl State {
     /// server. Ready and connecting read as on Home.
     fn line(self) -> (&'static str, bool) {
         match self {
-            State::Off => ("bd-tray-status-off", false),
-            State::NoServer => ("bd-tray-status-no-server", false),
-            State::Banned => ("bd-tray-status-banned", true),
-            State::Removed => ("bd-tray-status-removed", true),
-            State::KeyRefused => ("bd-tray-status-key-refused", false),
-            State::Ready => ("bd-home-status-ready", true),
-            State::Approval => ("bd-tray-status-approval", false),
-            State::NoService => ("bd-tray-status-no-service", false),
-            State::Connecting => ("bd-home-status-connecting", true),
-            State::Offline => ("bd-tray-status-offline", true),
+            State::Off => ("nd-tray-status-off", false),
+            State::NoServer => ("nd-tray-status-no-server", false),
+            State::Banned => ("nd-tray-status-banned", true),
+            State::Removed => ("nd-tray-status-removed", true),
+            State::KeyRefused => ("nd-tray-status-key-refused", false),
+            State::Ready => ("nd-home-status-ready", true),
+            State::Approval => ("nd-tray-status-approval", false),
+            State::NoService => ("nd-tray-status-no-service", false),
+            State::Connecting => ("nd-home-status-connecting", true),
+            State::Offline => ("nd-tray-status-offline", true),
         }
     }
 }
@@ -212,18 +212,18 @@ pub fn menu(facts: &Facts, id: &str, version: &str, offers: Offers) -> Vec<Item>
         if names_server { &facts.server } else { "" },
     )];
     if !id.is_empty() {
-        first.push(Item::entry(Action::CopyId, "bd-tray-id", &format_id(id)));
+        first.push(Item::entry(Action::CopyId, "nd-tray-id", &format_id(id)));
     }
-    first.push(Item::entry(Action::Open, "bd-tray-open", ""));
+    first.push(Item::entry(Action::Open, "nd-tray-open", ""));
     if offers.settings {
         first.push(Item::entry(Action::Settings, "Settings", ""));
     }
     let mut groups = vec![first];
     if offers.stop_service && state != State::Off {
-        groups.push(vec![Item::entry(Action::StopService, "bd-tray-stop", "")]);
+        groups.push(vec![Item::entry(Action::StopService, "nd-tray-stop", "")]);
     }
     if offers.settings {
-        groups.push(vec![Item::entry(Action::About, "bd-tray-about", version)]);
+        groups.push(vec![Item::entry(Action::About, "nd-tray-about", version)]);
     }
     let mut items = Vec::new();
     for group in groups {
@@ -287,7 +287,7 @@ pub fn server_name(custom_rendezvous_server: &str, api_server: &str) -> String {
 mod tests {
     use super::*;
 
-    const CASES: &str = include_str!("../flutter/test/bd/home_status_cases.txt");
+    const CASES: &str = include_str!("../flutter/test/nd/home_status_cases.txt");
     const EN: &str = include_str!("lang/en.rs");
     const DE: &str = include_str!("lang/de.rs");
     const TEMPLATE: &str = include_str!("lang/template.rs");
@@ -379,14 +379,14 @@ mod tests {
         assert_eq!(
             lines(&menu(&ready(), "123456789", "1.5.0", ON)),
             [
-                "[bd-home-status-ready 10.10.10.74]",
-                "bd-tray-id 123 456 789",
-                "bd-tray-open",
+                "[nd-home-status-ready 10.10.10.74]",
+                "nd-tray-id 123 456 789",
+                "nd-tray-open",
                 "Settings",
                 "-",
-                "bd-tray-stop",
+                "nd-tray-stop",
                 "-",
-                "bd-tray-about 1.5.0",
+                "nd-tray-about 1.5.0",
             ]
         );
     }
@@ -402,30 +402,30 @@ mod tests {
         no_server.no_server = true;
         no_server.server.clear();
         for (f, first) in [
-            (no_server, "[bd-tray-status-no-server]"),
+            (no_server, "[nd-tray-status-no-server]"),
             (
                 facts(Online::NotReady, "offline", standing("pending", "")),
-                "[bd-tray-status-approval]",
+                "[nd-tray-status-approval]",
             ),
             (
                 facts(Online::NotReady, "offline", standing("", "pending")),
-                "[bd-tray-status-approval]",
+                "[nd-tray-status-approval]",
             ),
             (
                 facts(Online::NotReady, "offline", standing("refused", "")),
-                "[bd-tray-status-key-refused]",
+                "[nd-tray-status-key-refused]",
             ),
             (
                 facts(Online::NotReady, "offline", Standing::default()),
-                "[bd-tray-status-offline 10.10.10.74]",
+                "[nd-tray-status-offline 10.10.10.74]",
             ),
             (
                 facts(Online::Connecting, "connecting", Standing::default()),
-                "[bd-home-status-connecting 10.10.10.74]",
+                "[nd-home-status-connecting 10.10.10.74]",
             ),
             (
                 facts(Online::NotReady, "ipc_disconnected", Standing::default()),
-                "[bd-tray-status-no-service]",
+                "[nd-tray-status-no-service]",
             ),
         ] {
             let menu = lines(&menu(&f, "123456789", "1.5.0", ON));
@@ -439,7 +439,7 @@ mod tests {
         let mut off = ready();
         off.service_stopped = true;
         let items = menu(&off, "123456789", "1.5.0", ON);
-        assert_eq!(lines(&items)[0], "[bd-tray-status-off]");
+        assert_eq!(lines(&items)[0], "[nd-tray-status-off]");
         assert!(items.iter().all(|i| i.action() != Some(Action::StopService)));
         assert_eq!(lines(&items).iter().filter(|l| *l == "-").count(), 1);
     }
@@ -453,9 +453,9 @@ mod tests {
         assert_eq!(
             lines(&menu(&ready(), "123456789", "1.5.0", none)),
             [
-                "[bd-home-status-ready 10.10.10.74]",
-                "bd-tray-id 123 456 789",
-                "bd-tray-open",
+                "[nd-home-status-ready 10.10.10.74]",
+                "nd-tray-id 123 456 789",
+                "nd-tray-open",
             ]
         );
         let stop_only = Offers {
@@ -465,10 +465,10 @@ mod tests {
         assert_eq!(
             lines(&menu(&ready(), "", "1.5.0", stop_only)),
             [
-                "[bd-home-status-ready 10.10.10.74]",
-                "bd-tray-open",
+                "[nd-home-status-ready 10.10.10.74]",
+                "nd-tray-open",
                 "-",
-                "bd-tray-stop",
+                "nd-tray-stop",
             ]
         );
     }
@@ -507,7 +507,7 @@ mod tests {
     /// template; other languages fall back to English.
     #[test]
     fn every_label_is_translated() {
-        let mut keys = vec!["bd-tray-id", "bd-tray-open", "bd-tray-stop", "bd-tray-about"];
+        let mut keys = vec!["nd-tray-id", "nd-tray-open", "nd-tray-stop", "nd-tray-about"];
         for state in [
             State::Off,
             State::NoServer,
@@ -522,7 +522,7 @@ mod tests {
         ] {
             keys.push(state.line().0);
         }
-        keys.push("bd-tray-id-copied");
+        keys.push("nd-tray-id-copied");
         let has = |file: &str, key: &str, filled: bool| {
             file.lines().any(|l| {
                 let l = l.trim();

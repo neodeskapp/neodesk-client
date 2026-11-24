@@ -3,8 +3,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="flutter/assets/bd-logo-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="flutter/assets/bd-logo-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="flutter/assets/nd-logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="flutter/assets/nd-logo-light.svg">
   <img src="res/neodesk.png" alt="NeoDesk" width="280">
 </picture>
 

@@ -4,9 +4,9 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/cm/cm_widgets.dart';
-import 'package:flutter_hbb/onboarding/joining_view.dart' show formatBdId;
+import 'package:flutter_hbb/onboarding/joining_view.dart' show formatNdId;
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
@@ -96,7 +96,7 @@ class _DesktopServerPageState extends State<DesktopServerPage>
       child: Consumer<ServerModel>(
         builder: (context, serverModel, child) {
           final body = Scaffold(
-            backgroundColor: context.bd.bg,
+            backgroundColor: context.nd.bg,
             body: ConnectionManager(),
           );
           return isLinux
@@ -105,7 +105,7 @@ class _DesktopServerPageState extends State<DesktopServerPage>
                   context,
                   Container(
                     decoration: BoxDecoration(
-                        border: Border.all(color: context.bd.rule)),
+                        border: Border.all(color: context.nd.rule)),
                     child: body,
                   ));
         },
@@ -190,7 +190,7 @@ class ConnectionManagerState extends State<ConnectionManager>
               buildTitleBar(),
               Expanded(
                 child: Center(
-                  child: Text(translate("Waiting"), style: context.bdText.body),
+                  child: Text(translate("Waiting"), style: context.ndText.body),
                 ),
               ),
             ],
@@ -269,7 +269,7 @@ class ConnectionManagerState extends State<ConnectionManager>
                                   ))),
                   ]);
                   return Container(
-                    color: context.bd.bg,
+                    color: context.nd.bg,
                     child: row,
                   );
                 },
@@ -299,8 +299,8 @@ class ConnectionManagerState extends State<ConnectionManager>
     return Container(
       height: kDesktopRemoteTabBarHeight,
       decoration: BoxDecoration(
-        color: context.bd.titlebar,
-        border: Border(bottom: BorderSide(color: context.bd.rule)),
+        color: context.nd.titlebar,
+        border: Border(bottom: BorderSide(color: context.nd.rule)),
       ),
       child: Row(
         children: [
@@ -311,13 +311,13 @@ class ConnectionManagerState extends State<ConnectionManager>
                 padding: const EdgeInsets.only(left: 14),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: BdTitleBrand(title: bind.mainGetAppNameSync()),
+                  child: NdTitleBrand(title: bind.mainGetAppNameSync()),
                 ),
               ),
             ),
           ),
-          BdWinButton(
-            glyph: BdWinGlyph.minimize,
+          NdWinButton(
+            glyph: NdWinGlyph.minimize,
             tooltip: translate('Minimize'),
             height: kDesktopRemoteTabBarHeight - 1,
             onTap: () => windowManager.minimize(),
@@ -335,9 +335,9 @@ class ConnectionManagerState extends State<ConnectionManager>
         child: Row(
           children: [
             ActionIcon(
-                icon: BdIcons.chevronLeft, iconSize: 22, onTap: sc.backward),
+                icon: NdIcons.chevronLeft, iconSize: 22, onTap: sc.backward),
             ActionIcon(
-                icon: BdIcons.chevronRight, iconSize: 22, onTap: sc.forward),
+                icon: NdIcons.chevronRight, iconSize: 22, onTap: sc.forward),
           ],
         ));
   }
@@ -454,30 +454,30 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
     }
     if (t == ClientType.camera) {
       return [
-        perm(tr('bd-cm-perm-sound'), client.audio, 'audio',
+        perm(tr('nd-cm-perm-sound'), client.audio, 'audio',
             (v) => client.audio = v),
-        perm(tr('bd-cm-perm-record'), client.recording, 'recording',
+        perm(tr('nd-cm-perm-record'), client.recording, 'recording',
             (v) => client.recording = v),
       ];
     }
     return [
-      perm(tr('bd-cm-perm-input'), client.keyboard, 'keyboard',
+      perm(tr('nd-cm-perm-input'), client.keyboard, 'keyboard',
           (v) => client.keyboard = v),
-      perm(tr('bd-cm-perm-clipboard'), client.clipboard, 'clipboard',
+      perm(tr('nd-cm-perm-clipboard'), client.clipboard, 'clipboard',
           (v) => client.clipboard = v),
-      perm(tr('bd-cm-perm-files'), client.file, 'file',
+      perm(tr('nd-cm-perm-files'), client.file, 'file',
           (v) => client.file = v),
-      perm(tr('bd-cm-perm-sound'), client.audio, 'audio',
+      perm(tr('nd-cm-perm-sound'), client.audio, 'audio',
           (v) => client.audio = v),
-      perm(tr('bd-cm-perm-restart'), client.restart, 'restart',
+      perm(tr('nd-cm-perm-restart'), client.restart, 'restart',
           (v) => client.restart = v),
-      perm(tr('bd-cm-perm-record'), client.recording, 'recording',
+      perm(tr('nd-cm-perm-record'), client.recording, 'recording',
           (v) => client.recording = v),
       if (isWindows)
-        perm(tr('bd-cm-perm-block'), client.blockInput, 'block_input',
+        perm(tr('nd-cm-perm-block'), client.blockInput, 'block_input',
             (v) => client.blockInput = v),
       if (bind.mainSupportedPrivacyModeImpls() != '[]')
-        perm(tr('bd-cm-perm-privacy'), client.privacyMode, 'privacy_mode',
+        perm(tr('nd-cm-perm-privacy'), client.privacyMode, 'privacy_mode',
             (v) => client.privacyMode = v),
     ];
   }
@@ -487,16 +487,16 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
     return buildAvatarWidget(
           avatar: client.avatar,
           size: 48,
-          borderRadius: BdSize.radius,
-          fallback: BdAvatar(name: name, size: 48),
+          borderRadius: NdSize.radius,
+          fallback: NdAvatar(name: name, size: 48),
         ) ??
-        BdAvatar(name: name, size: 48);
+        NdAvatar(name: name, size: 48);
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final c = context.bd;
+    final c = context.nd;
     final name = client.name.isNotEmpty ? client.name : client.peerId;
     final permissions = _permissions();
     Widget body;
@@ -506,7 +506,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
         child: CmRequestBody(
           header: CmHeader(
               name: name,
-              subtitle: formatBdId(client.peerId),
+              subtitle: formatNdId(client.peerId),
               mono: true,
               kind: _kind,
               avatar: _avatar()),
@@ -608,9 +608,9 @@ class _CmControlPanel extends StatelessWidget {
         if (client.inVoiceCall)
           _row([
             Builder(
-              builder: (bctx) => BdButton(
+              builder: (bctx) => NdButton(
                 label: translate('Audio input'),
-                icon: BdIcons.mic,
+                icon: NdIcons.mic,
                 block: true,
                 onPressed: () => checkClickTime(client.id, () async {
                   final box = bctx.findRenderObject() as RenderBox;
@@ -619,27 +619,27 @@ class _CmControlPanel extends StatelessWidget {
                 }),
               ),
             ),
-            BdButton(
+            NdButton(
               label: translate('Stop voice call'),
-              icon: BdIcons.callEnd,
-              kind: BdButtonKind.dangerQuiet,
+              icon: NdIcons.callEnd,
+              kind: NdButtonKind.dangerQuiet,
               block: true,
               onPressed: () => checkClickTime(client.id, closeVoiceCall),
             ),
           ]),
         if (client.incomingVoiceCall)
           _row([
-            BdButton.primary(
+            NdButton.primary(
               label: translate('Accept'),
-              icon: BdIcons.call,
+              icon: NdIcons.call,
               block: true,
               onPressed: () =>
                   checkClickTime(client.id, () => handleVoiceCall(true)),
             ),
-            BdButton(
+            NdButton(
               label: translate('Dismiss'),
-              icon: BdIcons.phoneDisabled,
-              kind: BdButtonKind.dangerQuiet,
+              icon: NdIcons.phoneDisabled,
+              kind: NdButtonKind.dangerQuiet,
               block: true,
               onPressed: () =>
                   checkClickTime(client.id, () => handleVoiceCall(false)),
@@ -647,9 +647,9 @@ class _CmControlPanel extends StatelessWidget {
           ]),
         if (client.fromSwitch)
           _row([
-            BdButton(
+            NdButton(
               label: translate('Switch Sides'),
-              icon: BdIcons.reply,
+              icon: NdIcons.reply,
               block: true,
               onPressed: () =>
                   checkClickTime(client.id, () => handleSwitchBack(context)),
@@ -657,9 +657,9 @@ class _CmControlPanel extends StatelessWidget {
           ]),
         if (showElevation)
           _row([
-            BdButton(
+            NdButton(
               label: translate('Elevate'),
-              icon: BdIcons.security,
+              icon: NdIcons.security,
               block: true,
               onPressed: () => checkClickTime(client.id, () {
                 handleElevate(context);
@@ -667,10 +667,10 @@ class _CmControlPanel extends StatelessWidget {
               }),
             ),
           ]),
-        BdButton(
-          label: tr('bd-cm-stop'),
-          kind: BdButtonKind.danger,
-          size: BdButtonSize.lg,
+        NdButton(
+          label: tr('nd-cm-stop'),
+          kind: NdButtonKind.danger,
+          size: NdButtonSize.lg,
           block: true,
           onPressed: () => checkClickTime(client.id, handleDisconnect),
         ),
@@ -705,8 +705,8 @@ class _CmControlPanel extends StatelessWidget {
                   SizedBox(
                     width: 18,
                     child: d == currentDevice
-                        ? Icon(BdIcons.check,
-                            size: 18, color: context.bd.accent)
+                        ? Icon(NdIcons.check,
+                            size: 18, color: context.nd.accent)
                         : null,
                   ),
                   const SizedBox(width: 10),
@@ -724,9 +724,9 @@ class _CmControlPanel extends StatelessWidget {
   }
 
   buildDisconnected(BuildContext context) {
-    return BdButton.primary(
+    return NdButton.primary(
       label: translate('Close'),
-      size: BdButtonSize.lg,
+      size: NdButtonSize.lg,
       block: true,
       onPressed: () => checkClickTime(client.id, handleClose),
     );
@@ -845,7 +845,7 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
           children: [
             Transform.rotate(
               angle: item.action == CmFileAction.remoteToLocal ? 0 : pi,
-              child: Icon(BdIcons.arrowForward,
+              child: Icon(NdIcons.arrowForward,
                   color: Theme.of(context).tabBarTheme.labelColor),
             ),
             Text(item.action == CmFileAction.remoteToLocal
@@ -857,7 +857,7 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
         return Column(
           children: [
             Icon(
-              BdIcons.delete,
+              NdIcons.delete,
               color: Theme.of(context).tabBarTheme.labelColor,
             ),
             Text(translate('Delete'))
@@ -867,7 +867,7 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
         return Column(
           children: [
             Icon(
-              BdIcons.createNewFolder,
+              NdIcons.createNewFolder,
               color: Theme.of(context).tabBarTheme.labelColor,
             ),
             Text(translate('Create Folder'))
@@ -877,7 +877,7 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
         return Column(
           children: [
             Icon(
-              BdIcons.driveFileRenameOutline,
+              NdIcons.driveFileRenameOutline,
               color: Theme.of(context).tabBarTheme.labelColor,
             ),
             Text(translate('Rename'))
@@ -1001,7 +1001,7 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(BdIcons.swapHoriz,
+                            Icon(NdIcons.swapHoriz,
                                     size: 40,
                                     color: Theme.of(context)
                                         .tabBarTheme

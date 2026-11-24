@@ -1,5 +1,5 @@
-# The icons of BdIcons: <dart name> <Material Symbols name> [filled].
-# tool/build_symbols.py builds the fonts and bd_icons.dart from it.
+# The icons of NdIcons: <dart name> <Material Symbols name> [filled].
+# tool/build_symbols.py builds the fonts and nd_icons.dart from it.
 accessibilityNew accessibility_new
 accountCircle account_circle
 add add

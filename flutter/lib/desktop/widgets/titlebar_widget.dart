@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 
 class DesktopTitleBar extends StatelessWidget {
   final Widget? child;
@@ -9,7 +9,7 @@ class DesktopTitleBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(color: context.bd.titlebar),
+      decoration: BoxDecoration(color: context.nd.titlebar),
       child: Row(
         children: [
           Expanded(

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart' show globalKey;
 
-import '../../theme/bd_theme.dart';
+import '../../theme/nd_theme.dart';
 
-/// Shows a BdDialog (or any widget) centred over the window with the scrim
+/// Shows an NdDialog (or any widget) centred over the window with the scrim
 /// and a 150 ms fade. Escape closes it; focus returns to what opened it.
-Future<T?> showBdDialog<T>(
+Future<T?> showNdDialog<T>(
   Widget Function(void Function([T? result]) close, StateSetter setState)
       builder, {
   BuildContext? context,
@@ -17,8 +17,8 @@ Future<T?> showBdDialog<T>(
   return showGeneralDialog<T>(
     context: ctx,
     barrierDismissible: false,
-    barrierColor: ctx.bd.scrim,
-    transitionDuration: reduce ? Duration.zero : BdSize.dialogMotion,
+    barrierColor: ctx.nd.scrim,
+    transitionDuration: reduce ? Duration.zero : NdSize.dialogMotion,
     transitionBuilder: (_, anim, __, child) =>
         FadeTransition(opacity: anim, child: child),
     pageBuilder: (dialogContext, _, __) {

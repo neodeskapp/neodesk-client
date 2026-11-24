@@ -3,7 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart' show translate;
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 class SettingsNavItem<T> {
   const SettingsNavItem(this.value, this.label, {this.dividerBefore = false});
@@ -29,8 +29,8 @@ class SettingsNav<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     return Container(
       width: 224,
       decoration: BoxDecoration(
@@ -82,7 +82,7 @@ class _NavItemState extends State<_NavItem> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
+    final c = context.nd;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -95,7 +95,7 @@ class _NavItemState extends State<_NavItem> {
           margin: const EdgeInsets.only(bottom: 2),
           decoration: BoxDecoration(
             color: widget.selected || _hover ? c.hover : Colors.transparent,
-            borderRadius: BdSize.r,
+            borderRadius: NdSize.r,
           ),
           child: Row(children: [
             Container(
@@ -130,7 +130,7 @@ class SettingsGroupPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     return SingleChildScrollView(
       controller: controller,
       padding: const EdgeInsets.fromLTRB(56, 32, 56, 48),
@@ -170,7 +170,7 @@ class SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     return Padding(
       padding: const EdgeInsets.only(top: 36),
       child: Column(
@@ -182,7 +182,7 @@ class SettingsSection extends StatelessWidget {
           ]),
           if (lead != null && lead!.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(lead!, style: t.body.copyWith(color: context.bd.textMuted)),
+            Text(lead!, style: t.body.copyWith(color: context.nd.textMuted)),
           ],
           const SizedBox(height: 8),
           ...children,
@@ -215,8 +215,8 @@ class SettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     return Container(
       constraints: const BoxConstraints(minHeight: 58),
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -264,13 +264,13 @@ class SettingsLockNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 24),
-      child: BdNotice(
-        tone: BdTone.warning,
-        icon: BdIcons.lock,
-        text: tr('bd-set-locked'),
-        action: BdButton(
-            label: tr('bd-set-unlock'),
-            size: BdButtonSize.sm,
+      child: NdNotice(
+        tone: NdTone.warning,
+        icon: NdIcons.lock,
+        text: tr('nd-set-locked'),
+        action: NdButton(
+            label: tr('nd-set-unlock'),
+            size: NdButtonSize.sm,
             onPressed: onUnlock),
       ),
     );
@@ -306,23 +306,23 @@ class ServerSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
-    final c = context.bd;
-    final none = tr('bd-set-not-set');
+    final t = context.ndText;
+    final c = context.nd;
+    final none = tr('nd-set-not-set');
     return Padding(
       padding: const EdgeInsets.only(top: 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          BdStatus(
+          NdStatus(
             kind: server.isEmpty
-                ? BdStatusKind.offline
-                : (connected ? BdStatusKind.good : BdStatusKind.bad),
+                ? NdStatusKind.offline
+                : (connected ? NdStatusKind.good : NdStatusKind.bad),
             text: server.isEmpty
-                ? tr('bd-set-no-server')
+                ? tr('nd-set-no-server')
                 : (connected
-                    ? tr('bd-set-connected-to', [server])
-                    : tr('bd-set-not-connected', [server])),
+                    ? tr('nd-set-connected-to', [server])
+                    : tr('nd-set-not-connected', [server])),
             style: t.body.copyWith(fontSize: 15, height: 22 / 15),
           ),
           if (joinedLine != null)
@@ -332,12 +332,12 @@ class ServerSummary extends StatelessWidget {
                   style: t.body.copyWith(color: c.textMuted)),
             ),
           const SizedBox(height: 18),
-          BdFacts(labelWidth: 118, facts: [
-            BdFact(tr('bd-set-server-address'), server.isEmpty ? none : server),
-            BdFact(tr('bd-set-relay'),
-                relay.isEmpty ? tr('bd-set-same-as-server') : relay),
-            BdFact(tr('bd-set-api'), api.isEmpty ? none : api),
-            BdFact(tr('bd-set-key'), keyText.isEmpty ? none : '',
+          NdFacts(labelWidth: 118, facts: [
+            NdFact(tr('nd-set-server-address'), server.isEmpty ? none : server),
+            NdFact(tr('nd-set-relay'),
+                relay.isEmpty ? tr('nd-set-same-as-server') : relay),
+            NdFact(tr('nd-set-api'), api.isEmpty ? none : api),
+            NdFact(tr('nd-set-key'), keyText.isEmpty ? none : '',
                 child: keyText.isEmpty
                     ? null
                     : Tooltip(
@@ -345,7 +345,7 @@ class ServerSummary extends StatelessWidget {
                         child: Text(shortKey(keyText),
                             style: t.mono.copyWith(fontSize: 14, height: 20 / 14)),
                       )),
-            if (tokenLine != null) BdFact(tr('bd-set-device-token'), tokenLine!),
+            if (tokenLine != null) NdFact(tr('nd-set-device-token'), tokenLine!),
           ]),
           const SizedBox(height: 16),
           Wrap(spacing: 8, runSpacing: 8, children: actions),
@@ -391,8 +391,8 @@ class AboutView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
-    final c = context.bd;
+    final t = context.ndText;
+    final c = context.nd;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(56, 32, 56, 48),
       child: Align(
@@ -402,35 +402,35 @@ class AboutView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const BdWordmark(height: 34),
+              const NdWordmark(height: 34),
               const SizedBox(height: 24),
-              BdFacts(labelWidth: 102, facts: [
-                BdFact(tr('bd-about-version'), facts.version),
-                BdFact(tr('bd-about-build'), facts.buildDate),
-                BdFact(tr('bd-fact-id'), formatGroupedId(facts.id), mono: true),
-                BdFact(tr('bd-about-fingerprint'), facts.fingerprint, mono: true),
-                BdFact(tr('bd-about-licence'), '',
+              NdFacts(labelWidth: 102, facts: [
+                NdFact(tr('nd-about-version'), facts.version),
+                NdFact(tr('nd-about-build'), facts.buildDate),
+                NdFact(tr('nd-fact-id'), formatGroupedId(facts.id), mono: true),
+                NdFact(tr('nd-about-fingerprint'), facts.fingerprint, mono: true),
+                NdFact(tr('nd-about-licence'), '',
                     child: Row(children: [
                       Text('AGPL-3.0', style: t.body),
                       const SizedBox(width: 12),
-                      BdButton.link(
-                          label: tr('bd-about-view-licence'),
+                      NdButton.link(
+                          label: tr('nd-about-view-licence'),
                           onPressed: onViewLicence),
                     ])),
-                BdFact(tr('bd-about-source'), '',
+                NdFact(tr('nd-about-source'), '',
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: BdButton.link(label: sourceLabel, onPressed: onSource),
+                      child: NdButton.link(label: sourceLabel, onPressed: onSource),
                     )),
-                BdFact(tr('bd-about-based-on'), '',
+                NdFact(tr('nd-about-based-on'), '',
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: BdButton.link(label: 'RustDesk', onPressed: onUpstream),
+                      child: NdButton.link(label: 'RustDesk', onPressed: onUpstream),
                     )),
               ]),
               const SizedBox(height: 20),
               Row(children: [
-                BdButton(label: tr('bd-about-check'), onPressed: onCheckUpdates),
+                NdButton(label: tr('nd-about-check'), onPressed: onCheckUpdates),
                 if (updateResult != null) ...[
                   const SizedBox(width: 12),
                   Flexible(
@@ -439,7 +439,7 @@ class AboutView extends StatelessWidget {
                 ],
               ]),
               const SizedBox(height: 24),
-              Text(tr('bd-about-copyright'),
+              Text(tr('nd-about-copyright'),
                   style: t.body.copyWith(color: c.textMuted)),
             ],
           ),
@@ -478,8 +478,8 @@ class SettingsSearchResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
-    final c = context.bd;
+    final t = context.ndText;
+    final c = context.nd;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(56, 32, 56, 48),
       child: Align(
@@ -487,7 +487,7 @@ class SettingsSearchResults extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 680),
           child: hits.isEmpty
-              ? Text(tr('bd-set-search-none', [query]), style: t.lead)
+              ? Text(tr('nd-set-search-none', [query]), style: t.lead)
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -503,7 +503,7 @@ class SettingsSearchResults extends StatelessWidget {
                               h.path,
                               if ((h.description ?? '').isNotEmpty) h.description!,
                             ].join('\n'),
-                            control: Icon(BdIcons.chevronRight,
+                            control: Icon(NdIcons.chevronRight,
                                 size: 18, color: c.textMuted),
                           ),
                         ),

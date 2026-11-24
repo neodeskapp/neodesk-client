@@ -15,7 +15,7 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 import '../../common/widgets/overlay.dart';
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/remote_input.dart';
@@ -464,7 +464,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                     (keyboardIsVisible || _showGestureHelp)
                         ? Icons.expand_more
                         : Icons.expand_less,
-                    color: context.bd.onAccent,
+                    color: context.nd.onAccent,
                   ),
                   backgroundColor: MyTheme.accent,
                   onPressed: () {
@@ -563,14 +563,14 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
           Row(
               children: <Widget>[
                     IconButton(
-                      color: context.bd.onAccent,
+                      color: context.nd.onAccent,
                       icon: Icon(Icons.clear),
                       onPressed: () {
                         clientClose(sessionId, gFFI);
                       },
                     ),
                     IconButton(
-                      color: context.bd.onAccent,
+                      color: context.nd.onAccent,
                       icon: Icon(Icons.tv),
                       onPressed: () {
                         setState(() => _showEdit = false);
@@ -583,11 +583,11 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                       : gFFI.ffiModel.isPeerAndroid
                           ? [
                               IconButton(
-                                  color: context.bd.onAccent,
+                                  color: context.nd.onAccent,
                                   icon: Icon(Icons.keyboard),
                                   onPressed: openKeyboard),
                               IconButton(
-                                color: context.bd.onAccent,
+                                color: context.nd.onAccent,
                                 icon: const Icon(Icons.build),
                                 onPressed: () => gFFI.dialogManager
                                     .toggleMobileActionsOverlay(ffi: gFFI),
@@ -595,11 +595,11 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                             ]
                           : [
                               IconButton(
-                                  color: context.bd.onAccent,
+                                  color: context.nd.onAccent,
                                   icon: Icon(Icons.keyboard),
                                   onPressed: openKeyboard),
                               IconButton(
-                                color: context.bd.onAccent,
+                                color: context.nd.onAccent,
                                 icon: Icon(gFFI.ffiModel.touchMode
                                     ? Icons.touch_app
                                     : Icons.mouse),
@@ -614,11 +614,11 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                               future: gFFI.invokeMethod(
                                   "get_value", "KEY_IS_SUPPORT_VOICE_CALL"),
                               hasData: (isSupportVoiceCall) => IconButton(
-                                    color: context.bd.onAccent,
+                                    color: context.nd.onAccent,
                                     icon: isAndroid && isSupportVoiceCall
                                         ? SvgPicture.asset('assets/chat.svg',
                                             colorFilter: ColorFilter.mode(
-                                                context.bd.onAccent, BlendMode.srcIn))
+                                                context.nd.onAccent, BlendMode.srcIn))
                                         : Icon(Icons.message),
                                     onPressed: () =>
                                         isAndroid && isSupportVoiceCall
@@ -628,7 +628,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                         ]) +
                   [
                     IconButton(
-                      color: context.bd.onAccent,
+                      color: context.nd.onAccent,
                       icon: Icon(Icons.more_vert),
                       onPressed: () {
                         setState(() => _showEdit = false);
@@ -637,7 +637,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                     ),
                   ]),
           Obx(() => IconButton(
-                color: context.bd.onAccent,
+                color: context.nd.onAccent,
                 icon: Icon(Icons.expand_more),
                 onPressed: gFFI.ffiModel.waitForFirstImage.isTrue
                     ? null
@@ -844,10 +844,10 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
               SvgPicture.asset(
                 'assets/call_wait.svg',
                 colorFilter:
-                    ColorFilter.mode(context.bd.danger, BlendMode.srcIn),
+                    ColorFilter.mode(context.nd.danger, BlendMode.srcIn),
               ),
               onPressEndVoiceCall,
-              labelStyle: TextStyle(color: context.bd.danger))
+              labelStyle: TextStyle(color: context.nd.danger))
           : makeTextMenu(
               'Voice call',
               SvgPicture.asset(
@@ -954,9 +954,9 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
           backgroundColor: active == true ? MyTheme.accent80 : null,
         ),
         child: icon != null
-            ? Icon(icon, size: 14, color: context.bd.onCanvas)
+            ? Icon(icon, size: 14, color: context.nd.onCanvas)
             : Text(translate(text),
-                style: TextStyle(color: context.bd.onCanvas, fontSize: 11)),
+                style: TextStyle(color: context.nd.onCanvas, fontSize: 11)),
         onPressed: onPressed);
   }
 
@@ -1124,7 +1124,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
     });
     return Container(
         key: _key,
-        color: context.bd.canvas.withOpacity(0.67),
+        color: context.nd.canvas.withOpacity(0.67),
         padding: EdgeInsets.only(
             top: _keyboardVisibilityController.isVisible ? 24 : 4, bottom: 8),
         child: Wrap(
@@ -1228,8 +1228,8 @@ void showOptions(
           allowDisplaySwitchInPrivacyMode(pi, privacyModeState.value))) {
     final cur = pi.currentDisplay;
     final children = <Widget>[];
-    final numColorSelected = context.bd.onAccent;
-    final numColorUnselected = context.bd.text;
+    final numColorSelected = context.nd.onAccent;
+    final numColorUnselected = context.nd.text;
     // We can't use `Theme.of(context).primaryColor` here, the color is:
     // - light theme: 0xff2196f3 (Colors.blue)
     // - dark theme: 0xff212121 (the canvas color?)

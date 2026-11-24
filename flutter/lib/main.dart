@@ -7,7 +7,7 @@ import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/common/widgets/overlay.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/pages/install_page.dart';
@@ -230,7 +230,7 @@ void runQuickSupportApp() async {
   await bind.mainCheckConnectStatus();
   gFFI.serverModel.startService();
   _runApp(
-    translate('bd-qs-window-title'),
+    translate('nd-qs-window-title'),
     QuickSupportWindow(service: OnboardingService.instance),
     MyTheme.currentThemeMode(),
   );
@@ -240,7 +240,7 @@ void runQuickSupportApp() async {
     await windowManager.show();
     await windowManager.focus();
     await windowManager.setOpacity(1);
-    await windowManager.setTitle(translate('bd-qs-window-title'));
+    await windowManager.setTitle(translate('nd-qs-window-title'));
     setResizable(false);
   });
 }
@@ -432,7 +432,7 @@ void _runApp(
     // A changed server accent (branding, or a redeem in quick support)
     // rebuilds the window with the new theme.
     builder: (context) => Obx(() {
-      BdTheme.setServerAccent(BrandingModel.current.accentColor.value);
+      NdTheme.setServerAccent(BrandingModel.current.accentColor.value);
       return GetMaterialApp(
       navigatorKey: globalKey,
       debugShowCheckedModeBanner: false,
@@ -452,7 +452,7 @@ void _runApp(
         BotToastNavigatorObserver(),
       ],
       builder: (context, child) {
-        BdTheme.track(context);
+        NdTheme.track(context);
         child = _keepScaleBuilder(context, child);
         child = botToastBuilder(context, child);
         return child;
@@ -475,7 +475,7 @@ void runInstallPage() async {
     windowManager.setOpacity(1);
     windowManager.setAlignment(Alignment.center); // ensure
     // The taskbar names the page as its heading does, in the person's language.
-    windowManager.setTitle(translate('bd-install-title'));
+    windowManager.setTitle(translate('nd-install-title'));
   });
 }
 
@@ -566,7 +566,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       // The server's accent colour applies to the whole app; a change from
       // the server rebuilds it with the new theme.
       return Obx(() {
-      BdTheme.setServerAccent(BrandingModel.current.accentColor.value);
+      NdTheme.setServerAccent(BrandingModel.current.accentColor.value);
       return MultiProvider(
         providers: [
           // global configuration
@@ -611,7 +611,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                     ),
                   )
               : (context, child) {
-                  BdTheme.track(context);
+                  NdTheme.track(context);
                   child = _keepScaleBuilder(context, child);
                   child = botToastBuilder(context, child);
                   if ((isDesktop && desktopType == DesktopType.main) ||

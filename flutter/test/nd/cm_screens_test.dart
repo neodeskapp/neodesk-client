@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/cm/cm_widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,17 +8,17 @@ import 'harness.dart';
 const _cmSize = Size(380, 600);
 
 Widget _cmWindow(Widget body, Widget foot) => Builder(
-      builder: (context) => BdWindowFrame(
-        titleBar: BdTitleBar(
-          brand: const BdTitleBrand(title: 'NeoDesk'),
-          controls: BdWindowControls(onMinimize: () {}),
+      builder: (context) => NdWindowFrame(
+        titleBar: NdTitleBar(
+          brand: const NdTitleBrand(title: 'NeoDesk'),
+          controls: NdWindowControls(onMinimize: () {}),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(child: body),
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
             decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: context.bd.rule))),
+                border: Border(top: BorderSide(color: context.nd.rule))),
             child: foot,
           ),
         ]),
@@ -27,24 +27,24 @@ Widget _cmWindow(Widget body, Widget foot) => Builder(
 
 List<CmPermission> _perms({bool all = false, ValueChanged<bool>? onFirst}) => [
       CmPermission(
-          label: tr('bd-cm-perm-input'),
+          label: tr('nd-cm-perm-input'),
           value: true,
           onChanged: onFirst ?? (_) {}),
       CmPermission(
-          label: tr('bd-cm-perm-clipboard'), value: true, onChanged: (_) {}),
+          label: tr('nd-cm-perm-clipboard'), value: true, onChanged: (_) {}),
       CmPermission(
-          label: tr('bd-cm-perm-files'), value: true, onChanged: (_) {}),
+          label: tr('nd-cm-perm-files'), value: true, onChanged: (_) {}),
       CmPermission(
-          label: tr('bd-cm-perm-sound'), value: true, onChanged: (_) {}),
+          label: tr('nd-cm-perm-sound'), value: true, onChanged: (_) {}),
       CmPermission(
-          label: tr('bd-cm-perm-restart'), value: false, onChanged: (_) {}),
+          label: tr('nd-cm-perm-restart'), value: false, onChanged: (_) {}),
       CmPermission(
-          label: tr('bd-cm-perm-record'), value: false, onChanged: (_) {}),
+          label: tr('nd-cm-perm-record'), value: false, onChanged: (_) {}),
       if (all) ...[
         CmPermission(
-            label: tr('bd-cm-perm-block'), value: false, onChanged: (_) {}),
+            label: tr('nd-cm-perm-block'), value: false, onChanged: (_) {}),
         CmPermission(
-            label: tr('bd-cm-perm-privacy'), value: false, onChanged: (_) {}),
+            label: tr('nd-cm-perm-privacy'), value: false, onChanged: (_) {}),
       ],
     ];
 
@@ -93,10 +93,10 @@ void main() {
                 ),
               ]),
         ),
-        BdButton(
-            label: tr('bd-cm-stop'),
-            kind: BdButtonKind.danger,
-            size: BdButtonSize.lg,
+        NdButton(
+            label: tr('nd-cm-stop'),
+            kind: NdButtonKind.danger,
+            size: NdButtonSize.lg,
             block: true,
             onPressed: () {}),
       ),
@@ -124,7 +124,7 @@ void main() {
       ]),
       size: const Size(380, 200),
     );
-    await tester.tap(find.byType(BdSwitch).first);
+    await tester.tap(find.byType(NdSwitch).first);
     expect(got, isFalse);
     expect(find.text('Turned off in Settings'), findsOneWidget);
   });

@@ -22,7 +22,7 @@
 # or stops when the sources match neither (a theme or pubspec change moved an anchor).
 set -euo pipefail
 
-readonly THEME=flutter/lib/common/theme/bd_theme.dart
+readonly THEME=flutter/lib/common/theme/nd_theme.dart
 readonly PUBSPEC=flutter/pubspec.yaml
 
 # file | committed text | Flutter 3.44 text | occurrences

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart' show translate;
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 import 'onboarding_service.dart';
 
@@ -11,22 +11,22 @@ import 'onboarding_service.dart';
 String onboardingErrorText(OnboardingError kind, String? server) {
   switch (kind) {
     case OnboardingError.notAnInvite:
-      return tr('bd-invite-error-not-invite');
+      return tr('nd-invite-error-not-invite');
     case OnboardingError.expired:
-      return tr('bd-invite-error-expired');
+      return tr('nd-invite-error-expired');
     case OnboardingError.usedUp:
-      return tr('bd-invite-error-used');
+      return tr('nd-invite-error-used');
     case OnboardingError.unreachable:
-      return tr('bd-invite-error-unreachable',
-          [server ?? tr('bd-the-server')]);
+      return tr('nd-invite-error-unreachable',
+          [server ?? tr('nd-the-server')]);
     case OnboardingError.tooManyTries:
-      return tr('bd-invite-error-too-many');
+      return tr('nd-invite-error-too-many');
     case OnboardingError.insecureHttp:
-      return tr('bd-invite-insecure', [server ?? '']);
+      return tr('nd-invite-insecure', [server ?? '']);
     case OnboardingError.refused:
-      return tr('bd-join-failed-lead-refused');
+      return tr('nd-join-failed-lead-refused');
     case OnboardingError.other:
-      return tr('bd-invite-error-other');
+      return tr('nd-invite-error-other');
   }
 }
 
@@ -161,8 +161,8 @@ class _FirstStartViewState extends State<FirstStartView> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     final p = _parsed;
     final errorText =
         _error == null ? null : onboardingErrorText(_error!, _errorServer);
@@ -170,19 +170,19 @@ class _FirstStartViewState extends State<FirstStartView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(tr('bd-first-start-title'), style: t.display),
+        Text(tr('nd-first-start-title'), style: t.display),
         const SizedBox(height: 12),
         ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
-            child: Text(tr('bd-first-start-lead'), style: t.lead)),
+            child: Text(tr('nd-first-start-lead'), style: t.lead)),
         const SizedBox(height: 32),
-        BdField(
-          label: tr('bd-invite-field'),
+        NdField(
+          label: tr('nd-invite-field'),
           controller: _input,
           focusNode: _inputFocus,
           large: true,
           mono: true,
-          hint: tr('bd-invite-hint'),
+          hint: tr('nd-invite-hint'),
           error: errorText,
           onChanged: (_) => setState(() {
             _error = null;
@@ -196,47 +196,47 @@ class _FirstStartViewState extends State<FirstStartView> {
               _submit();
             }
           },
-          trailing: BdButton(
+          trailing: NdButton(
               label: translate('Paste'),
-              size: BdButtonSize.sm,
+              size: NdButtonSize.sm,
               onPressed: _busy ? null : _paste),
         ),
         if (p.needsServer) ...[
           const SizedBox(height: 20),
-          BdField(
-            label: tr('bd-invite-server-field'),
+          NdField(
+            label: tr('nd-invite-server-field'),
             controller: _server,
             focusNode: _serverFocus,
             large: true,
-            hint: tr('bd-invite-server-hint'),
+            hint: tr('nd-invite-server-hint'),
             onChanged: (_) => setState(() {}),
             onSubmitted: (_) => _submit(),
           ),
         ],
         if (_confirmInsecure) ...[
           const SizedBox(height: 20),
-          BdNotice(
-            tone: BdTone.warning,
-            text: tr('bd-invite-insecure', [_errorServer ?? p.host ?? '']),
+          NdNotice(
+            tone: NdTone.warning,
+            text: tr('nd-invite-insecure', [_errorServer ?? p.host ?? '']),
           ),
           const SizedBox(height: 16),
           Row(children: [
-            BdButton(
-                label: tr('bd-continue-anyway'),
-                size: BdButtonSize.lg,
+            NdButton(
+                label: tr('nd-continue-anyway'),
+                size: NdButtonSize.lg,
                 onPressed: () => _submit(insecureOk: true)),
             const SizedBox(width: 8),
-            BdButton(
+            NdButton(
                 label: translate('Cancel'),
-                size: BdButtonSize.lg,
-                kind: BdButtonKind.ghost,
+                size: NdButtonSize.lg,
+                kind: NdButtonKind.ghost,
                 onPressed: () => setState(() => _confirmInsecure = false)),
           ]),
         ] else ...[
           const SizedBox(height: 20),
-          BdButton.primary(
+          NdButton.primary(
             label: translate('Continue'),
-            size: BdButtonSize.lg,
+            size: NdButtonSize.lg,
             onPressed: _canContinue ? () => _submit() : null,
           ),
         ],
@@ -247,10 +247,10 @@ class _FirstStartViewState extends State<FirstStartView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        BdButton.link(
-            label: tr('bd-set-up-by-hand'), onPressed: widget.onSetUpByHand),
+        NdButton.link(
+            label: tr('nd-set-up-by-hand'), onPressed: widget.onSetUpByHand),
         const SizedBox(height: 6),
-        Text(tr('bd-set-up-by-hand-hint'), style: t.small),
+        Text(tr('nd-set-up-by-hand-hint'), style: t.small),
       ],
     );
 
@@ -270,7 +270,7 @@ class _FirstStartViewState extends State<FirstStartView> {
             height: size,
             child: IgnorePointer(
               child: CustomPaint(
-                painter: BdMarkPainter(
+                painter: NdMarkPainter(
                     c.logoSquare, c.logoCircle, c.logoOverlap,
                     unit: unit),
               ),

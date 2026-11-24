@@ -13,7 +13,7 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 import '../../common/widgets/overlay.dart';
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/remote_input.dart';
@@ -209,7 +209,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                     (keyboardIsVisible || _showGestureHelp)
                         ? Icons.expand_more
                         : Icons.expand_less,
-                    color: context.bd.onAccent,
+                    color: context.nd.onAccent,
                   ),
                   backgroundColor: MyTheme.accent,
                   onPressed: () {
@@ -303,14 +303,14 @@ class _ViewCameraPageState extends State<ViewCameraPage>
           Row(
               children: <Widget>[
                     IconButton(
-                      color: context.bd.onAccent,
+                      color: context.nd.onAccent,
                       icon: Icon(Icons.clear),
                       onPressed: () {
                         clientClose(sessionId, gFFI);
                       },
                     ),
                     IconButton(
-                      color: context.bd.onAccent,
+                      color: context.nd.onAccent,
                       icon: Icon(Icons.tv),
                       onPressed: () {
                         setState(() => _showEdit = false);
@@ -325,11 +325,11 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                               future: gFFI.invokeMethod(
                                   "get_value", "KEY_IS_SUPPORT_VOICE_CALL"),
                               hasData: (isSupportVoiceCall) => IconButton(
-                                    color: context.bd.onAccent,
+                                    color: context.nd.onAccent,
                                     icon: isAndroid && isSupportVoiceCall
                                         ? SvgPicture.asset('assets/chat.svg',
                                             colorFilter: ColorFilter.mode(
-                                                context.bd.onAccent, BlendMode.srcIn))
+                                                context.nd.onAccent, BlendMode.srcIn))
                                         : Icon(Icons.message),
                                     onPressed: () =>
                                         isAndroid && isSupportVoiceCall
@@ -339,7 +339,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                         ]) +
                   [
                     IconButton(
-                      color: context.bd.onAccent,
+                      color: context.nd.onAccent,
                       icon: Icon(Icons.more_vert),
                       onPressed: () {
                         setState(() => _showEdit = false);
@@ -348,7 +348,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                     ),
                   ]),
           Obx(() => IconButton(
-                color: context.bd.onAccent,
+                color: context.nd.onAccent,
                 icon: Icon(Icons.expand_more),
                 onPressed: gFFI.ffiModel.waitForFirstImage.isTrue
                     ? null
@@ -526,10 +526,10 @@ class _ViewCameraPageState extends State<ViewCameraPage>
               SvgPicture.asset(
                 'assets/call_wait.svg',
                 colorFilter:
-                    ColorFilter.mode(context.bd.danger, BlendMode.srcIn),
+                    ColorFilter.mode(context.nd.danger, BlendMode.srcIn),
               ),
               onPressEndVoiceCall,
-              labelStyle: TextStyle(color: context.bd.danger))
+              labelStyle: TextStyle(color: context.nd.danger))
           : makeTextMenu(
               'Voice call',
               SvgPicture.asset(
@@ -586,8 +586,8 @@ void showOptions(
   if (pi.displays.length > 1 && pi.currentDisplay != kAllDisplayValue) {
     final cur = pi.currentDisplay;
     final children = <Widget>[];
-    final numColorSelected = context.bd.onAccent;
-    final numColorUnselected = context.bd.text;
+    final numColorSelected = context.nd.onAccent;
+    final numColorUnselected = context.nd.text;
     // We can't use `Theme.of(context).primaryColor` here, the color is:
     // - light theme: 0xff2196f3 (Colors.blue)
     // - dark theme: 0xff212121 (the canvas color?)

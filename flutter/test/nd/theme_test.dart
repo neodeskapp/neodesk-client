@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'harness.dart';
@@ -20,8 +20,8 @@ void main() {
     for (final c in cases) {
       test('${c[0]}', () {
         final input = parseHexColor(c[0] as String)!;
-        final l = deriveAccent(input, BdColors.light, Brightness.light);
-        final d = deriveAccent(input, BdColors.dark, Brightness.dark);
+        final l = deriveAccent(input, NdColors.light, Brightness.light);
+        final d = deriveAccent(input, NdColors.dark, Brightness.dark);
         expect(hex(l.accent), c[1]);
         expect(hex(d.accent), c[2]);
         // Yellow and white carry the dark ink.
@@ -37,16 +37,16 @@ void main() {
   });
 
   test('a server accent replaces accent, hover and ink but nothing else', () {
-    final branded = BdColors.light.withServerAccent('#e30613');
-    expect(branded.accent, isNot(BdColors.light.accent));
-    expect(branded.danger, BdColors.light.danger);
-    expect(branded.logoSquare, BdColors.light.logoSquare);
-    expect(branded.bg, BdColors.light.bg);
-    expect(BdColors.light.withServerAccent('not a colour'), same(BdColors.light));
+    final branded = NdColors.light.withServerAccent('#e30613');
+    expect(branded.accent, isNot(NdColors.light.accent));
+    expect(branded.danger, NdColors.light.danger);
+    expect(branded.logoSquare, NdColors.light.logoSquare);
+    expect(branded.bg, NdColors.light.bg);
+    expect(NdColors.light.withServerAccent('not a colour'), same(NdColors.light));
   });
 
   test('every token pair of the design reaches its contrast', () {
-    for (final c in [BdColors.light, BdColors.dark]) {
+    for (final c in [NdColors.light, NdColors.dark]) {
       expect(contrastRatio(c.text, c.bg), greaterThanOrEqualTo(12));
       expect(contrastRatio(c.textMuted, c.hover), greaterThanOrEqualTo(4.5));
       for (final s in [c.bg, c.bgSubtle, c.bgFloat]) {
@@ -58,34 +58,34 @@ void main() {
     }
   });
 
-  testWidgets('BdSwitch reports the flipped value and ignores taps when off',
+  testWidgets('NdSwitch reports the flipped value and ignores taps when off',
       (tester) async {
     bool? got;
     await pumpScreen(
         tester,
-        Center(child: BdSwitch(value: false, onChanged: (v) => got = v)),
+        Center(child: NdSwitch(value: false, onChanged: (v) => got = v)),
         size: const Size(200, 100));
-    await tester.tap(find.byType(BdSwitch));
+    await tester.tap(find.byType(NdSwitch));
     expect(got, isTrue);
 
     got = null;
     await pumpScreen(
         tester,
-        const Center(child: BdSwitch(value: true, onChanged: null)),
+        const Center(child: NdSwitch(value: true, onChanged: null)),
         size: const Size(200, 100));
-    await tester.tap(find.byType(BdSwitch), warnIfMissed: false);
+    await tester.tap(find.byType(NdSwitch), warnIfMissed: false);
     expect(got, isNull);
   });
 
-  testWidgets('BdSwitch knob sits at the end when on', (tester) async {
+  testWidgets('NdSwitch knob sits at the end when on', (tester) async {
     Future<double> knobX(bool v) async {
       await pumpScreen(
           tester,
-          Center(child: BdSwitch(value: v, onChanged: (_) {})),
+          Center(child: NdSwitch(value: v, onChanged: (_) {})),
           size: const Size(200, 100));
-      final track = tester.getRect(find.byType(BdSwitch));
+      final track = tester.getRect(find.byType(NdSwitch));
       final knob = tester.getRect(find.descendant(
-          of: find.byType(BdSwitch),
+          of: find.byType(NdSwitch),
           matching: find.byWidgetPredicate((w) =>
               w is Container &&
               w.constraints?.maxWidth == 12 &&
@@ -99,17 +99,17 @@ void main() {
     expect(await knobX(true), 20);
   });
 
-  testWidgets('BdSegmented selects the tapped choice only once',
+  testWidgets('NdSegmented selects the tapped choice only once',
       (tester) async {
     final picks = <String>[];
     await pumpScreen(
         tester,
         Center(
-          child: BdSegmented<String>(
+          child: NdSegmented<String>(
             segments: const [
-              BdSegment('light', 'Light'),
-              BdSegment('dark', 'Dark'),
-              BdSegment('system', 'System'),
+              NdSegment('light', 'Light'),
+              NdSegment('dark', 'Dark'),
+              NdSegment('system', 'System'),
             ],
             value: 'system',
             onChanged: picks.add,
@@ -119,7 +119,7 @@ void main() {
     await tester.tap(find.text('Dark'));
     await tester.tap(find.text('System'));
     expect(picks, ['dark']);
-    final h = tester.getSize(find.byType(BdSegmented<String>)).height;
+    final h = tester.getSize(find.byType(NdSegmented<String>)).height;
     expect(h, 30);
   });
 
@@ -127,9 +127,9 @@ void main() {
     await pumpScreen(
         tester,
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          BdButton.primary(label: 'Done', onPressed: () {}),
+          NdButton.primary(label: 'Done', onPressed: () {}),
         ]),
         size: const Size(600, 200));
-    expect(tester.getSize(find.byType(BdButton)).width, lessThan(120));
+    expect(tester.getSize(find.byType(NdButton)).width, lessThan(120));
   });
 }

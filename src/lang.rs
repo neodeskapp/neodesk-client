@@ -249,7 +249,7 @@ pub fn translate_locale(name: String, locale: &str) -> String {
 /// copyright holder as upstream wrote them (the AGPL notice depends on it).
 const UPSTREAM_CREDITS: &[&str] = &[
     "powered_by_me",
-    "bd-about-copyright",
+    "nd-about-copyright",
     "neodesk_fork_attribution_tip",
 ];
 
@@ -329,13 +329,13 @@ mod test {
         use super::with_app_name as f;
         let langs = [("en", &*super::en::T), ("de", &*super::de::T), ("pl", &*super::pl::T)];
         for (lang, texts) in langs {
-            for key in ["bd-about-copyright", "neodesk_fork_attribution_tip", "powered_by_me"] {
+            for key in ["nd-about-copyright", "neodesk_fork_attribution_tip", "powered_by_me"] {
                 let text = texts.get(key).copied().unwrap_or_default();
                 assert_eq!(f(key, text.to_owned(), "NeoDesk Client"), text, "{lang} {key}");
             }
         }
         let credit = "Based on RustDesk, copyright Purslane Ltd. and the RustDesk contributors.";
-        assert!(super::en::T["bd-about-copyright"].contains(credit));
+        assert!(super::en::T["nd-about-copyright"].contains(credit));
         let status = "Connecting to the RustDesk network...".to_owned();
         assert_eq!(
             f("connecting_status", status, "NeoDesk Client"),

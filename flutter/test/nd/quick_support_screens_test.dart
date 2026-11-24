@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/onboarding/onboarding_service.dart';
 import 'package:flutter_hbb/onboarding/quick_support_view.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,11 +18,11 @@ const _base = OnboardingState(
   fileName: 'NeoDesk-QuickSupport-help.fernhill.example-R8TW3NPA.exe',
 );
 
-Widget _window(Widget child) => BdWindowFrame(
-      titleBar: BdTitleBar(
+Widget _window(Widget child) => NdWindowFrame(
+      titleBar: NdTitleBar(
         height: 36,
-        brand: BdTitleBrand(title: tr('bd-qs-window-title')),
-        controls: BdWindowControls(
+        brand: NdTitleBrand(title: tr('nd-qs-window-title')),
+        controls: NdWindowControls(
             onMinimize: () {}, onClose: () {}, height: 36),
       ),
       child: child,
@@ -44,7 +44,7 @@ Widget _qs(OnboardingState s, {List<String>? calls}) => _window(
 /// A plain desktop behind the session bar.
 Widget _desktop(Widget child) => Builder(
       builder: (context) => Container(
-        color: context.bd.isDark
+        color: context.nd.isDark
             ? const Color(0xFF1E3442)
             : const Color(0xFF2F4A5C),
         alignment: Alignment.topCenter,

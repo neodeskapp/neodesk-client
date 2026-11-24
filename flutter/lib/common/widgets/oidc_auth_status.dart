@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 
 const _statusFontSize = 12.0;
 const _statusSpacing = 4.0;
@@ -85,7 +85,7 @@ class _OidcAuthFallbackState extends State<_OidcAuthFallback> {
           fontSize: _statusFontSize,
           color: theme.colorScheme.onSurfaceVariant,
         );
-    final linkColor = context.bd.accent;
+    final linkColor = context.nd.accent;
     final isTouchPlatform = _touchPlatforms.contains(theme.platform);
     final actionSize =
         isTouchPlatform ? kMinInteractiveDimension : _desktopActionSize;

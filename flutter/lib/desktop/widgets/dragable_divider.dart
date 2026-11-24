@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 
 class DraggableDivider extends StatefulWidget {
   final Axis axis;
@@ -39,7 +39,7 @@ class _DraggableDividerState extends State<DraggableDivider> {
         child: Padding(
           padding: widget.padding,
           child: Container(
-            decoration: BoxDecoration(color: widget.color ?? context.bd.rule),
+            decoration: BoxDecoration(color: widget.color ?? context.nd.rule),
             width: widget.axis == Axis.horizontal
                 ? double.infinity
                 : widget.thickness,

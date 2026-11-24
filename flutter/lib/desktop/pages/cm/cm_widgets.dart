@@ -3,7 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart' show translate;
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 class CmPermission {
   const CmPermission({
@@ -45,12 +45,12 @@ class CmHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     return Row(children: [
       SizedBox(
           width: 48,
           height: 48,
-          child: avatar ?? BdAvatar(name: name, size: 48)),
+          child: avatar ?? NdAvatar(name: name, size: 48)),
       const SizedBox(width: 14),
       Expanded(
         child: Column(
@@ -65,8 +65,8 @@ class CmHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: mono
-                    ? t.mono.copyWith(fontSize: 13, color: context.bd.textMuted)
-                    : t.body.copyWith(color: context.bd.textMuted)),
+                    ? t.mono.copyWith(fontSize: 13, color: context.nd.textMuted)
+                    : t.body.copyWith(color: context.nd.textMuted)),
             if (kind != null && kind!.isNotEmpty)
               Text(kind!, style: t.small),
           ],
@@ -84,8 +84,8 @@ class CmPermissionList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.bd;
-    final t = context.bdText;
+    final c = context.nd;
+    final t = context.ndText;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -119,7 +119,7 @@ class CmPermissionList extends StatelessWidget {
                     ],
                   ),
                 ),
-                BdSwitch(
+                NdSwitch(
                   value: items[i].value,
                   onChanged: items[i].onChanged,
                   semanticLabel: items[i].label,
@@ -147,19 +147,19 @@ class CmRequestBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         header,
         const SizedBox(height: 16),
-        Text(tr('bd-cm-request-title', [name]), style: t.titleMd),
+        Text(tr('nd-cm-request-title', [name]), style: t.titleMd),
         const SizedBox(height: 6),
-        Text(tr('bd-cm-request-note'), style: t.small),
+        Text(tr('nd-cm-request-note'), style: t.small),
         if (permissions.isNotEmpty) ...[
           const SizedBox(height: 14),
           CmPermissionList(
-              heading: tr('bd-cm-may', [name]), items: permissions),
+              heading: tr('nd-cm-may', [name]), items: permissions),
         ],
       ],
     );
@@ -187,18 +187,18 @@ class CmRequestActions extends StatelessWidget {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Row(children: [
         Expanded(
-          child: BdButton(
+          child: NdButton(
               label: translate('Decline'),
-              size: BdButtonSize.lg,
+              size: NdButtonSize.lg,
               block: true,
               onPressed: onDecline),
         ),
         if (onAllow != null) ...[
           const SizedBox(width: 8),
           Expanded(
-            child: BdButton.primary(
-                label: tr('bd-allow'),
-                size: BdButtonSize.lg,
+            child: NdButton.primary(
+                label: tr('nd-allow'),
+                size: NdButtonSize.lg,
                 block: true,
                 onPressed: onAllow),
           ),
@@ -206,8 +206,8 @@ class CmRequestActions extends StatelessWidget {
       ]),
       if (onAllowElevated != null) ...[
         const SizedBox(height: 12),
-        BdButton.link(
-            label: tr('bd-cm-allow-elevated'), onPressed: onAllowElevated),
+        NdButton.link(
+            label: tr('nd-cm-allow-elevated'), onPressed: onAllowElevated),
       ],
     ]);
   }
@@ -226,13 +226,13 @@ class CmTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BdTabs<CmTab>(
+    return NdTabs<CmTab>(
       gap: 24,
       tabs: [
-        BdTab(CmTab.access, tr('bd-cm-tab-access')),
-        BdTab(CmTab.chat,
+        NdTab(CmTab.access, tr('nd-cm-tab-access')),
+        NdTab(CmTab.chat,
             unread > 0 ? '${translate('Chat')} ($unread)' : translate('Chat')),
-        if (showFiles) BdTab(CmTab.files, tr('bd-cm-tab-files')),
+        if (showFiles) NdTab(CmTab.files, tr('nd-cm-tab-files')),
       ],
       value: value,
       onChanged: onChanged,
@@ -244,7 +244,7 @@ class CmTabs extends StatelessWidget {
 String cmConnectedFor(Duration d) {
   final minutes = d.inMinutes;
   if (minutes < 60) {
-    return tr('bd-cm-connected-min', [minutes < 1 ? 1 : minutes]);
+    return tr('nd-cm-connected-min', [minutes < 1 ? 1 : minutes]);
   }
-  return tr('bd-cm-connected-h', [d.inHours, minutes % 60]);
+  return tr('nd-cm-connected-h', [d.inHours, minutes % 60]);
 }

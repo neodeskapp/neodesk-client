@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart' show translateForTest;
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The font families of pubspec.yaml with their asset files.
@@ -36,7 +36,7 @@ Map<String, List<String>> _pubspecFonts() {
 
 bool _fontsLoaded = false;
 
-Future<void> loadBdFonts() async {
+Future<void> loadNdFonts() async {
   if (_fontsLoaded) return;
   for (final e in _pubspecFonts().entries) {
     final loader = FontLoader(e.key);
@@ -101,30 +101,30 @@ Future<void> pumpScreen(
   String? accent,
   String lang = 'en',
   Key? rootKey,
-  List<ThemeExtension<dynamic>> Function(BdColors c)? extra,
+  List<ThemeExtension<dynamic>> Function(NdColors c)? extra,
 }) async {
-  await loadBdFonts();
+  await loadNdFonts();
   useLanguage(lang);
-  BdTheme.setServerAccent(accent ?? '');
-  BdTheme.setBrightnessForTest(brightness);
+  NdTheme.setServerAccent(accent ?? '');
+  NdTheme.setBrightnessForTest(brightness);
   tester.view.physicalSize = size * 2;
   tester.view.devicePixelRatio = 2;
   addTearDown(() {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
-    BdTheme.setServerAccent('');
+    NdTheme.setServerAccent('');
   });
   // The boundary holds the whole app, so menus and dialogs in the
   // overlay are in the picture too.
   await tester.pumpWidget(
     RepaintBoundary(
-      key: rootKey ?? const ValueKey('bd-shot'),
+      key: rootKey ?? const ValueKey('nd-shot'),
       child: MediaQuery(
         data: MediaQueryData(
             size: size, devicePixelRatio: 2, disableAnimations: true),
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: BdTheme.theme(brightness, desktop: true, extra: extra),
+          theme: NdTheme.theme(brightness, desktop: true, extra: extra),
           home: Material(type: MaterialType.transparency, child: screen),
         ),
       ),
@@ -145,7 +145,7 @@ Future<void> shot(WidgetTester tester, String name, Brightness b,
   if (dir == null) return;
   final theme = b == Brightness.dark ? 'dark' : 'light';
   final boundary = tester.renderObject<RenderRepaintBoundary>(
-      find.byKey(rootKey ?? const ValueKey('bd-shot')));
+      find.byKey(rootKey ?? const ValueKey('nd-shot')));
   // Tests draw shadows hard; draw the real soft ones for the picture.
   debugDisableShadows = false;
   try {
@@ -171,7 +171,7 @@ void forBothThemes(
   for (final b in Brightness.values) {
     testWidgets('$description (${b.name})', (tester) {
       useLanguage('en');
-      BdTheme.setBrightnessForTest(b);
+      NdTheme.setBrightnessForTest(b);
       return body(tester, b);
     });
   }

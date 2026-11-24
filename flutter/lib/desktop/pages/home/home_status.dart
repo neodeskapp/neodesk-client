@@ -4,7 +4,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
 import 'package:flutter_hbb/models/state_model.dart' show SvcStatus;
 
@@ -59,45 +59,45 @@ HomeStatus homeStatusOf(
 }) {
   final server = facts.server;
   if (facts.serviceStopped) {
-    return HomeStatus(BdStatusKind.offline, tr('bd-home-status-service-off'),
-        linkLabel: tr('bd-home-turn-on'), onLink: onTurnOn);
+    return HomeStatus(NdStatusKind.offline, tr('nd-home-status-service-off'),
+        linkLabel: tr('nd-home-turn-on'), onLink: onTurnOn);
   }
   if (facts.noServer) {
-    return HomeStatus(BdStatusKind.bad, tr('bd-home-status-no-server'),
-        linkLabel: tr('bd-set-up-by-hand'), onLink: onSetUp);
+    return HomeStatus(NdStatusKind.bad, tr('nd-home-status-no-server'),
+        linkLabel: tr('nd-set-up-by-hand'), onLink: onSetUp);
   }
   final standing = _standingOf(facts.standing);
   final said = standing['reason'] as String? ?? '';
   String withReason(String text) => said.isEmpty
       ? text
-      : '$text ${tr('bd-home-status-server-says', [said])}';
+      : '$text ${tr('nd-home-status-server-says', [said])}';
   if (standing['banned'] == true) {
     return HomeStatus(
-        BdStatusKind.bad, withReason(tr('bd-home-status-banned', [server])));
+        NdStatusKind.bad, withReason(tr('nd-home-status-banned', [server])));
   }
   if (standing['enrollment'] == 'rejected') {
     return HomeStatus(
-        BdStatusKind.bad, withReason(tr('bd-home-status-removed', [server])));
+        NdStatusKind.bad, withReason(tr('nd-home-status-removed', [server])));
   }
   if (standing['signal'] == 'refused') {
     return HomeStatus(
-        BdStatusKind.bad, tr('bd-home-status-key-refused', [server]));
+        NdStatusKind.bad, tr('nd-home-status-key-refused', [server]));
   }
   if (facts.status == SvcStatus.ready) {
-    return HomeStatus(BdStatusKind.good, tr('bd-home-status-ready', [server]));
+    return HomeStatus(NdStatusKind.good, tr('nd-home-status-ready', [server]));
   }
   if (standing['enrollment'] == 'pending' ||
       standing['signal'] == 'pending' ||
       facts.reason == 'deployment_required') {
-    return HomeStatus(BdStatusKind.wait, tr('bd-home-status-approval'));
+    return HomeStatus(NdStatusKind.wait, tr('nd-home-status-approval'));
   }
   if (facts.reason == 'ipc_disconnected') {
-    return HomeStatus(BdStatusKind.bad, tr('bd-home-status-no-service'));
+    return HomeStatus(NdStatusKind.bad, tr('nd-home-status-no-service'));
   }
   if (facts.status == SvcStatus.connecting) {
     return HomeStatus(
-        BdStatusKind.wait, tr('bd-home-status-connecting', [server]));
+        NdStatusKind.wait, tr('nd-home-status-connecting', [server]));
   }
-  return HomeStatus(BdStatusKind.bad, tr('bd-home-status-offline', [server]),
-      linkLabel: tr('bd-home-try-now'), onLink: onTryNow);
+  return HomeStatus(NdStatusKind.bad, tr('nd-home-status-offline', [server]),
+      linkLabel: tr('nd-home-try-now'), onLink: onTryNow);
 }

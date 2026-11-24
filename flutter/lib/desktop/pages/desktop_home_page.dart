@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/common/widgets/custom_password.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/connection_page.dart';
@@ -121,7 +121,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           password: onlyClick ? null : model.serverPasswd.text,
           permanentOnly: permanentOnly,
           onlyClick: onlyClick,
-          status: const HomeStatus(BdStatusKind.wait, ''),
+          status: const HomeStatus(NdStatusKind.wait, ''),
           statusWidget: OnlineStatusWidget(
             onSvcStatusChanged: () {
               if (isIncomingOnly && isInHomePage()) {
@@ -156,7 +156,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           footer: isIncomingOnly
               ? Align(
                   alignment: Alignment.centerRight,
-                  child: BdButton(
+                  child: NdButton(
                     label: translate('Quit'),
                     onPressed: () {
                       SystemNavigator.pop(); // Close the application
@@ -180,7 +180,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final hideCards =
         bind.mainGetBuildinOption(key: kOptionHideHelpCards) == 'Y';
     Widget notice(String text,
-        {BdTone tone = BdTone.warning,
+        {NdTone tone = NdTone.warning,
         String? action,
         VoidCallback? onAction,
         String? help,
@@ -188,22 +188,22 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         String? closeOption,
         bool always = false}) {
       if (hideCards && !always) return const SizedBox.shrink();
-      return BdNotice(
+      return NdNotice(
         tone: tone,
         text: text,
         action: Row(mainAxisSize: MainAxisSize.min, children: [
           if (help != null && link != null)
-            BdButton.link(
+            NdButton.link(
                 label: help, onPressed: () => launchUrl(Uri.parse(link))),
           if (action != null) ...[
             const SizedBox(width: 12),
-            BdButton(
-                label: action, size: BdButtonSize.sm, onPressed: onAction),
+            NdButton(
+                label: action, size: NdButtonSize.sm, onPressed: onAction),
           ],
           if (closeOption != null) ...[
             const SizedBox(width: 4),
-            BdIconButton(
-              icon: BdIcons.close,
+            NdIconButton(
+              icon: NdIcons.close,
               tooltip: translate('Close'),
               onPressed: () async {
                 await bind.mainSetLocalOption(key: closeOption, value: 'N');
@@ -216,12 +216,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     }
 
     if (systemError.isNotEmpty) {
-      return [notice(translate(systemError), tone: BdTone.danger, always: true)];
+      return [notice(translate(systemError), tone: NdTone.danger, always: true)];
     }
     if (isWindows && !bind.isDisableInstallation()) {
       if (!bind.mainIsInstalled()) {
         return [
-          notice(tr('bd-home-not-installed'),
+          notice(tr('nd-home-not-installed'),
               action: translate('Install'), onAction: () async {
             await rustDeskWinManager.closeAllSubWindows();
             bind.mainGotoInstall();
@@ -230,12 +230,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       }
     } else if (isMacOS) {
       final isOutgoingOnly = bind.isOutgoingOnly();
-      final help = tr('bd-help');
+      final help = tr('nd-help');
       final link = translate('doc_mac_permission');
       if (!(isOutgoingOnly || bind.mainIsCanScreenRecording(prompt: false))) {
         return [
-          notice(tr('bd-home-perm-screen'),
-              action: tr('bd-home-open-system-settings'),
+          notice(tr('nd-home-perm-screen'),
+              action: tr('nd-home-open-system-settings'),
               help: help,
               link: link, onAction: () {
             bind.mainIsCanScreenRecording(prompt: true);
@@ -244,8 +244,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         ];
       } else if (!isOutgoingOnly && !bind.mainIsProcessTrusted(prompt: false)) {
         return [
-          notice(tr('bd-home-perm-accessibility'),
-              action: tr('bd-home-open-system-settings'),
+          notice(tr('nd-home-perm-accessibility'),
+              action: tr('nd-home-open-system-settings'),
               help: help,
               link: link, onAction: () {
             bind.mainIsProcessTrusted(prompt: true);
@@ -254,8 +254,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         ];
       } else if (!bind.mainIsCanInputMonitoring(prompt: false)) {
         return [
-          notice(tr('bd-home-perm-input'),
-              action: tr('bd-home-open-system-settings'),
+          notice(tr('nd-home-perm-input'),
+              action: tr('nd-home-open-system-settings'),
               help: help,
               link: link, onAction: () {
             bind.mainIsCanInputMonitoring(prompt: true);
@@ -267,7 +267,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           bind.mainIsInstalled() &&
           !bind.mainIsInstalledDaemon(prompt: false)) {
         return [
-          notice(tr('bd-home-daemon'),
+          notice(tr('nd-home-daemon'),
               action: translate('Install'),
               always: true,
               onAction: () => bind.mainIsInstalledDaemon(prompt: true))
@@ -280,8 +280,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         const keyShowSelinuxHelpTip = 'show-selinux-help-tip';
         if (bind.mainGetLocalOption(key: keyShowSelinuxHelpTip) != 'N') {
           cards.add(notice(translate('selinux_tip'),
-              tone: BdTone.info,
-              help: tr('bd-help'),
+              tone: NdTone.info,
+              help: tr('nd-help'),
               link:
                   'https://rustdesk.com/docs/en/client/linux/#permissions-issue',
               closeOption: keyShowSelinuxHelpTip));
@@ -289,14 +289,14 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       }
       if (bind.mainCurrentIsWayland()) {
         cards.add(notice(translate('wayland_experiment_tip'),
-            tone: BdTone.info,
-            help: tr('bd-help'),
+            tone: NdTone.info,
+            help: tr('nd-help'),
             link: 'https://rustdesk.com/docs/en/client/linux/#x11-required'));
       } else if (bind.mainIsLoginWayland()) {
         cards.add(notice(
             translate('Login screen using Wayland is not supported'),
-            tone: BdTone.info,
-            help: tr('bd-help'),
+            tone: NdTone.info,
+            help: tr('nd-help'),
             link: 'https://rustdesk.com/docs/en/client/linux/#login-screen'));
       }
       return cards;
@@ -312,7 +312,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: context.bd.rule),
+        border: Border.all(color: context.nd.rule),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,7 +386,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          QrImageView(data: payload, size: 170, backgroundColor: context.bd.white),
+          QrImageView(data: payload, size: 170, backgroundColor: context.nd.white),
           const SizedBox(height: 4),
           Text(deviceId, textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 10)),
@@ -715,7 +715,7 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(BdIcons.key, color: context.bd.accent),
+          Icon(NdIcons.key, color: context.nd.accent),
           Text(translate("Set Password")).paddingOnly(left: 10),
         ],
       ),
@@ -780,7 +780,7 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
             if (statusTip.isNotEmpty)
               Row(
                 children: [
-                  Icon(BdIcons.info, color: context.bd.warning, size: 18)
+                  Icon(NdIcons.info, color: context.nd.warning, size: 18)
                       .marginOnly(right: 6),
                   Expanded(
                       child: Text(
@@ -802,12 +802,12 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
                           e.name,
                           style: TextStyle(
                               color: checked
-                                  ? context.bd.success
-                                  : context.bd.danger),
+                                  ? context.nd.success
+                                  : context.nd.danger),
                         ),
                         backgroundColor: checked
-                            ? context.bd.noticeBg(context.bd.success)
-                            : context.bd.noticeBg(context.bd.danger));
+                            ? context.nd.noticeBg(context.nd.success)
+                            : context.nd.noticeBg(context.nd.danger));
                   }).toList(),
                 ))
           ],
@@ -816,13 +816,13 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
       actions: (() {
         final cancelButton = dialogButton(
           "Cancel",
-          icon: Icon(BdIcons.close),
+          icon: Icon(NdIcons.close),
           onPressed: close,
           isOutline: true,
         );
         final removeButton = dialogButton(
           "Remove",
-          icon: Icon(BdIcons.delete),
+          icon: Icon(NdIcons.delete),
           onPressed: () async {
             setState(() {
               errMsg0 = "";
@@ -839,11 +839,11 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
             close();
           },
           buttonStyle: ButtonStyle(
-              backgroundColor: WidgetStatePropertyAll(context.bd.danger)),
+              backgroundColor: WidgetStatePropertyAll(context.nd.danger)),
         );
         final okButton = dialogButton(
           "OK",
-          icon: Icon(BdIcons.check),
+          icon: Icon(NdIcons.check),
           onPressed: canSubmit ? submit : null,
         );
         if (!isDesktop && !isWebDesktop && localPasswordSet) {

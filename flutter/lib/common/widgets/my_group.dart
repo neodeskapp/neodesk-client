@@ -8,8 +8,8 @@ import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import '../../common/theme/nd_theme.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class MyGroup extends StatefulWidget {
   final EdgeInsets? menuPadding;
@@ -143,7 +143,7 @@ class _MyGroupState extends State<MyGroup> {
           decoration: InputDecoration(
             filled: false,
             prefixIcon: Icon(
-              BdIcons.search,
+              NdIcons.search,
               color: Theme.of(context).hintColor,
             ).paddingOnly(top: 2),
             hintText: translate("Search"),
@@ -238,7 +238,7 @@ class _MyGroupState extends State<MyGroup> {
                     child: Center(
                       child: Text(
                         displayName.characters.first.toUpperCase(),
-                        style: TextStyle(color: BdPalette.onDataColor),
+                        style: TextStyle(color: NdPalette.onDataColor),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -297,7 +297,7 @@ class _MyGroupState extends State<MyGroup> {
                 Container(
                   width: 20,
                   height: 20,
-                  child: Icon(BdIcons.workspaces,
+                  child: Icon(NdIcons.workspaces,
                       color: MyTheme.accent, size: 19),
                 ).marginOnly(right: 4),
                 Expanded(child: Text(name)),

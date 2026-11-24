@@ -16,11 +16,11 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter_hbb/utils/http_service.dart' as http;
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import 'address_book.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 void clientClose(SessionID sessionId, FFI ffi) async {
   if (allowAskForNoteAtEndOfConnection(ffi, true)) {
@@ -138,7 +138,7 @@ void changeIdDialog() {
                 errorText: msg.isEmpty ? null : translate(msg),
                 suffixText: '${rxId.value.length}/16',
                 suffixStyle:
-                    TextStyle(fontSize: 12, color: context.bd.textMuted)),
+                    TextStyle(fontSize: 12, color: context.nd.textMuted)),
             inputFormatters: [
               LengthLimitingTextInputFormatter(16),
               // FilteringTextInputFormatter(RegExp(r"[a-zA-z][a-zA-z0-9\_]*"), allow: true)
@@ -166,12 +166,12 @@ void changeIdDialog() {
                             e.name,
                             style: TextStyle(
                                 color: checked
-                                    ? context.bd.success
-                                    : context.bd.danger),
+                                    ? context.nd.success
+                                    : context.nd.danger),
                           ),
                           backgroundColor: checked
-                              ? context.bd.noticeBg(context.bd.success)
-                              : context.bd.noticeBg(context.bd.danger));
+                              ? context.nd.noticeBg(context.nd.success)
+                              : context.nd.noticeBg(context.nd.danger));
                     }).toList(),
                   )).marginOnly(bottom: 8)
               : SizedBox.shrink(),
@@ -416,7 +416,7 @@ Future<String> changeDirectAccessPort(
                             prefix: Text('$currentIP : '),
                             suffix: IconButton(
                                 padding: EdgeInsets.zero,
-                                icon: const Icon(BdIcons.close, size: 16),
+                                icon: const Icon(NdIcons.close, size: 16),
                                 onPressed: () => controller.clear())),
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(RegExp(
@@ -464,7 +464,7 @@ Future<String> changeAutoDisconnectTimeout(String old) async {
                             isCollapsed: true,
                             suffix: IconButton(
                                 padding: EdgeInsets.zero,
-                                icon: const Icon(BdIcons.close, size: 16),
+                                icon: const Icon(NdIcons.close, size: 16),
                                 onPressed: () => controller.clear())),
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(RegExp(
@@ -507,9 +507,9 @@ class DialogTextField extends StatelessWidget {
   final int? maxLength;
 
   static const kUsernameTitle = 'Username';
-  static const kUsernameIcon = Icon(BdIcons.accountCircle);
+  static const kUsernameIcon = Icon(NdIcons.accountCircle);
   static const kPasswordTitle = 'Password';
-  static const kPasswordIcon = Icon(BdIcons.lock);
+  static const kPasswordIcon = Icon(NdIcons.lock);
 
   DialogTextField(
       {Key? key,
@@ -881,7 +881,7 @@ class _PasswordWidgetState extends State<PasswordWidget> {
       suffixIcon: IconButton(
         icon: Icon(
             // Based on passwordVisible state choose the icon
-            _passwordVisible ? BdIcons.visibility : BdIcons.visibilityOff,
+            _passwordVisible ? NdIcons.visibility : NdIcons.visibilityOff,
             color: MyTheme.lightTheme.primaryColor),
         onPressed: () {
           // Update the state i.e. toggle the state of passwordVisible variable
@@ -1089,7 +1089,7 @@ _connectDialog(
       }
       return Column(
         children: [
-          descWidget(translate('bd-verify-password-tip')),
+          descWidget(translate('nd-verify-password-tip')),
           PasswordWidget(
             controller: passwordController,
             autoFocus: osUsernameController == null,
@@ -1111,7 +1111,7 @@ _connectDialog(
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(BdIcons.password, color: MyTheme.accent),
+          Icon(NdIcons.password, color: MyTheme.accent),
           Text(translate('Password Required')).paddingOnly(left: 10),
         ],
       ),
@@ -1125,13 +1125,13 @@ _connectDialog(
       actions: [
         dialogButton(
           'Cancel',
-          icon: Icon(BdIcons.close),
+          icon: Icon(NdIcons.close),
           onPressed: cancel,
           isOutline: true,
         ),
         dialogButton(
           'OK',
-          icon: Icon(BdIcons.check),
+          icon: Icon(NdIcons.check),
           onPressed: submit,
         ),
       ],
@@ -1152,7 +1152,7 @@ void showWaitUacDialog(
             actions: [
               dialogButton(
                 'OK',
-                icon: Icon(BdIcons.check),
+                icon: Icon(NdIcons.check),
                 onPressed: close,
               ),
             ],
@@ -1235,13 +1235,13 @@ void showRequestElevationDialog(
   Widget UacNote = Container(
     padding: EdgeInsets.fromLTRB(10, 8, 8, 8),
     decoration: BoxDecoration(
-      color: bdColors.bgSubtle,
+      color: ndColors.bgSubtle,
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: bdColors.rule),
+      border: Border.all(color: ndColors.rule),
     ),
     child: Row(
       children: [
-        Icon(BdIcons.info, size: 20).marginOnly(right: 10),
+        Icon(NdIcons.info, size: 20).marginOnly(right: 10),
         Expanded(
           child: Text(
             translate('still_click_uac_tip'),
@@ -1312,13 +1312,13 @@ void showRequestElevationDialog(
       actions: [
         dialogButton(
           'Cancel',
-          icon: Icon(BdIcons.close),
+          icon: Icon(NdIcons.close),
           onPressed: close,
           isOutline: true,
         ),
         dialogButton(
           'OK',
-          icon: Icon(BdIcons.check),
+          icon: Icon(NdIcons.check),
           onPressed: submit,
         )
       ],
@@ -1406,7 +1406,7 @@ void showRestartRemoteDevice(PeerInfo pi, String id, SessionID sessionId,
   final res = await dialogManager
       .show<bool>((setState, close, context) => CustomAlertDialog(
             title: Row(children: [
-              Icon(BdIcons.warning, color: context.bd.danger, size: 28),
+              Icon(NdIcons.warning, color: context.nd.danger, size: 28),
               Flexible(
                   child: Text(translate("Restart remote device"))
                       .paddingOnly(left: 10)),
@@ -1416,13 +1416,13 @@ void showRestartRemoteDevice(PeerInfo pi, String id, SessionID sessionId,
             actions: [
               dialogButton(
                 "Cancel",
-                icon: Icon(BdIcons.close),
+                icon: Icon(NdIcons.close),
                 onPressed: close,
                 isOutline: true,
               ),
               dialogButton(
                 "OK",
-                icon: Icon(BdIcons.check),
+                icon: Icon(NdIcons.check),
                 onPressed: () => close(true),
               ),
             ],
@@ -1471,7 +1471,7 @@ showSetOSPassword(
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(BdIcons.password, color: MyTheme.accent),
+          Icon(NdIcons.password, color: MyTheme.accent),
           Text(translate('OS Password')).paddingOnly(left: 10),
         ],
       ),
@@ -1497,13 +1497,13 @@ showSetOSPassword(
       actions: [
         dialogButton(
           "Cancel",
-          icon: Icon(BdIcons.close),
+          icon: Icon(NdIcons.close),
           onPressed: closeWithCallback,
           isOutline: true,
         ),
         dialogButton(
           "OK",
-          icon: Icon(BdIcons.check),
+          icon: Icon(NdIcons.check),
           onPressed: submit,
         ),
       ],
@@ -1905,8 +1905,8 @@ int? _validateTrackpadSpeed(String text) {
   if (speed == null || speed < kMinTrackpadSpeed || speed > kMaxTrackpadSpeed) {
     BotToast.showText(
         text: '${translate('Invalid format')}: $kMinTrackpadSpeed-$kMaxTrackpadSpeed',
-        contentColor: bdColors.danger,
-        textStyle: toastTextStyle(bdColors.onDanger));
+        contentColor: ndColors.danger,
+        textStyle: toastTextStyle(ndColors.onDanger));
     return null;
   }
   return speed;
@@ -1930,8 +1930,8 @@ void _showTrackpadSpeedSaveError(Object error, StackTrace stackTrace) {
   debugPrintStack(stackTrace: stackTrace);
   BotToast.showText(
       text: translate('Failed'),
-      contentColor: bdColors.danger,
-      textStyle: toastTextStyle(bdColors.onDanger));
+      contentColor: ndColors.danger,
+      textStyle: toastTextStyle(ndColors.onDanger));
 }
 
 List<Widget> _trackpadSpeedDialogActions({
@@ -1942,13 +1942,13 @@ List<Widget> _trackpadSpeedDialogActions({
   return [
     dialogButton(
       'Cancel',
-      icon: Icon(BdIcons.close),
+      icon: Icon(NdIcons.close),
       onPressed: isSubmitting ? null : close,
       isOutline: true,
     ),
     dialogButton(
       'OK',
-      icon: Icon(BdIcons.check),
+      icon: Icon(NdIcons.check),
       onPressed: isSubmitting ? null : submit,
     ),
   ];
@@ -2018,8 +2018,8 @@ void deleteConfirmDialog(Function onSubmit, String title) async {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              BdIcons.delete,
-              color: context.bd.danger,
+              NdIcons.delete,
+              color: context.nd.danger,
             ),
             Expanded(
               child: Text(title, overflow: TextOverflow.ellipsis).paddingOnly(
@@ -2032,13 +2032,13 @@ void deleteConfirmDialog(Function onSubmit, String title) async {
         actions: [
           dialogButton(
             "Cancel",
-            icon: Icon(BdIcons.close),
+            icon: Icon(NdIcons.close),
             onPressed: close,
             isOutline: true,
           ),
           dialogButton(
             "OK",
-            icon: Icon(BdIcons.check),
+            icon: Icon(NdIcons.check),
             onPressed: submit,
           ),
         ],
@@ -2174,7 +2174,7 @@ void renameDialog(
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(BdIcons.edit, color: MyTheme.accent),
+          Icon(NdIcons.edit, color: MyTheme.accent),
           Text(translate('Rename')).paddingOnly(left: 10),
         ],
       ),
@@ -2200,13 +2200,13 @@ void renameDialog(
       actions: [
         dialogButton(
           "Cancel",
-          icon: Icon(BdIcons.close),
+          icon: Icon(NdIcons.close),
           onPressed: cancel,
           isOutline: true,
         ),
         dialogButton(
           "OK",
-          icon: Icon(BdIcons.check),
+          icon: Icon(NdIcons.check),
           onPressed: submit,
         ),
       ],
@@ -2261,7 +2261,7 @@ void changeBot({Function()? callback}) async {
               .marginOnly(bottom: 12),
           Row(children: [Expanded(child: codeField)]),
           if (errorText != '')
-            Text(errorText, style: TextStyle(color: context.bd.danger))
+            Text(errorText, style: TextStyle(color: context.nd.danger))
                 .marginOnly(top: 12),
         ],
       ),
@@ -2323,7 +2323,7 @@ void change2fa({Function()? callback}) async {
               width: 160,
               height: 160,
               child: QrImageView(
-                backgroundColor: context.bd.white,
+                backgroundColor: context.nd.white,
                 data: new2fa,
                 version: QrVersions.auto,
                 size: 160,
@@ -2478,8 +2478,8 @@ void addPeersToAbDialog(
     } else {
       BotToast.showText(
           text: errMsg,
-          contentColor: bdColors.danger,
-          textStyle: toastTextStyle(bdColors.onDanger));
+          contentColor: ndColors.danger,
+          textStyle: toastTextStyle(ndColors.onDanger));
       return false;
     }
   }
@@ -2510,8 +2510,8 @@ void addPeersToAbDialog(
       if (controller.text != gFFI.abModel.translatedName(currentName.value)) {
         BotToast.showText(
             text: 'illegal address book name: ${controller.text}',
-            contentColor: bdColors.danger,
-            textStyle: toastTextStyle(bdColors.onDanger));
+            contentColor: ndColors.danger,
+            textStyle: toastTextStyle(ndColors.onDanger));
         return;
       }
       isInProgress.value = true;
@@ -2529,7 +2529,7 @@ void addPeersToAbDialog(
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(BdIcons.contacts, color: MyTheme.accent),
+          Icon(NdIcons.contacts, color: MyTheme.accent),
           Text(translate('Add to address book')).paddingOnly(left: 10),
         ],
       ),
@@ -2552,8 +2552,8 @@ void addPeersToAbDialog(
                     isDense: true, border: UnderlineInputBorder()),
                 enableFilter: true,
                 controller: controller,
-                trailingIcon: const Icon(BdIcons.arrowDropDown),
-                selectedTrailingIcon: const Icon(BdIcons.arrowDropUp),
+                trailingIcon: const Icon(NdIcons.arrowDropDown),
+                selectedTrailingIcon: const Icon(NdIcons.arrowDropUp),
               ),
               // NOT use Offstage to wrap LinearProgressIndicator
               isInProgress.value ? const LinearProgressIndicator() : Offstage()
@@ -2562,13 +2562,13 @@ void addPeersToAbDialog(
       actions: [
         dialogButton(
           "Cancel",
-          icon: Icon(BdIcons.close),
+          icon: Icon(NdIcons.close),
           onPressed: cancel,
           isOutline: true,
         ),
         dialogButton(
           "OK",
-          icon: Icon(BdIcons.check),
+          icon: Icon(NdIcons.check),
           onPressed: submit,
         ),
       ],
@@ -2606,7 +2606,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(BdIcons.key, color: MyTheme.accent),
+          Icon(NdIcons.key, color: MyTheme.accent),
           Text(translate(peer.password.isEmpty
                   ? 'Set shared password'
                   : 'Change Password'))
@@ -2621,7 +2621,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
               decoration: InputDecoration(
                 suffixIcon: IconButton(
                   icon: Icon(
-                      passwordVisible ? BdIcons.visibility : BdIcons.visibilityOff,
+                      passwordVisible ? NdIcons.visibility : NdIcons.visibilityOff,
                       color: MyTheme.lightTheme.primaryColor),
                   onPressed: () {
                     setState(() {
@@ -2633,7 +2633,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
             ).workaroundFreezeLinuxMint(),
             if (!gFFI.abModel.current.isPersonal())
               Row(children: [
-                Icon(BdIcons.info, color: context.bd.warning).marginOnly(right: 4),
+                Icon(NdIcons.info, color: context.nd.warning).marginOnly(right: 4),
                 Text(
                   translate('share_warning_tip'),
                   style: TextStyle(fontSize: 12),
@@ -2645,22 +2645,22 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
       actions: [
         dialogButton(
           "Cancel",
-          icon: Icon(BdIcons.close),
+          icon: Icon(NdIcons.close),
           onPressed: cancel,
           isOutline: true,
         ),
         if (peer.password.isNotEmpty)
           dialogButton(
             "Remove",
-            icon: Icon(BdIcons.delete),
+            icon: Icon(NdIcons.delete),
             onPressed: () => change(''),
             buttonStyle: ButtonStyle(
-                backgroundColor: WidgetStatePropertyAll(context.bd.danger),
-                foregroundColor: WidgetStatePropertyAll(context.bd.onDanger)),
+                backgroundColor: WidgetStatePropertyAll(context.nd.danger),
+                foregroundColor: WidgetStatePropertyAll(context.nd.onDanger)),
           ),
         Obx(() => dialogButton(
               "OK",
-              icon: Icon(BdIcons.check),
+              icon: Icon(NdIcons.check),
               onPressed:
                   isInputEmpty.value ? null : () => change(controller.text),
             )),

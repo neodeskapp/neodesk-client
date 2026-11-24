@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart' show translate;
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 /// What the hand setup saves.
 class HandSetup {
@@ -89,19 +89,19 @@ class _SetupByHandDialogState extends State<SetupByHandDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.bdText;
+    final t = context.ndText;
     final enabled = !widget.locked && !_busy;
-    return BdDialog(
-      title: tr('bd-set-up-by-hand'),
+    return NdDialog(
+      title: tr('nd-set-up-by-hand'),
       width: 520,
       onClose: widget.onCancel,
       closeTooltip: translate('Close'),
       children: [
-        Text(tr('bd-hand-text'), style: t.body.copyWith(
-            fontSize: 15, height: 22 / 15, color: context.bd.textMuted)),
-        BdField(
-          label: tr('bd-hand-server'),
-          hint: tr('bd-hand-server-hint'),
+        Text(tr('nd-hand-text'), style: t.body.copyWith(
+            fontSize: 15, height: 22 / 15, color: context.nd.textMuted)),
+        NdField(
+          label: tr('nd-hand-server'),
+          hint: tr('nd-hand-server-hint'),
           error: _errors.idServer,
           controller: _id,
           enabled: enabled,
@@ -109,9 +109,9 @@ class _SetupByHandDialogState extends State<SetupByHandDialog> {
           autofocus: true,
           onSubmitted: (_) => _save(),
         ),
-        BdField(
-          label: tr('bd-hand-key'),
-          hint: tr('bd-hand-key-hint'),
+        NdField(
+          label: tr('nd-hand-key'),
+          hint: tr('nd-hand-key-hint'),
           error: _errors.key,
           controller: _key,
           enabled: enabled,
@@ -119,22 +119,22 @@ class _SetupByHandDialogState extends State<SetupByHandDialog> {
           mono: true,
           onSubmitted: (_) => _save(),
         ),
-        BdDisclosure(
-          label: tr('bd-hand-more'),
+        NdDisclosure(
+          label: tr('nd-hand-more'),
           open: _more,
           onToggle: () => setState(() => _more = !_more),
           child: Column(children: [
-            BdField(
-              label: tr('bd-hand-relay'),
-              hint: tr('bd-hand-relay-hint'),
+            NdField(
+              label: tr('nd-hand-relay'),
+              hint: tr('nd-hand-relay-hint'),
               error: _errors.relayServer,
               controller: _relay,
               enabled: enabled,
             ),
             const SizedBox(height: 16),
-            BdField(
-              label: tr('bd-hand-api'),
-              hint: tr('bd-hand-relay-hint'),
+            NdField(
+              label: tr('nd-hand-api'),
+              hint: tr('nd-hand-relay-hint'),
               error: _errors.apiServer,
               controller: _api,
               enabled: enabled,
@@ -143,9 +143,9 @@ class _SetupByHandDialogState extends State<SetupByHandDialog> {
         ),
       ],
       actions: [
-        BdButton(label: translate('Cancel'), onPressed: widget.onCancel),
-        BdButton.primary(
-            label: tr('bd-save'), onPressed: enabled ? _save : null),
+        NdButton(label: translate('Cancel'), onPressed: widget.onCancel),
+        NdButton.primary(
+            label: tr('nd-save'), onPressed: enabled ? _save : null),
       ],
     );
   }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
@@ -26,8 +26,8 @@ class DesktopTabPage extends StatefulWidget {
       tabController.add(TabInfo(
           key: kTabLabelSettingPage,
           label: kTabLabelSettingPage,
-          selectedIcon: BdIcons.settings,
-          unselectedIcon: BdIcons.settings,
+          selectedIcon: NdIcons.settings,
+          unselectedIcon: NdIcons.settings,
           page: DesktopSettingPage(
             key: const ValueKey(kTabLabelSettingPage),
             initialTabkey: initialPage,
@@ -47,8 +47,8 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
     tabController.add(TabInfo(
         key: kTabLabelHomePage,
         label: kTabLabelHomePage,
-        selectedIcon: BdIcons.home,
-        unselectedIcon: BdIcons.home,
+        selectedIcon: NdIcons.home,
+        unselectedIcon: NdIcons.home,
         closable: false,
         page: DesktopHomePage(
           key: const ValueKey(kTabLabelHomePage),
@@ -110,7 +110,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
       final tabWidget = Container(
           key: ValueKey(stateGlobal.connectionModeRevision.value),
           child: Scaffold(
-              backgroundColor: context.bd.bg,
+              backgroundColor: context.nd.bg,
               body: DesktopTab(
                 controller: tabController,
                 // Settings opens in place of Home; Back closes it again.
@@ -118,15 +118,15 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                   final settingsIndex = tabController.state.value.tabs
                       .indexWhere((t) => t.key == kTabLabelSettingPage);
                   if (settingsIndex >= 0) {
-                    return BdTitleBarText(
-                      icon: BdIcons.arrowBack,
+                    return NdTitleBarText(
+                      icon: NdIcons.arrowBack,
                       label: translate('Back'),
                       onTap: () => tabController.remove(settingsIndex),
                     );
                   }
                   return Offstage(
                     offstage: isIncomingOnly || bind.isDisableSettings(),
-                    child: BdTitleBarText(
+                    child: NdTitleBarText(
                       label: translate('Settings'),
                       onTap: DesktopTabPage.onAddSetting,
                     ),

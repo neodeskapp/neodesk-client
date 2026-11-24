@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/utils/event_loop.dart';
 import 'package:get/get.dart';
@@ -14,7 +14,7 @@ import 'package:flutter_hbb/web/dummy.dart'
 import '../consts.dart';
 import 'model.dart';
 import 'platform_model.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 enum SortBy {
   name,
@@ -225,7 +225,7 @@ class FileModel {
       return CustomAlertDialog(
         title: Row(
           children: [
-            Icon(BdIcons.warning, color: context.bd.danger),
+            Icon(NdIcons.warning, color: context.nd.danger),
             Text(title).paddingOnly(
               left: 10,
             ),
@@ -271,19 +271,19 @@ class FileModel {
         actions: [
           dialogButton(
             "Cancel",
-            icon: Icon(BdIcons.close),
+            icon: Icon(NdIcons.close),
             onPressed: cancel,
             isOutline: true,
           ),
           dialogButton(
             "Skip",
-            icon: Icon(BdIcons.chevronRight),
+            icon: Icon(NdIcons.chevronRight),
             onPressed: () => close(null),
             isOutline: true,
           ),
           dialogButton(
             "OK",
-            icon: Icon(BdIcons.check),
+            icon: Icon(NdIcons.check),
             onPressed: submit,
           ),
         ],
@@ -817,7 +817,7 @@ class FileController {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(BdIcons.warning, color: context.bd.danger),
+            Icon(NdIcons.warning, color: context.nd.danger),
             Expanded(
               child: Text(title).paddingOnly(
                 left: 10,
@@ -835,7 +835,7 @@ class FileController {
               translate("This is irreversible!"),
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: context.bd.danger,
+                color: context.nd.danger,
               ),
             ).paddingOnly(top: 20),
             showCheckbox
@@ -858,13 +858,13 @@ class FileController {
         actions: [
           dialogButton(
             "Cancel",
-            icon: Icon(BdIcons.close),
+            icon: Icon(NdIcons.close),
             onPressed: cancel,
             isOutline: true,
           ),
           dialogButton(
             "OK",
-            icon: Icon(BdIcons.check),
+            icon: Icon(NdIcons.check),
             onPressed: submit,
           ),
         ],
@@ -956,13 +956,13 @@ class FileController {
         actions: [
           dialogButton(
             "Cancel",
-            icon: Icon(BdIcons.close),
+            icon: Icon(NdIcons.close),
             onPressed: close,
             isOutline: true,
           ),
           dialogButton(
             "OK",
-            icon: Icon(BdIcons.check),
+            icon: Icon(NdIcons.check),
             onPressed: submit,
           ),
         ],

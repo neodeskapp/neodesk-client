@@ -12,7 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 import '../../common.dart';
-import '../../common/theme/bd_theme.dart';
+import '../../common/theme/nd_theme.dart';
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/login.dart';
 import '../../consts.dart';
@@ -393,7 +393,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           Offstage(
                   offstage: !_onlyWhiteList,
                   child: Icon(Icons.warning_amber_rounded,
-                      color: context.bd.warning))
+                      color: context.nd.warning))
               .marginOnly(left: 5)
         ]),
         initialValue: _onlyWhiteList,
@@ -416,7 +416,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           Offstage(
                   offstage: !_onlyIdWhiteList,
                   child: Icon(Icons.warning_amber_rounded,
-                      color: context.bd.warning))
+                      color: context.nd.warning))
               .marginOnly(left: 5)
         ]),
         initialValue: _onlyIdWhiteList,
@@ -1305,7 +1305,7 @@ class __ManageTrustedDevicesState extends State<_ManageTrustedDevices> {
         centerTitle: true,
         actions: [
           Obx(() => IconButton(
-              icon: Icon(Icons.delete, color: context.bd.text),
+              icon: Icon(Icons.delete, color: context.nd.text),
               onPressed: selectedDevices.isEmpty
                   ? null
                   : () {

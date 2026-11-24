@@ -3,12 +3,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:get/get.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 const double _kColumn1Width = 30;
 const double _kColumn4Width = 100;
@@ -134,19 +134,19 @@ class _PortForwardPageState extends State<PortForwardPage>
           offstage: pfs.isEmpty && !widget.isRDP,
           child: Container(
               height: 45,
-              color: context.bd.noticeBg(context.bd.success),
+              color: context.nd.noticeBg(context.nd.success),
               child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       translate('Listening ...'),
-                      style: TextStyle(fontSize: 16, color: context.bd.success),
+                      style: TextStyle(fontSize: 16, color: context.nd.success),
                     ),
                     Text(
                       translate('not_close_tcp_tip'),
                       style: TextStyle(
                           fontSize: 10,
-                          color: context.bd.textMuted,
+                          color: context.nd.textMuted,
                           height: 1.2),
                     )
                   ])).marginOnly(bottom: 8),
@@ -202,7 +202,7 @@ class _PortForwardPageState extends State<PortForwardPage>
             controller: localPortController,
             inputFormatters: portInputFormatter),
         const SizedBox(
-            width: _kColumn1Width, child: Icon(BdIcons.arrowForward)),
+            width: _kColumn1Width, child: Icon(NdIcons.arrowForward)),
         buildTunnelInputCell(context,
             controller: remoteHostController, hint: 'localhost'),
         buildTunnelInputCell(context,
@@ -262,7 +262,7 @@ class _PortForwardPageState extends State<PortForwardPage>
       height: _kRowHeight,
       decoration: BoxDecoration(
           color: index % 2 == 0
-              ? context.bd.bgSubtle
+              ? context.nd.bgSubtle
               : Theme.of(context).colorScheme.background),
       child: Row(children: [
         text(pf.localPort.toString()),
@@ -272,7 +272,7 @@ class _PortForwardPageState extends State<PortForwardPage>
         SizedBox(
           width: _kColumn4Width,
           child: IconButton(
-            icon: const Icon(BdIcons.close),
+            icon: const Icon(NdIcons.close),
             onPressed: () async {
               await bind.sessionRemovePortForward(
                   sessionId: _ffi.sessionId, localPort: pf.localPort);
@@ -344,7 +344,7 @@ class _PortForwardPageState extends State<PortForwardPage>
                   ),
                   const SizedBox(
                       width: _kColumn1Width,
-                      child: Icon(BdIcons.arrowForward)),
+                      child: Icon(NdIcons.arrowForward)),
                   text2('localhost'),
                   text2('RDP'),
                 ]),

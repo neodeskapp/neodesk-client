@@ -2,8 +2,8 @@
 """Fails when a colour value is written into Dart code outside the theme file.
 
 Every colour of the client comes from the tokens in
-lib/common/theme/bd_theme.dart (BdColors): context.bd.<token> in widgets,
-bdColors.<token> where no BuildContext is at hand. This keeps light, dark and
+lib/common/theme/nd_theme.dart (NdColors): context.nd.<token> in widgets,
+ndColors.<token> where no BuildContext is at hand. This keeps light, dark and
 a server's accent working on every screen.
 
 Flagged in lib/**/*.dart, except the theme file and generated code:
@@ -20,7 +20,7 @@ import re
 import sys
 
 ALLOWED_FILES = {
-    "lib/common/theme/bd_theme.dart",
+    "lib/common/theme/nd_theme.dart",
 }
 GENERATED = re.compile(r"(generated_bridge.*|.*\.g|.*\.freezed|generated_plugin_registrant)\.dart$")
 PATTERN = re.compile(
@@ -76,8 +76,8 @@ def scan(root):
 def main():
     findings = scan(flutter_root())
     if findings:
-        print("Colour values outside lib/common/theme/bd_theme.dart.")
-        print("Use a BdColors token instead (context.bd.<token> or bdColors.<token>):")
+        print("Colour values outside lib/common/theme/nd_theme.dart.")
+        print("Use an NdColors token instead (context.nd.<token> or ndColors.<token>):")
         for f in findings:
             print("  " + f)
         print(f"{len(findings)} finding(s).")

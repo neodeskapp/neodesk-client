@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart' show translate;
-import 'package:flutter_hbb/common/widgets/bd/bd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 const fernAccent = '#3aa35c';
@@ -19,31 +19,31 @@ Widget mainTitleBar({
   bool settingsOpen = false,
   bool branded = false,
 }) {
-  return BdTitleBar(
+  return NdTitleBar(
     brand: branded
-        ? BdTitleBrand(serverLogo: fernLogo(), serverName: fernCompany)
-        : BdTitleBrand(wordmark: !settingsOpen),
+        ? NdTitleBrand(serverLogo: fernLogo(), serverName: fernCompany)
+        : NdTitleBrand(wordmark: !settingsOpen),
     tabs: settingsOpen
         ? [
-            BdWindowTab(label: translate('Home'), icon: BdIcons.home),
-            BdWindowTab(
+            NdWindowTab(label: translate('Home'), icon: NdIcons.home),
+            NdWindowTab(
                 label: translate('Settings'),
-                icon: BdIcons.settings,
+                icon: NdIcons.settings,
                 selected: true,
                 onClose: () {}),
           ]
         : const [],
     actions: settingsOpen
         ? const []
-        : [BdTitleBarText(label: translate('Settings'), onTap: () {})],
-    controls: BdWindowControls(
+        : [NdTitleBarText(label: translate('Settings'), onTap: () {})],
+    controls: NdWindowControls(
         onMinimize: () {}, onMaximize: () {}, onClose: () {}),
   );
 }
 
 Widget mainWindow(Widget page,
         {bool settingsOpen = false, bool branded = false}) =>
-    BdWindowFrame(
+    NdWindowFrame(
       titleBar: mainTitleBar(settingsOpen: settingsOpen, branded: branded),
       child: page,
     );
@@ -52,7 +52,7 @@ Widget mainWindow(Widget page,
 Widget withDialog(BuildContext context, Widget page, Widget dialog) => Stack(
       children: [
         page,
-        Positioned.fill(child: ColoredBox(color: context.bd.scrim)),
+        Positioned.fill(child: ColoredBox(color: context.nd.scrim)),
         Positioned.fill(child: Center(child: dialog)),
       ],
     );

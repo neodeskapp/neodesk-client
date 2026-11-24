@@ -5,7 +5,7 @@ import 'dart:ui' as ui;
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
-import 'package:flutter_hbb/common/theme/bd_theme.dart';
+import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/common/shared_state.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/input_model.dart';
@@ -22,7 +22,7 @@ import 'package:bot_toast/bot_toast.dart';
 
 import '../../common/widgets/dialog.dart';
 import '../../models/platform_model.dart';
-import 'package:flutter_hbb/common/widgets/bd/bd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class _MenuTheme {
   static Color get blueColor => MyTheme.button;
@@ -44,8 +44,8 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
   final tabController =
       Get.put(DesktopTabController(tabType: DesktopTabType.remoteScreen));
   final contentKey = UniqueKey();
-  static const IconData selectedIcon = BdIcons.desktopWindows;
-  static const IconData unselectedIcon = BdIcons.desktopWindows;
+  static const IconData selectedIcon = NdIcons.desktopWindows;
+  static const IconData unselectedIcon = NdIcons.desktopWindows;
 
   String? peerId;
   bool _isScreenRectSet = false;
@@ -596,17 +596,17 @@ class _RelativeMouseModeHint extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         margin: const EdgeInsets.only(right: 8),
         decoration: BoxDecoration(
-          color: context.bd.warning.withOpacity(0.2),
+          color: context.nd.warning.withOpacity(0.2),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: context.bd.warning.withOpacity(0.5)),
+          border: Border.all(color: context.nd.warning.withOpacity(0.5)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              BdIcons.mouse,
+              NdIcons.mouse,
               size: 14,
-              color: context.bd.warning,
+              color: context.nd.warning,
             ),
             const SizedBox(width: 4),
             Text(
@@ -614,7 +614,7 @@ class _RelativeMouseModeHint extends StatelessWidget {
                   'rel-mouse-exit-{${isMacOS ? "Cmd+G" : "Ctrl+Alt"}}-tip'),
               style: TextStyle(
                 fontSize: 11,
-                color: context.bd.warning,
+                color: context.nd.warning,
               ),
             ),
           ],
