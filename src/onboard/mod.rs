@@ -514,10 +514,16 @@ fn join_with(console: Option<Console>, code: &str) -> Result<Joined, OnboardErro
         s.server = Some(console.host.clone());
         s.clear_error();
     });
-    let device = DeviceIdentity::of_this_device(crate::ipc::get_id(), true);
+    // The server process's ID, which it signs the join with (L483)
+    let device_id = crate::ipc::get_id();
+    let from_server_process = block_on(crate::ipc::pairing_proof(
+        crate::hbbs_http::pairing_proof::JOIN_PATH,
+    ))
+    .flatten();
+    let (device, proof) = DeviceIdentity::for_join(device_id, from_server_process);
     let joined = block_on(async {
         let http = http::Http::new(console).await?;
-        join::redeem_join(&http, code, &device).await
+        join::redeem_join(&http, code, &device, &proof).await
     })
     .unwrap_or(Err(OnboardError::Server(0)))?;
     STATE.update(|s| s.join_step = 1);
@@ -748,7 +754,7 @@ struct AppHost;
 
 impl support::SupportHost for AppHost {
     fn device(&self) -> DeviceIdentity {
-        DeviceIdentity::of_this_device(Config::get_id(), false)
+        DeviceIdentity::of_this_device(Config::get_id())
     }
 
     fn apply_server(&self, server: &ServerSettings) {

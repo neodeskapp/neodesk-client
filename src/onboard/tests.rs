@@ -203,7 +203,7 @@ fn join_sends_the_device_and_reads_the_answer() {
 
     let joined = block_on(async {
         let http = Http::new(console.console()).await?;
-        redeem_join(&http, "ABCDEF23", &device()).await
+        redeem_join(&http, "ABCDEF23", &device(), &[]).await
     })
     .unwrap();
     assert_eq!(joined.server.id_server, "desk.example.com");
@@ -229,7 +229,7 @@ fn join_sends_the_device_and_reads_the_answer() {
 
     let wrong = block_on(async {
         let http = Http::new(console.console()).await?;
-        redeem_join(&http, "ZZZZZZZZ", &device()).await
+        redeem_join(&http, "ZZZZZZZZ", &device(), &[]).await
     });
     assert_eq!(wrong, Err(OnboardError::InvalidOrExpired));
 }
@@ -245,7 +245,7 @@ fn a_join_refused_for_its_key_keeps_the_servers_words_and_the_invite() {
     });
     let err = block_on(async {
         let http = Http::new(console.console()).await?;
-        redeem_join(&http, "ABCDEF23", &device()).await
+        redeem_join(&http, "ABCDEF23", &device(), &[]).await
     })
     .unwrap_err();
 
@@ -284,7 +284,7 @@ fn a_console_that_does_not_answer_is_unreachable() {
     };
     let result = block_on(async {
         let http = Http::new(console).await?;
-        redeem_join(&http, "ABCDEF23", &device()).await
+        redeem_join(&http, "ABCDEF23", &device(), &[]).await
     });
     assert_eq!(result, Err(OnboardError::Unreachable));
 }
@@ -301,7 +301,7 @@ fn a_link_without_http_1_never_talks_plain_http() {
     assert!(https.https);
     let result = block_on(async {
         let http = Http::new(https).await?;
-        redeem_join(&http, "ABCDEF23", &device()).await
+        redeem_join(&http, "ABCDEF23", &device(), &[]).await
     });
     assert!(result.is_err(), "{result:?}");
     // The fake console speaks plain HTTP only; it must not have seen one
@@ -884,10 +884,150 @@ fn the_packed_exe_name_carries_the_invite() {
     assert_eq!(super::started_file(Some(extracted), Some("")), Some(extracted));
 }
 
+const PROOF_HEADERS: [&str; 3] = [
+    "x-nd-enrollment-timestamp",
+    "x-nd-enrollment-nonce",
+    "x-nd-enrollment-signature",
+];
+
+/// A console that lets every join in.
+fn joining_console() -> FakeConsole {
+    FakeConsole::start(|request| match (request.method.as_str(), request.path.as_str()) {
+        ("POST", "/api/onboard/join") => (
+            200,
+            json!({
+                "success": true,
+                "server": server_answer(),
+                "device_token": "ab".repeat(32),
+                "device": {"id": "123456789", "name": "", "folder_id": null},
+                "console": "http://127.0.0.1",
+            }),
+        ),
+        _ => (405, Value::Null),
+    })
+}
+
+/// Sends a join for `device` with `proof` to a console and returns the
+/// request the console read.
+fn sent_join(device: &DeviceIdentity, proof: &[(String, String)]) -> Request {
+    let console = joining_console();
+    block_on(async {
+        let http = Http::new(console.console()).await?;
+        redeem_join(&http, "ABCDEF23", device, proof).await
+    })
+    .unwrap();
+    let mut sent = console.requests_to("/api/onboard/join");
+    assert_eq!(sent.len(), 1);
+    sent.remove(0)
+}
+
+/// Checks a join's key proof the way the console does: the signature
+/// verifies with the body's public key over the nd-enrollment-v1 payload of
+/// the request's method, path and the body's device ID.
+fn proof_verifies(request: &Request) -> bool {
+    use hbb_common::sodiumoxide::crypto::sign;
+    let header = |name: &str| request.headers.get(name).cloned().unwrap_or_default();
+    let body = |key: &str| request.body[key].as_str().unwrap_or("").to_owned();
+    let Some(public_key) = crate::decode64(body("public_key"))
+        .ok()
+        .and_then(|key| sign::PublicKey::from_slice(&key))
+    else {
+        return false;
+    };
+    let Some(signature) = crate::decode64(header("x-nd-enrollment-signature"))
+        .ok()
+        .and_then(|bytes| sign::Signature::from_bytes(&bytes).ok())
+    else {
+        return false;
+    };
+    let payload = crate::hbbs_http::enrollment::proof_payload(
+        &request.method,
+        &request.path,
+        &body("device_id"),
+        &body("public_key"),
+        &header("x-nd-enrollment-timestamp"),
+        &header("x-nd-enrollment-nonce"),
+    );
+    sign::verify_detached(&signature, payload.as_bytes(), &public_key)
+}
+
+// The server refuses a join for a device ID it knows unless the request
+// proves the key it holds for the ID (L483). The device's server process
+// makes the proof; the join sends it with that process's key.
+#[test]
+fn a_join_proves_the_key_its_body_sends() {
+    use hbb_common::sodiumoxide::crypto::sign;
+    const TIMESTAMP: &str = "2026-11-25T10:00:00Z";
+    const NONCE: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+    let (public, secret) = sign::keypair_from_seed(&sign::Seed([7; 32]));
+    let service_key = crate::encode64(public.0);
+    let service_proof: Vec<(String, String)> = crate::hbbs_http::enrollment::proof_headers(
+        "POST",
+        "/api/onboard/join",
+        "123456789",
+        &public.0,
+        &secret.0,
+        TIMESTAMP,
+        NONCE,
+    )
+    .unwrap()
+    .into_iter()
+    .map(|(name, value)| (name.to_owned(), value))
+    .collect();
+
+    let (device, proof) = DeviceIdentity::for_join(
+        "123456789".to_owned(),
+        Some((service_key.clone(), service_proof.clone())),
+    );
+    assert_eq!(device.device_id, "123456789");
+    assert_eq!(
+        device.public_key.as_deref(),
+        Some(service_key.as_str()),
+        "the join does not send the key the server process proved"
+    );
+    assert_eq!(proof, service_proof);
+
+    let sent = sent_join(&device, &proof);
+    for name in PROOF_HEADERS {
+        assert!(sent.headers.contains_key(name), "the join went out without {name}");
+    }
+    assert_eq!(sent.headers["x-nd-enrollment-timestamp"], TIMESTAMP);
+    assert_eq!(sent.headers["x-nd-enrollment-nonce"], NONCE);
+    assert_eq!(sent.path, "/api/onboard/join");
+    assert_eq!(sent.body["device_id"], "123456789");
+    assert_eq!(sent.body["public_key"], json!(service_key));
+    assert!(proof_verifies(&sent), "the join's proof does not verify");
+}
+
+// A client that runs its server in the window's process (not installed)
+// holds the device's key and signs the join itself.
+#[test]
+fn a_join_without_a_server_process_is_signed_with_the_key_of_this_process() {
+    use crate::ipc::device_key_tests::*;
+    let _lock = DEVICE_KEY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
+    let _files = ConfigFilesGuard::new();
+    let (_, public) = own_key_pair();
+
+    // No server process answers in this test
+    let (device, proof) = DeviceIdentity::for_join("123456789".to_owned(), None);
+    assert_eq!(device.public_key, Some(crate::encode64(&public)));
+    assert!(!proof.is_empty(), "the holder of the key sent its join unproved");
+
+    let sent = sent_join(&device, &proof);
+    for name in PROOF_HEADERS {
+        assert!(sent.headers.contains_key(name), "the join went out without {name}");
+    }
+    assert_eq!(sent.body["public_key"], json!(crate::encode64(&public)));
+    assert!(proof_verifies(&sent), "the join's proof does not verify");
+}
+
 // The window of an installed client does not hold the device's secrets (L442).
 // When no server process answers, its join sends the service's public key it
 // learned earlier, or none: never a key of the window's own, which nobody
 // signs with (L438), and never the copy an older version left in the profile.
+// It sends no proof either; the server then refuses an ID it knows (L483).
 #[test]
 fn a_join_from_a_window_without_the_device_key_sends_no_key_of_its_own() {
     use crate::ipc::device_key_tests::*;
@@ -900,15 +1040,28 @@ fn a_join_from_a_window_without_the_device_key_sends_no_key_of_its_own() {
     let _not_holder = NotSecretsHolder::new();
 
     // No server process answers in this test
-    let device = DeviceIdentity::of_this_device("123456789".to_owned(), true);
+    let (device, proof) = DeviceIdentity::for_join("123456789".to_owned(), None);
     assert!(
         device.public_key.is_none(),
         "the join sent a key no server process signs with"
     );
+    assert!(proof.is_empty(), "the window signed the join");
+    let sent = sent_join(&device, &proof);
+    for name in PROOF_HEADERS {
+        assert!(!sent.headers.contains_key(name), "the window sent {name}");
+    }
+    assert!(sent.body.get("public_key").is_none());
+
     let (_, service_public) = test_key_pair();
     hbb_common::config::Config::set_holder_public_key(service_public.clone());
-    let device = DeviceIdentity::of_this_device("123456789".to_owned(), true);
+    let (device, proof) = DeviceIdentity::for_join("123456789".to_owned(), None);
     assert_eq!(device.public_key, Some(crate::encode64(&service_public)));
+    assert!(proof.is_empty(), "the window signed the join");
+    let sent = sent_join(&device, &proof);
+    for name in PROOF_HEADERS {
+        assert!(!sent.headers.contains_key(name), "the window sent {name}");
+    }
+    assert_eq!(sent.body["public_key"], json!(crate::encode64(&service_public)));
     assert!(
         reveals(&key_pair_of_file(), &legacy.0),
         "the join changed the key pair in the profile"

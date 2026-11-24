@@ -136,21 +136,31 @@ pub fn public_key_b64() -> Option<String> {
 }
 
 /// This process's public key and key proof for a request another process
-/// of this client sends in the device's name, for the pairing request
-/// only (pairing_proof.rs). None for any other request or without a usable
-/// key pair.
+/// of this client sends in the device's name, for the pairing request and
+/// the join only (pairing_proof.rs). None for any other request or without
+/// a usable key pair.
 pub fn proof_for_others(method: &str, path: &str) -> Option<(String, Vec<(String, String)>)> {
     if !super::pairing_proof::signs_for_others(method, path) {
         return None;
     }
-    let device_id = hbb_common::config::Config::get_id();
+    own_proof(method, path, &hbb_common::config::Config::get_id())
+}
+
+/// This process's public key (base64) and key proof (current time, fresh
+/// nonce) for a request at `path` in the name of `device_id`. None without
+/// a usable key pair, as in a process that does not hold the device's key.
+pub fn own_proof(
+    method: &str,
+    path: &str,
+    device_id: &str,
+) -> Option<(String, Vec<(String, String)>)> {
     let (secret_key, public_key) = hbb_common::config::Config::get_key_pair();
     let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let nonce = hex::encode(randombytes::randombytes(NONCE_BYTES));
     let headers = proof_headers(
         method,
         path,
-        &device_id,
+        device_id,
         &public_key,
         &secret_key,
         &timestamp,
