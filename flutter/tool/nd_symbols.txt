@@ -48,7 +48,6 @@ delete delete
 deleteForever delete_forever
 description description
 desktopWindows desktop_windows
-devices devices
 dragHandle drag_handle
 dragIndicator drag_indicator
 dragPan drag_pan

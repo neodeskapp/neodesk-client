@@ -45,7 +45,9 @@ Widget _home({
           : null,
     );
     final list = empty
-        ? PeerListEmpty(text: tr('nd-home-empty-recent'))
+        ? PeerListEmpty(
+            text: tr('nd-home-empty-recent'),
+            hint: tr('nd-home-empty-recent-hint'))
         : Column(children: [
             for (var i = 0; i < _rows.length; i++)
               NdPeerRow(

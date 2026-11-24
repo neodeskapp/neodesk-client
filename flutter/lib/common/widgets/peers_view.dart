@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 
 import 'package:dynamic_layouts/dynamic_layouts.dart';
 import 'package:flutter/foundation.dart';
@@ -17,7 +16,8 @@ import '../../common.dart';
 import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
 import 'peer_card.dart';
-import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart'
+    show PeerListEmpty;
 
 typedef PeerFilter = bool Function(Peer peer);
 typedef PeerCardBuilder = Widget Function(Peer peer);
@@ -68,40 +68,28 @@ RxList<RxString> get obslist => [peerSearchText, peerSort].obs;
 final peerSearchTextController =
     TextEditingController(text: peerSearchText.value);
 
-/// The glyph of an empty list: its tab's (PeerTabModel.icons).
-const peersEmptyIcons = <String, IconData>{
-  LoadEvent.recent: NdIcons.history,
-  LoadEvent.favorite: NdIcons.star,
-  LoadEvent.lan: NdIcons.lan,
-  LoadEvent.addressBook: NdIcons.contacts,
-  LoadEvent.group: NdIcons.groups,
+/// What an empty list says: a sentence and what to do, per list.
+const peersEmptyTexts = <String, (String, String)>{
+  LoadEvent.recent: ('nd-home-empty-recent', 'nd-home-empty-recent-hint'),
+  LoadEvent.favorite: (
+    'nd-home-empty-favourites',
+    'nd-home-empty-favourites-hint'
+  ),
+  LoadEvent.lan: ('nd-home-empty-network', 'nd-home-empty-network-hint'),
+  LoadEvent.addressBook: (
+    'nd-home-empty-address-book',
+    'nd-home-empty-address-book-hint'
+  ),
+  LoadEvent.group: ('nd-home-empty-devices', 'nd-home-empty-devices-hint'),
 };
 
-/// An empty peer list: the list's glyph, muted, over its text.
-class PeersEmpty extends StatelessWidget {
-  const PeersEmpty({super.key, required this.icon, required this.text});
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: context.nd.textMuted, size: 40)
-              .paddingOnly(bottom: 10),
-          Text(
-            text,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Theme.of(context).tabBarTheme.labelColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+/// The empty list of [loadEvent]: muted text only, as in the console.
+Widget peersEmpty(String loadEvent) {
+  final texts = peersEmptyTexts[loadEvent];
+  return PeerListEmpty(
+    text: translate(texts?.$1 ?? 'Empty'),
+    hint: texts == null ? null : translate(texts.$2),
+  );
 }
 
 class _PeersView extends StatefulWidget {
@@ -126,12 +114,6 @@ class _PeersView extends StatefulWidget {
 class _PeersViewState extends State<_PeersView>
     with WindowListener, WidgetsBindingObserver {
   static const int _maxQueryCount = 3;
-  final HashMap<String, String> _emptyMessages = HashMap.from({
-    LoadEvent.recent: 'empty_recent_tip',
-    LoadEvent.favorite: 'empty_favorite_tip',
-    LoadEvent.lan: 'empty_lan_tip',
-    LoadEvent.addressBook: 'empty_address_book_tip',
-  });
   final space = (isDesktop || isWebDesktop) ? 12.0 : 8.0;
   final _curPeers = <String>{};
   var _lastChangeTime = DateTime.now();
@@ -224,12 +206,7 @@ class _PeersViewState extends State<_PeersView>
       child: Consumer<Peers>(builder: (context, peers, child) {
         if (peers.peers.isEmpty) {
           gFFI.peerTabModel.setCurrentTabCachedPeers([]);
-          return PeersEmpty(
-            icon: peersEmptyIcons[widget.peers.loadEvent] ?? NdIcons.devices,
-            text: translate(
-              _emptyMessages[widget.peers.loadEvent] ?? 'Empty',
-            ),
-          );
+          return peersEmpty(widget.peers.loadEvent);
         } else {
           return _buildPeersView(peers);
         }

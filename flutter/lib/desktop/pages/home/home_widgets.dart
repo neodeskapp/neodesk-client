@@ -610,15 +610,19 @@ class PeerListHeader<T> extends StatelessWidget {
   }
 }
 
-/// A sentence in place of an empty list.
+/// A sentence in place of an empty list, muted as in the console, and a
+/// second line ([hint]) that says what to do.
 class PeerListEmpty extends StatelessWidget {
-  const PeerListEmpty({super.key, required this.text, this.action});
+  const PeerListEmpty(
+      {super.key, required this.text, this.hint, this.action});
   final String text;
+  final String? hint;
   final Widget? action;
 
   @override
   Widget build(BuildContext context) {
     final t = context.ndText;
+    final style = t.body.copyWith(color: context.nd.textMuted);
     return Padding(
       padding: const EdgeInsets.only(top: 24),
       child: Column(
@@ -626,8 +630,13 @@ class PeerListEmpty extends StatelessWidget {
         children: [
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
-            child: Text(text, style: t.body.copyWith(color: context.nd.textMuted)),
+            child: Text(text, style: style),
           ),
+          if (hint != null)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Text(hint!, style: style),
+            ),
           if (action != null) ...[const SizedBox(height: 12), action!],
         ],
       ),
