@@ -180,6 +180,39 @@ class _WinButtonState extends State<NdWinButton> {
   }
 }
 
+/// The free part of a custom title bar. All of it moves the window, also
+/// where nothing is drawn (the gap between the brand and the buttons), and
+/// takes taps for a double click to maximise. Widgets inside it that handle
+/// taps themselves (tabs) keep them.
+class NdTitleDragArea extends StatelessWidget {
+  const NdTitleDragArea({
+    super.key,
+    required this.onDragStart,
+    this.onTap,
+    this.onDragCancel,
+    this.onDragEnd,
+    required this.child,
+  });
+
+  final VoidCallback onDragStart;
+  final VoidCallback? onTap;
+  final VoidCallback? onDragCancel;
+  final VoidCallback? onDragEnd;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      onPanStart: (_) => onDragStart(),
+      onPanCancel: onDragCancel,
+      onPanEnd: onDragEnd == null ? null : (_) => onDragEnd!(),
+      child: child,
+    );
+  }
+}
+
 /// The 40 px title bar: brand at the start, tabs when more than one page is
 /// open, then [actions] and the window controls.
 class NdTitleBar extends StatelessWidget {

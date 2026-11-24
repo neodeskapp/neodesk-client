@@ -644,7 +644,7 @@ class _DesktopTabState extends State<DesktopTab>
     return Row(
       children: [
         Expanded(
-            child: GestureDetector(
+            child: NdTitleDragArea(
                 // custom double tap handler
                 onTap: !isIncomingHomePage && showMaximize
                     ? () {
@@ -658,15 +658,15 @@ class _DesktopTabState extends State<DesktopTab>
                         }
                       }
                     : (isIncomingHomePage ? () {} : null), // Keep tap recognizer for Windows touch.
-                onPanStart: (_) => startDragging(isMainWindow),
-                onPanCancel: () {
+                onDragStart: () => startDragging(isMainWindow),
+                onDragCancel: () {
                   // We want to disable dragging of the tab area in the tab bar.
                   // Disable dragging is needed because macOS handles dragging by default.
                   if (isMacOS) {
                     setMovable(isMainWindow, false);
                   }
                 },
-                onPanEnd: (_) {
+                onDragEnd: () {
                   if (isMacOS) {
                     setMovable(isMainWindow, false);
                   }
