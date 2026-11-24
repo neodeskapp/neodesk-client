@@ -305,8 +305,8 @@ class ConnectionManagerState extends State<ConnectionManager>
       child: Row(
         children: [
           Expanded(
-            child: GestureDetector(
-              onPanStart: (d) => windowManager.startDragging(),
+            child: NdTitleDragArea(
+              onDragStart: () => windowManager.startDragging(),
               child: Padding(
                 padding: const EdgeInsets.only(left: 14),
                 child: Align(
