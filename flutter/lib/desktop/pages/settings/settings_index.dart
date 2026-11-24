@@ -23,6 +23,43 @@ class SettingsIndexEntry {
   final String os;
 }
 
+/// The system the settings page runs on, as the index's os field names it.
+class SettingsSystem {
+  const SettingsSystem(
+      {required this.os, this.installed = false, this.wayland = false});
+
+  /// 'windows', 'macos' or 'linux'.
+  final String os;
+  final bool installed;
+  final bool wayland;
+}
+
+/// Whether the page shows [e] on [system], so the search lists it there.
+/// The os field names systems ("Windows", "Windows and macOS", "Linux")
+/// and conditions ("installed", "with Wayland"); empty is everywhere.
+bool settingsEntryShows(SettingsIndexEntry e, SettingsSystem system) {
+  final os = e.os.toLowerCase();
+  if (os.isEmpty) return true;
+  final systems = [
+    for (final s in ['windows', 'macos', 'linux'])
+      if (os.contains(s)) s
+  ];
+  if (systems.isNotEmpty && !systems.contains(system.os)) return false;
+  if (os.contains('installed') && !system.installed) return false;
+  if (os.contains('wayland') && !system.wayland) return false;
+  return true;
+}
+
+/// The description key of [e] in the search, for the computer's state:
+/// Set permanent password says whether one is set, as its dialog does.
+String settingsEntryDesc(SettingsIndexEntry e,
+    {required bool permanentPasswordSet}) {
+  if (e.label == 'Set permanent password' && permanentPasswordSet) {
+    return 'password-hidden-tip';
+  }
+  return e.desc;
+}
+
 const kSettingsIndex = <SettingsIndexEntry>[
   SettingsIndexEntry('general', 'nd-sec-language-and-look', 'Language', 'nd-desc:Language', 'select', false, 'System (English)', ['System (English)', 'every language the client has'], ''),
   SettingsIndexEntry('general', 'nd-sec-language-and-look', 'Theme', 'nd-desc:Theme', 'seg', false, '2', ['Light', 'Dark', 'System'], ''),
@@ -51,7 +88,7 @@ const kSettingsIndex = <SettingsIndexEntry>[
   SettingsIndexEntry('security', 'Permissions', 'Enable remote restart', 'nd-desc:Enable remote restart', 'switch', true, '', [], ''),
   SettingsIndexEntry('security', 'Permissions', 'Enable recording session', 'nd-desc:Enable recording session', 'switch', true, '', [], ''),
   SettingsIndexEntry('security', 'Permissions', 'Enable blocking user input', 'nd-desc:Enable blocking user input', 'switch', true, '', [], 'Windows'),
-  SettingsIndexEntry('security', 'Permissions', 'Enable privacy mode', 'nd-desc:Enable privacy mode', 'switch', true, '', [], ''),
+  SettingsIndexEntry('security', 'Permissions', 'Enable privacy mode', 'nd-desc:Enable privacy mode', 'switch', true, '', [], 'Windows and macOS'),
   SettingsIndexEntry('security', 'Permissions', 'Enable remote configuration modification', 'nd-desc:Enable remote configuration modification', 'switch', false, '', [], ''),
   SettingsIndexEntry('security', 'Permissions', 'Enable application activity telemetry (opt-in)', 'nd-desc:nd-set-row-share-app-activity-with-the-server', 'switch', false, '', [], ''),
   SettingsIndexEntry('security', 'Password', 'Accept sessions via password', 'nd-desc:nd-set-row-how-someone-gets-in', 'select', false, 'Accept sessions via password', ['Accept sessions via password', 'Accept sessions via click', 'Accept sessions via both'], ''),

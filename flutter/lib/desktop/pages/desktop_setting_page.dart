@@ -189,6 +189,26 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
   final _search = TextEditingController();
   final _query = ''.obs;
 
+  /// Whether a permanent password is set, for its search hit; read when a
+  /// search starts.
+  final _passwordSet = false.obs;
+
+  void _onSearch(String v) {
+    if (_query.value.isEmpty && v.isNotEmpty) {
+      bind
+          .mainGetCommon(key: 'permanent-password-set')
+          .then((s) => _passwordSet.value = s == 'true');
+    }
+    _query.value = v;
+  }
+
+  /// This computer, as the settings index names systems (L465).
+  SettingsSystem get _system => SettingsSystem(
+        os: isWindows ? 'windows' : (isMacOS ? 'macos' : 'linux'),
+        installed: !isWeb && bind.mainIsInstalled(),
+        wayland: isLinux && bind.mainCurrentIsWayland(),
+      );
+
   String _groupLabel(SettingsTabKey key) {
     switch (key) {
       case SettingsTabKey.general:
@@ -285,11 +305,15 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
   List<SettingsSearchHit> _hits(String q) {
     final query = q.trim().toLowerCase();
     final hits = <SettingsSearchHit>[];
+    final system = _system;
     for (final e in kSettingsIndex) {
       final key = _keyOfGroup(e.group);
       if (key == null || !DesktopSettingPage.tabKeys.contains(key)) continue;
+      if (!settingsEntryShows(e, system)) continue;
       final label = translate(e.label);
-      final desc = translateOrNull(e.desc) ?? '';
+      final desc = translateOrNull(settingsEntryDesc(e,
+              permanentPasswordSet: _passwordSet.value)) ??
+          '';
       if (!label.toLowerCase().contains(query) &&
           !desc.toLowerCase().contains(query)) {
         continue;
@@ -339,7 +363,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
             placeholder: tr('nd-set-search'),
             controller: _search,
             height: 32,
-            onChanged: (v) => _query.value = v,
+            onChanged: _onSearch,
           ),
         ));
     return Scaffold(
