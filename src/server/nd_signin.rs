@@ -91,13 +91,10 @@ impl LogonState {
         }
     }
 
-    /// Whether a sign-in may be typed here
+    /// Whether a sign-in may be typed here: only while nobody is signed in
+    /// or the session is locked. The sign-in UI of an open session (the
+    /// Ctrl+Alt+Del screen) counts as an open desktop.
     pub fn at_sign_in_screen(self) -> bool {
-        self != Self::Desktop
-    }
-
-    /// Whether Ctrl+Alt+Del has to bring the credential field up first
-    fn needs_sas(self) -> bool {
         matches!(self, Self::Prelogin | Self::Locked)
     }
 }
@@ -304,7 +301,7 @@ type Refused = (Outcome, String, &'static str);
 /// order and refuses with the first failure: the packet opens, holds JSON
 /// of format 1 for this device and this connection's relay session (else
 /// bad_blob), its nonce is new (bad_blob), now is not past not_after
-/// (expired), the console is at a lock or sign-in screen
+/// (expired), nobody is signed in or the session is locked
 /// (not_at_lock_screen). A request that gets past the nonce check uses up
 /// its nonce, and one accepted request uses up the connection.
 pub fn accept(
@@ -435,26 +432,24 @@ pub trait SigninKeys {
     fn enter(&mut self);
 }
 
-/// Types an accepted request, once: Ctrl+Alt+Del where the screen needs
-/// it, then the text, Tab and Return per form. It checks the console
-/// again before each part and stops when it is no longer at a sign-in
-/// screen. The request is wiped when this returns.
+/// Types an accepted request, once: Ctrl+Alt+Del, then the text, Tab and
+/// Return per form. It checks the console again before each part and stops
+/// when nobody-signed-in or locked no longer holds. The request is wiped
+/// when this returns.
 pub fn type_signin(request: Request, keys: &mut dyn SigninKeys) -> Outcome {
     fn still_there(keys: &mut dyn SigninKeys) -> bool {
         keys.logon_state()
             .map_or(false, LogonState::at_sign_in_screen)
     }
-    let Some(state) = keys.logon_state().filter(|s| s.at_sign_in_screen()) else {
+    if !still_there(keys) {
         log::info!("saved sign-in not typed: no longer at a sign-in screen");
         return Outcome::NotAtLockScreen;
-    };
-    if state.needs_sas() {
-        keys.sas();
-        keys.sleep(SAS_WAIT_MS);
-        if !still_there(keys) {
-            log::info!("saved sign-in not typed: left the sign-in screen after Ctrl+Alt+Del");
-            return Outcome::NotAtLockScreen;
-        }
+    }
+    keys.sas();
+    keys.sleep(SAS_WAIT_MS);
+    if !still_there(keys) {
+        log::info!("saved sign-in not typed: left the sign-in screen after Ctrl+Alt+Del");
+        return Outcome::NotAtLockScreen;
     }
     if request.form == Form::NamePassword {
         keys.text(std::str::from_utf8(&request.username).unwrap_or_default());
@@ -559,7 +554,7 @@ mod tests {
         assert_eq!(names, ["prelogin", "locked", "logon_ui", "desktop"]);
         assert!(Prelogin.at_sign_in_screen());
         assert!(Locked.at_sign_in_screen());
-        assert!(LogonUi.at_sign_in_screen());
+        assert!(!LogonUi.at_sign_in_screen());
         assert!(!Desktop.at_sign_in_screen());
     }
 
@@ -779,7 +774,7 @@ mod tests {
     #[test]
     fn a_packet_is_typed_only_at_a_lock_or_sign_in_screen() {
         let packet = seal_json(&body());
-        for state in [Some(LogonState::Desktop), None] {
+        for state in [Some(LogonState::Desktop), Some(LogonState::LogonUi), None] {
             assert_eq!(
                 try_packet(&packet, state).unwrap_err(),
                 refusal(Outcome::NotAtLockScreen, NONCE),
@@ -1007,16 +1002,24 @@ mod tests {
     }
 
     #[test]
-    fn the_sign_in_ui_already_up_gets_no_ctrl_alt_del() {
+    fn the_sign_in_ui_of_an_open_session_is_not_typed_into() {
         use LogonState::*;
+        // The Ctrl+Alt+Del screen of a signed-in session
         let mut keys = FakeKeys::new(&[Some(LogonUi)]);
         assert_eq!(
-            type_signin(accepted("password", LogonUi), &mut keys),
-            Outcome::Typed
+            type_signin(accepted("password", Locked), &mut keys),
+            Outcome::NotAtLockScreen
+        );
+        assert_eq!(keys.steps, [Step::State]);
+        // Or the session left the lock screen for it after Ctrl+Alt+Del
+        let mut keys = FakeKeys::new(&[Some(Locked), Some(LogonUi)]);
+        assert_eq!(
+            type_signin(accepted("password", Locked), &mut keys),
+            Outcome::NotAtLockScreen
         );
         assert_eq!(
             keys.steps,
-            [Step::State, Step::Text(PASSWORD.into()), Step::Enter]
+            [Step::State, Step::Sas, Step::Sleep(SAS_WAIT_MS), Step::State]
         );
     }
 
