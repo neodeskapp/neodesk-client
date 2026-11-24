@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_hbb/desktop/pages/settings/server_status.dart';
 import 'package:flutter_hbb/desktop/pages/settings/settings_index.dart';
 import 'package:flutter_hbb/desktop/pages/settings/settings_widgets.dart';
 import 'package:flutter_hbb/onboarding/onboarding_flow.dart';
@@ -1609,17 +1610,31 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
     return Obx(() => _serverSummary(hideServer, handSetupSaved.value));
   }
 
-  Widget _serverSummary(bool hideServer, int _) {
-    return futureBuilder(
-      future: bind.mainGetOptions(),
-      hasData: (raw) {
-        Map<String, dynamic> options = {};
-        try {
-          options = jsonDecode(raw as String) as Map<String, dynamic>;
-        } catch (_) {}
+  /// The server options and the connect status, read as Home reads them.
+  static Future<ServerReading> _readServer() async {
+    Map<String, dynamic> options = {};
+    try {
+      options = jsonDecode(await bind.mainGetOptions()) as Map<String, dynamic>;
+    } catch (_) {}
+    var connected = false;
+    try {
+      final status =
+          jsonDecode(await bind.mainGetConnectStatus()) as Map<String, dynamic>;
+      connected = connectedOf(status);
+    } catch (_) {}
+    return ServerReading(options: options, connected: connected);
+  }
+
+  Widget _serverSummary(bool hideServer, int saved) {
+    return LiveServerReading(
+      // Read at once again after a hand setup.
+      key: ValueKey('server-summary-$saved'),
+      read: _readServer,
+      builder: (context, reading) {
+        final options = reading.options;
         final config = ServerConfig.fromOptions(options);
-        return Obx(() => ServerSummary(
-              connected: stateGlobal.svcStatus.value == SvcStatus.ready,
+        return ServerSummary(
+              connected: reading.connected,
               server: config.idServer,
               relay: config.relayServer,
               api: config.apiServer,
@@ -1654,7 +1669,7 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
                               ClipboardData(text: config.key)),
                         ),
                     ],
-            ));
+            );
       },
     );
   }
