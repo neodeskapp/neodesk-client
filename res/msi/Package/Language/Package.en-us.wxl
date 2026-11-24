@@ -110,6 +110,7 @@ This file contains the declaration of all the localizable strings.
 	<String Id="ResumeDlg_Title" Value="[ProductName] setup" />
 	<String Id="DiskCostDlg_Title" Value="[ProductName] setup" />
 	<String Id="InvalidDirDlg_Title" Value="[ProductName] setup" />
+	<String Id="ExitDialog_Title" Value="[ProductName] setup" />
 	<String Id="MsiRMFilesInUse_Title" Value="[ProductName] setup" />
 	<String Id="MsiRMFilesInUseTitle" Value="{\WixUI_Font_Title}[ProductName] is running" />
 	<String Id="MsiRMFilesInUseDescription" Value="Setup needs to replace files these programs use." />
