@@ -110,6 +110,16 @@ This file contains the declaration of all the localizable strings.
 	<String Id="ResumeDlg_Title" Value="[ProductName] setup" />
 	<String Id="DiskCostDlg_Title" Value="[ProductName] setup" />
 	<String Id="InvalidDirDlg_Title" Value="[ProductName] setup" />
+	<String Id="MsiRMFilesInUse_Title" Value="[ProductName] setup" />
+	<String Id="MsiRMFilesInUseTitle" Value="{\WixUI_Font_Title}[ProductName] is running" />
+	<String Id="MsiRMFilesInUseDescription" Value="Setup needs to replace files these programs use." />
+	<String Id="MsiRMFilesInUseText" Value="Setup can close them now and start them again when it is done. Otherwise Windows has to restart before the update is complete." />
+	<String Id="MsiRMFilesInUseUseRM" Value="&amp;Close them and start them again" />
+	<String Id="MsiRMFilesInUseDontUseRM" Value="&amp;Leave them running and restart Windows later" />
+	<String Id="FilesInUse_Title" Value="[ProductName] setup" />
+	<String Id="FilesInUseTitle" Value="{\WixUI_Font_Title}[ProductName] is running" />
+	<String Id="FilesInUseDescription" Value="Setup needs to replace files these programs use." />
+	<String Id="FilesInUseText" Value="Close these programs, then click Retry to go on, or Exit to stop setup." />
 
 	<!-- The finish page (UI/MyExitDlg.wxs). -->
 	<String Id="MyExitDialog_Title" Value="[ProductName] setup" />
