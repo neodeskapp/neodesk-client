@@ -207,9 +207,25 @@ impl Http {
         body: &Value,
         bearer: Option<&str>,
     ) -> Result<Answer, OnboardError> {
+        self.post_with_headers(path, body, bearer, &[]).await
+    }
+
+    /// A POST that also carries `headers`, such as a key proof.
+    pub async fn post_with_headers(
+        &self,
+        path: &str,
+        body: &Value,
+        bearer: Option<&str>,
+        headers: &[(String, String)],
+    ) -> Result<Answer, OnboardError> {
         let url = format!("{}{path}", self.console.base());
         let client = self.client().await?;
-        self.send(client.post(&url).json(body), bearer).await
+        let request = headers
+            .iter()
+            .fold(client.post(&url).json(body), |request, (name, value)| {
+                request.header(name.as_str(), value.as_str())
+            });
+        self.send(request, bearer).await
     }
 
     async fn send(

@@ -372,8 +372,9 @@ pub enum Data {
     Config((String, Option<String>)),
     Options(Option<HashMap<String, String>>),
     NatType(Option<i32>),
-    /// A pairing request's path, answered with the server process's public
-    /// key and key proof for it (hbbs_http/pairing_proof.rs).
+    /// The path of a pairing request or a join (both POST), answered with
+    /// the server process's public key and key proof for it
+    /// (hbbs_http/pairing_proof.rs); None for any other path.
     PairingProof((String, Option<(String, Vec<(String, String)>)>)),
     /// The device's secrets an older version left in the person's profile,
     /// handed to the process that holds them (L442), see
@@ -1733,7 +1734,8 @@ pub async fn get_config(name: &str) -> ResultType<Option<String>> {
 }
 
 /// The server process's public key and key proof for the pairing request
-/// at `path`, None when no server process answers or it refuses.
+/// or the join at `path`, None when no server process answers or it
+/// refuses (an older one signs no join).
 pub async fn pairing_proof(path: &str) -> Option<(String, Vec<(String, String)>)> {
     let mut c = connect(1_000, "").await.ok()?;
     c.send(&Data::PairingProof((path.to_owned(), None)))
@@ -3043,40 +3045,72 @@ pub(crate) mod device_key_tests {
         let (secret, public) = own_key_pair();
         start_test_listener("_l442_proof");
 
-        let path = crate::hbbs_http::pairing_proof::PATH;
-        let answers = ask(
-            "_l442_proof",
-            &[request(&Data::PairingProof((path.to_owned(), None)))],
-        )
-        .expect("the test IPC server answers");
-        let Some(Data::PairingProof((_, Some((key, headers))))) = answer_of(answers.first()) else {
-            panic!("the service gave no proof");
-        };
-        assert_eq!(key, crate::encode64(&public));
-        let header = |name: &str| {
-            headers
-                .iter()
-                .find(|(header, _)| header == name)
-                .map(|(_, value)| value.clone())
-                .unwrap_or_default()
-        };
-        let payload = proof_payload(
-            "POST",
-            path,
-            &Config::get_id(),
-            &key,
-            &header(HEADER_TIMESTAMP),
-            &header(HEADER_NONCE),
-        );
-        let signature = crate::decode64(header(HEADER_SIGNATURE)).unwrap_or_default();
-        let signature = sign::Signature::from_bytes(&signature).expect("a signature");
-        assert!(sign::verify_detached(
-            &signature,
-            payload.as_bytes(),
-            &sign::PublicKey::from_slice(&public).unwrap()
-        ));
-        for answer in &answers {
-            assert!(!reveals(answer, &secret));
+        // The pairing request and the join (L483)
+        for path in [
+            crate::hbbs_http::pairing_proof::PATH,
+            crate::hbbs_http::pairing_proof::JOIN_PATH,
+        ] {
+            let answers = ask(
+                "_l442_proof",
+                &[request(&Data::PairingProof((path.to_owned(), None)))],
+            )
+            .expect("the test IPC server answers");
+            let Some(Data::PairingProof((answered, Some((key, headers))))) =
+                answer_of(answers.first())
+            else {
+                panic!("the service gave no proof for {path}");
+            };
+            assert_eq!(answered, path);
+            assert_eq!(key, crate::encode64(&public));
+            let header = |name: &str| {
+                headers
+                    .iter()
+                    .find(|(header, _)| header == name)
+                    .map(|(_, value)| value.clone())
+                    .unwrap_or_default()
+            };
+            let payload = proof_payload(
+                "POST",
+                path,
+                &Config::get_id(),
+                &key,
+                &header(HEADER_TIMESTAMP),
+                &header(HEADER_NONCE),
+            );
+            let signature = crate::decode64(header(HEADER_SIGNATURE)).unwrap_or_default();
+            let signature = sign::Signature::from_bytes(&signature).expect("a signature");
+            assert!(
+                sign::verify_detached(
+                    &signature,
+                    payload.as_bytes(),
+                    &sign::PublicKey::from_slice(&public).unwrap()
+                ),
+                "the proof for {path} does not verify"
+            );
+            for answer in &answers {
+                assert!(!reveals(answer, &secret));
+            }
+        }
+
+        // Nothing else
+        for path in [
+            "/api/onboard/join/",
+            "/x/api/onboard/join",
+            "/api/devices/register",
+            "/api/devices/register/status",
+        ] {
+            let answers = ask(
+                "_l442_proof",
+                &[request(&Data::PairingProof((path.to_owned(), None)))],
+            )
+            .expect("the test IPC server answers");
+            assert!(
+                matches!(
+                    answer_of(answers.first()),
+                    Some(Data::PairingProof((_, None)))
+                ),
+                "the service signed {path} for another process"
+            );
         }
     }
 
