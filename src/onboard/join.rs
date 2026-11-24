@@ -3,10 +3,20 @@
 //! `POST /api/onboard/join` with the device's identity answers the ID
 //! server, relay, API address and key, and a device token. The console has
 //! approved the device, named it and put it into the invite's folder by then.
+//!
+//! The request proves the device's key the way register and pairing do
+//! (`X-ND-Enrollment-*` headers, hbbs_http/enrollment.rs), made by the
+//! device's server process (device_key.rs). The console refuses a join for
+//! a device ID it knows unless it proves the key it holds for that ID; a
+//! device it does not know yet joins without a proof too (L483).
 
 use serde_json::{json, Value};
 
 use super::http::{Answer, Http, OnboardError};
+use crate::hbbs_http::{enrollment, pairing_proof};
+
+/// The headers of a key proof, name and value; empty for none.
+pub type Proof = Vec<(String, String)>;
 
 /// The device as the console learns it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,27 +30,50 @@ pub struct DeviceIdentity {
 }
 
 impl DeviceIdentity {
-    /// This device under `device_id`, with the fields register sends.
-    pub fn of_this_device(device_id: String, with_public_key: bool) -> Self {
+    /// This device under `device_id`, with the fields register sends and
+    /// no public key.
+    pub fn of_this_device(device_id: String) -> Self {
         Self {
             device_id,
             uuid: String::from_utf8_lossy(&hbb_common::get_uuid()).into_owned(),
             hostname: crate::hostname(),
             platform: std::env::consts::OS.to_owned(),
             version: crate::VERSION.to_owned(),
-            public_key: if with_public_key {
-                // The key the device's server process signs with
-                // (device_key.rs), not one this process makes (L438)
-                super::device_key::key_for_join(
-                    crate::ipc::get_config(crate::ipc::IPC_PUBLIC_KEY)
-                        .ok()
-                        .flatten(),
-                    crate::hbbs_http::enrollment::public_key_b64,
-                )
-            } else {
-                None
-            },
+            public_key: None,
         }
+    }
+
+    /// This device for a join under `device_id`, the ID of the device's
+    /// server process, with the public key and key proof the join sends.
+    /// `from_server_process` is the key and proof that process made for
+    /// the join, None when it did not answer. Runs outside any async
+    /// runtime: it may ask the server process for its key over IPC.
+    pub fn for_join(
+        device_id: String,
+        from_server_process: Option<(String, Proof)>,
+    ) -> (Self, Proof) {
+        let mut device = Self::of_this_device(device_id);
+        // The key the device's server process signs with, not one this
+        // process makes (device_key.rs, L438)
+        let (public_key, proof) = super::device_key::key_and_proof_for_join(
+            from_server_process,
+            || {
+                crate::ipc::get_config(crate::ipc::IPC_PUBLIC_KEY)
+                    .ok()
+                    .flatten()
+            },
+            enrollment::public_key_b64,
+            hbb_common::config::Config::holds_secrets(),
+            || {
+                enrollment::own_proof(
+                    pairing_proof::METHOD,
+                    pairing_proof::JOIN_PATH,
+                    &device.device_id,
+                )
+            },
+        );
+        device.public_key = public_key;
+        (device, proof.unwrap_or_default())
     }
 
     pub fn to_json(&self) -> Value {
@@ -126,18 +159,22 @@ pub fn join_result(answer: &Answer) -> Result<Joined, OnboardError> {
     })
 }
 
-/// Redeems `code` for `device`.
+/// Redeems `code` for `device`, with the key proof `proof` (headers, empty
+/// for none) made for `device`'s ID and public key.
 pub async fn redeem_join(
     http: &Http,
     code: &str,
     device: &DeviceIdentity,
+    proof: &[(String, String)],
 ) -> Result<Joined, OnboardError> {
     if device.device_id.is_empty() {
         return Err(OnboardError::NoDeviceId);
     }
     let mut body = device.to_json();
     body["code"] = Value::String(code.to_owned());
-    let answer = http.post("/api/onboard/join", &body, None).await?;
+    let answer = http
+        .post_with_headers(pairing_proof::JOIN_PATH, &body, None, proof)
+        .await?;
     join_result(&answer)
 }
 
