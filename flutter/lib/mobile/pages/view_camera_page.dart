@@ -8,7 +8,6 @@ import 'package:flutter_hbb/common/widgets/toolbar.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
@@ -21,6 +20,7 @@ import '../../models/input_model.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import '../../utils/image.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 final initText = '1' * 1024;
 
@@ -207,8 +207,8 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                   mini: !keyboardIsVisible,
                   child: Icon(
                     (keyboardIsVisible || _showGestureHelp)
-                        ? Icons.expand_more
-                        : Icons.expand_less,
+                        ? NdIcons.expandMore
+                        : NdIcons.expandLess,
                     color: context.nd.onAccent,
                   ),
                   backgroundColor: MyTheme.accent,
@@ -304,14 +304,14 @@ class _ViewCameraPageState extends State<ViewCameraPage>
               children: <Widget>[
                     IconButton(
                       color: context.nd.onAccent,
-                      icon: Icon(Icons.clear),
+                      icon: Icon(NdIcons.close),
                       onPressed: () {
                         clientClose(sessionId, gFFI);
                       },
                     ),
                     IconButton(
                       color: context.nd.onAccent,
-                      icon: Icon(Icons.tv),
+                      icon: Icon(NdIcons.tv),
                       onPressed: () {
                         setState(() => _showEdit = false);
                         showOptions(context, widget.id, gFFI.dialogManager);
@@ -327,10 +327,8 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                               hasData: (isSupportVoiceCall) => IconButton(
                                     color: context.nd.onAccent,
                                     icon: isAndroid && isSupportVoiceCall
-                                        ? SvgPicture.asset('assets/chat.svg',
-                                            colorFilter: ColorFilter.mode(
-                                                context.nd.onAccent, BlendMode.srcIn))
-                                        : Icon(Icons.message),
+                                        ? Icon(NdIcons.chat)
+                                        : Icon(NdIcons.chat),
                                     onPressed: () =>
                                         isAndroid && isSupportVoiceCall
                                             ? showChatOptions(widget.id)
@@ -340,7 +338,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                   [
                     IconButton(
                       color: context.nd.onAccent,
-                      icon: Icon(Icons.more_vert),
+                      icon: Icon(NdIcons.moreVert),
                       onPressed: () {
                         setState(() => _showEdit = false);
                         showActions(widget.id);
@@ -349,7 +347,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
                   ]),
           Obx(() => IconButton(
                 color: context.nd.onAccent,
-                icon: Icon(Icons.expand_more),
+                icon: Icon(NdIcons.expandMore),
                 onPressed: gFFI.ffiModel.waitForFirstImage.isTrue
                     ? null
                     : () {
@@ -518,24 +516,17 @@ class _ViewCameraPageState extends State<ViewCameraPage>
       VoiceCallStatus.connected
     ].contains(gFFI.chatModel.voiceCallStatus.value);
     final menus = [
-      makeTextMenu('Text chat', Icon(Icons.message, color: MyTheme.accent),
+      makeTextMenu('Text chat', Icon(NdIcons.chat, color: MyTheme.accent),
           () => onPressedTextChat(widget.id)),
       isInVoice
           ? makeTextMenu(
               'End voice call',
-              SvgPicture.asset(
-                'assets/call_wait.svg',
-                colorFilter:
-                    ColorFilter.mode(context.nd.danger, BlendMode.srcIn),
-              ),
+              Icon(NdIcons.callEnd, color: context.nd.danger),
               onPressEndVoiceCall,
               labelStyle: TextStyle(color: context.nd.danger))
           : makeTextMenu(
               'Voice call',
-              SvgPicture.asset(
-                'assets/call_wait.svg',
-                colorFilter: ColorFilter.mode(MyTheme.accent, BlendMode.srcIn),
-              ),
+              Icon(NdIcons.phoneInTalk, color: MyTheme.accent),
               onPressVoiceCall),
     ];
 

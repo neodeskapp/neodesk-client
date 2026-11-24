@@ -9,6 +9,7 @@ import 'package:flutter_hbb/models/input_model.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/utils/image.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 const int _kDotCount = 60;
 const double _kDotAngle = 2 * pi / _kDotCount;
@@ -704,7 +705,7 @@ class _FloatingMouseState extends State<FloatingMouse> {
                           shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,
-                        child: Icon(Icons.close,
+                        child: Icon(NdIcons.close,
                             color: context.nd.onCanvas,
                             size: 12 * _mouseScale),
                       ),
@@ -1000,10 +1001,10 @@ class _MouseBodyState extends State<MouseBody> {
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               _buildScrollUpDown(widget.scrollWheelUpKey,
-                                  Icons.keyboard_arrow_up, midScale.scale),
+                                  NdIcons.keyboardArrowUp, midScale.scale),
                               _buildScrollMidButton(midScale.scale),
                               _buildScrollUpDown(widget.scrollWheelDownKey,
-                                  Icons.keyboard_arrow_down, midScale.scale),
+                                  NdIcons.keyboardArrowDown, midScale.scale),
                             ],
                           ),
                         ),
@@ -1053,7 +1054,7 @@ class _MouseBodyState extends State<MouseBody> {
                       alignment: Alignment.center,
                       child: Transform.rotate(
                         angle: pi / 2,
-                        child: Icon(Icons.drag_indicator,
+                        child: Icon(NdIcons.dragIndicator,
                             color: _kDefaultHighlightColor, size: 18 * s),
                       ),
                     ),

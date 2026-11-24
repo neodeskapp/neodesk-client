@@ -9,6 +9,7 @@ import '../../common/widgets/chat_page.dart';
 import '../../models/platform_model.dart';
 import '../../models/state_model.dart';
 import 'connection_page.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 abstract class PageShape extends Widget {
   final String title = "";
@@ -124,8 +125,8 @@ class HomePageState extends State<HomePage> {
                 : translate('Incoming connection'),
             child: Icon(
               currentKey.isOut
-                  ? Icons.call_made_rounded
-                  : Icons.call_received_rounded,
+                  ? NdIcons.callMade
+                  : NdIcons.callReceived,
             ),
           ),
           Expanded(

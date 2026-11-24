@@ -15,6 +15,7 @@ import 'package:flutter_hbb/common/widgets/remote_input.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 // Used for the wheel button and wheel scroll widgets
 const double _kSpaceToHorizontalEdge = 25;
@@ -247,7 +248,7 @@ class _FloatingWheelState extends State<FloatingWheel> {
             },
             () => _isUpDown,
             BorderRadius.vertical(top: Radius.circular(_wheelWidth * 0.5)),
-            Icons.keyboard_arrow_up,
+            NdIcons.keyboardArrowUp,
           ),
           Listener(
             onPointerDown: (event) {
@@ -332,7 +333,7 @@ class _FloatingWheelState extends State<FloatingWheel> {
             },
             () => _isDownDown,
             BorderRadius.vertical(bottom: Radius.circular(_wheelWidth * 0.5)),
-            Icons.keyboard_arrow_down,
+            NdIcons.keyboardArrowDown,
           ),
         ],
       ),

@@ -22,13 +22,14 @@ import '../widgets/deploy_dialog.dart';
 import '../widgets/dialog.dart';
 import 'home_page.dart';
 import 'scan_page.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class SettingsPage extends StatefulWidget implements PageShape {
   @override
   final title = translate("Settings");
 
   @override
-  final icon = Icon(Icons.settings);
+  final icon = Icon(NdIcons.settings);
 
   @override
   final appBarActions = bind.isDisableSettings() ? [] : [ScanButton()];
@@ -363,7 +364,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
       if (enable2fa && _enableTrustedDevices)
         SettingsTile(
             title: Text(translate('Manage trusted devices')),
-            trailing: Icon(Icons.arrow_forward_ios),
+            trailing: Icon(NdIcons.arrowForwardIos),
             onPressed: (context) {
               Navigator.push(context, MaterialPageRoute(builder: (context) {
                 return _ManageTrustedDevices();
@@ -392,7 +393,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           Expanded(child: Text(translate('Use IP Whitelisting'))),
           Offstage(
                   offstage: !_onlyWhiteList,
-                  child: Icon(Icons.warning_amber_rounded,
+                  child: Icon(NdIcons.warning,
                       color: context.nd.warning))
               .marginOnly(left: 5)
         ]),
@@ -415,7 +416,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           Expanded(child: Text(translate('Use ID whitelisting'))),
           Offstage(
                   offstage: !_onlyIdWhiteList,
-                  child: Icon(Icons.warning_amber_rounded,
+                  child: Icon(NdIcons.warning,
                       color: context.nd.warning))
               .marginOnly(left: 5)
         ]),
@@ -482,7 +483,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                   child: IconButton(
                       padding: EdgeInsets.zero,
                       icon: Icon(
-                        Icons.edit,
+                        NdIcons.edit,
                         size: 20,
                       ),
                       onPressed: isOptionFixed(kOptionDirectAccessPort)
@@ -529,7 +530,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                   child: IconButton(
                       padding: EdgeInsets.zero,
                       icon: Icon(
-                        Icons.edit,
+                        NdIcons.edit,
                         size: 20,
                       ),
                       onPressed: isOptionFixed(kOptionAutoDisconnectTimeout)
@@ -730,9 +731,9 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                         avatar: avatar,
                         size: 28,
                         borderRadius: null,
-                        fallback: Icon(Icons.person),
+                        fallback: Icon(NdIcons.user),
                       ) ??
-                      Icon(Icons.person);
+                      Icon(NdIcons.user);
                 }),
                 onPressed: (context) {
                   if (gFFI.userModel.userName.value.isEmpty) {
@@ -748,7 +749,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           if (!disabledSettings && !_hideNetwork && !_hideServer)
             SettingsTile(
                 title: Text(translate('ID/Relay Server')),
-                leading: Icon(Icons.cloud),
+                leading: Icon(NdIcons.cloud),
                 onPressed: (context) {
                   showServerSettings(gFFI.dialogManager, (callback) async {
                     _isUsingPublicServer = await bind.mainIsUsingPublicServer();
@@ -758,14 +759,14 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           if (!_hideNetwork && !_hideProxy)
             SettingsTile(
                 title: Text(translate('Socks5/Http(s) Proxy')),
-                leading: Icon(Icons.network_ping),
+                leading: Icon(NdIcons.networkPing),
                 onPressed: (context) {
                   changeSocks5Proxy();
                 }),
           if (isAndroid && !bind.isOutgoingOnly())
             SettingsTile(
                 title: Text(translate('Deploy')),
-                leading: Icon(Icons.cloud_upload),
+                leading: Icon(NdIcons.cloudUpload),
                 onPressed: (context) {
                   showDeployDialog();
                 }),
@@ -844,7 +845,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
             ),
           SettingsTile(
               title: Text(translate('Language')),
-              leading: Icon(Icons.translate),
+              leading: Icon(NdIcons.translate),
               onPressed: (context) {
                 showLanguageSettings(gFFI.dialogManager);
               }),
@@ -854,8 +855,8 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                     ? 'Light Theme'
                     : 'Dark Theme')),
             leading: Icon(Theme.of(context).brightness == Brightness.light
-                ? Icons.dark_mode
-                : Icons.light_mode),
+                ? NdIcons.darkMode
+                : NdIcons.lightMode),
             onPressed: (context) {
               showThemeSettings(gFFI.dialogManager);
             },
@@ -998,14 +999,14 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                         decoration: TextDecoration.underline,
                       )),
                 ),
-                leading: Icon(Icons.info)),
+                leading: Icon(NdIcons.info)),
             SettingsTile(
                 title: Text(translate("Build Date")),
                 value: Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: Text(_buildDate),
                 ),
-                leading: Icon(Icons.query_builder)),
+                leading: Icon(NdIcons.schedule)),
             if (isAndroid)
               SettingsTile(
                   onPressed: (context) => onCopyFingerprint(_fingerprint),
@@ -1014,7 +1015,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                     padding: EdgeInsets.symmetric(vertical: 8),
                     child: Text(_fingerprint),
                   ),
-                  leading: Icon(Icons.fingerprint)),
+                  leading: Icon(NdIcons.fingerprint)),
             SettingsTile(
                 onPressed: (context) => onCopyId(_myId),
                 title: Text(translate("ID")),
@@ -1022,12 +1023,12 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: Text(_myId),
                 ),
-                leading: Icon(Icons.perm_identity)),
+                leading: Icon(NdIcons.user)),
             SettingsTile(
               title: Text(translate("Privacy Statement")),
               onPressed: (context) =>
                   launchUrlString('https://rustdesk.com/privacy.html'),
-              leading: Icon(Icons.privacy_tip),
+              leading: Icon(NdIcons.privacyTip),
             )
           ],
         ),
@@ -1053,8 +1054,8 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
       tiles: [
         SettingsTile(
             title: Text(translate('Display Settings')),
-            leading: Icon(Icons.desktop_windows_outlined),
-            trailing: Icon(Icons.arrow_forward_ios),
+            leading: Icon(NdIcons.desktopWindows),
+            trailing: Icon(NdIcons.arrowForwardIos),
             onPressed: (context) {
               Navigator.push(context, MaterialPageRoute(builder: (context) {
                 return _DisplayPage();
@@ -1159,7 +1160,7 @@ class ScanButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: Icon(Icons.qr_code_scanner),
+      icon: Icon(NdIcons.qrCodeScanner),
       onPressed: () {
         Navigator.push(
           context,
@@ -1198,7 +1199,7 @@ class __DisplayPageState extends State<_DisplayPage> {
       appBar: AppBar(
         leading: IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: Icon(Icons.arrow_back_ios)),
+            icon: Icon(NdIcons.arrowBackIos)),
         title: Text(translate('Display Settings')),
         centerTitle: true,
       ),
@@ -1305,7 +1306,7 @@ class __ManageTrustedDevicesState extends State<_ManageTrustedDevices> {
         centerTitle: true,
         actions: [
           Obx(() => IconButton(
-              icon: Icon(Icons.delete, color: context.nd.text),
+              icon: Icon(NdIcons.delete, color: context.nd.text),
               onPressed: selectedDevices.isEmpty
                   ? null
                   : () {

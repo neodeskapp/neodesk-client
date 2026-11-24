@@ -5,35 +5,7 @@ import 'package:flutter_hbb/models/input_model.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:get/get.dart';
 import 'package:toggle_switch/toggle_switch.dart';
-
-class GestureIcons {
-  static const String _family = 'gestureicons';
-
-  GestureIcons._();
-
-  static const IconData iconMouse = IconData(0xe65c, fontFamily: _family);
-  static const IconData iconTabletTouch = IconData(0xe9ce, fontFamily: _family);
-  static const IconData iconGestureFDrag =
-      IconData(0xe686, fontFamily: _family);
-  static const IconData iconMobileTouch = IconData(0xe9cd, fontFamily: _family);
-  static const IconData iconGesturePress =
-      IconData(0xe66c, fontFamily: _family);
-  static const IconData iconGestureTap = IconData(0xe66f, fontFamily: _family);
-  static const IconData iconGesturePinch =
-      IconData(0xe66a, fontFamily: _family);
-  static const IconData iconGesturePressHold =
-      IconData(0xe66b, fontFamily: _family);
-  static const IconData iconGestureFDragUpDown_ =
-      IconData(0xe685, fontFamily: _family);
-  static const IconData iconGestureFTap_ =
-      IconData(0xe68e, fontFamily: _family);
-  static const IconData iconGestureFSwipeRight =
-      IconData(0xe68f, fontFamily: _family);
-  static const IconData iconGestureFdoubleTap =
-      IconData(0xe691, fontFamily: _family);
-  static const IconData iconGestureFThreeFingers =
-      IconData(0xe687, fontFamily: _family);
-}
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 typedef OnTouchModeChange = void Function(bool);
 
@@ -109,7 +81,7 @@ class _GestureHelpState extends State<GestureHelp> {
                           translate("Mouse mode"),
                           translate("Touch mode")
                         ],
-                        icons: [Icons.mouse, Icons.touch_app],
+                        icons: [NdIcons.mouse, NdIcons.touchApp],
                         onToggle: (index) {
                           setState(() {
                             if (_selectedIndex != index) {
@@ -284,64 +256,64 @@ class _GestureHelpState extends State<GestureHelp> {
                       ? [
                           GestureInfo(
                               width,
-                              GestureIcons.iconMobileTouch,
+                              NdIcons.touchApp,
                               translate("One-Finger Tap"),
                               translate("Left Mouse")),
                           GestureInfo(
                               width,
-                              GestureIcons.iconGesturePressHold,
+                              NdIcons.touchLong,
                               translate("One-Long Tap"),
                               translate("Right Mouse")),
                           GestureInfo(
                               width,
-                              GestureIcons.iconGestureFSwipeRight,
+                              NdIcons.swipeRight,
                               translate("One-Finger Move"),
                               translate("Mouse Drag")),
                           GestureInfo(
                               width,
-                              GestureIcons.iconGestureFThreeFingers,
+                              NdIcons.swipeVertical,
                               translate("Three-Finger vertically"),
                               translate("Mouse Wheel")),
                           GestureInfo(
                               width,
-                              GestureIcons.iconGestureFDrag,
+                              NdIcons.dragPan,
                               translate("Two-Finger Move"),
                               translate("Canvas Move")),
                           GestureInfo(
                               width,
-                              GestureIcons.iconGesturePinch,
+                              NdIcons.pinch,
                               translate("Pinch to Zoom"),
                               translate("Canvas Zoom")),
                         ]
                       : [
                           GestureInfo(
                               width,
-                              GestureIcons.iconMobileTouch,
+                              NdIcons.touchApp,
                               translate("One-Finger Tap"),
                               translate("Left Mouse")),
                           GestureInfo(
                               width,
-                              GestureIcons.iconGesturePressHold,
+                              NdIcons.touchLong,
                               translate("One-Long Tap"),
                               translate("Right Mouse")),
                           GestureInfo(
                               width,
-                              GestureIcons.iconGestureFSwipeRight,
+                              NdIcons.swipeRight,
                               translate("Double Tap & Move"),
                               translate("Mouse Drag")),
                           GestureInfo(
                               width,
-                              GestureIcons.iconGestureFThreeFingers,
+                              NdIcons.swipeVertical,
                               translate("Three-Finger vertically"),
                               translate("Mouse Wheel")),
                           GestureInfo(
                               width,
-                              GestureIcons.iconGestureFDrag,
+                              NdIcons.dragPan,
                               translate("Two-Finger Move"),
                               translate("Canvas Move")),
                           GestureInfo(
                               width,
-                              GestureIcons.iconGesturePinch,
+                              NdIcons.pinch,
                               translate("Pinch to Zoom"),
                               translate("Canvas Zoom")),
                         ],

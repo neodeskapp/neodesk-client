@@ -10,7 +10,6 @@ import 'package:flutter_hbb/mobile/widgets/floating_mouse_widgets.dart';
 import 'package:flutter_hbb/mobile/widgets/gesture_help.dart';
 import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
@@ -25,6 +24,7 @@ import '../../models/platform_model.dart';
 import '../../utils/image.dart';
 import '../widgets/dialog.dart';
 import '../widgets/custom_scale_widget.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 final initText = '1' * 1024;
 
@@ -462,8 +462,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                   mini: !keyboardIsVisible,
                   child: Icon(
                     (keyboardIsVisible || _showGestureHelp)
-                        ? Icons.expand_more
-                        : Icons.expand_less,
+                        ? NdIcons.expandMore
+                        : NdIcons.expandLess,
                     color: context.nd.onAccent,
                   ),
                   backgroundColor: MyTheme.accent,
@@ -564,14 +564,14 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
               children: <Widget>[
                     IconButton(
                       color: context.nd.onAccent,
-                      icon: Icon(Icons.clear),
+                      icon: Icon(NdIcons.close),
                       onPressed: () {
                         clientClose(sessionId, gFFI);
                       },
                     ),
                     IconButton(
                       color: context.nd.onAccent,
-                      icon: Icon(Icons.tv),
+                      icon: Icon(NdIcons.tv),
                       onPressed: () {
                         setState(() => _showEdit = false);
                         showOptions(context, widget.id, gFFI.dialogManager);
@@ -584,11 +584,11 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                           ? [
                               IconButton(
                                   color: context.nd.onAccent,
-                                  icon: Icon(Icons.keyboard),
+                                  icon: Icon(NdIcons.keyboard),
                                   onPressed: openKeyboard),
                               IconButton(
                                 color: context.nd.onAccent,
-                                icon: const Icon(Icons.build),
+                                icon: const Icon(NdIcons.build),
                                 onPressed: () => gFFI.dialogManager
                                     .toggleMobileActionsOverlay(ffi: gFFI),
                               )
@@ -596,13 +596,13 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                           : [
                               IconButton(
                                   color: context.nd.onAccent,
-                                  icon: Icon(Icons.keyboard),
+                                  icon: Icon(NdIcons.keyboard),
                                   onPressed: openKeyboard),
                               IconButton(
                                 color: context.nd.onAccent,
                                 icon: Icon(gFFI.ffiModel.touchMode
-                                    ? Icons.touch_app
-                                    : Icons.mouse),
+                                    ? NdIcons.touchApp
+                                    : NdIcons.mouse),
                                 onPressed: () => setState(
                                     () => _showGestureHelp = !_showGestureHelp),
                               ),
@@ -616,10 +616,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                               hasData: (isSupportVoiceCall) => IconButton(
                                     color: context.nd.onAccent,
                                     icon: isAndroid && isSupportVoiceCall
-                                        ? SvgPicture.asset('assets/chat.svg',
-                                            colorFilter: ColorFilter.mode(
-                                                context.nd.onAccent, BlendMode.srcIn))
-                                        : Icon(Icons.message),
+                                        ? Icon(NdIcons.chat)
+                                        : Icon(NdIcons.chat),
                                     onPressed: () =>
                                         isAndroid && isSupportVoiceCall
                                             ? showChatOptions(widget.id)
@@ -629,7 +627,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                   [
                     IconButton(
                       color: context.nd.onAccent,
-                      icon: Icon(Icons.more_vert),
+                      icon: Icon(NdIcons.moreVert),
                       onPressed: () {
                         setState(() => _showEdit = false);
                         showActions(widget.id);
@@ -638,7 +636,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                   ]),
           Obx(() => IconButton(
                 color: context.nd.onAccent,
-                icon: Icon(Icons.expand_more),
+                icon: Icon(NdIcons.expandMore),
                 onPressed: gFFI.ffiModel.waitForFirstImage.isTrue
                     ? null
                     : () {
@@ -836,24 +834,17 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       VoiceCallStatus.connected
     ].contains(gFFI.chatModel.voiceCallStatus.value);
     final menus = [
-      makeTextMenu('Text chat', Icon(Icons.message, color: MyTheme.accent),
+      makeTextMenu('Text chat', Icon(NdIcons.chat, color: MyTheme.accent),
           () => onPressedTextChat(widget.id)),
       isInVoice
           ? makeTextMenu(
               'End voice call',
-              SvgPicture.asset(
-                'assets/call_wait.svg',
-                colorFilter:
-                    ColorFilter.mode(context.nd.danger, BlendMode.srcIn),
-              ),
+              Icon(NdIcons.callEnd, color: context.nd.danger),
               onPressEndVoiceCall,
               labelStyle: TextStyle(color: context.nd.danger))
           : makeTextMenu(
               'Voice call',
-              SvgPicture.asset(
-                'assets/call_wait.svg',
-                colorFilter: ColorFilter.mode(MyTheme.accent, BlendMode.srcIn),
-              ),
+              Icon(NdIcons.phoneInTalk, color: MyTheme.accent),
               onPressVoiceCall),
     ];
 
@@ -1024,7 +1015,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
                 () => _pin = !_pin,
               ),
           active: _pin,
-          icon: Icons.push_pin),
+          icon: NdIcons.pushPin),
       wrap(
           ' ... ',
           () => setState(
@@ -1097,16 +1088,16 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       SizedBox(width: 9999),
       wrap('', () {
         inputModel.inputKey('VK_LEFT');
-      }, icon: Icons.keyboard_arrow_left),
+      }, icon: NdIcons.keyboardArrowLeft),
       wrap('', () {
         inputModel.inputKey('VK_UP');
-      }, icon: Icons.keyboard_arrow_up),
+      }, icon: NdIcons.keyboardArrowUp),
       wrap('', () {
         inputModel.inputKey('VK_DOWN');
-      }, icon: Icons.keyboard_arrow_down),
+      }, icon: NdIcons.keyboardArrowDown),
       wrap('', () {
         inputModel.inputKey('VK_RIGHT');
-      }, icon: Icons.keyboard_arrow_right),
+      }, icon: NdIcons.keyboardArrowRight),
       wrap(isMac ? 'Cmd+C' : 'Ctrl+C', () {
         sendPrompt(isMac, 'VK_C');
       }),
