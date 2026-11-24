@@ -163,9 +163,12 @@ class _NdFieldState extends State<NdField> {
         ],
       ),
     );
-    if (_focused) {
-      box = Stack(clipBehavior: Clip.none, children: [
-        box,
+    // The box keeps its place in the tree whether the ring shows or not: a
+    // TextField that moves is built anew and drops its text input
+    // connection while it keeps the focus, and typed keys get lost.
+    box = Stack(clipBehavior: Clip.none, fit: StackFit.passthrough, children: [
+      box,
+      if (_focused)
         Positioned(
           left: -3,
           top: -3,
@@ -181,8 +184,7 @@ class _NdFieldState extends State<NdField> {
             ),
           ),
         ),
-      ]);
-    }
+    ]);
 
     final below = invalid
         ? Row(

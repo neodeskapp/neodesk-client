@@ -24,7 +24,10 @@ Future<T?> showNdDialog<T>(
     pageBuilder: (dialogContext, _, __) {
       void close([T? r]) => Navigator.of(dialogContext).pop(r);
       return Center(
-        child: Focus(
+        // A scope of its own, so that the autofocus of a field inside
+        // applies. A plain Focus would take the dialog's first focus itself
+        // and leave a freshly opened dialog with no field to type into.
+        child: FocusScope(
           autofocus: true,
           onKeyEvent: (node, event) {
             if (event is KeyDownEvent &&
