@@ -178,6 +178,41 @@ void main() {
     expect(count, greaterThanOrEqualTo(10));
   });
 
+  forBothThemes('a service that is not running greys the ID and password',
+      (tester, b) async {
+    Future<void> pump(bool unavailable) => pumpScreen(
+        tester,
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: SizedBox(
+              width: 392,
+              height: 560,
+              child: ThisComputerColumn(
+                id: '418205739',
+                password: 'k7m2qx9w',
+                status:
+                    _of(SvcStatus.notReady, reason: 'ipc_disconnected'),
+                onNewPassword: () async {},
+                unavailable: unavailable,
+              )),
+        ),
+        size: const Size(440, 620),
+        brightness: b);
+    IgnorePointer guard() => tester.widget<IgnorePointer>(find
+        .ancestor(
+            of: find.text(tr('nd-home-id')),
+            matching: find.byType(IgnorePointer))
+        .first);
+
+    await pump(true);
+    await shot(tester, 'client-home-service-down', b);
+    expect(guard().ignoring, isTrue, reason: 'the ID can still be copied');
+    expect(find.text(tr('nd-home-hint')), findsNothing);
+    await pump(false);
+    expect(guard().ignoring, isFalse);
+    expect(find.text(tr('nd-home-hint')), findsOneWidget);
+  });
+
   forBothThemes('home status, key refused', (tester, b) async {
     await pumpScreen(
         tester,

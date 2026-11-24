@@ -414,6 +414,14 @@ pub fn core_main() -> Option<CoreMainAction> {
             log::info!("start --install-service");
             crate::platform::install_service();
             return None;
+        } else if args[0] == "--start-service" {
+            // Home's "Start the service" runs this elevated when the person
+            // may not start the service (L486)
+            #[cfg(windows)]
+            if let Err(err) = crate::platform::windows::start_self_service() {
+                log::error!("Failed to start the service: {err}");
+            }
+            return None;
         } else if args[0] == "--uninstall-service" {
             log::info!("start --uninstall-service");
             crate::platform::uninstall_service(false, true);

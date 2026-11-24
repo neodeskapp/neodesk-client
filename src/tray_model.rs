@@ -203,8 +203,9 @@ pub struct Offers {
 }
 
 /// The menu, top to bottom: the state line, the ID, Open, Settings; then
-/// pausing connections, or accepting them again while paused; then About.
-/// The ID is left out until the service has told it.
+/// pausing connections, or accepting them again while paused, neither while
+/// the service isn't running; then About. The ID is left out until the
+/// service has told it.
 pub fn menu(facts: &Facts, id: &str, version: &str, offers: Offers) -> Vec<Item> {
     let state = state_of(facts);
     let (key, names_server) = state.line();
@@ -227,7 +228,7 @@ pub fn menu(facts: &Facts, id: &str, version: &str, offers: Offers) -> Vec<Item>
             "nd-tray-accept",
             "",
         )]);
-    } else if offers.stop_service {
+    } else if offers.stop_service && state != State::NoService {
         groups.push(vec![Item::entry(Action::StopService, "nd-tray-stop", "")]);
     }
     if offers.settings {
@@ -431,15 +432,32 @@ mod tests {
                 facts(Online::Connecting, "connecting", Standing::default()),
                 "[nd-home-status-connecting 10.10.10.74]",
             ),
-            (
-                facts(Online::NotReady, "ipc_disconnected", Standing::default()),
-                "[nd-tray-status-no-service]",
-            ),
         ] {
             let menu = lines(&menu(&f, "123456789", "1.5.0", ON));
             assert_eq!(menu[0], first, "{f:?}");
             assert_eq!(menu[1..], lines(&super::menu(&ready(), "123456789", "1.5.0", ON))[1..]);
         }
+    }
+
+    // Nothing pauses connections while the service isn't running (L486)
+    #[test]
+    fn a_service_that_is_not_running_offers_no_pause() {
+        let down = facts(Online::NotReady, "ipc_disconnected", Standing::default());
+        let items = menu(&down, "123456789", "1.5.0", ON);
+        assert_eq!(
+            lines(&items),
+            [
+                "[nd-tray-status-no-service]",
+                "nd-tray-id 123 456 789",
+                "nd-tray-open",
+                "Settings",
+                "-",
+                "nd-tray-about 1.5.0",
+            ]
+        );
+        assert!(items
+            .iter()
+            .all(|i| i.action() != Some(Action::StopService)));
     }
 
     #[test]

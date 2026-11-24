@@ -560,6 +560,49 @@ static SERVICE_STOP_REQUESTED: std::sync::atomic::AtomicBool =
 /// How long the service waits before it tries again to make its pipe.
 const SERVICE_PIPE_RETRY: Duration = Duration::from_secs(10);
 
+/// Whether the client's service is registered with Windows, running or not.
+pub fn is_self_service_installed() -> bool {
+    use windows_service::{
+        service::ServiceAccess,
+        service_manager::{ServiceManager, ServiceManagerAccess},
+    };
+    ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
+        .and_then(|manager| {
+            manager.open_service(crate::get_app_name(), ServiceAccess::QUERY_STATUS)
+        })
+        .is_ok()
+}
+
+/// Starts the client's registered service with this process's rights.
+pub fn start_self_service() -> ResultType<()> {
+    use windows_service::{
+        service::ServiceAccess,
+        service_manager::{ServiceManager, ServiceManagerAccess},
+    };
+    let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)?;
+    let service = manager.open_service(crate::get_app_name(), ServiceAccess::START)?;
+    service.start(&[] as &[&std::ffi::OsStr])?;
+    Ok(())
+}
+
+/// Starts the client's registered but stopped service, the least-privileged
+/// way that works (L486): with this account's rights when the service lets
+/// it, else through one elevated run of this program with `--start-service`,
+/// whose prompt names NeoDesk. The window stays open and turns Ready once
+/// the service serves.
+pub fn start_self_service_or_elevate() -> ResultType<()> {
+    match start_self_service() {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            log::info!("Starting the service needs administrator rights: {err}");
+            if !elevate("--start-service")? {
+                bail!("the administrator prompt to start the service was declined");
+            }
+            Ok(())
+        }
+    }
+}
+
 pub fn start_os_service() {
     if let Err(e) =
         windows_service::service_dispatcher::start(crate::get_app_name(), ffi_service_main)

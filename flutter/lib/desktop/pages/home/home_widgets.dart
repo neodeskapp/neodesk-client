@@ -89,6 +89,7 @@ class ThisComputerColumn extends StatefulWidget {
     this.revealPassword = false,
     this.statusWidget,
     this.footer,
+    this.unavailable = false,
   });
 
   final String id;
@@ -114,6 +115,11 @@ class ThisComputerColumn extends StatefulWidget {
 
   /// Start with the password shown (screenshots).
   final bool revealPassword;
+
+  /// The service isn't running, so nobody can connect with the ID and
+  /// password: they are greyed and can't be copied (the status line says
+  /// why).
+  final bool unavailable;
 
   @override
   State<ThisComputerColumn> createState() => _ThisComputerColumnState();
@@ -222,14 +228,20 @@ class _ThisComputerColumnState extends State<ThisComputerColumn> {
                 statusLine,
                 const SizedBox(height: 20),
                 for (final n in widget.notices) ...[n, const SizedBox(height: 16)],
-                panel,
-                const SizedBox(height: 16),
-                Text(
-                  widget.onlyClick
-                      ? tr('nd-home-hint-click')
-                      : tr('nd-home-hint'),
-                  style: t.small,
+                IgnorePointer(
+                  ignoring: widget.unavailable,
+                  child: Opacity(
+                      opacity: widget.unavailable ? 0.4 : 1, child: panel),
                 ),
+                if (!widget.unavailable) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    widget.onlyClick
+                        ? tr('nd-home-hint-click')
+                        : tr('nd-home-hint'),
+                    style: t.small,
+                  ),
+                ],
                 const Spacer(),
                 if (support != null && !support.isEmpty) ...[
                   const SizedBox(height: 32),

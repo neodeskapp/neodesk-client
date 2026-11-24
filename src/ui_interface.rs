@@ -492,6 +492,25 @@ pub fn set_option(key: String, value: String) {
                 && value != "Y"
                 && !crate::platform::is_self_service_running()
             {
+                // A service that is registered but stopped is started, not
+                // installed again, and the window stays open (L486); as with
+                // the install, never the service of an older or unknown
+                // installed binary from an exe next to it (L476)
+                #[cfg(windows)]
+                if crate::platform::windows::is_self_service_installed() {
+                    let may_start = crate::platform::windows::installed_standing()
+                        .map_or(true, |(standing, _)| {
+                            crate::install_standing::may_set_up_service(standing)
+                        });
+                    if !may_start {
+                        log::warn!("Not starting the service of an older or unknown install");
+                    } else if let Err(err) =
+                        crate::platform::windows::start_self_service_or_elevate()
+                    {
+                        log::warn!("The service did not start: {err}");
+                    }
+                    return;
+                }
                 crate::platform::install_service();
                 return;
             }

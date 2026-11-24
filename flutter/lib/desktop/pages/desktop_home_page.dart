@@ -45,6 +45,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   StreamSubscription? _uniLinksSubscription;
   StreamSubscription<OnboardingState>? _onboardingSub;
   var svcStopped = false.obs;
+
+  /// The service isn't running (its pipe doesn't answer): the ID and
+  /// password are greyed.
+  final _serviceDown = false.obs;
   var watchIsCanScreenRecording = false;
   var watchIsProcessTrust = false;
   var watchIsInputMonitoring = false;
@@ -132,6 +136,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
             },
           ),
           notices: notices,
+          unavailable: _serviceDown.value,
           onNewPassword: permanentOnly
               ? null
               : () async => bind.mainUpdateTemporaryPassword(),
@@ -457,6 +462,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         svcStopped.value = v;
         setState(() {});
       }
+      try {
+        final status = jsonDecode(await bind.mainGetConnectStatus());
+        _serviceDown.value = status['status_reason'] == 'ipc_disconnected';
+      } catch (_) {}
       if (watchIsCanScreenRecording) {
         if (bind.mainIsCanScreenRecording(prompt: false)) {
           watchIsCanScreenRecording = false;
