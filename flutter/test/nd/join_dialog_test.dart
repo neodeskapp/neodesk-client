@@ -73,6 +73,9 @@ Future<void> _openJoin(WidgetTester tester, OnboardingService svc) async {
   await tester.pump();
   await tester.tap(find.text('Continue'));
   await tester.pump();
+  // The lab's console runs on plain HTTP: the dialog warns first (L468).
+  await tester.tap(find.text('Continue anyway'));
+  await tester.pump();
 }
 
 void main() {

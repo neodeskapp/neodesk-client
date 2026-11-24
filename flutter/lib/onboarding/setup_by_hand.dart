@@ -62,6 +62,38 @@ class _SetupByHandDialogState extends State<SetupByHandDialog> {
   HandSetupErrors _errors = const HandSetupErrors();
   bool _busy = false;
 
+  /// The plain HTTP address the person was warned about; the next Save
+  /// saves it (L468).
+  String? _insecure;
+
+  /// A typed address on plain HTTP: one the setup didn't have before.
+  String? _typedPlainHttp() {
+    final before = {
+      widget.initial.idServer,
+      widget.initial.relayServer,
+      widget.initial.apiServer,
+    };
+    for (final c in [_id, _relay, _api]) {
+      final v = c.text.trim();
+      if (v.toLowerCase().startsWith('http://') && !before.contains(v)) {
+        return v;
+      }
+    }
+    return null;
+  }
+
+  /// The host and port of [address], as the warning names it.
+  static String _host(String address) {
+    var h = address.replaceFirst(RegExp(r'^[a-z]+://', caseSensitive: false), '');
+    final slash = h.indexOf('/');
+    if (slash > 0) h = h.substring(0, slash);
+    return h;
+  }
+
+  void _changed() {
+    if (_insecure != null) setState(() => _insecure = null);
+  }
+
   @override
   void dispose() {
     _id.dispose();
@@ -72,6 +104,14 @@ class _SetupByHandDialogState extends State<SetupByHandDialog> {
   }
 
   Future<void> _save() async {
+    final plain = _typedPlainHttp();
+    if (plain != null && plain != _insecure) {
+      setState(() {
+        _insecure = plain;
+        _more = true;
+      });
+      return;
+    }
     setState(() => _busy = true);
     final errors = await widget.onSave(HandSetup(
       idServer: _id.text.trim(),
@@ -107,6 +147,7 @@ class _SetupByHandDialogState extends State<SetupByHandDialog> {
           enabled: enabled,
           large: true,
           autofocus: true,
+          onChanged: (_) => _changed(),
           onSubmitted: (_) => _save(),
         ),
         NdField(
@@ -130,6 +171,7 @@ class _SetupByHandDialogState extends State<SetupByHandDialog> {
               error: _errors.relayServer,
               controller: _relay,
               enabled: enabled,
+              onChanged: (_) => _changed(),
             ),
             const SizedBox(height: 16),
             NdField(
@@ -138,14 +180,20 @@ class _SetupByHandDialogState extends State<SetupByHandDialog> {
               error: _errors.apiServer,
               controller: _api,
               enabled: enabled,
+              onChanged: (_) => _changed(),
             ),
           ]),
         ),
+        if (_insecure != null)
+          NdNotice(
+              tone: NdTone.warning,
+              text: tr('nd-invite-insecure', [_host(_insecure!)])),
       ],
       actions: [
         NdButton(label: translate('Cancel'), onPressed: widget.onCancel),
         NdButton.primary(
-            label: tr('nd-save'), onPressed: enabled ? _save : null),
+            label: _insecure != null ? tr('nd-continue-anyway') : tr('nd-save'),
+            onPressed: enabled ? _save : null),
       ],
     );
   }

@@ -242,6 +242,10 @@ class _JoinServerDialogState extends State<_JoinServerDialog> {
   String? _error;
   String? _serverError;
 
+  /// The console of a plain HTTP join the person was warned about; the
+  /// next Continue joins it (L468).
+  String? _insecureHost;
+
   /// The server of the join that runs, null while none runs.
   String? _joining;
   OnboardingState? _failed;
@@ -265,8 +269,15 @@ class _JoinServerDialogState extends State<_JoinServerDialog> {
       setState(() => _serverError = tr('nd-invite-server-missing'));
       return;
     }
+    final joined = InviteInput.parse(text);
+    final newHost = joined.host ?? '';
+    // As the invite installer: a console on plain HTTP is named and joined
+    // only after Continue anyway.
+    if (joined.isPlainHttp && _insecureHost != newHost) {
+      setState(() => _insecureHost = newHost);
+      return;
+    }
     final currentServer = widget.currentServer;
-    final newHost = InviteInput.parse(text).host ?? '';
     if (currentServer.isNotEmpty &&
         newHost.isNotEmpty &&
         newHost != currentServer) {
@@ -323,7 +334,10 @@ class _JoinServerDialogState extends State<_JoinServerDialog> {
           mono: true,
           autofocus: true,
           enabled: joining == null,
-          onChanged: (_) => setState(() => _error = null),
+          onChanged: (_) => setState(() {
+            _error = null;
+            _insecureHost = null;
+          }),
           onSubmitted: (_) => _submit(),
         ),
         if (InviteInput.parse(_invite.text).needsServer)
@@ -334,9 +348,16 @@ class _JoinServerDialogState extends State<_JoinServerDialog> {
             controller: _server,
             large: true,
             enabled: joining == null,
-            onChanged: (_) => setState(() => _serverError = null),
+            onChanged: (_) => setState(() {
+              _serverError = null;
+              _insecureHost = null;
+            }),
             onSubmitted: (_) => _submit(),
           ),
+        if (_insecureHost != null && joining == null)
+          NdNotice(
+              tone: NdTone.warning,
+              text: tr('nd-invite-insecure', [_insecureHost])),
         if (joining != null)
           Row(children: [
             const NdSpinner(),
@@ -353,7 +374,9 @@ class _JoinServerDialogState extends State<_JoinServerDialog> {
       actions: [
         NdButton(label: translate('Cancel'), onPressed: widget.close),
         NdButton.primary(
-            label: translate('Continue'),
+            label: _insecureHost != null
+                ? tr('nd-continue-anyway')
+                : translate('Continue'),
             onPressed: joining == null ? _submit : null),
       ],
     );
