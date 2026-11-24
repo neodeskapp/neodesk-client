@@ -70,6 +70,10 @@ pub mod input_service {
 
 mod connection;
 mod login_failure_check;
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+mod nd_signin;
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+mod nd_signin_host;
 pub mod display_service;
 #[cfg(windows)]
 pub mod portable_service;
