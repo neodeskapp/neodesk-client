@@ -2787,6 +2787,11 @@ pub fn main_get_common(key: String) -> String {
         };
         #[cfg(not(target_os = "linux"))]
         return String::new();
+    } else if key == "nd-installed-standing" {
+        #[cfg(target_os = "windows")]
+        return crate::platform::windows::installed_standing_json();
+        #[cfg(not(target_os = "windows"))]
+        return String::new();
     } else if key == "permanent-password-set" {
         return ui_interface::is_permanent_password_set().to_string();
     } else if key == "local-permanent-password-set" {
@@ -2849,6 +2854,25 @@ fn verified_update_artifact_for_release_page_url(
 }
 
 pub fn main_set_common(_key: String, _value: String) {
+    // The install page of an exe next to an installed client of another
+    // version: update it (the page follows the install progress) or open it.
+    #[cfg(target_os = "windows")]
+    if _key == "nd-update-installed" {
+        std::thread::spawn(|| match crate::platform::windows::update_installed_from_this_exe() {
+            Ok(()) => {
+                crate::platform::windows::install_progress::wait_for_client_window();
+                std::process::exit(0);
+            }
+            Err(err) => {
+                log::error!("Updating the installed client failed: {err}");
+                crate::platform::windows::install_progress::failed(&err.to_string());
+            }
+        });
+        return;
+    } else if _key == "nd-open-installed" {
+        crate::platform::windows::open_installed();
+        std::process::exit(0);
+    }
     #[cfg(target_os = "windows")]
     if _key == "install-printer" && crate::platform::is_win_10_or_greater() {
         std::thread::spawn(move || {

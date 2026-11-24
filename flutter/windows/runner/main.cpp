@@ -94,13 +94,17 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (hwnd != NULL) {
     // Allow multiple flutter instances when being executed by parameters
     // contained in whitelists.
+    // The core adds `--install` when it opens the install page itself, for
+    // an exe started next to a client installed from another file.
     bool allow_multiple_instances = false;
     for (auto& whitelist_param : parameters_white_list) {
       allow_multiple_instances =
           allow_multiple_instances ||
           std::find(command_line_arguments.begin(),
                     command_line_arguments.end(),
-                    whitelist_param) != command_line_arguments.end();
+                    whitelist_param) != command_line_arguments.end() ||
+          std::find(rust_args.begin(), rust_args.end(), whitelist_param) !=
+              rust_args.end();
     }
     if (!allow_multiple_instances) {
       if (!command_line_arguments.empty()) {
@@ -136,6 +140,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
   bool is_install_page = false;
   if (!command_line_arguments.empty() && command_line_arguments.front().compare(0, installParam.size(), installParam.c_str()) == 0) {
+    is_install_page = true;
+  }
+  if (command_line_arguments.empty() && !rust_args.empty() && rust_args.front() == installParam) {
     is_install_page = true;
   }
 

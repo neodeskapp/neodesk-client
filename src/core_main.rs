@@ -141,6 +141,29 @@ pub fn core_main() -> Option<CoreMainAction> {
         args.push("--install".to_owned());
         flutter_args.push("--install".to_string());
     }
+    // An exe started next to a client installed from another file opens the
+    // installed one when it is the same version, and otherwise the install
+    // page, which offers to update an older install (L476).
+    #[cfg(windows)]
+    if args.is_empty()
+        && !click_setup
+        && !_is_elevate
+        && !_is_run_as_system
+        && !is_quick_support_exe(&arg_exe)
+        && !config::is_disable_installation()
+    {
+        match crate::platform::windows::installed_standing() {
+            Some((crate::install_standing::Standing::Same, _)) => {
+                crate::platform::windows::open_installed();
+                return None;
+            }
+            Some(_) => {
+                args.push("--install".to_owned());
+                flutter_args.push("--install".to_string());
+            }
+            None => {}
+        }
+    }
     if args.contains(&"--noinstall".to_string()) {
         args.clear();
     }

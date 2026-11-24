@@ -81,6 +81,11 @@ class _InstallPageBodyState extends State<_InstallPageBody>
   final RxnString error = RxnString();
   Timer? _progressTimer;
 
+  /// A NeoDesk installed from another file, which this page then updates
+  /// or opens instead of installing (L476).
+  final InstalledStanding? _installed = InstalledStanding.parse(
+      bind.mainGetCommonSync(key: 'nd-installed-standing'));
+
   _InstallPageBodyState() {
     controller = TextEditingController(text: bind.installInstallPath());
     final installOptions = jsonDecode(bind.installInstallOptions());
@@ -159,6 +164,10 @@ class _InstallPageBodyState extends State<_InstallPageBody>
           copyPercent: copyPercent.value,
           error: error.value,
           onInstall: install,
+          installed: _installed,
+          onUpdate: update,
+          onOpenInstalled: () =>
+              bind.mainSetCommon(key: 'nd-open-installed', value: ''),
           onChangePath: selectInstallPath,
           onLicence: () => launchUrlString('https://www.gnu.org/licenses/agpl-3.0.html'),
           onRunWithout: bind.installShowRunWithoutInstall()
@@ -187,6 +196,20 @@ class _InstallPageBodyState extends State<_InstallPageBody>
     do_install();
   }
 
+  /// Updates the installed client to this version; the page follows the
+  /// same steps as an install.
+  void update() {
+    btnEnabled.value = false;
+    error.value = null;
+    step.value = InstallStep.permission;
+    copyPercent.value = null;
+    showProgress.value = true;
+    bind.mainSetCommon(key: 'nd-update-installed', value: '');
+    _progressTimer?.cancel();
+    _progressTimer = Timer.periodic(
+        const Duration(milliseconds: 250), (_) => _readProgress());
+  }
+
   /// The step the install is at; the process ends once the installed
   /// client's window is up.
   void _readProgress() {
@@ -209,9 +232,11 @@ class _InstallPageBodyState extends State<_InstallPageBody>
         break;
       case 'failed':
         _progressTimer?.cancel();
+        final updating = _installed != null;
         error.value = p['cancelled'] == true
-            ? tr('nd-install-cancelled')
-            : tr('nd-install-failed', [p['error'] ?? '']);
+            ? tr(updating ? 'nd-update-cancelled' : 'nd-install-cancelled')
+            : tr(updating ? 'nd-update-failed' : 'nd-install-failed',
+                [p['error'] ?? '']);
         showProgress.value = false;
         btnEnabled.value = true;
         break;

@@ -3543,6 +3543,18 @@ copy /Y \"%RUSTDESK_OUTPUT_DIR%\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsof
 }
 
 pub fn install_service() -> bool {
+    // The service runs the installed binary. An exe next to an older install,
+    // or one whose version it can't read, would set up the old version's
+    // service; it offers the update instead.
+    if let Some((standing, installed)) = installed_standing() {
+        if !crate::install_standing::may_set_up_service(standing) {
+            log::warn!(
+                "Not setting up the service of the installed {installed:?} from {}",
+                crate::VERSION
+            );
+            return true;
+        }
+    }
     log::info!("Installing service...");
     let _installing = crate::platform::InstallingService::new();
     let (_, path, _, exe) = get_install_info();
@@ -3628,8 +3640,13 @@ pub fn update_me(debug: bool) -> ResultType<()> {
     // icon and main window until the app is launched again. Reading the command
     // line through `NtQueryInformationProcess` instead would fix the queries for
     // every caller.
+    // An exe that updates the installed client from its own window runs
+    // without arguments too; it ends itself once the update is done.
     let main_window_pids =
-        crate::platform::get_pids_of_process_with_args::<_, &str>(&app_exe_name, &[]);
+        crate::platform::get_pids_of_process_with_args::<_, &str>(&app_exe_name, &[])
+            .into_iter()
+            .filter(|pid| pid.as_u32() != get_current_pid())
+            .collect::<Vec<_>>();
     let main_window_sessions = main_window_pids
         .iter()
         .map(|pid| get_session_id_of_process(pid.as_u32()))
@@ -4728,6 +4745,104 @@ pub fn is_cur_exe_the_installed() -> bool {
     }
     let path = path.to_string_lossy().to_lowercase();
     path == exe.to_lowercase()
+}
+
+/// The version the installed exe prints for `--version`, read once a
+/// process. None when it doesn't answer within ten seconds or prints no
+/// version.
+fn installed_version() -> Option<String> {
+    let (_, _, _, exe) = get_install_info();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let output = std::process::Command::new(&exe)
+            .arg("--version")
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        tx.send(output).ok();
+    });
+    let output = rx.recv_timeout(Duration::from_secs(10)).ok()?.ok()?;
+    crate::install_standing::parse_version_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+/// How a client installed from another file stands to this exe, with the
+/// version it reported; None when nothing is installed or this exe is the
+/// installed one.
+pub fn installed_standing() -> Option<(crate::install_standing::Standing, Option<String>)> {
+    static STANDING: std::sync::OnceLock<
+        Option<(crate::install_standing::Standing, Option<String>)>,
+    > = std::sync::OnceLock::new();
+    STANDING
+        .get_or_init(|| {
+            if !is_installed() || is_cur_exe_the_installed() {
+                return None;
+            }
+            let installed = installed_version();
+            let standing =
+                crate::install_standing::standing(crate::VERSION, installed.as_deref());
+            log::info!(
+                "{} {:?} is installed next to this exe ({}): {}",
+                crate::get_app_name(),
+                installed,
+                crate::VERSION,
+                standing.as_str()
+            );
+            Some((standing, installed))
+        })
+        .clone()
+}
+
+/// For the install page: {"standing": "older" | "same" | "newer" |
+/// "unknown", "installed": "1.5.0-rc.6", "this": "1.5.0-rc.7", "msi":
+/// bool}, or "" when nothing else is installed.
+pub fn installed_standing_json() -> String {
+    match installed_standing() {
+        Some((standing, installed)) => serde_json::json!({
+            "standing": standing.as_str(),
+            "installed": installed.unwrap_or_default(),
+            "this": crate::VERSION,
+            "msi": is_msi_installed().unwrap_or(false),
+        })
+        .to_string(),
+        None => String::new(),
+    }
+}
+
+/// Updates the client installed from another file to this exe's version,
+/// as the in-app update does: the files are replaced, the ID, key, password
+/// and settings stay, the service starts again if it ran, then the updated
+/// client opens. Only an older exe install is updated.
+pub fn update_installed_from_this_exe() -> ResultType<()> {
+    if config::is_disable_installation() {
+        bail!("Installation is disabled");
+    }
+    match installed_standing() {
+        Some((standing, _)) if crate::install_standing::offers_update(standing) => {}
+        other => bail!("The installed client is not older than this file: {other:?}"),
+    }
+    if is_msi_installed().unwrap_or(false) {
+        bail!("The installed client was installed with the MSI");
+    }
+    let (_, path, _, _) = get_install_info();
+    let size = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.to_string_lossy().to_string()))
+        .map(|dir| get_directory_size_kb(&dir))
+        .unwrap_or(0);
+    install_progress::begin(&path, size);
+    update_me(false)?;
+    install_progress::script_done();
+    run_after_run_cmds(false);
+    Ok(())
+}
+
+/// Starts the installed client's window, for an exe of the same version.
+pub fn open_installed() {
+    let (_, _, _, exe) = get_install_info();
+    allow_err!(std::process::Command::new(&exe)
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn());
 }
 
 #[cfg(not(target_pointer_width = "64"))]

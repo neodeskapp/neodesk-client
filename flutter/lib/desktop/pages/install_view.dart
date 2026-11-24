@@ -1,9 +1,52 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 /// The steps of an exe install, in the order the install page shows them
 /// (install_progress.rs on the Rust side).
 enum InstallStep { permission, copying, service, starting }
+
+/// A NeoDesk installed on this computer from another file, as the exe sees
+/// it (installed_standing_json in windows.rs).
+class InstalledStanding {
+  const InstalledStanding(
+      {required this.standing,
+      required this.installed,
+      required this.version,
+      this.msi = false});
+
+  /// 'older', 'newer' or 'unknown' (the same version opens the installed one).
+  final String standing;
+
+  /// The installed version, '' when it can't be read.
+  final String installed;
+
+  /// This exe's version.
+  final String version;
+
+  /// Installed with the MSI.
+  final bool msi;
+
+  /// The exe updates an older exe install.
+  bool get offersUpdate => standing == 'older' && !msi;
+
+  /// From the JSON the core gives, null when nothing else is installed.
+  static InstalledStanding? parse(String json) {
+    if (json.trim().isEmpty) return null;
+    try {
+      final m = jsonDecode(json) as Map<String, dynamic>;
+      return InstalledStanding(
+        standing: '${m['standing'] ?? 'unknown'}',
+        installed: '${m['installed'] ?? ''}',
+        version: '${m['this'] ?? ''}',
+        msi: m['msi'] == true,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+}
 
 /// The install page (DESIGN.md, Install): one Install button, the options
 /// folded away, Run without installing and the licence at the foot. While
@@ -31,6 +74,9 @@ class InstallView extends StatelessWidget {
     this.installingLead,
     this.step = InstallStep.permission,
     this.copyPercent,
+    this.installed,
+    this.onUpdate,
+    this.onOpenInstalled,
   });
 
   final String lead;
@@ -58,6 +104,12 @@ class InstallView extends StatelessWidget {
   /// How much is copied, while copying.
   final int? copyPercent;
 
+  /// A NeoDesk installed from another file: the page offers to update it
+  /// or to open it instead of installing.
+  final InstalledStanding? installed;
+  final VoidCallback? onUpdate;
+  final VoidCallback? onOpenInstalled;
+
   @override
   Widget build(BuildContext context) {
     final t = context.ndText;
@@ -72,9 +124,16 @@ class InstallView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(tr('nd-install-installing'), style: t.title),
+            Text(
+                tr(installed == null
+                    ? 'nd-install-installing'
+                    : 'nd-update-updating'),
+                style: t.title),
             const SizedBox(height: 16),
-            Text(installingLead ?? tr('nd-install-installing-lead'),
+            Text(
+                installed == null
+                    ? installingLead ?? tr('nd-install-installing-lead')
+                    : tr('nd-install-installing-lead'),
                 style: lead1),
             const SizedBox(height: 24),
             NdStepRow(
@@ -95,6 +154,7 @@ class InstallView extends StatelessWidget {
         ),
       );
     }
+    if (installed != null) return _installedPage(context, installed!, lead1);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -183,6 +243,93 @@ class InstallView extends StatelessWidget {
             Text(tr('nd-install-accept'), style: t.body.copyWith(color: c.textMuted)),
             NdButton.link(label: tr('nd-install-licence'), onPressed: onLicence),
             Text('.', style: t.body.copyWith(color: c.textMuted)),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  /// A NeoDesk installed from another file: an older exe install is
+  /// offered the update; a newer one, an MSI install and one whose version
+  /// can't be read are left alone and can be opened.
+  Widget _installedPage(
+      BuildContext context, InstalledStanding s, TextStyle lead1) {
+    final t = context.ndText;
+    final c = context.nd;
+    final update = s.offersUpdate;
+    final String title;
+    final String text;
+    if (update) {
+      title = tr('nd-update-title');
+      text = tr('nd-update-lead', [s.installed, s.version]);
+    } else if (s.standing == 'older' && s.msi) {
+      title = tr('nd-update-title');
+      text = tr('nd-update-lead-msi', [s.installed, s.version]);
+    } else if (s.standing == 'newer') {
+      title = tr('nd-installed-title');
+      text = tr('nd-installed-newer', [s.installed, s.version]);
+    } else {
+      title = tr('nd-installed-title');
+      text = tr('nd-installed-unknown');
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(40, 40, 40, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: t.title),
+                const SizedBox(height: 16),
+                Text(text, style: lead1),
+                if (error != null && update) ...[
+                  const SizedBox(height: 16),
+                  NdNotice(
+                    tone: NdTone.danger,
+                    text: error!,
+                    action: NdButton(
+                        label: tr('nd-try-again'),
+                        size: NdButtonSize.sm,
+                        onPressed: onUpdate),
+                  ),
+                ],
+                const SizedBox(height: 28),
+                if (update) ...[
+                  NdButton.primary(
+                      label: tr('nd-update-button', [s.version]),
+                      size: NdButtonSize.lg,
+                      onPressed: onUpdate),
+                  const SizedBox(height: 10),
+                  Text(tr('nd-update-hint'),
+                      style: t.body.copyWith(color: c.textMuted)),
+                ] else
+                  NdButton.primary(
+                      label: tr('nd-open-installed'),
+                      size: NdButtonSize.lg,
+                      onPressed: onOpenInstalled),
+              ],
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 40),
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: c.rule))),
+          child: Row(children: [
+            if (onRunWithout != null)
+              NdButton.link(
+                  label: tr('nd-install-run-without'), onPressed: onRunWithout),
+            const Spacer(),
+            if (update) ...[
+              Text(tr('nd-update-accept'),
+                  style: t.body.copyWith(color: c.textMuted)),
+              NdButton.link(
+                  label: tr('nd-install-licence'), onPressed: onLicence),
+              Text('.', style: t.body.copyWith(color: c.textMuted)),
+            ],
           ]),
         ),
       ],
