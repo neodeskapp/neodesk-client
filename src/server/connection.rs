@@ -459,6 +459,9 @@ pub struct Connection {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     terminal_user_token: Option<TerminalUserToken>,
     terminal_generic_service: Option<Box<GenericService>>,
+    // Saved sign-in (L469): the console state last sent
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    nd_logon_state: Option<super::nd_signin::LogonState>,
 }
 
 impl ConnInner {
@@ -654,6 +657,8 @@ impl Connection {
             terminal_generic_service: None,
             conn_audit_primary_auth: ConnAuditPrimaryAuth::None,
             conn_audit_two_factor: ConnAuditTwoFactor::None,
+            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+            nd_logon_state: None,
         };
         let addr = hbb_common::try_into_v4(addr);
         if !conn.on_open(addr).await {
@@ -1176,6 +1181,8 @@ impl Connection {
                 _ = second_timer.tick() => {
                     #[cfg(windows)]
                     conn.portable_check();
+                    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+                    conn.nd_send_logon_state().await;
                     raii::AuthedConnID::check_wake_lock_on_setting_changed();
                     if let Some((instant, minute)) = conn.auto_disconnect_timer.as_ref() {
                         if instant.elapsed().as_secs() > minute * 60 {
@@ -2020,6 +2027,15 @@ impl Connection {
             platform_additions.insert("support_view_camera".into(), json!(true));
         }
 
+        // Saved sign-in (L469): where the console is
+        #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+        {
+            self.nd_logon_state = nd_signin_host::logon_state();
+            if let Some(state) = self.nd_logon_state {
+                platform_additions.insert(nd_signin::LOGON_STATE_KEY.into(), json!(state.as_str()));
+            }
+        }
+
         #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
         if !platform_additions.is_empty() {
             pi.platform_additions = serde_json::to_string(&platform_additions).unwrap_or("".into());
@@ -2436,6 +2452,23 @@ impl Connection {
         self.tx_input
             .send(MessageInput::Pointer((msg, conn_id)))
             .ok();
+    }
+
+    /// Saved sign-in (L469): tells the viewer of a remote session when the
+    /// console's state changed since the last one sent
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    async fn nd_send_logon_state(&mut self) {
+        if !self.authorized || !self.is_authed_remote_conn() {
+            return;
+        }
+        let Some(state) = super::nd_signin_host::logon_state() else {
+            return;
+        };
+        if self.nd_logon_state != Some(state) {
+            self.nd_logon_state = Some(state);
+            self.send(super::nd_signin_host::logon_state_message(state))
+                .await;
+        }
     }
 
     #[inline]
