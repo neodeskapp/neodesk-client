@@ -677,12 +677,14 @@ pub async fn start_server(is_server: bool, no_server: bool) {
                 if conn.send(&Data::SyncConfig(None)).await.is_ok() {
                     if let Ok(Some(data)) = conn.next_timeout(1000).await {
                         match data {
+                            // The answer carries none of the device's secrets;
+                            // this process keeps its own where it has them (L442)
                             Data::SyncConfig(Some(configs)) => {
                                 let (config, config2) = *configs;
-                                if Config::set(config) {
+                                if Config::set_from_other_process(config) {
                                     log::info!("config synced");
                                 }
-                                if Config2::set(config2) {
+                                if Config2::set_from_other_process(config2) {
                                     log::info!("config2 synced");
                                 }
                             }
@@ -690,13 +692,19 @@ pub async fn start_server(is_server: bool, no_server: bool) {
                         }
                     }
                 }
+                // The window of an installed client takes the device's
+                // secrets out of its profile once the service holds them (L442)
+                crate::ipc::settle_device_secrets(&mut conn).await;
                 #[cfg(feature = "hwcodec")]
                 #[cfg(any(target_os = "windows", target_os = "linux"))]
                 crate::ipc::client_get_hwcodec_config_thread(0);
             }
             Err(err) => {
                 log::info!("server not started: {err:?}, no_server: {no_server}");
-                if no_server {
+                // Without the device's secrets (the window of an installed
+                // client) this process waits for the service instead of
+                // running the server itself (L442)
+                if no_server || !Config::holds_secrets() {
                     hbb_common::sleep(1.0).await;
                     std::thread::spawn(|| start_server(false, true));
                 } else {

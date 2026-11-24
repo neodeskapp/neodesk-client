@@ -501,6 +501,14 @@ pub fn set_option(key: String, value: String) {
         crate::audio_service::restart();
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if key == config::keys::OPTION_2FA {
+        // The daemon holds the 2FA secret and turns 2FA off itself (L442)
+        if !matches!(ipc::set_2fa(value), Ok(true)) {
+            log::warn!("The service did not change 2FA");
+        }
+        return;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         let mut options = OPTIONS.lock().unwrap();
         if value.is_empty() {
@@ -683,33 +691,19 @@ pub fn update_temporary_password() {
 pub fn is_permanent_password_set() -> bool {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     return Config::has_permanent_password();
+    // The daemon holds the stored password (L442)
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        let daemon_is_set = ipc::is_permanent_password_set();
-        // `daemon_is_set` is authoritative for the return value. Local storage is only used to
-        // decide whether we should attempt a sync to clear stale user-side state.
-        let local_storage_is_empty = if daemon_is_set {
-            true
-        } else {
-            let (storage, _) = Config::get_local_permanent_password_storage_and_salt();
-            storage.is_empty()
-        };
-        if daemon_is_set || !local_storage_is_empty {
-            allow_err!(ipc::sync_permanent_password_storage_from_daemon());
-        }
-        daemon_is_set
-    }
+    return ipc::is_permanent_password_set();
 }
 
 #[inline]
 pub fn is_local_permanent_password_set() -> bool {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     return Config::has_local_permanent_password();
+    // The daemon holds the stored password (L442): a password of its own,
+    // not the preset one
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        allow_err!(ipc::sync_permanent_password_storage_from_daemon());
-        Config::has_local_permanent_password()
-    }
+    return ipc::is_permanent_password_set() && !ipc::is_permanent_password_preset();
 }
 
 pub fn set_permanent_password_with_result(password: String) -> bool {
@@ -1170,6 +1164,10 @@ pub fn deploy_device(token: String, new_id: Option<String>) -> DeployResult {
     let local_id = ipc::get_id();
     let id_to_deploy = new_id.clone().unwrap_or_else(|| local_id.clone());
     let uuid = crate::encode64(hbb_common::get_uuid());
+    // The service's public key when the service holds the key (L442)
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let pk = crate::encode64(ipc::device_public_key());
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     let pk = crate::encode64(Config::get_key_pair().1);
     let body = serde_json::json!({
         "id": id_to_deploy,
@@ -1747,8 +1745,12 @@ pub fn support_remove_wallpaper() -> bool {
 }
 
 pub fn has_valid_2fa() -> bool {
-    let raw = get_option("2fa");
-    crate::auth_2fa::get_2fa(Some(raw)).is_some()
+    // The daemon holds the 2FA secret and says whether 2FA is on (L442)
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if let Some(set) = ipc::is_2fa_set() {
+        return set;
+    }
+    crate::auth_2fa::get_2fa(None).is_some()
 }
 
 pub fn generate2fa() -> String {
