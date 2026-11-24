@@ -84,33 +84,15 @@ class JoiningView extends StatelessWidget {
       case OnboardingPhase.joinFailed:
         final kind = state.errorKind ?? OnboardingError.other;
         final refused = kind == OnboardingError.refused;
-        final reason = (state.reason ?? '').trim();
-        // The server's own words for a refusal; for the rest the core's
-        // sentence with the server's answer in it.
-        final answer =
-            (refused && reason.isNotEmpty ? reason : (state.error ?? ''))
-                .trim();
         final tryAgain = refused ? onTryAgain : null;
         children.addAll([
           _title(tr('nd-join-failed-title'), t.title),
           const SizedBox(height: 12),
           Text(_failedLead(kind), style: t.lead),
           const SizedBox(height: 24),
-          NdNotice(
-            tone: NdTone.danger,
-            text: kind == OnboardingError.unreachable
-                ? onboardingFailedReach(state.server)
-                : tr('nd-join-failed-answer', [
-                    state.server ?? '',
-                    _withoutFinalStop(
-                        answer.isNotEmpty ? answer : _shortReason(kind))
-                  ]),
-          ),
+          NdNotice(tone: NdTone.danger, text: joinFailedNotice(state)),
           const SizedBox(height: 24),
-          Text(
-              tr(refused
-                  ? 'nd-join-failed-next-refused'
-                  : 'nd-join-failed-next'),
+          Text(joinFailedNext(state),
               style: t.body.copyWith(fontSize: 15, height: 22 / 15)),
           const SizedBox(height: 24),
           Wrap(spacing: 8, runSpacing: 8, children: [
@@ -196,17 +178,43 @@ class JoiningView extends StatelessWidget {
         _ => tr('nd-join-failed-lead-other'),
       };
 
-  /// The notice ends the sentence itself.
-  static String _withoutFinalStop(String text) =>
-      text.endsWith('.') ? text.substring(0, text.length - 1) : text;
-
-  String _shortReason(OnboardingError kind) => switch (kind) {
-        OnboardingError.usedUp => tr('nd-reason-used'),
-        OnboardingError.expired => tr('nd-reason-expired'),
-        OnboardingError.tooManyTries => tr('nd-reason-too-many'),
-        _ => tr('nd-reason-other'),
-      };
 }
+
+/// The notice of a failed join, the same on Home and in Settings, Join a
+/// server: the server's own words for a refusal, for the rest the core's
+/// sentence with the server's answer in it.
+String joinFailedNotice(OnboardingState state) {
+  final kind = state.errorKind ?? OnboardingError.other;
+  if (kind == OnboardingError.unreachable) {
+    return onboardingFailedReach(state.server);
+  }
+  final reason = (state.reason ?? '').trim();
+  final answer = (kind == OnboardingError.refused && reason.isNotEmpty
+          ? reason
+          : (state.error ?? ''))
+      .trim();
+  return tr('nd-join-failed-answer', [
+    state.server ?? '',
+    _withoutFinalStop(answer.isNotEmpty ? answer : _shortReason(kind))
+  ]);
+}
+
+/// What to do after a failed join, under its notice.
+String joinFailedNext(OnboardingState state) =>
+    tr(state.errorKind == OnboardingError.refused
+        ? 'nd-join-failed-next-refused'
+        : 'nd-join-failed-next');
+
+/// The notice ends the sentence itself.
+String _withoutFinalStop(String text) =>
+    text.endsWith('.') ? text.substring(0, text.length - 1) : text;
+
+String _shortReason(OnboardingError kind) => switch (kind) {
+      OnboardingError.usedUp => tr('nd-reason-used'),
+      OnboardingError.expired => tr('nd-reason-expired'),
+      OnboardingError.tooManyTries => tr('nd-reason-too-many'),
+      _ => tr('nd-reason-other'),
+    };
 
 String onboardingFailedReach(String? server) =>
     tr('nd-invite-error-unreachable', [server ?? '']);

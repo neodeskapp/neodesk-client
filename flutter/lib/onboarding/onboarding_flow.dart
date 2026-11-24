@@ -199,87 +199,165 @@ Future<void> showSetupByHand() async {
 /// Join a server from Settings: the first-start fields in a dialog, the
 /// server address once the text is a bare code (filled with the console of
 /// an earlier join, [knownConsole]). When the computer already has a
-/// server, it first asks to leave it.
+/// server, it first asks to leave it. The dialog stays until the join ends:
+/// it closes once the computer joined and shows why when the join failed.
 Future<void> showJoinServerDialog(OnboardingService service,
     {required String currentServer, String knownConsole = ''}) async {
-  final controller = TextEditingController();
-  final server = TextEditingController(text: knownConsole);
-  String? error;
-  String? serverError;
-  await showNdDialog<void>((close, setState) {
-    Future<void> submit() async {
-      final input = InviteInput.parse(controller.text);
-      if (input.kind == InviteKind.invalid || input.kind == InviteKind.empty) {
-        setState(() => error = tr('nd-invite-error-not-invite'));
-        return;
-      }
-      final text = joinTextFor(controller.text, server.text);
-      if (text == null) {
-        setState(() => serverError = tr('nd-invite-server-missing'));
-        return;
-      }
-      final newHost = InviteInput.parse(text).host ?? '';
-      if (currentServer.isNotEmpty &&
-          newHost.isNotEmpty &&
-          newHost != currentServer) {
-        final go = await showNdDialog<bool>((c2, _) => NdDialog(
-              title: tr('nd-join-leave-title'),
-              width: 480,
-              onClose: () => c2(false),
-              closeTooltip: translate('Close'),
-              children: [
-                Text(tr('nd-join-leave', [currentServer, newHost]),
-                    style: Get.context!.ndText.body),
-              ],
-              actions: [
-                NdButton(
-                    label: translate('Cancel'), onPressed: () => c2(false)),
-                NdButton.primary(
-                    label: tr('nd-join'), onPressed: () => c2(true)),
-              ],
-            ));
-        if (go != true) return;
-      }
-      close();
-      await service.redeemJoin(text);
-    }
+  await showNdDialog<void>((close, _) => _JoinServerDialog(
+        service: service,
+        currentServer: currentServer,
+        knownConsole: knownConsole,
+        close: close,
+      ));
+}
 
+/// The end of the join [service] just started: its state once it is no
+/// longer joining.
+Future<OnboardingState> joinOutcome(OnboardingService service) {
+  final now = service.current;
+  if (now.phase != OnboardingPhase.joining) return Future.value(now);
+  return service.states.firstWhere((s) => s.phase != OnboardingPhase.joining);
+}
+
+class _JoinServerDialog extends StatefulWidget {
+  const _JoinServerDialog({
+    required this.service,
+    required this.currentServer,
+    required this.knownConsole,
+    required this.close,
+  });
+
+  final OnboardingService service;
+  final String currentServer;
+  final String knownConsole;
+  final VoidCallback close;
+
+  @override
+  State<_JoinServerDialog> createState() => _JoinServerDialogState();
+}
+
+class _JoinServerDialogState extends State<_JoinServerDialog> {
+  final _invite = TextEditingController();
+  late final _server = TextEditingController(text: widget.knownConsole);
+  String? _error;
+  String? _serverError;
+
+  /// The server of the join that runs, null while none runs.
+  String? _joining;
+  OnboardingState? _failed;
+
+  @override
+  void dispose() {
+    _invite.dispose();
+    _server.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_joining != null) return;
+    final input = InviteInput.parse(_invite.text);
+    if (input.kind == InviteKind.invalid || input.kind == InviteKind.empty) {
+      setState(() => _error = tr('nd-invite-error-not-invite'));
+      return;
+    }
+    final text = joinTextFor(_invite.text, _server.text);
+    if (text == null) {
+      setState(() => _serverError = tr('nd-invite-server-missing'));
+      return;
+    }
+    final currentServer = widget.currentServer;
+    final newHost = InviteInput.parse(text).host ?? '';
+    if (currentServer.isNotEmpty &&
+        newHost.isNotEmpty &&
+        newHost != currentServer) {
+      final go = await showNdDialog<bool>((c2, _) => NdDialog(
+            title: tr('nd-join-leave-title'),
+            width: 480,
+            onClose: () => c2(false),
+            closeTooltip: translate('Close'),
+            children: [
+              Text(tr('nd-join-leave', [currentServer, newHost]),
+                  style: Get.context!.ndText.body),
+            ],
+            actions: [
+              NdButton(label: translate('Cancel'), onPressed: () => c2(false)),
+              NdButton.primary(label: tr('nd-join'), onPressed: () => c2(true)),
+            ],
+          ));
+      if (go != true || !mounted) return;
+    }
+    setState(() {
+      _joining = newHost;
+      _failed = null;
+    });
+    await widget.service.redeemJoin(text);
+    final outcome = await joinOutcome(widget.service);
+    if (!mounted) return;
+    if (outcome.phase == OnboardingPhase.joined) {
+      widget.close();
+      return;
+    }
+    setState(() {
+      _joining = null;
+      _failed = outcome;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.ndText;
+    final joining = _joining;
+    final failed = _failed;
     return NdDialog(
       title: tr('nd-join-a-server'),
       width: 520,
-      onClose: close,
+      onClose: widget.close,
       closeTooltip: translate('Close'),
       children: [
         NdField(
           label: tr('nd-invite-field'),
           hint: tr('nd-invite-hint'),
-          error: error,
-          controller: controller,
+          error: _error,
+          controller: _invite,
           large: true,
           mono: true,
           autofocus: true,
-          onChanged: (_) => setState(() => error = null),
-          onSubmitted: (_) => submit(),
+          enabled: joining == null,
+          onChanged: (_) => setState(() => _error = null),
+          onSubmitted: (_) => _submit(),
         ),
-        if (InviteInput.parse(controller.text).needsServer)
+        if (InviteInput.parse(_invite.text).needsServer)
           NdField(
             label: tr('nd-invite-server-field'),
             hint: tr('nd-invite-server-hint'),
-            error: serverError,
-            controller: server,
+            error: _serverError,
+            controller: _server,
             large: true,
-            onChanged: (_) => setState(() => serverError = null),
-            onSubmitted: (_) => submit(),
+            enabled: joining == null,
+            onChanged: (_) => setState(() => _serverError = null),
+            onSubmitted: (_) => _submit(),
           ),
+        if (joining != null)
+          Row(children: [
+            const NdSpinner(),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Text(tr('nd-join-progress-title', [joining]),
+                    style: t.body)),
+          ]),
+        if (failed != null) ...[
+          NdNotice(tone: NdTone.danger, text: joinFailedNotice(failed)),
+          Text(joinFailedNext(failed), style: t.body),
+        ],
       ],
       actions: [
-        NdButton(label: translate('Cancel'), onPressed: close),
-        NdButton.primary(label: translate('Continue'), onPressed: submit),
+        NdButton(label: translate('Cancel'), onPressed: widget.close),
+        NdButton.primary(
+            label: translate('Continue'),
+            onPressed: joining == null ? _submit : null),
       ],
     );
-  });
-  controller.dispose();
-  server.dispose();
+  }
 }
 
 Map<String, dynamic> jsonDecodeOptions(String raw) {
