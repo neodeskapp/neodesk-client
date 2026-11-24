@@ -645,7 +645,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-set-row-which-password-works", "Which password works"),
         ("nd-desc:nd-set-row-which-password-works", "A one-time password changes after each session. A permanent one is for when nobody is at this computer."),
         ("nd-set-row-access", "Access"),
-        ("nd-desc:nd-set-row-access", "Full access allows everything below. Screen only lets them watch."),
+        ("nd-desc:nd-set-row-access", "Full access allows everything below. Screen share lets them only watch."),
         ("nd-set-row-two-step-sign-in", "Two-step sign-in"),
         ("nd-desc:nd-set-row-two-step-sign-in", "Also ask for a code from an authenticator app when someone uses the password."),
         ("nd-set-row-show-their-screens-in-the-toolbar", "Show their screens in the toolbar"),

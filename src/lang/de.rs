@@ -1147,7 +1147,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-set-row-which-password-works", "Welches Passwort gilt"),
         ("nd-desc:nd-set-row-which-password-works", "Ein Einmalpasswort ändert sich nach jeder Sitzung. Ein festes ist für Zeiten, in denen niemand am Computer sitzt."),
         ("nd-set-row-access", "Zugriff"),
-        ("nd-desc:nd-set-row-access", "Voller Zugriff erlaubt alles unten. Nur Bildschirm lässt nur zusehen."),
+        ("nd-desc:nd-set-row-access", "Vollzugriff erlaubt alles unten. Bei Bildschirmfreigabe kann man nur zusehen."),
         ("nd-set-row-two-step-sign-in", "Zweistufige Anmeldung"),
         ("nd-desc:nd-set-row-two-step-sign-in", "Fragt zusätzlich nach einem Code aus einer Authenticator-App, wenn jemand das Passwort benutzt."),
         ("nd-set-row-show-their-screens-in-the-toolbar", "Ihre Bildschirme in der Leiste zeigen"),
