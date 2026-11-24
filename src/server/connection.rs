@@ -2047,9 +2047,7 @@ impl Connection {
             if let Some(state) = self.nd_logon_state {
                 platform_additions.insert(nd_signin::LOGON_STATE_KEY.into(), json!(state.as_str()));
             }
-            if nd_signin_host::can_sign_in() {
-                platform_additions.insert(nd_signin::CAPABILITY_KEY.into(), json!(nd_signin::FORMAT));
-            }
+            nd_signin::add_capability(&mut platform_additions, nd_signin_host::can_sign_in());
         }
 
         #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
