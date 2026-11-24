@@ -4117,14 +4117,9 @@ fn get_create_service(exe: &str) -> String {
     if config::is_outgoing_only() {
         return "".to_string();
     }
-    let stop = Config::get_option("stop-service") == "Y";
-    if stop {
-        format!("
-if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
-", app_name = crate::get_app_name())
-    } else {
-        install_commands::create_service(&crate::get_app_name(), exe)
-    }
+    // stop-service is a pause the running service obeys, so an install or
+    // an update while paused keeps the service and its tray.
+    install_commands::create_service(&crate::get_app_name(), exe)
 }
 
 fn run_after_run_cmds(silent: bool) {

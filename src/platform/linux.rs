@@ -1066,7 +1066,6 @@ fn force_stop_server() {
 }
 
 pub fn start_os_service() {
-    check_if_stop_service();
     stop_rustdesk_servers();
     start_uinput_service();
 
@@ -2721,13 +2720,17 @@ pub fn install_service() -> bool {
     true
 }
 
-fn check_if_stop_service() {
-    if Config::get_option("stop-service".into()) == "Y" {
-        let app_name = crate::get_exe_name();
-        allow_err!(run_cmds(&format!(
-            "systemctl disable {app_name}; systemctl stop {app_name}"
-        )));
+/// Whether the systemd service runs. Without systemctl there is no service
+/// to install, and the option stop-service alone switches connections.
+pub fn is_self_service_running() -> bool {
+    if !has_cmd("systemctl") {
+        return true;
     }
+    Command::new("systemctl")
+        .args(["is-active", "--quiet", &crate::get_exe_name()])
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
 }
 
 pub fn check_autostart_config() -> ResultType<()> {

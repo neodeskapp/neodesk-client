@@ -187,7 +187,9 @@ impl TrayMenu {
             Action::CopyId => self.copy_id(),
             Action::Settings => open_link("settings"),
             Action::About => open_link("settings/about"),
-            Action::Status | Action::Open | Action::StopService => {}
+            Action::StopService => set_paused(true),
+            Action::AcceptConnections => set_paused(false),
+            Action::Status | Action::Open => {}
         }
     }
 
@@ -218,6 +220,17 @@ impl TrayMenu {
     pub fn just_copied(&self) -> bool {
         self.copied_at.is_some()
     }
+}
+
+/// Pauses or resumes connections to this computer with the service's option
+/// stop-service, which the service already obeys: it stops registering with
+/// the server, ends the sessions and closes the direct port, and keeps
+/// running, so no permission prompt comes up. The option is in the
+/// service's config, so a pause outlasts a restart.
+fn set_paused(paused: bool) {
+    std::thread::spawn(move || {
+        crate::ipc::set_option("stop-service", if paused { "Y" } else { "" });
+    });
 }
 
 /// Opens the main window at a page, with a link the window handles:

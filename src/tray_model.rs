@@ -129,7 +129,7 @@ impl State {
     /// server. Ready and connecting read as on Home.
     fn line(self) -> (&'static str, bool) {
         match self {
-            State::Off => ("nd-tray-status-off", false),
+            State::Off => ("nd-tray-status-paused", false),
             State::NoServer => ("nd-tray-status-no-server", false),
             State::Banned => ("nd-tray-status-banned", true),
             State::Removed => ("nd-tray-status-removed", true),
@@ -151,8 +151,10 @@ pub enum Action {
     CopyId,
     Open,
     Settings,
-    /// What "Stop service" did: turns connections to this computer off.
+    /// Pauses connections to this computer; the service keeps running.
     StopService,
+    /// Accepts connections again after a pause.
+    AcceptConnections,
     /// Opens Settings at About.
     About,
 }
@@ -201,8 +203,8 @@ pub struct Offers {
 }
 
 /// The menu, top to bottom: the state line, the ID, Open, Settings; then
-/// turning connections off; then About. The ID is left out until the
-/// service has told it.
+/// pausing connections, or accepting them again while paused; then About.
+/// The ID is left out until the service has told it.
 pub fn menu(facts: &Facts, id: &str, version: &str, offers: Offers) -> Vec<Item> {
     let state = state_of(facts);
     let (key, names_server) = state.line();
@@ -219,7 +221,13 @@ pub fn menu(facts: &Facts, id: &str, version: &str, offers: Offers) -> Vec<Item>
         first.push(Item::entry(Action::Settings, "Settings", ""));
     }
     let mut groups = vec![first];
-    if offers.stop_service && state != State::Off {
+    if state == State::Off {
+        groups.push(vec![Item::entry(
+            Action::AcceptConnections,
+            "nd-tray-accept",
+            "",
+        )]);
+    } else if offers.stop_service {
         groups.push(vec![Item::entry(Action::StopService, "nd-tray-stop", "")]);
     }
     if offers.settings {
@@ -435,13 +443,24 @@ mod tests {
     }
 
     #[test]
-    fn connections_that_are_off_cannot_be_turned_off_again() {
+    fn paused_connections_say_so_and_can_be_accepted_again() {
         let mut off = ready();
         off.service_stopped = true;
         let items = menu(&off, "123456789", "1.5.0", ON);
-        assert_eq!(lines(&items)[0], "[nd-tray-status-off]");
+        assert_eq!(
+            lines(&items),
+            [
+                "[nd-tray-status-paused]",
+                "nd-tray-id 123 456 789",
+                "nd-tray-open",
+                "Settings",
+                "-",
+                "nd-tray-accept",
+                "-",
+                "nd-tray-about 1.5.0",
+            ]
+        );
         assert!(items.iter().all(|i| i.action() != Some(Action::StopService)));
-        assert_eq!(lines(&items).iter().filter(|l| *l == "-").count(), 1);
     }
 
     #[test]
@@ -507,7 +526,13 @@ mod tests {
     /// template; other languages fall back to English.
     #[test]
     fn every_label_is_translated() {
-        let mut keys = vec!["nd-tray-id", "nd-tray-open", "nd-tray-stop", "nd-tray-about"];
+        let mut keys = vec![
+            "nd-tray-id",
+            "nd-tray-open",
+            "nd-tray-stop",
+            "nd-tray-accept",
+            "nd-tray-about",
+        ];
         for state in [
             State::Off,
             State::NoServer,

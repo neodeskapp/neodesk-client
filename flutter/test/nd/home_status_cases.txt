@@ -4,7 +4,7 @@
 #
 # Facts: status (ready, connecting, notReady), reason (the connect status
 # reason), banned, enrollment, signal and said (the server's message) from
-# the option neodesk-device-standing, stopped (connections turned off) and
+# the option neodesk-device-standing, stopped (connections paused) and
 # noserver. Missing facts are empty, notReady or 0.
 stopped=1 status=ready reason=ready => off
 stopped=1 noserver=1 => off

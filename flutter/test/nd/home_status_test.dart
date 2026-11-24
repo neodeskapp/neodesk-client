@@ -82,11 +82,13 @@ void main() {
         'This computer was removed from 10.10.10.74. The server says: Device has been removed');
   });
 
-  test('turned off and no server need no server answer', () {
+  test('paused and no server need no server answer', () {
     final off = homeStatusOf(const HomeStatusFacts(
         server: _server, status: SvcStatus.ready, serviceStopped: true));
     expect(off.kind, NdStatusKind.offline);
-    expect(off.linkLabel, 'Turn on');
+    expect(off.text,
+        'Paused. This computer does not accept connections right now.');
+    expect(off.linkLabel, 'Accept connections');
     final none = homeStatusOf(const HomeStatusFacts(
         server: '', status: SvcStatus.notReady, noServer: true));
     expect(none.text, 'No server is set up.');
@@ -124,7 +126,7 @@ void main() {
       final server = noServer ? '' : _server;
       final said = facts['said'] ?? '';
       final want = switch (parts[1].trim()) {
-        'off' => tr('nd-home-status-service-off'),
+        'off' => tr('nd-home-status-paused'),
         'no-server' => tr('nd-home-status-no-server'),
         'banned' => withSaid(tr('nd-home-status-banned', [server]), said),
         'removed' => withSaid(tr('nd-home-status-removed', [server]), said),

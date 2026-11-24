@@ -1228,6 +1228,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-install-step-starting", "NeoDesk wird gestartet"),
         ("nd-install-cancelled", "Windows hat keine Erlaubnis bekommen, deshalb wurde nichts installiert. Klicken Sie auf Installieren und wählen Sie Ja, wenn Windows fragt."),
         ("nd-install-lead-join-server", "Nach der Installation tritt dieser Computer {} bei. NeoDesk startet dann mit Windows."),
+        ("nd-tray-status-paused", "Pausiert. Nimmt keine Verbindungen an"),
+        ("nd-tray-accept", "Verbindungen annehmen"),
+        ("nd-home-status-paused", "Pausiert. Dieser Computer nimmt gerade keine Verbindungen an."),
+        ("nd-home-accept", "Verbindungen annehmen"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

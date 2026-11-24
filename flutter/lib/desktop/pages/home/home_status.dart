@@ -34,7 +34,7 @@ class HomeStatusFacts {
   /// this computer (banned, enrollment, its reason, signal).
   final String standing;
 
-  /// Connections to this computer are turned off.
+  /// Connections to this computer are paused (the option stop-service).
   final bool serviceStopped;
 
   /// No server is set up.
@@ -59,8 +59,8 @@ HomeStatus homeStatusOf(
 }) {
   final server = facts.server;
   if (facts.serviceStopped) {
-    return HomeStatus(NdStatusKind.offline, tr('nd-home-status-service-off'),
-        linkLabel: tr('nd-home-turn-on'), onLink: onTurnOn);
+    return HomeStatus(NdStatusKind.offline, tr('nd-home-status-paused'),
+        linkLabel: tr('nd-home-accept'), onLink: onTurnOn);
   }
   if (facts.noServer) {
     return HomeStatus(NdStatusKind.bad, tr('nd-home-status-no-server'),

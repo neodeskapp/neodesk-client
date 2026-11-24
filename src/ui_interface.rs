@@ -483,18 +483,16 @@ pub fn set_option(key: String, value: String) {
                 return;
             }
         }
+        // A pause keeps the service: it obeys stop-service itself (no
+        // registration, no sessions, no direct port). Only a computer whose
+        // service is gone gets it installed again to accept connections.
         #[cfg(any(target_os = "windows", target_os = "linux"))]
         {
-            if crate::platform::is_installed() {
-                if value == "Y" {
-                    if crate::platform::uninstall_service(true, false) {
-                        return;
-                    }
-                } else {
-                    if crate::platform::install_service() {
-                        return;
-                    }
-                }
+            if crate::platform::is_installed()
+                && value != "Y"
+                && !crate::platform::is_self_service_running()
+            {
+                crate::platform::install_service();
                 return;
             }
         }

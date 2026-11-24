@@ -1239,6 +1239,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-install-step-starting", ""),
         ("nd-install-cancelled", ""),
         ("nd-install-lead-join-server", ""),
+        ("nd-tray-status-paused", ""),
+        ("nd-tray-accept", ""),
+        ("nd-home-status-paused", ""),
+        ("nd-home-accept", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }
