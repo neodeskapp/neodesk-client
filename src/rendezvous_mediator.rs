@@ -462,8 +462,17 @@ impl RendezvousMediator {
                         #[cfg(target_os = "android")]
                         notify_android_needs_deploy();
                     }
+                    Ok(register_pk_response::Result::NOT_SUPPORT) => {
+                        self.handle_key_refused();
+                    }
                     _ => {
-                        log::error!("unknown RegisterPkResponse");
+                        hbb_common::throttled_log!(
+                            Duration::from_secs(600),
+                            warn,
+                            "{} did not take this device's key: {:?}",
+                            self.host,
+                            rpr.result
+                        );
                     }
                 }
                 if rpr.keep_alive > 0 {
@@ -921,6 +930,22 @@ impl RendezvousMediator {
         Ok(())
     }
 
+    /// NOT_SUPPORT: a NeoDesk server keeps another key for this ID, or keeps
+    /// the device out. The device standing tells Home and the tray
+    /// (note_register_pk_answer); the key no longer counts as confirmed, so
+    /// every registration offers it again until an administrator approves it.
+    fn handle_key_refused(&self) {
+        hbb_common::throttled_log!(
+            Duration::from_secs(600),
+            warn,
+            "{} refused this device's key: it keeps another key for ID {} or keeps the device out",
+            self.host,
+            Config::get_id()
+        );
+        Config::set_key_confirmed(false);
+        Config::set_host_key_confirmed(&self.host_prefix, false);
+    }
+
     async fn handle_uuid_mismatch(&mut self, socket: Sink<'_>) -> ResultType<()> {
         {
             let mut solving = SOLVING_PK_MISMATCH.lock().await;
@@ -1213,6 +1238,50 @@ mod tests {
     }
     use hbb_common::protobuf::Message as _;
     use std::sync::Mutex;
+
+    /// NOT_SUPPORT is the answer of a NeoDesk server that keeps another key
+    /// for this ID (3.6.0-rc.4, signal/handler.go, processRegisterPk).
+    #[tokio::test]
+    async fn a_refused_key_no_longer_counts_as_confirmed() {
+        use hbb_common::{
+            config::Config,
+            rendezvous_proto::{register_pk_response, rendezvous_message, RegisterPkResponse},
+            udp::FramedSocket,
+        };
+        let mut socket = FramedSocket::new("127.0.0.1:0").await.unwrap();
+        let host = socket.local_addr().unwrap();
+        let target = host.into_target_addr().unwrap();
+        let mut mediator = RendezvousMediator {
+            addr: target.clone(),
+            host: host.to_string(),
+            host_prefix: "refused-key-test".to_owned(),
+            keep_alive: 0,
+        };
+        Config::set_key_confirmed(true);
+        Config::set_host_key_confirmed("refused-key-test", true);
+        let answer = RendezvousMessage {
+            union: Some(rendezvous_message::Union::RegisterPkResponse(
+                RegisterPkResponse {
+                    result: register_pk_response::Result::NOT_SUPPORT.into(),
+                    ..Default::default()
+                },
+            )),
+            ..Default::default()
+        };
+        mediator
+            .handle_resp(
+                answer.union,
+                super::Sink::Framed(&mut socket, &target),
+                &crate::server::new_for_test(),
+                &mut || {},
+            )
+            .await
+            .unwrap();
+        assert!(!Config::get_key_confirmed(), "the server does not hold this key");
+        assert!(!Config::get_host_key_confirmed("refused-key-test"));
+        assert!(Config::get_option(crate::hbbs_http::enrollment::OPTION_STANDING)
+            .contains("refused"));
+    }
 
     // The pools are statics and the tests run in parallel: the ones that count them take turns.
     static POOLS: Mutex<()> = Mutex::new(());
