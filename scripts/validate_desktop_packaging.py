@@ -214,7 +214,10 @@ require("res/msi/Package/UI/MyInstallDlg.wxs", msi_ui, '<DialogRef Id="MyExitDia
 if 'Dialog="ExitDialog"' in msi_ui:
     failures.append("res/msi/Package/UI/MyInstallDlg.wxs: uses WiX's stock finish page")
 exit_dialog = read("res/msi/Package/UI/MyExitDlg.wxs") if exists("res/msi/Package/UI/MyExitDlg.wxs") else ""
-for needle in ('Property="NDOPENAPP"', 'Event="DoAction" Value="LaunchApp"', "!(loc.MyExitDlgRunning)"):
+# The finish page tells a removal by the mode the Remove button set: REMOVE
+# lives in the execute sequence and never reaches the UI.
+for needle in ('Property="NDOPENAPP"', 'Event="DoAction" Value="LaunchApp"', "!(loc.MyExitDlgRunning)",
+               'ShowCondition="Installed AND WixUI_InstallMode=&quot;Remove&quot;"'):
     require("res/msi/Package/UI/MyExitDlg.wxs", exit_dialog, needle)
 # The progress page names every custom action's step in words.
 named = set(re.findall(r'<ProgressText Action="([^"]+)"', msi_ui))
@@ -223,7 +226,7 @@ for relative in ("res/msi/Package/Components/RustDesk.wxs", "res/msi/Package/Pac
         if action != "BlockSelfInstalledApp" and action not in named:
             failures.append(f"{relative}: the progress page would show the action name {action}")
 msi_strings = read("res/msi/Package/Language/Package.en-us.wxl")
-for needle in ('Id="WelcomeDlgTitle"', 'Id="ProgressTextGenerateScript"', 'Id="MyExitDlgOpen"'):
+for needle in ('Id="WelcomeDlgTitle"', 'Id="ProgressTextGenerateScript"', 'Id="MyExitDlgOpen"', 'Id="MsiRMFilesInUseTitle"'):
     require("res/msi/Package/Language/Package.en-us.wxl", msi_strings, needle)
 sign_action = read(".github/actions/sign-windows/action.yml")
 require(".github/actions/sign-windows/action.yml", sign_action, "description: ${{ inputs.description }}")

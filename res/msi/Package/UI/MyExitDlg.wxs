@@ -3,7 +3,9 @@
 <!-- Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
 
 <!--
-The finish page: says what setup did (set up, repaired or removed), whether
+The finish page: says what setup did (set up, repaired or removed, as the
+Repair or Remove button set WixUI_InstallMode; REMOVE is only set in the
+execute sequence, which the UI never sees), whether
 the client runs and where its icon is, and opens the client on Finish while
 "Open" is ticked. The checkbox is only as wide as its box, with the label as
 transparent text beside it: a checkbox control paints its own grey background
@@ -38,13 +40,13 @@ over the dialog bitmap.
                 <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
 
                 <Control Id="TitleInstalled" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgTitleInstalled)" ShowCondition="NOT Installed" />
-                <Control Id="TitleRemoved" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgTitleRemoved)" ShowCondition="Installed AND REMOVE~=&quot;ALL&quot;" />
-                <Control Id="TitleRepaired" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgTitleRepaired)" ShowCondition="Installed AND NOT REMOVE~=&quot;ALL&quot;" />
+                <Control Id="TitleRemoved" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgTitleRemoved)" ShowCondition="Installed AND WixUI_InstallMode=&quot;Remove&quot;" />
+                <Control Id="TitleRepaired" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgTitleRepaired)" ShowCondition="Installed AND NOT WixUI_InstallMode=&quot;Remove&quot;" />
 
                 <Control Id="Running" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgRunning)" ShowCondition="NOT Installed AND NOT NdConnectionsOff=&quot;&apos;Y&apos;&quot; AND NOT CC_CONNECTION_TYPE=&quot;outgoing&quot;" />
                 <Control Id="Ready" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgReady)" ShowCondition="NOT Installed AND (NdConnectionsOff=&quot;&apos;Y&apos;&quot; OR CC_CONNECTION_TYPE=&quot;outgoing&quot;)" />
-                <Control Id="Removed" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgRemoved)" ShowCondition="Installed AND REMOVE~=&quot;ALL&quot;" />
-                <Control Id="Repaired" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgRepaired)" ShowCondition="Installed AND NOT REMOVE~=&quot;ALL&quot;" />
+                <Control Id="Removed" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgRemoved)" ShowCondition="Installed AND WixUI_InstallMode=&quot;Remove&quot;" />
+                <Control Id="Repaired" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgRepaired)" ShowCondition="Installed AND NOT WixUI_InstallMode=&quot;Remove&quot;" />
 
                 <Control Id="OpenCheckBox" Type="CheckBox" X="135" Y="130" Width="10" Height="10" Hidden="yes" Property="NDOPENAPP" CheckBoxValue="1" ShowCondition="NOT Installed" />
                 <Control Id="OpenLabel" Type="Text" X="149" Y="130" Width="200" Height="12" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgOpen)" ShowCondition="NOT Installed" />
