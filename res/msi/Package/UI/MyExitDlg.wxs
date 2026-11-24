@@ -17,17 +17,6 @@ over the dialog bitmap.
         <!-- Ticked unless the command line says NDOPENAPP=0. -->
         <Property Id="NDOPENAPP" Value="1" />
 
-        <!-- The finish page tells whether connections stay off, as the
-             execute sequence decides from the same setting; NdConnectionsOff
-             is private, so the execute sequence never sees it. -->
-        <CustomAction Id="NdReadConnectionsOff.SetParam.PropertyName" Return="check" Property="PropertyName" Value="NdConnectionsOff" />
-        <InstallUISequence>
-            <Custom Action="SetPropertyServiceStop.SetParam.ConfigFile" After="CostFinalize" Condition="NOT Installed" />
-            <Custom Action="SetPropertyServiceStop.SetParam.ConfigKey" After="SetPropertyServiceStop.SetParam.ConfigFile" Condition="NOT Installed" />
-            <Custom Action="NdReadConnectionsOff.SetParam.PropertyName" After="SetPropertyServiceStop.SetParam.ConfigKey" Condition="NOT Installed" />
-            <Custom Action="SetPropertyServiceStop" After="NdReadConnectionsOff.SetParam.PropertyName" Condition="NOT Installed" />
-        </InstallUISequence>
-
         <UI>
             <Dialog Id="MyExitDialog" Width="370" Height="270" Title="!(loc.MyExitDialog_Title)">
                 <Control Id="Finish" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIFinish)">
@@ -43,8 +32,8 @@ over the dialog bitmap.
                 <Control Id="TitleRemoved" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgTitleRemoved)" ShowCondition="Installed AND WixUI_InstallMode=&quot;Remove&quot;" />
                 <Control Id="TitleRepaired" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgTitleRepaired)" ShowCondition="Installed AND NOT WixUI_InstallMode=&quot;Remove&quot;" />
 
-                <Control Id="Running" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgRunning)" ShowCondition="NOT Installed AND NOT NdConnectionsOff=&quot;&apos;Y&apos;&quot; AND NOT CC_CONNECTION_TYPE=&quot;outgoing&quot;" />
-                <Control Id="Ready" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgReady)" ShowCondition="NOT Installed AND (NdConnectionsOff=&quot;&apos;Y&apos;&quot; OR CC_CONNECTION_TYPE=&quot;outgoing&quot;)" />
+                <Control Id="Running" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgRunning)" ShowCondition="NOT Installed AND NOT CC_CONNECTION_TYPE=&quot;outgoing&quot;" />
+                <Control Id="Ready" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgReady)" ShowCondition="NOT Installed AND CC_CONNECTION_TYPE=&quot;outgoing&quot;" />
                 <Control Id="Removed" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgRemoved)" ShowCondition="Installed AND WixUI_InstallMode=&quot;Remove&quot;" />
                 <Control Id="Repaired" Type="Text" X="135" Y="70" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="!(loc.MyExitDlgRepaired)" ShowCondition="Installed AND NOT WixUI_InstallMode=&quot;Remove&quot;" />
 

@@ -175,7 +175,24 @@ msi_components = read("res/msi/Package/Components/RustDesk.wxs")
 for needle in ('ExeCommand="--claim-rustdesk-scheme"', 'ExeCommand="--release-rustdesk-scheme"',
                '<Custom Action="ClaimRustDeskScheme"', '<Custom Action="ReleaseRustDeskScheme"'):
     require("res/msi/Package/Components/RustDesk.wxs", msi_components, needle)
+# A pause (stop-service) keeps the service: the running service refuses
+# connections itself. So every install, repair and update creates and starts
+# the service and the tray, whatever stop-service says in the installing
+# user's or the service's settings, and keeps the tray's startup link.
+for action in ("CreateStartService", "CreateStartService.SetParam", "LaunchAppTray"):
+    found = re.search(rf'<Custom Action="{re.escape(action)}"[^>]*Condition="([^"]*)"', msi_components)
+    if not found:
+        failures.append(f"res/msi/Package/Components/RustDesk.wxs: {action} is not scheduled")
+    elif "STOP_SERVICE" in found.group(1):
+        failures.append(f"res/msi/Package/Components/RustDesk.wxs: {action} is skipped on a paused client: {found.group(1)}")
+if '<Custom Action="TryDeleteStartupShortcut"' in msi_components:
+    failures.append("res/msi/Package/Components/RustDesk.wxs: removes the tray's startup link on a paused client")
 windows_rs = read("src/platform/windows.rs")
+after_install = re.search(r"\nfn run_after_run_cmds\(.*?\n}\n", windows_rs, re.S)
+if not after_install:
+    failures.append("src/platform/windows.rs: run_after_run_cmds is missing")
+elif "stop-service" in after_install.group(0):
+    failures.append("src/platform/windows.rs: the exe install starts no tray on a paused client")
 require("src/platform/windows.rs", windows_rs, "legacy_uri_scheme = add_rustdesk_scheme_commands(&nested_exe)")
 require("src/platform/windows.rs", windows_rs, "link_schemes::may_claim_rustdesk_scheme(")
 require("res/msi/Package/Components/RustDesk.wxs", read("res/msi/Package/Components/RustDesk.wxs"), 'Name="$(var.Executable)"')
@@ -219,6 +236,10 @@ exit_dialog = read("res/msi/Package/UI/MyExitDlg.wxs") if exists("res/msi/Packag
 for needle in ('Property="NDOPENAPP"', 'Event="DoAction" Value="LaunchApp"', "!(loc.MyExitDlgRunning)",
                'ShowCondition="Installed AND WixUI_InstallMode=&quot;Remove&quot;"'):
     require("res/msi/Package/UI/MyExitDlg.wxs", exit_dialog, needle)
+# A paused client gets its service and tray like any other, so the finish
+# page doesn't send it to the Start menu.
+if "NdConnectionsOff" in exit_dialog:
+    failures.append("res/msi/Package/UI/MyExitDlg.wxs: says a paused client isn't running")
 # The progress page names every custom action's step in words.
 named = set(re.findall(r'<ProgressText Action="([^"]+)"', msi_ui))
 for relative in ("res/msi/Package/Components/RustDesk.wxs", "res/msi/Package/Package.wxs"):

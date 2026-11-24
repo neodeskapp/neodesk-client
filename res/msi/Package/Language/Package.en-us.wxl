@@ -151,7 +151,6 @@ This file contains the declaration of all the localizable strings.
 	<String Id="ProgressTextUnpublishFeatures" Value="Unregistering the app" />
 	<String Id="ProgressTextProcessComponents" Value="Registering the app with Windows" />
 	<String Id="ProgressTextRollbackCleanup" Value="Removing temporary files" />
-	<String Id="ProgressTextReadSettings" Value="Reading the previous settings" />
 	<String Id="ProgressTextStopService" Value="Stopping the service" />
 	<String Id="ProgressTextCloseApp" Value="Closing the app" />
 	<String Id="ProgressTextRemoveAppFiles" Value="Removing files the app made" />
@@ -163,7 +162,6 @@ This file contains the declaration of all the localizable strings.
 	<String Id="ProgressTextStartService" Value="Starting the service" />
 	<String Id="ProgressTextSas" Value="Letting the service send Ctrl+Alt+Del" />
 	<String Id="ProgressTextLinks" Value="Registering links" />
-	<String Id="ProgressTextStartup" Value="Updating the startup shortcut" />
 	<String Id="ProgressTextFinish" Value="Finishing" />
 	<String Id="ProgressTextLaunch" Value="Starting the app" />
 

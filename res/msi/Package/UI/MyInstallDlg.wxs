@@ -94,13 +94,6 @@ Patch dialog sequence:
             <!-- The progress page names each step of the custom actions in
                  plain words instead of the action's name. -->
             <ProgressText Action="SetArpInstallLocation" Message="!(loc.ProgressTextGenerateScript)" />
-            <ProgressText Action="SetPropertyIsServiceRunning" Message="!(loc.ProgressTextReadSettings)" />
-            <ProgressText Action="SetPropertyIsServiceRunning.SetParam.AppName" Message="!(loc.ProgressTextReadSettings)" />
-            <ProgressText Action="SetPropertyIsServiceRunning.SetParam.PropertyName" Message="!(loc.ProgressTextReadSettings)" />
-            <ProgressText Action="SetPropertyServiceStop" Message="!(loc.ProgressTextReadSettings)" />
-            <ProgressText Action="SetPropertyServiceStop.SetParam.ConfigFile" Message="!(loc.ProgressTextReadSettings)" />
-            <ProgressText Action="SetPropertyServiceStop.SetParam.ConfigKey" Message="!(loc.ProgressTextReadSettings)" />
-            <ProgressText Action="SetPropertyServiceStop.SetParam.PropertyName" Message="!(loc.ProgressTextReadSettings)" />
             <ProgressText Action="TryStopDeleteService" Message="!(loc.ProgressTextStopService)" />
             <ProgressText Action="TryStopDeleteService.SetParam" Message="!(loc.ProgressTextStopService)" />
             <ProgressText Action="TerminateProcesses" Message="!(loc.ProgressTextCloseApp)" />
@@ -125,8 +118,6 @@ Patch dialog sequence:
             <ProgressText Action="CreateStartService" Message="!(loc.ProgressTextStartService)" />
             <ProgressText Action="CreateStartService.SetParam" Message="!(loc.ProgressTextStartService)" />
             <ProgressText Action="CustomActionHello" Message="!(loc.ProgressTextFinish)" />
-            <ProgressText Action="TryDeleteStartupShortcut" Message="!(loc.ProgressTextStartup)" />
-            <ProgressText Action="TryDeleteStartupShortcut.SetParam" Message="!(loc.ProgressTextStartup)" />
             <ProgressText Action="LaunchApp" Message="!(loc.ProgressTextLaunch)" />
             <ProgressText Action="LaunchAppTray" Message="!(loc.ProgressTextLaunch)" />
         </UI>
