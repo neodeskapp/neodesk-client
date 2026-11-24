@@ -91,6 +91,9 @@ type ConnMap = HashMap<i32, ConnInner>;
 pub struct ConnectionMeta {
     pub control_permissions: Option<ControlPermissions>,
     pub controlled_context: Option<ControlledContext>,
+    /// The relay session's UUID (RequestRelay.uuid) of a relayed
+    /// connection; a saved sign-in names it (L469)
+    pub relay_uuid: Option<String>,
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -374,10 +377,14 @@ async fn create_relay_connection_(
     let licence_key = crate::get_key(true).await;
     msg_out.set_request_relay(RequestRelay {
         licence_key,
-        uuid,
+        uuid: uuid.clone(),
         ..Default::default()
     });
     stream.send(&msg_out).await?;
+    let meta = ConnectionMeta {
+        relay_uuid: Some(uuid),
+        ..meta
+    };
     create_tcp_connection(server, stream, peer_addr, secure, meta).await?;
     Ok(())
 }

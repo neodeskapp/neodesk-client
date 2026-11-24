@@ -459,9 +459,14 @@ pub struct Connection {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     terminal_user_token: Option<TerminalUserToken>,
     terminal_generic_service: Option<Box<GenericService>>,
-    // Saved sign-in (L469): the console state last sent
+    // Saved sign-in (L469): the relay session this connection came through,
+    // the console state last sent, and this connection's tries
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    nd_relay_uuid: Option<String>,
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     nd_logon_state: Option<super::nd_signin::LogonState>,
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    nd_signin_gate: super::nd_signin::ConnGate,
 }
 
 impl ConnInner {
@@ -532,7 +537,10 @@ impl Connection {
         let super::ConnectionMeta {
             control_permissions,
             controlled_context,
+            relay_uuid,
         } = meta;
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        let _ = relay_uuid;
         // Android is not supported yet, so we always set control_permissions to None.
         #[cfg(target_os = "android")]
         let control_permissions = None;
@@ -658,7 +666,11 @@ impl Connection {
             conn_audit_primary_auth: ConnAuditPrimaryAuth::None,
             conn_audit_two_factor: ConnAuditTwoFactor::None,
             #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+            nd_relay_uuid: relay_uuid,
+            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
             nd_logon_state: None,
+            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+            nd_signin_gate: Default::default(),
         };
         let addr = hbb_common::try_into_v4(addr);
         if !conn.on_open(addr).await {
@@ -2027,12 +2039,16 @@ impl Connection {
             platform_additions.insert("support_view_camera".into(), json!(true));
         }
 
-        // Saved sign-in (L469): where the console is
+        // Saved sign-in (L469): where the console is, and whether this
+        // process can type a sign-in there
         #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
         {
             self.nd_logon_state = nd_signin_host::logon_state();
             if let Some(state) = self.nd_logon_state {
                 platform_additions.insert(nd_signin::LOGON_STATE_KEY.into(), json!(state.as_str()));
+            }
+            if nd_signin_host::can_sign_in() {
+                platform_additions.insert(nd_signin::CAPABILITY_KEY.into(), json!(nd_signin::FORMAT));
             }
         }
 
@@ -2469,6 +2485,31 @@ impl Connection {
             self.send(super::nd_signin_host::logon_state_message(state))
                 .await;
         }
+    }
+
+    /// Saved sign-in (L469): a sealed sign-in packet from the viewer. Only a
+    /// remote session that may use the keyboard gets it checked and typed;
+    /// the answer goes out on this connection once the typing is done.
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    fn on_nd_signin(&mut self, packet: &[u8]) {
+        use nd_signin::Outcome;
+        let tx = self.inner.tx.clone();
+        let answer = move |msg: Message| {
+            if let Some(tx) = tx {
+                tx.send((Instant::now(), Arc::new(msg))).ok();
+            }
+        };
+        if !self.is_authed_remote_conn() || !self.peer_keyboard_enabled() {
+            log::info!("saved sign-in refused: this session may not use the keyboard");
+            answer(nd_signin_host::result_message(Outcome::BadBlob, ""));
+            return;
+        }
+        nd_signin_host::on_request(
+            packet,
+            self.nd_relay_uuid.as_deref(),
+            &mut self.nd_signin_gate,
+            answer,
+        );
     }
 
     #[inline]
@@ -4015,6 +4056,12 @@ impl Connection {
                             self.video_source(),
                         ) {
                             self.send(msg_out).await;
+                        }
+                    }
+                    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+                    Some(misc::Union::PluginRequest(p)) => {
+                        if p.id == super::nd_signin::ID_SIGNIN {
+                            self.on_nd_signin(&p.content);
                         }
                     }
                     _ => {}
