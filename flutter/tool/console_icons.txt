@@ -1,0 +1,75 @@
+# The console's icon meanings (neodeskapp/neodesk, web-ui/src/lib/util/display.ts,
+# ICONS, as of daf4df2df): <meaning> <Material Symbols name>. A line of
+# nd_symbols.txt whose Dart name is one of these meanings in camelCase must
+# use the same glyph (test/nd/icon_sources_test.dart checks it), so both
+# products show the same thing with the same glyph. Copy the table again when
+# the console changes it.
+connect desktop_windows
+connect_app open_in_new
+guest_link share
+snapshot photo_camera
+details info
+edit edit
+rename drive_file_rename_outline
+tags sell
+groups workspaces
+folder folder
+access_policy shield
+ban block
+unban lock_open
+delete delete
+delete_forever delete_forever
+restore restore_from_trash
+copy content_copy
+download download
+upload upload
+export download
+refresh refresh
+add add
+approve check
+reject close
+accept check
+resolve task_alt
+open arrow_forward
+history history
+password key
+organization business
+user person
+terminal terminal
+files folder_open
+run play_arrow
+link link
+unlink link_off
+network_port settings_ethernet
+power_on power_settings_new
+sleep bedtime
+restart restart_alt
+power_off power_off
+enable toggle_on
+disable toggle_off
+qr qr_code_2
+billing payments
+settings settings
+search search
+send send
+print print
+check_now network_ping
+revoke cancel
+view visibility
+hide visibility_off
+retry replay
+reload autorenew
+duplicate control_point_duplicate
+connect_terminal terminal
+start play_arrow
+stop stop
+compliance_scan fact_check
+remediate build
+encode code
+decode text_fields
+generate summarize
+save save
+reset settings_backup_restore
+import upload
+help_request support_agent
+enrollment_request how_to_reg

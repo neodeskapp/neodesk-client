@@ -1,17 +1,26 @@
-# The icons of NdIcons: <dart name> <Material Symbols name> [filled].
+# The icons of NdIcons, one per line: <dart name> <Material Symbols name> [filled].
 # tool/build_symbols.py builds the fonts and nd_icons.dart from it.
+#
+# Name an icon by what it means when the console has that meaning
+# (tool/console_icons.txt: copy, connect, files, password, tags, ...), in
+# camelCase and with the console's glyph, and by its glyph name otherwise.
+# The symbol name is the one in Google's codepoints file (fonts.google.com/icons).
 accessibilityNew accessibility_new
 accountCircle account_circle
 add add
 addCircle add_circle
+addToDrive add_to_drive
 adminPanelSettings admin_panel_settings
 apps apps
 arrowBack arrow_back
+arrowBackIos arrow_back_ios
 arrowDownward arrow_downward
 arrowDropDown arrow_drop_down
 arrowDropUp arrow_drop_up
 arrowForward arrow_forward
+arrowForwardIos arrow_forward_ios
 arrowUpward arrow_upward
+article article
 attachFile attach_file
 backspace backspace
 backup backup
@@ -35,14 +44,20 @@ chevronRight chevron_right
 cleaningServices cleaning_services
 close close
 closeFullscreen close_fullscreen
+cloud cloud
 cloudLock cloud_lock
 cloudOff cloud_off
+cloudUpload cloud_upload
+compareArrows compare_arrows
 computer computer
+connect desktop_windows
+connectedTv connected_tv
 contacts contacts
 contentCopy content_copy
 contentCut content_cut
 contentPaste content_paste
 contrast contrast
+copy content_copy
 copyAll copy_all
 createNewFolder create_new_folder
 cropSquare crop_square
@@ -63,8 +78,10 @@ download download
 draft draft
 dragHandle drag_handle
 dragIndicator drag_indicator
+dragPan drag_pan
 draw draw
 driveFileRenameOutline drive_file_rename_outline
+driveFolderUpload drive_folder_upload
 east east
 edit edit
 error error
@@ -74,11 +91,14 @@ favorite favorite
 fiberManualRecord fiber_manual_record
 fileCopy file_copy
 fileDownload file_download
+files folder_open
 fileUpload file_upload
 filterAlt filter_alt
 filterList filter_list
 filterNone filter_none
+fingerprint fingerprint
 fitScreen fit_screen
+flashOn flash_on
 folder folder
 folderOpen folder_open
 forwardToInbox forward_to_inbox
@@ -87,10 +107,12 @@ fullscreenExit fullscreen_exit
 gppBad gpp_bad
 gridView grid_view
 group group
+groups workspaces
 hardDrive hard_drive
 hd hd
 help help
 helpOutline help_outline
+hide visibility_off
 highQuality high_quality
 history history
 historyToggleOff history_toggle_off
@@ -99,21 +121,25 @@ hourglassEmpty hourglass_empty
 hourglassTop hourglass_top
 howToReg how_to_reg
 image image
+imageSearch image_search
 info info
+input input
 insertDriveFile insert_drive_file
 key key
-keyOff key_off
 keyboard keyboard
 keyboardArrowDown keyboard_arrow_down
+keyboardArrowLeft keyboard_arrow_left
+keyboardArrowRight keyboard_arrow_right
 keyboardArrowUp keyboard_arrow_up
 keyboardCommandKey keyboard_command_key
 keyboardHide keyboard_hide
+keyOff key_off
 label label
 lan lan
 language language
 laptop laptop
-lightMode light_mode
 lightbulb lightbulb
+lightMode light_mode
 link link
 linkOff link_off
 list list
@@ -136,6 +162,7 @@ moreHoriz more_horiz
 moreVert more_vert
 mouse mouse
 musicNote music_note
+networkPing network_ping
 newWindow new_window
 north north
 noteAdd note_add
@@ -143,7 +170,7 @@ notifications notifications
 openInFull open_in_full
 openInNew open_in_new
 palette palette
-password password
+password key
 pause pause
 pauseCircle pause_circle
 person person
@@ -154,6 +181,7 @@ phoneInTalk phone_in_talk
 photoCamera photo_camera
 photoLibrary photo_library
 pin pin
+pinch pinch
 playArrow play_arrow
 power power
 powerSettingsNew power_settings_new
@@ -164,6 +192,7 @@ public public
 pushPin push_pin
 qrCode qr_code
 qrCode2 qr_code_2
+qrCodeScanner qr_code_scanner
 radioButtonChecked radio_button_checked
 radioButtonUnchecked radio_button_unchecked
 rateReview rate_review
@@ -172,12 +201,14 @@ rectangleFilled rectangle filled
 refresh refresh
 remove remove
 removeCircle remove_circle
+rename drive_file_rename_outline
 replay replay
 reply reply
 restartAlt restart_alt
 ringVolume ring_volume
 rocketLaunch rocket_launch
 save save
+saveAlt save_alt
 schedule schedule
 screenLockLandscape screen_lock_landscape
 screenShare screen_share
@@ -189,7 +220,6 @@ selectAll select_all
 sell sell
 send send
 sensors sensors
-sentimentVeryDissatisfied sentiment_very_dissatisfied
 settings settings
 settingsEthernet settings_ethernet
 share share
@@ -209,25 +239,33 @@ stopCircle stop_circle
 supportAgent support_agent
 swapHoriz swap_horiz
 swapVert swap_vert
+swipeRight swipe_right
+swipeVertical swipe_vertical
 switchAccess switch_access
+switchCamera switch_camera
 sync sync
 syncAlt sync_alt
 systemUpdate system_update
 tab tab
 tag tag
+tags sell
 taskAlt task_alt
 terminal terminal
 timer timer
 timerOff timer_off
+touchApp touch_app
+touchLong touch_long
 translate translate
 tune tune
 tv tv
 unfoldMore unfold_more
 upload upload
 usb usb
+user person
 verifiedUser verified_user
 videoCall video_call
 videocam videocam
+view visibility
 viewAgenda view_agenda
 viewColumn view_column
 viewList view_list
