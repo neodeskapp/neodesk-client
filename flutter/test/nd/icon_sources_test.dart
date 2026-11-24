@@ -1,12 +1,14 @@
-// Every icon the desktop app draws comes from NdIcons (Material Symbols,
-// DESIGN.md Icons). This test reads the sources the desktop app is built
-// from (lib/ without lib/mobile and lib/web) and fails on any other icon
+// Every icon the client draws comes from NdIcons (Material Symbols,
+// DESIGN.md Icons, the set of the console). This test reads the client's
+// Dart sources (lib/, desktop, mobile and web) and fails on any other icon
 // source:
 //
 // - Material Icons (Icons.*), Cupertino icons, RustDesk's IconFont,
 // - IconData made outside nd_icons.dart (icon fonts of their own),
 // - SVG or PNG assets other than the kept pictures listed below,
-// - the retired icon fonts in pubspec.yaml or in assets/.
+// - the retired icon fonts in pubspec.yaml or in assets/,
+// - icons in tool/nd_symbols.txt that no source uses (the font holds only
+//   the client's icons).
 
 import 'dart:io';
 
@@ -22,6 +24,7 @@ const _keptAssets = <String, String>{
   'assets/icon.png': 'the app icon',
   'assets/logo': 'the logo a custom build brings',
   r'assets/${_kKBLayoutImageMap': 'pictures of the keyboard layouts',
+  'assets/scam.png': 'the "SCAM" stamp picture of the mobile scam warning',
 };
 
 /// Files that pass a variable to SvgPicture.asset, with the reason.
@@ -35,20 +38,19 @@ const _retiredFonts = [
   'address_book.ttf',
   'device_group.ttf',
   'peer_searchbar.ttf',
+  'gestures.ttf',
 ];
 
 final _generated = RegExp(
     r'(generated_bridge.*|.*\.g|.*\.freezed|generated_plugin_registrant)\.dart$');
 
-/// The Dart files under [base]/lib that the desktop app uses, with their
-/// paths relative to [base].
-Iterable<(String, File)> _desktopSources(Directory base) sync* {
+/// The Dart files under [base]/lib, with their paths relative to [base].
+Iterable<(String, File)> _sources(Directory base) sync* {
   final lib = Directory('${base.path}/lib');
   for (final e in lib.listSync(recursive: true)) {
     if (e is! File || !e.path.endsWith('.dart')) continue;
     final rel = e.path.substring(lib.path.length + 1).replaceAll(r'\', '/');
     final p = 'lib/$rel';
-    if (p.startsWith('lib/mobile/') || p.startsWith('lib/web/')) continue;
     if (_generated.hasMatch(p)) continue;
     yield (p, e);
   }
@@ -84,11 +86,11 @@ final _forbidden = <RegExp, String>{
 final _assetLiteral = RegExp(r'''['"](assets/[^'"]*\.(?:svg|png))['"]''');
 final _svgAsset = RegExp(r'SvgPicture\.asset\(\s*(\S)');
 
-/// Every use of another icon source in the desktop sources under [base]
+/// Every use of another icon source in the sources under [base]
 /// (the package folder by default), as path:line: what.
 List<String> scanSources([Directory? base]) {
   final findings = <String>[];
-  for (final (path, f) in _desktopSources(base ?? Directory.current)) {
+  for (final (path, f) in _sources(base ?? Directory.current)) {
     final code = f.readAsLinesSync().map(_code).toList();
     for (var i = 0; i < code.length; i++) {
       final line = code[i];
@@ -157,6 +159,21 @@ List<String> meaningMismatches(
   ];
 }
 
+/// Icons of tool/nd_symbols.txt that no source under lib/ names.
+List<String> unusedIcons() {
+  final used = <String>{};
+  for (final (path, f) in _sources(Directory.current)) {
+    if (path == 'lib/common/widgets/nd/nd_icons.dart') continue;
+    used.addAll(RegExp(r'\bNdIcons\.(\w+)')
+        .allMatches(f.readAsStringSync())
+        .map((m) => m.group(1)!));
+  }
+  return [
+    for (final name in _pairs('tool/nd_symbols.txt').keys)
+      if (!used.contains(name)) '$name: in tool/nd_symbols.txt, not used',
+  ];
+}
+
 void main() {
   test('icons named after a console meaning use the console glyph', () {
     final symbols = _pairs('tool/nd_symbols.txt');
@@ -169,7 +186,12 @@ void main() {
         ['NdIcons.password is password, the console shows password as key']);
   });
 
-  test('the desktop sources draw icons only from NdIcons', () {
+  test('the font holds only icons the client uses', () {
+    final findings = unusedIcons();
+    expect(findings, isEmpty, reason: findings.join('\n'));
+  });
+
+  test('the sources draw icons only from NdIcons', () {
     final findings = scanSources();
     expect(findings, isEmpty, reason: findings.join('\n'));
   });
@@ -192,10 +214,11 @@ final b = SvgPicture.asset('assets/close.svg');
 final c = SvgPicture.asset(name);
 final d = Image.asset('assets/icon.png');
 ''');
-    expect(scanSources(base), [
+    expect(scanSources(base), unorderedEquals([
+      'lib/mobile/page.dart:1: Material Icons: final a = Icon(Icons.close);',
       'lib/page.dart:2: Material Icons: final a = Icon(Icons.close);',
       'lib/page.dart:3: asset assets/close.svg',
       'lib/page.dart:4: SvgPicture.asset with a path from a variable',
-    ]);
+    ]));
   });
 }
