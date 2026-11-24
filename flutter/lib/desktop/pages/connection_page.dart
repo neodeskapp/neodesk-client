@@ -94,6 +94,8 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
           await bind.mainCheckConnectStatus();
           updateStatus();
         },
+        onStartService:
+            bind.mainIsInstalled() ? () => start_service(true) : null,
       );
       return HomeStatusLine(status: status);
     });

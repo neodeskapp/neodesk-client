@@ -1202,6 +1202,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-join-failed-next-refused", ""),
         ("nd-home-status-key-refused", ""),
         ("nd-home-status-no-service", ""),
+        ("nd-home-start-service", ""),
         ("nd-qs-consent-also", ""),
         ("nd-qs-allow-clipboard", ""),
         ("nd-qs-allow-clipboard-hint", ""),
