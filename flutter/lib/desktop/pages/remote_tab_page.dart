@@ -44,8 +44,8 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
   final tabController =
       Get.put(DesktopTabController(tabType: DesktopTabType.remoteScreen));
   final contentKey = UniqueKey();
-  static const IconData selectedIcon = NdIcons.desktopWindows;
-  static const IconData unselectedIcon = NdIcons.desktopWindows;
+  static const IconData selectedIcon = NdIcons.connect;
+  static const IconData unselectedIcon = NdIcons.connect;
 
   String? peerId;
   bool _isScreenRectSet = false;

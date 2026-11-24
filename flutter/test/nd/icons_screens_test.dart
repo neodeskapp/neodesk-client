@@ -37,7 +37,7 @@ Widget _titleBar(String label, Widget lead) => NdTitleBar(
     );
 
 Widget _sessionTabLead() => Row(mainAxisSize: MainAxisSize.min, children: [
-      const Icon(NdIcons.desktopWindows, size: 18),
+      const Icon(NdIcons.connect, size: 18),
       const SizedBox(width: 4),
       getConnectionIcon(true, true, size: 18),
     ]);
@@ -59,7 +59,7 @@ Widget _toolbar(BuildContext context) {
             label: tr('nd-tb-keyboard'),
             onPressed: () {}),
         NdToolbarButton(
-            icon: NdIcons.folder, label: tr('nd-tb-files'), onPressed: () {}),
+            icon: NdIcons.files, label: tr('nd-tb-files'), onPressed: () {}),
         NdToolbarButton(icon: NdIcons.chat, label: 'Chat', onPressed: () {}),
         NdToolbarButton(
             icon: NdIcons.fullscreen,
@@ -258,7 +258,7 @@ Widget _filePane(BuildContext context, {required bool local}) {
 Widget _fileTransferWindow() => Builder(
       builder: (context) => NdWindowFrame(
         titleBar:
-            _titleBar('Reception PC', const Icon(NdIcons.folder, size: 18)),
+            _titleBar('Reception PC', const Icon(NdIcons.files, size: 18)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(flex: 3, child: _filePane(context, local: true)),
           Expanded(flex: 3, child: _filePane(context, local: false)),

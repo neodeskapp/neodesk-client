@@ -877,7 +877,7 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
         return Column(
           children: [
             Icon(
-              NdIcons.driveFileRenameOutline,
+              NdIcons.rename,
               color: Theme.of(context).tabBarTheme.labelColor,
             ),
             Text(translate('Rename'))

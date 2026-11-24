@@ -807,7 +807,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     final transfer = _findControl(controls, ['Transfer file']);
     if (isDefaultConn && transfer != null) {
       toolbarItems.add(NdToolbarButton(
-        icon: NdIcons.folder,
+        icon: NdIcons.files,
         label: tr('nd-tb-files'),
         showLabel: labels && !narrow,
         onPressed: transfer.onPressed,
