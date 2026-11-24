@@ -1232,6 +1232,12 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-tray-open", ""),
         ("bd-tray-stop", ""),
         ("bd-tray-about", ""),
+        ("bd-install-step-permission", ""),
+        ("bd-install-step-copying", ""),
+        ("bd-install-step-copying-percent", ""),
+        ("bd-install-step-service", ""),
+        ("bd-install-step-starting", ""),
+        ("bd-install-cancelled", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

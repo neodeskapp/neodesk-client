@@ -38,9 +38,10 @@ Patch dialog sequence:
 
     <Fragment>
         <UI Id="file UI_MyInstallDialog">
-            <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
-            <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
-            <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+            <!-- Windows' own UI font, as the client's windows sit next to it. -->
+            <TextStyle Id="WixUI_Font_Normal" FaceName="Segoe UI" Size="9" />
+            <TextStyle Id="WixUI_Font_Bigger" FaceName="Segoe UI" Size="13" />
+            <TextStyle Id="WixUI_Font_Title" FaceName="Segoe UI" Size="9" Bold="yes" />
 
             <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
 
@@ -56,7 +57,8 @@ Patch dialog sequence:
             <DialogRef Id="UserExit" />
             <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4" Condition="NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID&lt;&gt;&quot;1&quot;" />
 
-            <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
+            <!-- The finish page is MyExitDlg.wxs. -->
+            <DialogRef Id="MyExitDialog" />
 
             <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
             <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="Installed AND PATCH" />
@@ -88,6 +90,45 @@ Patch dialog sequence:
             <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
 
             <Property Id="ARPNOMODIFY" Value="1" />
+
+            <!-- The progress page names each step of the custom actions in
+                 plain words instead of the action's name. -->
+            <ProgressText Action="SetArpInstallLocation" Message="!(loc.ProgressTextGenerateScript)" />
+            <ProgressText Action="SetPropertyIsServiceRunning" Message="!(loc.ProgressTextReadSettings)" />
+            <ProgressText Action="SetPropertyIsServiceRunning.SetParam.AppName" Message="!(loc.ProgressTextReadSettings)" />
+            <ProgressText Action="SetPropertyIsServiceRunning.SetParam.PropertyName" Message="!(loc.ProgressTextReadSettings)" />
+            <ProgressText Action="SetPropertyServiceStop" Message="!(loc.ProgressTextReadSettings)" />
+            <ProgressText Action="SetPropertyServiceStop.SetParam.ConfigFile" Message="!(loc.ProgressTextReadSettings)" />
+            <ProgressText Action="SetPropertyServiceStop.SetParam.ConfigKey" Message="!(loc.ProgressTextReadSettings)" />
+            <ProgressText Action="SetPropertyServiceStop.SetParam.PropertyName" Message="!(loc.ProgressTextReadSettings)" />
+            <ProgressText Action="TryStopDeleteService" Message="!(loc.ProgressTextStopService)" />
+            <ProgressText Action="TryStopDeleteService.SetParam" Message="!(loc.ProgressTextStopService)" />
+            <ProgressText Action="TerminateProcesses" Message="!(loc.ProgressTextCloseApp)" />
+            <ProgressText Action="TerminateProcesses.SetParam" Message="!(loc.ProgressTextCloseApp)" />
+            <ProgressText Action="TerminateBrokers" Message="!(loc.ProgressTextCloseApp)" />
+            <ProgressText Action="TerminateBrokers.SetParam" Message="!(loc.ProgressTextCloseApp)" />
+            <ProgressText Action="RemoveRuntimeGeneratedFiles" Message="!(loc.ProgressTextRemoveAppFiles)" />
+            <ProgressText Action="RemoveRuntimeGeneratedFiles.SetParam" Message="!(loc.ProgressTextRemoveAppFiles)" />
+            <ProgressText Action="UninstallPrinter" Message="!(loc.ProgressTextPrinterRemove)" />
+            <ProgressText Action="UninstallPrinter.SetParam" Message="!(loc.ProgressTextPrinterRemove)" />
+            <ProgressText Action="RemoveAmyuniIdd" Message="!(loc.ProgressTextDisplayRemove)" />
+            <ProgressText Action="RemoveAmyuniIdd.SetParam" Message="!(loc.ProgressTextDisplayRemove)" />
+            <ProgressText Action="RemoveFirewallRules" Message="!(loc.ProgressTextFirewallRemove)" />
+            <ProgressText Action="RemoveFirewallRules.SetParam" Message="!(loc.ProgressTextFirewallRemove)" />
+            <ProgressText Action="ReleaseRustDeskScheme" Message="!(loc.ProgressTextLinks)" />
+            <ProgressText Action="ClaimRustDeskScheme" Message="!(loc.ProgressTextLinks)" />
+            <ProgressText Action="AddFirewallRules" Message="!(loc.ProgressTextFirewallAdd)" />
+            <ProgressText Action="AddFirewallRules.SetParam" Message="!(loc.ProgressTextFirewallAdd)" />
+            <ProgressText Action="InstallPrinter" Message="!(loc.ProgressTextPrinterAdd)" />
+            <ProgressText Action="InstallPrinter.SetParam" Message="!(loc.ProgressTextPrinterAdd)" />
+            <ProgressText Action="AddRegSoftwareSASGeneration" Message="!(loc.ProgressTextSas)" />
+            <ProgressText Action="CreateStartService" Message="!(loc.ProgressTextStartService)" />
+            <ProgressText Action="CreateStartService.SetParam" Message="!(loc.ProgressTextStartService)" />
+            <ProgressText Action="CustomActionHello" Message="!(loc.ProgressTextFinish)" />
+            <ProgressText Action="TryDeleteStartupShortcut" Message="!(loc.ProgressTextStartup)" />
+            <ProgressText Action="TryDeleteStartupShortcut.SetParam" Message="!(loc.ProgressTextStartup)" />
+            <ProgressText Action="LaunchApp" Message="!(loc.ProgressTextLaunch)" />
+            <ProgressText Action="LaunchAppTray" Message="!(loc.ProgressTextLaunch)" />
         </UI>
 
         <UIRef Id="WixUI_Common" />

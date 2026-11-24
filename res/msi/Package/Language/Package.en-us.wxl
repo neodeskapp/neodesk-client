@@ -42,11 +42,118 @@ This file contains the declaration of all the localizable strings.
 	<String Id="LC_ADMIN" Value="You need to be an administrator to install [ProductName]." />
 
 	<!-- User Interfaces -->
-	<String Id="AnotherAppDialogTitle" Value="Cancel installation."/>
-	<String Id="AnotherAppDialogDescription" Value="The application is installed by self-installation method, please uninstall it first."/>
+	<String Id="AnotherAppDialogTitle" Value="{\WixUI_Font_Bigger}[ProductName] is already installed"/>
+	<String Id="AnotherAppDialogDescription" Value="It was installed with the setup program (.exe), not with this package. Remove it in Settings under Apps first, then run this package again."/>
 
-	<String Id="MyInstallDirDlgDesktopShortcuts" Value="Create desktop icon" />
-	<String Id="MyInstallDirDlgStartMenuShortcuts" Value="Create start menu shortcuts" />
-	<String Id="MyInstallDirDlgPrinter" Value="Install RustDesk Printer" />
+	<String Id="MyInstallDirDlgDesktopShortcuts" Value="Add a desktop shortcut" />
+	<String Id="MyInstallDirDlgStartMenuShortcuts" Value="Add to the Start menu" />
+	<String Id="MyInstallDirDlgPrinter" Value="Install the [ProductName] printer" />
+
+	<!-- The wizard's own texts in the product's words (WixUI's strings are
+	     overridable): plain sentences, sentence case, and the exe install
+	     page's wording where both say the same. -->
+	<String Id="WelcomeDlg_Title" Value="[ProductName] setup" />
+	<String Id="WelcomeDlgTitle" Value="{\WixUI_Font_Bigger}Set up [ProductName]" />
+	<String Id="WelcomeDlgDescription" Value="Setup installs the app and a service that starts with Windows, so people you allow can reach this computer.&#13;&#10;&#13;&#10;Click Next to continue." />
+	<String Id="WelcomeUpdateDlgDescriptionUpdate" Value="Setup updates [ProductName] on this computer.&#13;&#10;&#13;&#10;Click Next to continue." />
+	<String Id="PrepareDlg_Title" Value="[ProductName] setup" />
+	<String Id="PrepareDlgTitle" Value="{\WixUI_Font_Bigger}Set up [ProductName]" />
+	<String Id="PrepareDlgDescription" Value="Setup is getting ready." />
+	<String Id="LicenseAgreementDlg_Title" Value="[ProductName] setup" />
+	<String Id="LicenseAgreementDlgTitle" Value="{\WixUI_Font_Title}Licence" />
+	<String Id="LicenseAgreementDlgDescription" Value="[ProductName] is free software under the AGPL-3.0." />
+	<String Id="LicenseAgreementDlgLicenseAcceptedCheckBox" Value="I &amp;accept the licence" />
+	<String Id="InstallDirDlg_Title" Value="[ProductName] setup" />
+	<String Id="InstallDirDlgTitle" Value="{\WixUI_Font_Title}Where to install" />
+	<String Id="InstallDirDlgDescription" Value="Keep this folder unless you need another one." />
+	<String Id="InstallDirDlgFolderLabel" Value="Install [ProductName] in:" />
+	<String Id="BrowseDlg_Title" Value="[ProductName] setup" />
+	<String Id="VerifyReadyDlg_Title" Value="[ProductName] setup" />
+	<String Id="VerifyReadyDlgInstallTitle" Value="{\WixUI_Font_Title}Ready to install" />
+	<String Id="VerifyReadyDlgInstallText" Value="Click Install to set up [ProductName]. Windows asks for permission first." />
+	<String Id="VerifyReadyDlgRepairTitle" Value="{\WixUI_Font_Title}Ready to repair" />
+	<String Id="VerifyReadyDlgRepairText" Value="Click Repair to put back missing or damaged files of [ProductName]." />
+	<String Id="VerifyReadyDlgRemoveTitle" Value="{\WixUI_Font_Title}Ready to remove" />
+	<String Id="VerifyReadyDlgRemoveText" Value="Click Remove to remove [ProductName] and its service from this computer." />
+	<String Id="VerifyReadyDlgUpdateTitle" Value="{\WixUI_Font_Title}Ready to update" />
+	<String Id="VerifyReadyDlgUpdateText" Value="Click Update to update [ProductName]." />
+	<String Id="ProgressDlg_Title" Value="[ProductName] setup" />
+	<String Id="ProgressDlgTitleInstalling" Value="{\WixUI_Font_Title}Installing [ProductName]" />
+	<String Id="ProgressDlgTextInstalling" Value="This takes about half a minute." />
+	<String Id="ProgressDlgTitleRepairing" Value="{\WixUI_Font_Title}Repairing [ProductName]" />
+	<String Id="ProgressDlgTextRepairing" Value="This takes about half a minute." />
+	<String Id="ProgressDlgTitleRemoving" Value="{\WixUI_Font_Title}Removing [ProductName]" />
+	<String Id="ProgressDlgTextRemoving" Value="This takes a few seconds." />
+	<String Id="ProgressDlgTitleUpdating" Value="{\WixUI_Font_Title}Updating [ProductName]" />
+	<String Id="ProgressDlgTextUpdating" Value="This takes about half a minute." />
+	<String Id="ProgressDlgTitleChanging" Value="{\WixUI_Font_Title}Changing [ProductName]" />
+	<String Id="ProgressDlgTextChanging" Value="This takes about half a minute." />
+	<String Id="MaintenanceWelcomeDlg_Title" Value="[ProductName] setup" />
+	<String Id="MaintenanceWelcomeDlgTitle" Value="{\WixUI_Font_Bigger}[ProductName] is installed" />
+	<String Id="MaintenanceWelcomeDlgDescription" Value="Setup can repair it or remove it from this computer.&#13;&#10;&#13;&#10;Click Next to choose." />
+	<String Id="MaintenanceTypeDlg_Title" Value="[ProductName] setup" />
+	<String Id="MaintenanceTypeDlgTitle" Value="{\WixUI_Font_Title}Repair or remove" />
+	<String Id="MaintenanceTypeDlgDescription" Value="Choose what setup does." />
+	<String Id="MaintenanceTypeDlgChangeDisabledText" Value="[ProductName] has no parts to choose, so there is nothing to change." />
+	<String Id="MaintenanceTypeDlgRepairText" Value="Puts back missing or damaged files, shortcuts and settings of [ProductName]." />
+	<String Id="MaintenanceTypeDlgRemoveText" Value="Removes [ProductName] and its service from this computer." />
+	<String Id="CancelDlg_Title" Value="[ProductName] setup" />
+	<String Id="CancelDlgText" Value="Stop setting up [ProductName]?" />
+	<String Id="UserExit_Title" Value="[ProductName] setup" />
+	<String Id="UserExitTitle" Value="{\WixUI_Font_Bigger}Setup was cancelled" />
+	<String Id="UserExitDescription1" Value="[ProductName] was not installed, and nothing on this computer was changed." />
+	<String Id="UserExitDescription2" Value="Click Finish to close setup." />
+	<String Id="FatalError_Title" Value="[ProductName] setup" />
+	<String Id="FatalErrorTitle" Value="{\WixUI_Font_Bigger}Setup could not finish" />
+	<String Id="FatalErrorDescription1" Value="An error stopped setup. Windows undid what setup had changed, so [ProductName] is not installed." />
+	<String Id="FatalErrorDescription2" Value="Click Finish to close setup." />
+	<String Id="ResumeDlg_Title" Value="[ProductName] setup" />
+	<String Id="DiskCostDlg_Title" Value="[ProductName] setup" />
+	<String Id="InvalidDirDlg_Title" Value="[ProductName] setup" />
+
+	<!-- The finish page (UI/MyExitDlg.wxs). -->
+	<String Id="MyExitDialog_Title" Value="[ProductName] setup" />
+	<String Id="MyExitDlgTitleInstalled" Value="{\WixUI_Font_Bigger}[ProductName] is set up" />
+	<String Id="MyExitDlgTitleRemoved" Value="{\WixUI_Font_Bigger}[ProductName] is removed" />
+	<String Id="MyExitDlgTitleRepaired" Value="{\WixUI_Font_Bigger}[ProductName] is repaired" />
+	<String Id="MyExitDlgRunning" Value="[ProductName] is running. Its icon is on the taskbar next to the clock; if you don't see it there, click the arrow beside the icons." />
+	<String Id="MyExitDlgReady" Value="[ProductName] is ready. Open it from the Start menu." />
+	<String Id="MyExitDlgRemoved" Value="The app and its service are gone from this computer." />
+	<String Id="MyExitDlgRepaired" Value="Missing or damaged files are back in place." />
+	<String Id="MyExitDlgOpen" Value="Open [ProductName]" />
+
+	<!-- The step under the progress bar: what each action does, in place of
+	     the action's name. -->
+	<String Id="ProgressTextGenerateScript" Value="Getting ready" />
+	<String Id="ProgressTextInstallValidate" Value="Checking this computer" />
+	<String Id="ProgressTextInstallFiles" Value="Copying files" />
+	<String Id="ProgressTextRemoveExistingProducts" Value="Removing the previous version" />
+	<String Id="ProgressTextCreateShortcuts" Value="Adding shortcuts" />
+	<String Id="ProgressTextRemoveShortcuts" Value="Removing shortcuts" />
+	<String Id="ProgressTextRemoveFiles" Value="Removing files" />
+	<String Id="ProgressTextWriteRegistryValues" Value="Saving settings" />
+	<String Id="ProgressTextRemoveRegistryValues" Value="Removing settings" />
+	<String Id="ProgressTextRegisterProduct" Value="Registering the app with Windows" />
+	<String Id="ProgressTextPublishProduct" Value="Registering the app with Windows" />
+	<String Id="ProgressTextPublishFeatures" Value="Registering the app with Windows" />
+	<String Id="ProgressTextUnpublishProduct" Value="Unregistering the app" />
+	<String Id="ProgressTextUnpublishFeatures" Value="Unregistering the app" />
+	<String Id="ProgressTextProcessComponents" Value="Registering the app with Windows" />
+	<String Id="ProgressTextRollbackCleanup" Value="Removing temporary files" />
+	<String Id="ProgressTextReadSettings" Value="Reading the previous settings" />
+	<String Id="ProgressTextStopService" Value="Stopping the service" />
+	<String Id="ProgressTextCloseApp" Value="Closing the app" />
+	<String Id="ProgressTextRemoveAppFiles" Value="Removing files the app made" />
+	<String Id="ProgressTextFirewallAdd" Value="Letting the app through the Windows firewall" />
+	<String Id="ProgressTextFirewallRemove" Value="Removing the firewall rules" />
+	<String Id="ProgressTextPrinterAdd" Value="Installing the printer" />
+	<String Id="ProgressTextPrinterRemove" Value="Removing the printer" />
+	<String Id="ProgressTextDisplayRemove" Value="Removing the virtual display driver" />
+	<String Id="ProgressTextStartService" Value="Starting the service" />
+	<String Id="ProgressTextSas" Value="Letting the service send Ctrl+Alt+Del" />
+	<String Id="ProgressTextLinks" Value="Registering links" />
+	<String Id="ProgressTextStartup" Value="Updating the startup shortcut" />
+	<String Id="ProgressTextFinish" Value="Finishing" />
+	<String Id="ProgressTextLaunch" Value="Starting the app" />
 
 </WixLocalization>

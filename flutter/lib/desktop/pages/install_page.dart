@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -75,6 +76,10 @@ class _InstallPageBodyState extends State<_InstallPageBody>
   final RxBool printer = false.obs;
   final RxBool showProgress = false.obs;
   final RxBool btnEnabled = true.obs;
+  final Rx<InstallStep> step = InstallStep.permission.obs;
+  final RxnInt copyPercent = RxnInt();
+  final RxnString error = RxnString();
+  Timer? _progressTimer;
 
   _InstallPageBodyState() {
     controller = TextEditingController(text: bind.installInstallPath());
@@ -92,6 +97,7 @@ class _InstallPageBodyState extends State<_InstallPageBody>
 
   @override
   void dispose() {
+    _progressTimer?.cancel();
     windowManager.removeListener(this);
     super.dispose();
   }
@@ -105,6 +111,19 @@ class _InstallPageBodyState extends State<_InstallPageBody>
   }
 
   final RxBool _optionsOpen = false.obs;
+
+  /// While installing: how long, and the server a join file's computer
+  /// joins right after.
+  String? _installingLead() {
+    final st = OnboardingService.instance.current;
+    final company = (st.company ?? '').trim();
+    final server = (st.server ?? '').trim();
+    if (server.isNotEmpty && st.phase != OnboardingPhase.joined) {
+      return tr('bd-install-installing-join',
+          [company.isNotEmpty ? company : server]);
+    }
+    return null;
+  }
 
   /// After installing, a join file's computer joins its server.
   String _lead() {
@@ -133,6 +152,10 @@ class _InstallPageBodyState extends State<_InstallPageBody>
           optionsOpen: _optionsOpen.value,
           onToggleOptions: () => _optionsOpen.value = !_optionsOpen.value,
           installing: showProgress.value,
+          installingLead: _installingLead(),
+          step: step.value,
+          copyPercent: copyPercent.value,
+          error: error.value,
           onInstall: install,
           onChangePath: selectInstallPath,
           onLicence: () => launchUrlString('https://www.gnu.org/licenses/agpl-3.0.html'),
@@ -145,15 +168,54 @@ class _InstallPageBodyState extends State<_InstallPageBody>
   void install() {
     do_install() {
       btnEnabled.value = false;
+      error.value = null;
+      step.value = InstallStep.permission;
+      copyPercent.value = null;
       showProgress.value = true;
       String args = '';
       if (startmenu.value) args += ' startmenu';
       if (desktopicon.value) args += ' desktopicon';
       if (printer.value) args += ' printer';
       bind.installInstallMe(options: args, path: controller.text);
+      _progressTimer?.cancel();
+      _progressTimer = Timer.periodic(
+          const Duration(milliseconds: 250), (_) => _readProgress());
     }
 
     do_install();
+  }
+
+  /// The step the install is at; the process ends once the installed
+  /// client's window is up.
+  void _readProgress() {
+    Map<String, dynamic> p;
+    try {
+      p = jsonDecode(bind.installInstallProgress()) as Map<String, dynamic>;
+    } catch (_) {
+      return;
+    }
+    switch (p['step']) {
+      case 'copying':
+        step.value = InstallStep.copying;
+        copyPercent.value = p['percent'] as int?;
+        break;
+      case 'service':
+        step.value = InstallStep.service;
+        break;
+      case 'starting':
+        step.value = InstallStep.starting;
+        break;
+      case 'failed':
+        _progressTimer?.cancel();
+        error.value = p['cancelled'] == true
+            ? tr('bd-install-cancelled')
+            : tr('bd-install-failed', [p['error'] ?? '']);
+        showProgress.value = false;
+        btnEnabled.value = true;
+        break;
+      default:
+        step.value = InstallStep.permission;
+    }
   }
 
   void selectInstallPath() async {

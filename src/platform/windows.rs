@@ -101,6 +101,7 @@ mod acl;
 mod install_commands;
 mod link_schemes;
 mod installer_handoff;
+pub mod install_progress;
 mod installer_shell;
 mod verified_update;
 mod msi_registry;
@@ -1860,7 +1861,9 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
         import_config = get_import_config(&exe),
     );
+    install_progress::begin(&path, size);
     run_cmds(cmds, debug, "install")?;
+    install_progress::script_done();
     run_after_run_cmds(silent);
     Ok(())
 }

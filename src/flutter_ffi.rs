@@ -2492,6 +2492,14 @@ pub fn install_install_path() -> SyncReturn<String> {
     SyncReturn(install_path())
 }
 
+/// The install page's step while the exe installs (install_progress.rs).
+pub fn install_install_progress() -> SyncReturn<String> {
+    #[cfg(target_os = "windows")]
+    return SyncReturn(crate::platform::windows::install_progress::json());
+    #[cfg(not(target_os = "windows"))]
+    return SyncReturn("{}".to_owned());
+}
+
 pub fn install_install_options() -> SyncReturn<String> {
     SyncReturn(install_options())
 }

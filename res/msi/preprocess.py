@@ -324,12 +324,16 @@ def gen_custom_dialog_bitmaps():
             "WixUINewIco",
             "WixUIUpIco",
         ]
+        package = Path(sys.argv[0]).parent.joinpath("Package")
         to_insert_lines = []
         for var in vars:
-            if Path(f"Package/Resources/{var}.bmp").exists():
-                to_insert_lines.append(
-                    f'{indent}<WixVariable Id="{var}" Value="Resources\\{var}.bmp" />\n'
-                )
+            # A bitmap put in Resources wins over NeoDesk's own in Branding.
+            for folder in ("Resources", "Branding"):
+                if package.joinpath(folder, f"{var}.bmp").exists():
+                    to_insert_lines.append(
+                        f'{indent}<WixVariable Id="{var}" Value="{folder}\\{var}.bmp" />\n'
+                    )
+                    break
 
         for i, line in enumerate(to_insert_lines):
             lines.insert(index_start + i + 1, line)

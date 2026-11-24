@@ -474,6 +474,8 @@ void runInstallPage() async {
     windowManager.focus();
     windowManager.setOpacity(1);
     windowManager.setAlignment(Alignment.center); // ensure
+    // The taskbar names the page as its heading does, in the person's language.
+    windowManager.setTitle(translate('bd-install-title'));
   });
 }
 

@@ -174,7 +174,7 @@ void main() {
     expect(find.text("No setting matches 'proxi'."), findsOneWidget);
   });
 
-  for (final state in ['default', 'options', 'installing']) {
+  for (final state in ['default', 'options', 'installing', 'copying', 'failed']) {
     forBothThemes('install $state', (tester, b) async {
       final path = TextEditingController(text: r'C:\Program Files\NeoDesk');
       addTearDown(path.dispose);
@@ -201,12 +201,33 @@ void main() {
             onRunWithout: () {},
             optionsOpen: state == 'options',
             onToggleOptions: () {},
-            installing: state == 'installing',
+            installing: state == 'installing' || state == 'copying',
+            step: state == 'copying'
+                ? InstallStep.copying
+                : InstallStep.permission,
+            copyPercent: state == 'copying' ? 45 : null,
+            error: state == 'failed' ? tr('bd-install-cancelled') : null,
           ),
         ),
         size: const Size(680, 560),
         brightness: b,
       );
+      switch (state) {
+        case 'installing':
+          expect(find.text('Asking Windows for permission'), findsOneWidget);
+          expect(find.text('Starting NeoDesk'), findsOneWidget);
+          break;
+        case 'copying':
+          expect(find.text('Copying NeoDesk to this computer (45%)'),
+              findsOneWidget);
+          expect(find.byType(BdSpinner), findsOneWidget);
+          break;
+        case 'failed':
+          expect(find.textContaining('Windows did not get permission'),
+              findsOneWidget);
+          expect(find.text('Install'), findsOneWidget);
+          break;
+      }
       await shot(tester, 'client-install-$state', b);
     });
   }

@@ -180,20 +180,31 @@ fn setup(
         }
     };
 
+    // A double-click gets the loading window until the client's own window
+    // is up, also when nothing needs unpacking.
+    #[cfg(windows)]
+    if _args.is_empty() {
+        *_ui = true;
+        ui::setup();
+    }
     let mut ts = 0;
-    if clear || !is_timestamp_matches(&dir, &mut ts) {
-        #[cfg(windows)]
-        if _args.is_empty() {
-            *_ui = true;
-            ui::setup();
-        }
+    let unpack = clear || !is_timestamp_matches(&dir, &mut ts);
+    if unpack {
         std::fs::remove_dir_all(&dir).ok();
+    } else {
+        #[cfg(windows)]
+        ui::set_starting();
     }
     let mut metadata_paths = reader.package_paths.clone();
     metadata_paths.extend(remove_dropped_package_files(&dir, &reader.package_paths));
-    for file in reader.files.iter() {
+    let total = reader.files.len();
+    for (done, file) in reader.files.iter().enumerate() {
         file.write_to_file(&dir);
+        #[cfg(windows)]
+        ui::set_progress(done + 1, total);
     }
+    #[cfg(windows)]
+    ui::set_starting();
     write_meta(&dir, ts, &metadata_paths);
     #[cfg(windows)]
     win::copy_runtime_broker(&dir, &runtime_broker_exe(&reader.exe));
@@ -236,7 +247,7 @@ fn is_windows_7() -> bool {
     false
 }
 
-fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
+fn execute(path: PathBuf, args: Vec<String>, _ui: bool) -> Option<std::process::Child> {
     println!("executing {}", path.display());
     // setup env
     let exe = std::env::current_exe().unwrap_or_default();
@@ -267,7 +278,7 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
 
     #[cfg(windows)]
     if _ui {
-        match _child {
+        match &_child {
             Ok(child) => unsafe {
                 winapi::um::winuser::AllowSetForegroundWindow(child.id() as u32);
             },
@@ -276,6 +287,7 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
             }
         }
     }
+    _child.ok()
 }
 
 fn main() -> Result<(), String> {
@@ -317,7 +329,12 @@ fn main() -> Result<(), String> {
         } else if quick_support {
             args = vec!["--quick_support".to_owned()];
         }
-        execute(exe, args, ui);
+        let _child = execute(exe, args, ui);
+        // The loading window stays until the client shows its own.
+        #[cfg(windows)]
+        if let (true, Some(mut child)) = (ui, _child) {
+            win::wait_for_window(&mut child);
+        }
     }
     Ok(())
 }
@@ -325,6 +342,51 @@ fn main() -> Result<(), String> {
 #[cfg(windows)]
 mod win {
     use std::{fs, os::windows::process::CommandExt, path::Path, process::Command};
+
+    /// Waits until `child` shows a window (then a moment more, while the
+    /// client fades it in), ends, or 30 seconds pass.
+    pub(super) fn wait_for_window(child: &mut std::process::Child) {
+        use std::time::{Duration, Instant};
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_secs(30) {
+            if !matches!(child.try_wait(), Ok(None)) {
+                return;
+            }
+            if has_visible_window(child.id()) {
+                std::thread::sleep(Duration::from_millis(500));
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    fn has_visible_window(pid: u32) -> bool {
+        use winapi::shared::{
+            minwindef::{BOOL, LPARAM, TRUE},
+            windef::HWND,
+        };
+        use winapi::um::winuser::{EnumWindows, GetWindowThreadProcessId, IsWindowVisible};
+
+        struct Search {
+            pid: u32,
+            found: bool,
+        }
+        unsafe extern "system" fn visit(hwnd: HWND, data: LPARAM) -> BOOL {
+            let search = &mut *(data as *mut Search);
+            let mut pid = 0;
+            GetWindowThreadProcessId(hwnd, &mut pid);
+            if pid == search.pid && IsWindowVisible(hwnd) != 0 {
+                search.found = true;
+                return 0;
+            }
+            TRUE
+        }
+        let mut search = Search { pid, found: false };
+        unsafe {
+            EnumWindows(Some(visit), &mut search as *mut Search as LPARAM);
+        }
+        search.found
+    }
 
     // Used for privacy mode(magnifier impl).
     pub const RUNTIME_BROKER_EXE: &'static str = "C:\\Windows\\System32\\RuntimeBroker.exe";

@@ -195,6 +195,36 @@ for needle in ("GNU AFFERO GENERAL PUBLIC LICENSE", "https://github.com/neodeska
 if "Privacy" in licence_rtf or "rustdesk.com" in licence_rtf:
     failures.append("res/msi/Package/License.rtf: still RustDesk's privacy policy")
 require("res/msi/preprocess.py", preprocess, "license_rtf.licence_rtf(")
+
+# The MSI's pages carry NeoDesk's own images, never WiX's red default
+# artwork: preprocess.py points WixUIDialogBmp and WixUIBannerBmp at the
+# bitmaps in Package/Branding (a customer's own in Package/Resources win).
+require("res/msi/preprocess.py", preprocess, 'for folder in ("Resources", "Branding"):')
+for name, size in (("WixUIDialogBmp", (493, 312)), ("WixUIBannerBmp", (493, 58))):
+    relative = f"res/msi/Package/Branding/{name}.bmp"
+    if not exists(relative):
+        failures.append(f"{relative}: missing, so the MSI shows WiX's default {name}")
+        continue
+    head = (ROOT / relative).read_bytes()[:26]
+    width, height = int.from_bytes(head[18:22], "little"), abs(int.from_bytes(head[22:26], "little", signed=True))
+    if head[:2] != b"BM" or width * size[1] != height * size[0] or width < size[0]:
+        failures.append(f"{relative}: not a {size[0]} x {size[1]} bitmap (or a larger one of that shape): {width} x {height}")
+msi_ui = read("res/msi/Package/UI/MyInstallDlg.wxs")
+require("res/msi/Package/UI/MyInstallDlg.wxs", msi_ui, '<DialogRef Id="MyExitDialog" />')
+if 'Dialog="ExitDialog"' in msi_ui:
+    failures.append("res/msi/Package/UI/MyInstallDlg.wxs: uses WiX's stock finish page")
+exit_dialog = read("res/msi/Package/UI/MyExitDlg.wxs") if exists("res/msi/Package/UI/MyExitDlg.wxs") else ""
+for needle in ('Property="NDOPENAPP"', 'Event="DoAction" Value="LaunchApp"', "!(loc.MyExitDlgRunning)"):
+    require("res/msi/Package/UI/MyExitDlg.wxs", exit_dialog, needle)
+# The progress page names every custom action's step in words.
+named = set(re.findall(r'<ProgressText Action="([^"]+)"', msi_ui))
+for relative in ("res/msi/Package/Components/RustDesk.wxs", "res/msi/Package/Package.wxs"):
+    for action in re.findall(r'<Custom Action="([^"]+)"', read(relative)):
+        if action != "BlockSelfInstalledApp" and action not in named:
+            failures.append(f"{relative}: the progress page would show the action name {action}")
+msi_strings = read("res/msi/Package/Language/Package.en-us.wxl")
+for needle in ('Id="WelcomeDlgTitle"', 'Id="ProgressTextGenerateScript"', 'Id="MyExitDlgOpen"'):
+    require("res/msi/Package/Language/Package.en-us.wxl", msi_strings, needle)
 sign_action = read(".github/actions/sign-windows/action.yml")
 require(".github/actions/sign-windows/action.yml", sign_action, "description: ${{ inputs.description }}")
 require(".github/actions/sign-windows/action.yml", sign_action, "--name")

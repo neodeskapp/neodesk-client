@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/bd/bd.dart';
 
+/// The steps of an exe install, in the order the install page shows them
+/// (install_progress.rs on the Rust side).
+enum InstallStep { permission, copying, service, starting }
+
 /// The install page (DESIGN.md, Install): one Install button, the options
-/// folded away, Run without installing and the licence at the foot.
+/// folded away, Run without installing and the licence at the foot. While
+/// it installs, the steps with the one that runs, as joining shows them.
 class InstallView extends StatelessWidget {
   const InstallView({
     super.key,
@@ -24,6 +29,8 @@ class InstallView extends StatelessWidget {
     this.installing = false,
     this.error,
     this.installingLead,
+    this.step = InstallStep.permission,
+    this.copyPercent,
   });
 
   final String lead;
@@ -42,8 +49,14 @@ class InstallView extends StatelessWidget {
   final bool optionsOpen;
   final VoidCallback onToggleOptions;
   final bool installing;
+
+  /// The whole sentence the page shows when an install failed.
   final String? error;
   final String? installingLead;
+  final InstallStep step;
+
+  /// How much is copied, while copying.
+  final int? copyPercent;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +64,9 @@ class InstallView extends StatelessWidget {
     final c = context.bd;
     final lead1 = t.body.copyWith(fontSize: 16, height: 24 / 16, color: c.text);
     if (installing) {
+      BdStepState st(InstallStep s) => step.index > s.index
+          ? BdStepState.done
+          : (step == s ? BdStepState.running : BdStepState.todo);
       return Padding(
         padding: const EdgeInsets.fromLTRB(40, 40, 40, 32),
         child: Column(
@@ -58,13 +74,23 @@ class InstallView extends StatelessWidget {
           children: [
             Text(tr('bd-install-installing'), style: t.title),
             const SizedBox(height: 16),
-            Row(children: [
-              const BdSpinner(),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: Text(installingLead ?? tr('bd-install-installing-lead'),
-                      style: lead1)),
-            ]),
+            Text(installingLead ?? tr('bd-install-installing-lead'),
+                style: lead1),
+            const SizedBox(height: 24),
+            BdStepRow(
+                state: st(InstallStep.permission),
+                text: tr('bd-install-step-permission')),
+            BdStepRow(
+                state: st(InstallStep.copying),
+                text: step == InstallStep.copying && copyPercent != null
+                    ? tr('bd-install-step-copying-percent', ['$copyPercent'])
+                    : tr('bd-install-step-copying')),
+            BdStepRow(
+                state: st(InstallStep.service),
+                text: tr('bd-install-step-service')),
+            BdStepRow(
+                state: st(InstallStep.starting),
+                text: tr('bd-install-step-starting')),
           ],
         ),
       );
@@ -85,7 +111,7 @@ class InstallView extends StatelessWidget {
                   const SizedBox(height: 16),
                   BdNotice(
                     tone: BdTone.danger,
-                    text: tr('bd-install-failed', [error]),
+                    text: error!,
                     action: BdButton(
                         label: tr('bd-try-again'),
                         size: BdButtonSize.sm,

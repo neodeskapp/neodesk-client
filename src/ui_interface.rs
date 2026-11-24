@@ -148,8 +148,20 @@ pub fn install_me(_options: String, _path: String, _silent: bool, _debug: bool) 
         if let Err(err) = crate::platform::windows::install_me(&_options, _path, _silent, _debug)
         {
             log::error!("Installation failed: {err}");
+            // The install page shows the error with Try again.
+            #[cfg(feature = "flutter")]
+            if !_silent {
+                crate::platform::windows::install_progress::failed(&err.to_string());
+                return;
+            }
             if !_silent {
                 crate::platform::windows::message_box(&format!("Installation failed: {err}"));
+            }
+        } else {
+            // The install window stays until the installed client's is up.
+            #[cfg(feature = "flutter")]
+            if !_silent {
+                crate::platform::windows::install_progress::wait_for_client_window();
             }
         }
         std::process::exit(0);
