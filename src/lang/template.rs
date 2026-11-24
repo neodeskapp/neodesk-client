@@ -1238,6 +1238,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-install-step-service", ""),
         ("bd-install-step-starting", ""),
         ("bd-install-cancelled", ""),
+        ("bd-install-lead-join-server", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

@@ -800,6 +800,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("bd-install-step-service", "Setting up the service that starts with Windows"),
         ("bd-install-step-starting", "Starting NeoDesk"),
         ("bd-install-cancelled", "Windows did not get permission, so nothing was installed. Click Install and choose Yes when Windows asks."),
+        ("bd-install-lead-join-server", "After installing, this computer joins {}. NeoDesk then starts with Windows."),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

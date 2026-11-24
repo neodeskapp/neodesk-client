@@ -131,8 +131,10 @@ class _InstallPageBodyState extends State<_InstallPageBody>
     final company = (st.company ?? '').trim();
     final server = (st.server ?? '').trim();
     if (server.isNotEmpty && st.phase != OnboardingPhase.joined) {
-      return tr('bd-install-lead-join',
-          [company.isNotEmpty ? company : server, server]);
+      // Without a company name the server is named once.
+      return company.isNotEmpty
+          ? tr('bd-install-lead-join', [company, server])
+          : tr('bd-install-lead-join-server', [server]);
     }
     return tr('bd-install-lead');
   }
