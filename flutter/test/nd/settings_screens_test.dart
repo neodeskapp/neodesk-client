@@ -270,7 +270,7 @@ void main() {
                     label: tr('nd-tb-keyboard'),
                     onPressed: () {}),
                 NdToolbarButton(
-                    icon: NdIcons.folder,
+                    icon: NdIcons.files,
                     label: tr('nd-tb-files'),
                     onPressed: () {}),
                 NdToolbarButton(

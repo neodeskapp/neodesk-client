@@ -27,8 +27,8 @@ class FileManagerTabPage extends StatefulWidget {
 class _FileManagerTabPageState extends State<FileManagerTabPage> {
   DesktopTabController get tabController => Get.find<DesktopTabController>();
 
-  static const IconData selectedIcon = NdIcons.folder;
-  static const IconData unselectedIcon = NdIcons.folder;
+  static const IconData selectedIcon = NdIcons.files;
+  static const IconData unselectedIcon = NdIcons.files;
 
   _FileManagerTabPageState(Map<String, dynamic> params) {
     Get.put(DesktopTabController(tabType: DesktopTabType.fileTransfer));

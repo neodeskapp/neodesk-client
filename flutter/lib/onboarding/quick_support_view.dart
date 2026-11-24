@@ -126,7 +126,7 @@ class _QuickSupportViewState extends State<QuickSupportView> {
             const SizedBox(height: 12),
             Text(tr('nd-qs-consent-intro', [short]), style: lead),
             const SizedBox(height: 10),
-            _Can(icon: NdIcons.visibility, text: tr('nd-qs-can-see')),
+            _Can(icon: NdIcons.view, text: tr('nd-qs-can-see')),
             _Can(icon: NdIcons.mouse, text: tr('nd-qs-can-use')),
             const SizedBox(height: 16),
             Text(tr('nd-qs-consent-also', [short]), style: lead),
