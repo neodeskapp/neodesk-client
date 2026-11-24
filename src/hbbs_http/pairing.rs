@@ -322,9 +322,10 @@ pub fn pair_and_apply(server: String, code: String) -> PairResult {
 
 /// Keeps the device token of a pairing where the sync loop runs: `send` hands
 /// it to the server process (the service of an installed client) the way a
-/// join does; when no server process takes it, this process keeps it.
-/// Without a token there is nothing to hand over: the sync loop registers on
-/// its own and gets the status.
+/// join does; when no server process takes it, this process keeps it, unless
+/// it is the window of an installed client, which never keeps the device's
+/// secrets (L442). Without a token there is nothing to hand over: the sync
+/// loop registers on its own and gets the status.
 fn keep_enrollment(
     status: &str,
     token: Option<&str>,
@@ -343,6 +344,10 @@ fn keep_enrollment(
     })
     .to_string();
     if let Err(err) = send(payload) {
+        if !hbb_common::config::Config::holds_secrets() {
+            log::warn!("The service did not take the device token of the pairing: {err}");
+            return;
+        }
         log::info!("NeoDesk pairing keeps its device token in this process: {err}");
         neodesk::record_enrollment_answer(status, Some(token), device_id, api);
     }
@@ -514,6 +519,37 @@ mod tests {
                 "device_id": "123456789",
                 "api": "https://nd.example.com",
             })
+        );
+    }
+
+    // The window of an installed client hands the token to the service and
+    // never keeps it itself, not even when the service does not take it
+    // (L442).
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[test]
+    fn a_window_without_the_device_secrets_keeps_no_device_token() {
+        use crate::ipc::device_key_tests::*;
+        let _lock = DEVICE_KEY_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+        let before = enrollment::StoredToken::load();
+        let _not_holder = NotSecretsHolder::new();
+        let mut sent = false;
+        keep_enrollment(
+            "approved",
+            Some("window-t0ken"),
+            "123456789",
+            "https://nd.example.com",
+            |_| {
+                sent = true;
+                hbb_common::bail!("no server process")
+            },
+        );
+        assert!(sent, "the token did not go to the server process first");
+        assert_eq!(
+            enrollment::StoredToken::load(),
+            before,
+            "the window kept the device token"
         );
     }
 

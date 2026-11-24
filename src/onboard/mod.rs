@@ -558,7 +558,13 @@ fn apply_join(joined: &Joined, device_id: &str) {
     })
     .to_string();
     if crate::ipc::set_config(crate::ipc::IPC_JOINED_DEVICE_TOKEN, payload.clone()).is_err() {
-        store_device_token(&payload);
+        // The service of an installed client keeps the device token; its
+        // window never keeps one of its own (L442)
+        if Config::holds_secrets() {
+            store_device_token(&payload);
+        } else {
+            log::warn!("The service did not take the device token of the join");
+        }
     }
 }
 
