@@ -18,13 +18,14 @@ import '../../consts.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import 'home_page.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 /// Connection page for connecting to a remote peer.
 class ConnectionPage extends StatefulWidget implements PageShape {
   ConnectionPage({Key? key, required this.appBarActions}) : super(key: key);
 
   @override
-  final icon = const Icon(Icons.connected_tv);
+  final icon = const Icon(NdIcons.connectedTv);
 
   @override
   final title = translate("Connection");
@@ -334,13 +335,13 @@ class _ConnectionPageState extends State<ConnectionPage> {
                             _idController.clear();
                           });
                         },
-                        icon: Icon(Icons.clear, color: MyTheme.darkGray)),
+                        icon: Icon(NdIcons.close, color: MyTheme.darkGray)),
                   )),
               SizedBox(
                 width: 60,
                 height: 60,
                 child: IconButton(
-                  icon: Icon(Icons.arrow_forward,
+                  icon: Icon(NdIcons.arrowForward,
                       color: MyTheme.darkGray, size: 45),
                   onPressed: onConnect,
                 ),

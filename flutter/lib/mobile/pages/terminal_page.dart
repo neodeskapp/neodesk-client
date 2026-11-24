@@ -19,6 +19,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:xterm/xterm.dart';
 import '../../desktop/pages/terminal_connection_manager.dart';
 import '../../consts.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class TerminalPage extends StatefulWidget {
   const TerminalPage({
@@ -362,7 +363,7 @@ class _TerminalPageState extends State<TerminalPage>
                 child: Tooltip(
                   message: translate('Close'),
                   child: Icon(
-                    Icons.chevron_left, // iOS-style back arrow
+                    NdIcons.chevronLeft, // iOS-style back arrow
                     color: context.nd.onCanvas,
                     size: 28,
                   ),
@@ -477,7 +478,7 @@ class _TerminalPageState extends State<TerminalPage>
       toggled: _row3Expanded,
       child: ElevatedButton(
         onPressed: _toggleRow3Expanded,
-        child: Text(_row3Expanded ? '∧' : '∨'),
+        child: Icon(_row3Expanded ? NdIcons.expandLess : NdIcons.expandMore),
         style: ElevatedButton.styleFrom(
           minimumSize: const Size(terminalKeyboardKeyWidth, 32),
           padding: EdgeInsets.zero,

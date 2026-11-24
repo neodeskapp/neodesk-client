@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/widgets/custom_scale_base.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class MobileCustomScaleControls extends StatefulWidget {
   final FFI ffi;
@@ -49,7 +50,7 @@ class _MobileCustomScaleControlsState extends CustomScaleControls<MobileCustomSc
                 iconSize: 20,
                 padding: const EdgeInsets.all(4),
                 constraints: smallBtnConstraints,
-                icon: const Icon(Icons.remove),
+                icon: const Icon(NdIcons.remove),
                 tooltip: translate('Decrease'),
                 onPressed: () => nudgeScale(-1),
               ),
@@ -58,7 +59,7 @@ class _MobileCustomScaleControlsState extends CustomScaleControls<MobileCustomSc
                 iconSize: 20,
                 padding: const EdgeInsets.all(4),
                 constraints: smallBtnConstraints,
-                icon: const Icon(Icons.add),
+                icon: const Icon(NdIcons.add),
                 tooltip: translate('Increase'),
                 onPressed: () => nudgeScale(1),
               ),

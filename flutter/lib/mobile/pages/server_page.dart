@@ -15,13 +15,14 @@ import '../../consts.dart';
 import '../../models/platform_model.dart';
 import '../../models/server_model.dart';
 import 'home_page.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class ServerPage extends StatefulWidget implements PageShape {
   @override
   final title = translate("Share screen");
 
   @override
-  final icon = const Icon(Icons.mobile_screen_share);
+  final icon = const Icon(NdIcons.mobileScreenShare);
 
   @override
   final appBarActions = (!bind.isDisableSettings() &&
@@ -42,13 +43,13 @@ class _DropDownAction extends StatelessWidget {
   final actions = [
     PopupMenuButton<String>(
         tooltip: "",
-        icon: const Icon(Icons.more_vert),
+        icon: const Icon(NdIcons.moreVert),
         itemBuilder: (context) {
           listTile(String text, bool checked) {
             return ListTile(
                 title: Text(translate(text)),
                 trailing: Icon(
-                  Icons.check,
+                  NdIcons.check,
                   color: checked ? null : Colors.transparent,
                 ));
           }
@@ -237,7 +238,7 @@ class ServiceNotRunningNotification extends StatelessWidget {
 
     return PaddingCard(
         title: translate("Service is not running"),
-        titleIcon: Icon(Icons.warning_amber_sharp, color: context.nd.danger),
+        titleIcon: Icon(NdIcons.warning, color: context.nd.danger),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -245,7 +246,7 @@ class ServiceNotRunningNotification extends StatelessWidget {
                     style: TextStyle(fontSize: 12, color: MyTheme.darkGray))
                 .marginOnly(bottom: 8),
             ElevatedButton.icon(
-                icon: const Icon(Icons.play_arrow),
+                icon: const Icon(NdIcons.playArrow),
                 onPressed: () {
                   if (gFFI.userModel.userName.value.isEmpty &&
                       bind.mainGetLocalOption(key: "show-scam-warning") !=
@@ -328,7 +329,7 @@ class ScamWarningDialogState extends State<ScamWarningDialog> {
                 Row(
                   children: [
                     Icon(
-                      Icons.warning_amber_sharp,
+                      NdIcons.warning,
                       color: context.nd.onDanger,
                     ),
                     SizedBox(width: 10),
@@ -480,7 +481,7 @@ class ServerInfo extends StatelessWidget {
     Widget ConnectionStateNotification() {
       if (serverModel.connectStatus == -1) {
         return Row(children: [
-          Icon(Icons.warning_amber_sharp, color: colorNegative, size: iconSize)
+          Icon(NdIcons.warning, color: colorNegative, size: iconSize)
               .marginOnly(right: iconMarginRight),
           Expanded(child: Text(translate('not_ready_status')))
         ]);
@@ -492,7 +493,7 @@ class ServerInfo extends StatelessWidget {
         ]);
       } else {
         return Row(children: [
-          Icon(Icons.check, color: colorPositive, size: iconSize)
+          Icon(NdIcons.check, color: colorPositive, size: iconSize)
               .marginOnly(right: iconMarginRight),
           Expanded(child: Text(translate('Ready')))
         ]);
@@ -507,7 +508,7 @@ class ServerInfo extends StatelessWidget {
           // ID
           children: [
             Row(children: [
-              Icon(Icons.perm_identity,
+              Icon(NdIcons.user,
                       color: context.nd.textMuted, size: iconSize)
                   .marginOnly(right: iconMarginRight),
               Text(
@@ -522,14 +523,14 @@ class ServerInfo extends StatelessWidget {
               ),
               IconButton(
                   visualDensity: VisualDensity.compact,
-                  icon: Icon(Icons.copy_outlined),
+                  icon: Icon(NdIcons.copy),
                   onPressed: () {
                     copyToClipboard(model.serverId.value.text.trim());
                   })
             ]).marginOnly(left: 39, bottom: 10),
             // Password
             Row(children: [
-              Icon(Icons.lock_outline,
+              Icon(NdIcons.lock,
                       color: context.nd.textMuted, size: iconSize)
                   .marginOnly(right: iconMarginRight),
               Text(
@@ -547,11 +548,11 @@ class ServerInfo extends StatelessWidget {
                   : Row(children: [
                       IconButton(
                           visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.refresh),
+                          icon: const Icon(NdIcons.refresh),
                           onPressed: () => bind.mainUpdateTemporaryPassword()),
                       IconButton(
                           visualDensity: VisualDensity.compact,
-                          icon: Icon(Icons.copy_outlined),
+                          icon: Icon(NdIcons.copy),
                           onPressed: () {
                             copyToClipboard(
                                 model.serverPasswd.value.text.trim());
@@ -596,7 +597,7 @@ class _PermissionCheckerState extends State<PermissionChecker> {
                               WidgetStateProperty.all(context.nd.danger),
                           foregroundColor:
                               WidgetStateProperty.all(context.nd.onDanger)),
-                      icon: const Icon(Icons.stop),
+                      icon: const Icon(NdIcons.stop),
                       onPressed: serverModel.toggleService,
                       label: Text(translate("Stop service")))
                   .marginOnly(bottom: 8)
@@ -626,7 +627,7 @@ class _PermissionCheckerState extends State<PermissionChecker> {
                   serverModel.toggleAudio,
                   enabled: !permissionChangeLocked)
               : Row(children: [
-                  Icon(Icons.info_outline).marginOnly(right: 15),
+                  Icon(NdIcons.info).marginOnly(right: 15),
                   Expanded(
                       child: Text(
                     translate("android_version_audio_tip"),
@@ -680,8 +681,8 @@ class ConnectionManager extends StatelessWidget {
                 title: translate(
                     client.isFileTransfer ? "Transfer file" : "Share screen"),
                 titleIcon: client.isFileTransfer
-                    ? Icon(Icons.folder_outlined)
-                    : Icon(Icons.mobile_screen_share),
+                    ? Icon(NdIcons.folder)
+                    : Icon(NdIcons.mobileScreenShare),
                 child: Column(children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -725,7 +726,7 @@ class ConnectionManager extends StatelessWidget {
       style: ButtonStyle(
           backgroundColor: WidgetStatePropertyAll(ndColors.danger),
           foregroundColor: WidgetStatePropertyAll(ndColors.onDanger)),
-      icon: const Icon(Icons.close),
+      icon: const Icon(NdIcons.close),
       onPressed: () {
         bind.cmCloseConnection(connId: client.id);
         gFFI.invokeMethod("cancel_notification", client.id);
@@ -740,7 +741,7 @@ class ConnectionManager extends StatelessWidget {
           style: ButtonStyle(
               backgroundColor: WidgetStatePropertyAll(ndColors.danger),
               foregroundColor: WidgetStatePropertyAll(ndColors.onDanger)),
-          icon: const Icon(Icons.phone),
+          icon: const Icon(NdIcons.phone),
           label: Text(translate("Stop")),
           onPressed: () {
             bind.cmCloseVoiceCall(id: client.id);
@@ -772,7 +773,7 @@ class ConnectionManager extends StatelessWidget {
           }).marginOnly(right: 15),
       if (serverModel.approveMode != 'password')
         ElevatedButton.icon(
-            icon: const Icon(Icons.check),
+            icon: const Icon(NdIcons.check),
             label: Text(translate("Accept")),
             onPressed: () {
               serverModel.sendLoginResponse(client, true);
@@ -795,7 +796,7 @@ class ConnectionManager extends StatelessWidget {
             }).marginOnly(right: 15),
         if (serverModel.approveMode != 'password')
           ElevatedButton.icon(
-              icon: const Icon(Icons.check),
+              icon: const Icon(NdIcons.check),
               label: Text(translate("Accept")),
               onPressed: () {
                 serverModel.handleVoiceCall(client, true);

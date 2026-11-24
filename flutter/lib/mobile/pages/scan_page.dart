@@ -10,6 +10,7 @@ import 'package:zxing2/qrcode.dart';
 import '../../common.dart';
 import '../../common/theme/nd_theme.dart';
 import '../widgets/dialog.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class ScanPage extends StatefulWidget {
   @override
@@ -111,7 +112,7 @@ class _ScanPageState extends State<ScanPage> {
   Widget _buildImagePickerButton() {
     return IconButton(
       color: context.nd.text,
-      icon: Icon(Icons.image_search),
+      icon: Icon(NdIcons.imageSearch),
       iconSize: 32.0,
       onPressed: _pickImage,
     );
@@ -120,7 +121,7 @@ class _ScanPageState extends State<ScanPage> {
   Widget _buildFlashToggleButton() {
     return IconButton(
       color: context.nd.warning,
-      icon: Icon(Icons.flash_on),
+      icon: Icon(NdIcons.flashOn),
       iconSize: 32.0,
       onPressed: () async {
         await controller?.toggleFlash();
@@ -131,7 +132,7 @@ class _ScanPageState extends State<ScanPage> {
   Widget _buildCameraSwitchButton() {
     return IconButton(
       color: context.nd.text,
-      icon: Icon(Icons.switch_camera),
+      icon: Icon(NdIcons.switchCamera),
       iconSize: 32.0,
       onPressed: () async {
         await controller?.flipCamera();

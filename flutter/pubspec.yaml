@@ -186,11 +186,6 @@ flutter:
     - family: NdSymbolsFilled
       fonts:
         - asset: assets/fonts/NdSymbolsFilled.ttf
-    # Touch gestures of the mobile app's gesture help, which Material
-    # Symbols has no glyphs for.
-    - family: GestureIcons
-      fonts:
-        - asset: assets/gestures.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware.

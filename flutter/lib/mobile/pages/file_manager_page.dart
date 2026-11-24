@@ -11,6 +11,7 @@ import '../../common.dart';
 import '../../common/theme/nd_theme.dart';
 import '../../common/widgets/dialog.dart';
 import '../../consts.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 class FileManagerPage extends StatefulWidget {
   FileManagerPage(
@@ -286,7 +287,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         appBar: AppBar(
           leading: Row(children: [
             IconButton(
-                icon: Icon(Icons.close),
+                icon: Icon(NdIcons.close),
                 onPressed: () => clientClose(gFFI.sessionId, gFFI)),
           ]),
           centerTitle: true,
@@ -301,7 +302,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
             fontSize: 15,
             iconSize: 18,
             labels: [translate("Local"), translate("Remote")],
-            icons: [Icons.phone_android_sharp, Icons.screen_share],
+            icons: [NdIcons.smartphone, NdIcons.screenShare],
             onToggle: (index) {
               final current = showLocal ? 0 : 1;
               if (index != current) {
@@ -312,13 +313,13 @@ class _FileManagerPageState extends State<FileManagerPage> {
           actions: [
             PopupMenuButton<String>(
                 tooltip: "",
-                icon: Icon(Icons.more_vert),
+                icon: Icon(NdIcons.moreVert),
                 itemBuilder: (context) {
                   return [
                     PopupMenuItem(
                       child: Row(
                         children: [
-                          Icon(Icons.refresh,
+                          Icon(NdIcons.refresh,
                               color: Theme.of(context).iconTheme.color),
                           SizedBox(width: 5),
                           Text(translate("Refresh File"))
@@ -332,7 +333,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
                         value: "import",
                         child: Row(
                           children: [
-                            Icon(Icons.add_to_drive,
+                            Icon(NdIcons.addToDrive,
                                 color: Theme.of(context).iconTheme.color),
                             SizedBox(width: 5),
                             Text(translate("Add"))
@@ -345,7 +346,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
                         value: "import_folder",
                         child: Row(
                           children: [
-                            Icon(Icons.create_new_folder_outlined,
+                            Icon(NdIcons.createNewFolder,
                                 color: Theme.of(context).iconTheme.color),
                             SizedBox(width: 5),
                             Text(translate("Import Folder"))
@@ -358,7 +359,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
                         value: "export_logs",
                         child: Row(
                           children: [
-                            Icon(Icons.article_outlined,
+                            Icon(NdIcons.article,
                                 color: Theme.of(context).iconTheme.color),
                             SizedBox(width: 5),
                             Text(translate("Export Logs"))
@@ -369,7 +370,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
                       enabled: currentDir.path != "/",
                       child: Row(
                         children: [
-                          Icon(Icons.check,
+                          Icon(NdIcons.check,
                               color: Theme.of(context).iconTheme.color),
                           SizedBox(width: 5),
                           Text(translate("Multi Select"))
@@ -381,7 +382,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
                       enabled: currentDir.path != "/",
                       child: Row(
                         children: [
-                          Icon(Icons.folder_outlined,
+                          Icon(NdIcons.folder,
                               color: Theme.of(context).iconTheme.color),
                           SizedBox(width: 5),
                           Text(translate("Create Folder"))
@@ -395,8 +396,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
                         children: [
                           Icon(
                               currentOptions.showHidden
-                                  ? Icons.check_box_outlined
-                                  : Icons.check_box_outline_blank,
+                                  ? NdIcons.checkBox
+                                  : NdIcons.checkBoxOutlineBlank,
                               color: Theme.of(context).iconTheme.color),
                           SizedBox(width: 5),
                           Text(translate("Show Hidden Files"))
@@ -503,7 +504,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
             selectedItems.items.isEmpty ||
             selectMode.value.eq(showLocal)) {
           return BottomSheetBody(
-              leading: Icon(Icons.check),
+              leading: Icon(NdIcons.check),
               title: translate("Selected"),
               text: selectedItemsLen + localLabel,
               onCanceled: () {
@@ -519,23 +520,23 @@ class _FileManagerPageState extends State<FileManagerPage> {
                       selectedItems!.items.single.isFile)
                     IconButton(
                       tooltip: translate("Save as"),
-                      icon: Icon(Icons.save_alt),
+                      icon: Icon(NdIcons.saveAlt),
                       onPressed: () =>
                           _exportFile(selectedItems!.items.single),
                     )
                   else
                     IconButton(
                       tooltip: translate("Export"),
-                      icon: Icon(Icons.drive_folder_upload),
+                      icon: Icon(NdIcons.driveFolderUpload),
                       onPressed: () => _exportItems(selectedItems!),
                     ),
                 ],
                 IconButton(
-                  icon: Icon(Icons.compare_arrows),
+                  icon: Icon(NdIcons.compareArrows),
                   onPressed: () => setState(() => showLocal = !showLocal),
                 ),
                 IconButton(
-                  icon: Icon(Icons.delete_forever),
+                  icon: Icon(NdIcons.deleteForever),
                   onPressed: selectedItems != null
                       ? () async {
                           if (selectedItems.items.isNotEmpty) {
@@ -550,7 +551,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
               ]);
         } else {
           return BottomSheetBody(
-              leading: Icon(Icons.input),
+              leading: Icon(NdIcons.input),
               title: translate("Paste here?"),
               text: selectedItemsLen + localLabel,
               onCanceled: () {
@@ -560,11 +561,11 @@ class _FileManagerPageState extends State<FileManagerPage> {
               },
               actions: [
                 IconButton(
-                  icon: Icon(Icons.compare_arrows),
+                  icon: Icon(NdIcons.compareArrows),
                   onPressed: () => setState(() => showLocal = !showLocal),
                 ),
                 IconButton(
-                  icon: Icon(Icons.paste),
+                  icon: Icon(NdIcons.contentPaste),
                   onPressed: () {
                     selectMode.value = SelectMode.none;
                     final otherSide = showLocal
@@ -604,14 +605,14 @@ class _FileManagerPageState extends State<FileManagerPage> {
           );
         case JobState.done:
           return BottomSheetBody(
-            leading: Icon(Icons.check),
+            leading: Icon(NdIcons.check),
             title: "${translate("Successful")}!",
             text: activeJob.display(),
             onCanceled: () => jobTable.clear(),
           );
         case JobState.error:
           return BottomSheetBody(
-            leading: Icon(Icons.error),
+            leading: Icon(NdIcons.error),
             title: "${translate("Error")}!",
             text: "",
             onCanceled: () => jobTable.clear(),
@@ -715,8 +716,8 @@ class _FileManagerViewState extends State<FileManagerView> {
                                 ?.withOpacity(0.7)))
                     : Icon(
                         entries[index].isFile
-                            ? Icons.feed_outlined
-                            : Icons.folder,
+                            ? NdIcons.description
+                            : NdIcons.folder,
                         size: 40),
                 title: Text(entries[index].name),
                 selected: selected,
@@ -742,7 +743,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                             })
                         : PopupMenuButton<String>(
                             tooltip: "",
-                            icon: Icon(Icons.more_vert),
+                            icon: Icon(NdIcons.moreVert),
                             itemBuilder: (context) {
                               return [
                                 PopupMenuItem(
@@ -850,23 +851,23 @@ class _FileManagerViewState extends State<FileManagerView> {
                 }
                 controller.openDirectory(path);
               }),
-              divider: Icon(Icons.chevron_right),
+              divider: Icon(NdIcons.chevronRight),
               overflow: ScrollableOverflow(controller: _breadCrumbScroller),
             );
           })),
           Row(
             children: [
               IconButton(
-                icon: Icon(Icons.arrow_back),
+                icon: Icon(NdIcons.arrowBack),
                 onPressed: controller.goBack,
               ),
               IconButton(
-                icon: Icon(Icons.arrow_upward),
+                icon: Icon(NdIcons.arrowUpward),
                 onPressed: controller.goToParentDirectory,
               ),
               PopupMenuButton<SortBy>(
                   tooltip: "",
-                  icon: Icon(Icons.sort),
+                  icon: Icon(NdIcons.sort),
                   itemBuilder: (context) {
                     return SortBy.values
                         .map((e) => PopupMenuItem(
@@ -919,7 +920,7 @@ class _FileManagerViewState extends State<FileManagerView> {
     final breadCrumbList = [
       BreadCrumbItem(
           content: IconButton(
-        icon: Icon(Icons.home_filled),
+        icon: Icon(NdIcons.home),
         onPressed: onHome,
       ))
     ];
@@ -981,7 +982,7 @@ class BottomSheetBody extends StatelessWidget {
                   ),
                   Row(children: () {
                     _actions.add(IconButton(
-                      icon: Icon(Icons.cancel_outlined),
+                      icon: Icon(NdIcons.cancel),
                       onPressed: onCanceled,
                     ));
                     return _actions;
