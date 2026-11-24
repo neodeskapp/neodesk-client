@@ -58,7 +58,7 @@ fn texts() -> (&'static str, &'static str) {
     }
 }
 
-/// The display scaling (the packer's manifest makes it DPI aware); Windows 7
+/// The display scaling (ui() makes the process DPI aware first); Windows 7
 /// has no GetDpiForSystem, so the screen's device context tells it.
 fn scale() -> f64 {
     use winapi::um::{wingdi, winuser};
@@ -239,6 +239,10 @@ fn build() -> Result<Rc<Splash>, nwg::NwgError> {
 }
 
 fn ui() -> Result<(), nwg::NwgError> {
+    // The released packer carries the Flutter runner's resources, not a
+    // DPI-aware manifest; without this Windows stretches the window at 150 %
+    // and the logo blurs. It must come before the first window.
+    unsafe { winapi::um::winuser::SetProcessDPIAware() };
     nwg::init()?;
     let _ui = build()?;
     nwg::dispatch_thread_events();
