@@ -27,7 +27,10 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 #[cfg(windows)]
-use windows::Win32::{Foundation::HANDLE, System::Pipes::GetNamedPipeClientProcessId};
+use windows::Win32::{
+    Foundation::HANDLE,
+    System::Pipes::{GetNamedPipeClientProcessId, GetNamedPipeServerProcessId},
+};
 
 #[cfg(windows)]
 #[inline]
@@ -942,6 +945,73 @@ impl ConnectionTmpl<parity_tokio_ipc::Connection> {
             peer_is_system,
         )
     }
+}
+
+#[cfg(windows)]
+impl ConnectionTmpl<parity_tokio_ipc::ConnectionClient> {
+    /// Whether the process at the other end of this pipe runs as LocalSystem,
+    /// as the service does. Another process can have made an instance of the
+    /// service's pipe name before the service started, so a client sends the
+    /// service a secret only after this. A process of the person's may not
+    /// read a LocalSystem process's token; then the pipe's owner decides:
+    /// the service's pipes belong to LocalSystem or Administrators, and no
+    /// other account may add instances to them.
+    pub(crate) fn server_is_local_system(&self) -> bool {
+        let pipe_handle = self.inner.get_ref().as_raw_handle();
+        if pipe_handle.is_null() {
+            return false;
+        }
+        let mut pid = 0u32;
+        let ok = unsafe { GetNamedPipeServerProcessId(HANDLE(pipe_handle), &mut pid as *mut u32) }
+            .is_ok();
+        if !ok || pid == 0 {
+            return false;
+        }
+        match crate::platform::windows::is_process_running_as_system(pid) {
+            Ok(is_system) => is_system,
+            Err(_) => pipe_owner_is_system_or_admins(HANDLE(pipe_handle)),
+        }
+    }
+}
+
+/// Whether the owner of the pipe of the client handle `pipe` is LocalSystem
+/// or Administrators, read through that handle.
+#[cfg(windows)]
+fn pipe_owner_is_system_or_admins(pipe: HANDLE) -> bool {
+    use windows::Win32::{
+        Foundation::{LocalFree, HLOCAL},
+        Security::{
+            Authorization::{GetSecurityInfo, SE_FILE_OBJECT},
+            IsWellKnownSid, WinBuiltinAdministratorsSid, WinLocalSystemSid,
+            OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID,
+        },
+    };
+    let mut owner = PSID::default();
+    let mut descriptor = PSECURITY_DESCRIPTOR::default();
+    let result = unsafe {
+        GetSecurityInfo(
+            pipe,
+            SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION,
+            Some(&mut owner),
+            None,
+            None,
+            None,
+            Some(&mut descriptor),
+        )
+    };
+    let trusted = result.0 == 0
+        && !owner.0.is_null()
+        && unsafe {
+            IsWellKnownSid(owner, WinLocalSystemSid).as_bool()
+                || IsWellKnownSid(owner, WinBuiltinAdministratorsSid).as_bool()
+        };
+    if !descriptor.0.is_null() {
+        unsafe {
+            let _ = LocalFree(Some(HLOCAL(descriptor.0)));
+        }
+    }
+    trusted
 }
 
 #[cfg(test)]

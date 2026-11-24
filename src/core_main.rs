@@ -47,6 +47,11 @@ pub fn core_main() -> Option<CoreMainAction> {
     }
     crate::load_custom_client();
     crate::onboard::init_process_mode();
+    // Once the client is installed, its service holds the device's secrets
+    // and the person's processes do not; set before anything loads or
+    // makes a key (L442)
+    #[cfg(windows)]
+    config::Config::set_holds_secrets(holds_device_secrets());
     crate::hbbs_http::neodesk::log_client_identity();
     #[cfg(windows)]
     if !crate::platform::windows::bootstrap() {
@@ -887,6 +892,21 @@ fn try_send_by_dbus(uni_links: String) -> Option<Vec<String>> {
             return Some(Vec::new());
         }
     }
+}
+
+/// Whether this process keeps the device's secrets: its key pair, the
+/// stored permanent password and the 2FA secret (L442). Once the client is
+/// installed, the service's processes (LocalSystem) hold them, and the
+/// person's processes ask them for the public key, for proofs and for
+/// whether a password or 2FA is set. A quick support process keeps its own
+/// throwaway identity, and a client without an installed service (portable,
+/// outgoing only) runs the server itself.
+#[cfg(windows)]
+fn holds_device_secrets() -> bool {
+    crate::onboard::is_quick_support()
+        || config::is_outgoing_only()
+        || crate::platform::is_root()
+        || !crate::platform::is_installed()
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]

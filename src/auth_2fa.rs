@@ -86,20 +86,29 @@ pub fn generate2fa() -> String {
 }
 
 pub fn verify2fa(code: String) -> bool {
-    if let Some((info, totp)) = CURRENT_2FA.lock().unwrap().as_ref() {
-        if let Ok(res) = totp.check_current(&code) {
-            if res {
-                if let Ok(v) = info.into_string() {
-                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-                    crate::ipc::set_option("2fa", &v);
-                    #[cfg(any(target_os = "android", target_os = "ios"))]
-                    Config::set_option("2fa".to_owned(), v);
-                    return res;
-                }
-            }
-        }
+    let mut current = CURRENT_2FA.lock().unwrap();
+    let Some((info, totp)) = current.as_ref() else {
+        return false;
+    };
+    if !matches!(totp.check_current(&code), Ok(true)) {
+        return false;
     }
-    false
+    let Ok(v) = info.into_string() else {
+        return false;
+    };
+    // On desktop the daemon keeps the secret (L442)
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let res = matches!(crate::ipc::set_2fa(v), Ok(true));
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let res = {
+        Config::set_option("2fa".to_owned(), v);
+        true
+    };
+    if res {
+        // This process forgets the secret once it is stored
+        *current = None;
+    }
+    res
 }
 
 pub fn get_2fa(raw: Option<String>) -> Option<TOTP> {

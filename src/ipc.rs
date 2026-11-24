@@ -34,7 +34,7 @@ use hbb_common::anyhow;
 use hbb_common::{
     allow_err, bail, bytes,
     bytes_codec::BytesCodec,
-    config::{self, keys::OPTION_ALLOW_WEBSOCKET, Config, Config2},
+    config::{self, keys, keys::OPTION_ALLOW_WEBSOCKET, Config, Config2},
     futures::StreamExt as _,
     futures_util::sink::SinkExt,
     log, password_security as password, timeout,
@@ -309,6 +309,17 @@ pub enum DataPortableService {
     CmShowElevation(bool),
 }
 
+/// See [`Data::HandOverSecrets`]. Its Debug output names no secret.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "t", content = "c")]
+pub enum HandOver {
+    /// The secrets found in the profile.
+    Secrets(Box<config::ProfileSecrets>),
+    /// The answer: the public key (base64) of the process that holds the
+    /// device's secrets, once it holds them.
+    Held(String),
+}
+
 #[cfg(feature = "flutter")]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -361,10 +372,13 @@ pub enum Data {
     Config((String, Option<String>)),
     Options(Option<HashMap<String, String>>),
     NatType(Option<i32>),
-    ConfirmedKey(Option<(Vec<u8>, Vec<u8>)>),
     /// A pairing request's path, answered with the server process's public
     /// key and key proof for it (hbbs_http/pairing_proof.rs).
     PairingProof((String, Option<(String, Vec<(String, String)>)>)),
+    /// The device's secrets an older version left in the person's profile,
+    /// handed to the process that holds them (L442), see
+    /// [`settle_device_secrets`].
+    HandOverSecrets(HandOver),
     RawMessage(Vec<u8>),
     Socks(Option<config::Socks5Server>),
     FS(FS),
@@ -608,7 +622,7 @@ pub async fn start(postfix: &str) -> ResultType<()> {
                                     #[cfg(any(target_os = "linux", target_os = "macos"))]
                                     if postfix == crate::POSTFIX_SERVICE {
                                         if matches!(&data, Data::SyncConfig(_)) {
-                                            handle(data, &mut stream).await;
+                                            handle_service_sync(data, &mut stream).await;
                                         } else {
                                             log::warn!(
                                                 "Rejected non-sync data on protected _service IPC channel: postfix={}, data_kind={:?}, peer_uid={:?}",
@@ -654,6 +668,13 @@ pub const IPC_JOINED_DEVICE_TOKEN: &str = "neodesk-joined-device-token";
 /// The server process's public key (base64), for a join in another
 /// process (onboard/device_key.rs).
 pub const IPC_PUBLIC_KEY: &str = "public-key";
+/// Whether 2FA is on ("Y" or "N"). The 2FA secret itself stays in the
+/// process that holds the device's secrets (L442).
+pub const IPC_2FA_SET: &str = "2fa-set";
+
+fn bool_to_yn(value: bool) -> String {
+    if value { "Y" } else { "N" }.to_owned()
+}
 
 /// The IPC path of `postfix` for this process. A quick support process uses
 /// names of its own, so it never reaches an installed client's server,
@@ -877,20 +898,21 @@ async fn handle(data: Data, stream: &mut Connection) {
             let confirmed = Config::get_key_confirmed();
             allow_err!(stream.send(&Data::OnlineStatus(Some((x, confirmed)))).await);
         }
-        Data::ConfirmedKey(None) => {
-            let out = if Config::get_key_confirmed() {
-                Some(Config::get_key_pair())
-            } else {
-                None
-            };
-            allow_err!(stream.send(&Data::ConfirmedKey(out)).await);
-        }
         Data::PairingProof((path, None)) => {
             let proof = crate::hbbs_http::enrollment::proof_for_others(
                 crate::hbbs_http::pairing_proof::METHOD,
                 &path,
             );
             allow_err!(stream.send(&Data::PairingProof((path, proof))).await);
+        }
+        Data::HandOverSecrets(HandOver::Secrets(secrets)) => {
+            if let Some(public_key) = take_handed_over_secrets(*secrets) {
+                allow_err!(
+                    stream
+                        .send(&Data::HandOverSecrets(HandOver::Held(public_key)))
+                        .await
+                );
+            }
         }
         Data::Socks(s) => match s {
             None => {
@@ -937,9 +959,9 @@ async fn handle(data: Data, stream: &mut Connection) {
                     value = Some(Config::get_id());
                 } else if name == "temporary-password" {
                     value = Some(password::temporary_password());
-                } else if name == "permanent-password-storage-and-salt" {
-                    let (storage, salt) = Config::get_local_permanent_password_storage_and_salt();
-                    value = Some(storage + "\n" + &salt);
+                } else if name == IPC_2FA_SET {
+                    // Whether 2FA is on, never the secret (L442)
+                    value = Some(bool_to_yn(crate::auth_2fa::get_2fa(None).is_some()));
                 } else if name == "permanent-password-set" {
                     value = Some(if Config::has_permanent_password() {
                         "Y".to_owned()
@@ -1015,6 +1037,19 @@ async fn handle(data: Data, stream: &mut Connection) {
                     // reading back any secret.
                     let ack = if updated { "Y" } else { "N" }.to_owned();
                     allow_err!(stream.send(&Data::Config((name.clone(), Some(ack)))).await);
+                } else if name == keys::OPTION_2FA {
+                    // Turns 2FA on with a secret the window made, or off with
+                    // an empty value, and answers whether it took it (L442)
+                    updated = value.is_empty()
+                        || crate::auth_2fa::get_2fa(Some(value.clone())).is_some();
+                    if updated {
+                        Config::set_option(keys::OPTION_2FA.to_owned(), value);
+                    }
+                    allow_err!(
+                        stream
+                            .send(&Data::Config((name.clone(), Some(bool_to_yn(updated)))))
+                            .await
+                    );
                 } else if name == "salt" {
                     Config::set_salt(&value);
                 } else if name == "voice-call-input" {
@@ -1043,8 +1078,10 @@ async fn handle(data: Data, stream: &mut Connection) {
         }
         Data::ConnectionModeChanged(Some(_)) => {}
         Data::Options(value) => match value {
+            // The secret options (the 2FA secret) never travel this
+            // channel (L442)
             None => {
-                let v = Config::get_options();
+                let v = Config::get_options_for_other_process();
                 allow_err!(stream.send(&Data::Options(Some(v))).await);
             }
             Some(value) => {
@@ -1053,7 +1090,7 @@ async fn handle(data: Data, stream: &mut Connection) {
                 if let Some(v) = value.get("privacy-mode-impl-key") {
                     crate::privacy_mode::switch(v);
                 }
-                Config::set_options(value);
+                Config::set_options_from_other_process(value);
                 allow_err!(stream.send(&Data::Options(None)).await);
             }
         },
@@ -1061,18 +1098,24 @@ async fn handle(data: Data, stream: &mut Connection) {
             let t = Config::get_nat_type();
             allow_err!(stream.send(&Data::NatType(Some(t))).await);
         }
+        // The device's secrets (key pair, stored permanent password, 2FA
+        // secret) never travel this channel (L442)
         Data::SyncConfig(Some(configs)) => {
             let (config, config2) = *configs;
             let _chk = CheckIfRestart::new();
-            Config::set(config);
-            Config2::set(config2);
+            Config::set_from_other_process(config);
+            Config2::set_from_other_process(config2);
             allow_err!(stream.send(&Data::SyncConfig(None)).await);
         }
         Data::SyncConfig(None) => {
             allow_err!(
                 stream
                     .send(&Data::SyncConfig(Some(
-                        (Config::get(), Config2::get()).into()
+                        (
+                            Config::get_for_other_process(),
+                            Config2::get_for_other_process()
+                        )
+                            .into()
                     )))
                     .await
             );
@@ -1476,7 +1519,16 @@ pub async fn connect(ms_timeout: u64, postfix: &str) -> ResultType<ConnectionTmp
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         let path = ipc_path(postfix);
-        connect_with_path(ms_timeout, &path).await
+        let conn = connect_with_path(ms_timeout, &path).await?;
+        // The window of an installed client talks to the service only, not
+        // to a process that made an instance of its pipe name before the
+        // service started: what it sends there can be a secret, a new
+        // permanent password, a 2FA secret or a device token (L442)
+        #[cfg(windows)]
+        if postfix.is_empty() && !Config::holds_secrets() && !conn.server_is_local_system() {
+            bail!("the main IPC server is not the service");
+        }
+        Ok(conn)
     }
 }
 
@@ -1663,6 +1715,158 @@ pub async fn pairing_proof(path: &str) -> Option<(String, Vec<(String, String)>)
     }
 }
 
+/// The `_service` channel on Linux and macOS. The person's server process
+/// signs sessions and checks passwords as the person, so it gets the root
+/// service's whole config, secrets included; a config it sends never
+/// replaces the service's key pair, it only fills one the service does not
+/// have yet (L442).
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+async fn handle_service_sync(data: Data, stream: &mut Connection) {
+    match data {
+        Data::SyncConfig(Some(configs)) => {
+            let (config, config2) = *configs;
+            let _chk = CheckIfRestart::new();
+            Config::set_from_user_server(config);
+            Config2::set(config2);
+            allow_err!(stream.send(&Data::SyncConfig(None)).await);
+        }
+        Data::SyncConfig(None) => {
+            allow_err!(
+                stream
+                    .send(&Data::SyncConfig(Some(
+                        (Config::get(), Config2::get()).into()
+                    )))
+                    .await
+            );
+        }
+        _ => {}
+    }
+}
+
+/// The holder's side of [`Data::HandOverSecrets`]: takes each secret only
+/// when this process holds the device's secrets and has none of that kind
+/// yet, and answers with its public key (base64). None in a process that
+/// does not hold the secrets.
+fn take_handed_over_secrets(secrets: config::ProfileSecrets) -> Option<String> {
+    if !Config::holds_secrets() {
+        return None;
+    }
+    if let Some(key_pair) = secrets.key_pair {
+        if Config::adopt_key_pair_if_none(key_pair) {
+            log::info!("Took the device key that a profile of an older version held");
+        }
+    }
+    if let Some((storage, salt)) = secrets.permanent_password {
+        if Config::adopt_permanent_password_if_none(&storage, &salt) {
+            log::info!("Took the permanent password that a profile of an older version held");
+        }
+    }
+    for (key, value) in secrets.options {
+        let valid = key != keys::OPTION_2FA
+            || crate::auth_2fa::get_2fa(Some(value.clone())).is_some();
+        if valid && Config::adopt_secret_option_if_none(&key, &value) {
+            log::info!("Took the {key} setting that a profile of an older version held");
+        }
+    }
+    let (_, public_key) = Config::get_key_pair();
+    (public_key.len() == hbb_common::sodiumoxide::crypto::sign::PUBLICKEYBYTES)
+        .then(|| crate::encode64(public_key))
+}
+
+/// For a process that does not hold the device's secrets (the window of an
+/// installed client on Windows), once `conn` reaches the service (L442).
+/// The secrets an older version left in this profile (the key pair, the
+/// stored permanent password, the 2FA secret) go to the service, which takes
+/// each only when it has none of that kind yet, so an install keeps the
+/// identity the server knows; the copies leave the profile once the service
+/// answers that it holds the secrets. Without such copies this process only
+/// learns the service's public key. Without an answer (an older service) the
+/// copies stay until a later start.
+pub async fn settle_device_secrets(conn: &mut ConnectionTmpl<ConnClient>) {
+    if Config::holds_secrets() {
+        return;
+    }
+    // Secrets go only to the service itself, and only its public key is
+    // taken, not one from a process that made an instance of the same pipe
+    // name before the service started
+    #[cfg(windows)]
+    if !conn.server_is_local_system() {
+        log::warn!("The IPC server is not the service; this profile keeps its copies of the device's secrets for now");
+        return;
+    }
+    let Some(secrets) = Config::secrets_in_files() else {
+        if conn
+            .send(&Data::Config((IPC_PUBLIC_KEY.to_owned(), None)))
+            .await
+            .is_ok()
+        {
+            if let Ok(Some(Data::Config((name, Some(public_key))))) =
+                conn.next_timeout(1_000).await
+            {
+                if name == IPC_PUBLIC_KEY {
+                    if let Ok(public_key) = crate::decode64(public_key) {
+                        Config::set_holder_public_key(public_key);
+                    }
+                }
+            }
+        }
+        return;
+    };
+    log::info!("This profile holds copies of the device's secrets: {secrets:?}");
+    let mut held = None;
+    if conn
+        .send(&Data::HandOverSecrets(HandOver::Secrets(Box::new(secrets))))
+        .await
+        .is_ok()
+    {
+        if let Ok(Some(Data::HandOverSecrets(HandOver::Held(public_key)))) =
+            conn.next_timeout(2_000).await
+        {
+            held = Some(public_key);
+        }
+    }
+    after_hand_over(held);
+}
+
+/// Takes the secrets out of this profile once the holder answered with its
+/// public key, and keeps that public key for this process. False, with the
+/// profile as it was, without an answer.
+pub(crate) fn after_hand_over(held: Option<String>) -> bool {
+    let public_key = held
+        .and_then(|public_key| crate::decode64(public_key).ok())
+        .filter(|public_key| {
+            public_key.len() == hbb_common::sodiumoxide::crypto::sign::PUBLICKEYBYTES
+        });
+    let Some(public_key) = public_key else {
+        log::warn!("The service did not take this profile's copies of the device's secrets yet");
+        return false;
+    };
+    if Config::remove_secrets_from_files() {
+        log::info!("The service holds the device's secrets; this profile's copies are removed");
+    }
+    Config::set_holder_public_key(public_key);
+    true
+}
+
+/// The device's public key: this process's own when it holds the key, else
+/// the holder's, asked over IPC when this process has not learned it yet.
+/// Empty when no holder answers.
+pub fn device_public_key() -> Vec<u8> {
+    if Config::holds_secrets() {
+        return Config::get_key_pair().1;
+    }
+    if let Some(public_key) = Config::get_cached_pk().filter(|key| !key.is_empty()) {
+        return public_key;
+    }
+    let public_key = get_config(IPC_PUBLIC_KEY)
+        .ok()
+        .flatten()
+        .and_then(|public_key| crate::decode64(public_key).ok())
+        .unwrap_or_default();
+    Config::set_holder_public_key(public_key.clone());
+    public_key
+}
+
 async fn get_config_async(name: &str, ms_timeout: u64) -> ResultType<Option<String>> {
     let mut c = connect(ms_timeout, "").await?;
     c.send(&Data::Config((name.to_owned(), None))).await?;
@@ -1700,29 +1904,6 @@ pub fn update_temporary_password() -> ResultType<()> {
     set_config("temporary-password", "".to_owned())
 }
 
-fn apply_permanent_password_storage_and_salt_payload(payload: Option<&str>) -> ResultType<()> {
-    let Some(payload) = payload else {
-        return Ok(());
-    };
-    let Some((storage, salt)) = payload.split_once('\n') else {
-        bail!("Invalid permanent-password-storage-and-salt payload");
-    };
-
-    Config::set_permanent_password_storage_for_sync(storage, salt)?;
-    Ok(())
-}
-
-pub fn sync_permanent_password_storage_from_daemon() -> ResultType<()> {
-    let v = get_config("permanent-password-storage-and-salt")?;
-    apply_permanent_password_storage_and_salt_payload(v.as_deref())
-}
-
-async fn sync_permanent_password_storage_from_daemon_async() -> ResultType<()> {
-    let ms_timeout = 1_000;
-    let v = get_config_async("permanent-password-storage-and-salt", ms_timeout).await?;
-    apply_permanent_password_storage_and_salt_payload(v.as_deref())
-}
-
 pub fn is_permanent_password_set() -> bool {
     match get_config("permanent-password-set") {
         Ok(Some(v)) => {
@@ -1746,6 +1927,31 @@ pub fn is_permanent_password_preset() -> bool {
         return v == "Y";
     }
     false
+}
+
+/// Whether 2FA is on, asked from the process that holds the 2FA secret.
+/// None without an answer.
+pub fn is_2fa_set() -> Option<bool> {
+    match get_config(IPC_2FA_SET) {
+        Ok(Some(v)) => Some(v.trim() == "Y"),
+        _ => None,
+    }
+}
+
+/// Turns 2FA on with `value` (the secret, as auth_2fa stores it) or off
+/// with an empty value, in the process that holds the device's secrets
+/// (L442). True once that process took it.
+#[tokio::main(flavor = "current_thread")]
+pub async fn set_2fa(value: String) -> ResultType<bool> {
+    let ms_timeout = 1_000;
+    let mut c = connect(ms_timeout, "").await?;
+    c.send_config(keys::OPTION_2FA, value).await?;
+    if let Some(Data::Config((name, Some(v)))) = c.next_timeout(ms_timeout).await? {
+        if name == keys::OPTION_2FA {
+            return Ok(v.trim() == "Y");
+        }
+    }
+    Ok(false)
 }
 
 pub fn get_fingerprint() -> String {
@@ -1777,16 +1983,8 @@ async fn set_permanent_password_with_ack_async(v: String) -> ResultType<bool> {
     c.send_config("permanent-password", v).await?;
     if let Some(Data::Config((name2, Some(v)))) = c.next_timeout(ms_timeout).await? {
         if name2 == "permanent-password" {
-            let v = v.trim();
-            let ok = v == "Y";
-            if ok {
-                // Ensure the hashed permanent password storage is written to the user config file.
-                // This sync must not affect the daemon ACK outcome.
-                if let Err(err) = sync_permanent_password_storage_from_daemon_async().await {
-                    log::warn!("Failed to sync permanent password storage from daemon: {err}");
-                }
-            }
-            return Ok(ok);
+            // The stored password stays in the daemon (L442)
+            return Ok(v.trim() == "Y");
         }
     }
     Ok(false)
@@ -1893,7 +2091,7 @@ async fn get_options_(ms_timeout: u64) -> ResultType<HashMap<String, String>> {
     let mut c = connect(ms_timeout, "").await?;
     c.send(&Data::Options(None)).await?;
     if let Some(Data::Options(Some(value))) = c.next_timeout(ms_timeout).await? {
-        Config::set_options(value.clone());
+        Config::set_options_from_other_process(value.clone());
         Ok(value)
     } else {
         Ok(Config::get_options())
@@ -1935,7 +2133,7 @@ pub async fn set_options(value: HashMap<String, String>) -> ResultType<()> {
         // do not put below before connect, because we need to check should_exit
         c.next_timeout(1000).await.ok();
     }
-    Config::set_options(value);
+    Config::set_options_from_other_process(value);
     Ok(())
 }
 
@@ -2362,5 +2560,622 @@ mod test {
     #[test]
     fn test_select_server_uid_fails_when_multiple_servers_are_ambiguous() {
         assert!(select_server_uid_for_user_main_ipc(&[501, 502], None, false).is_err());
+    }
+}
+
+/// Tests of how the device's secrets (the key pair, the stored permanent
+/// password, the 2FA secret) stay in the process that holds them (L442).
+/// They change this process's config and key state, so they take
+/// [`DEVICE_KEY_TEST_LOCK`]. No test prints a secret.
+#[cfg(test)]
+pub(crate) mod device_key_tests {
+    use super::*;
+    use std::time::Duration;
+
+    pub(crate) static DEVICE_KEY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Puts this process's config files and config back as they were.
+    pub(crate) struct ConfigFilesGuard {
+        files: Vec<(std::path::PathBuf, Option<Vec<u8>>)>,
+        config: Config,
+        config2: Config2,
+    }
+
+    impl ConfigFilesGuard {
+        pub(crate) fn new() -> Self {
+            Self {
+                files: [Config::file(), Config2::file()]
+                    .into_iter()
+                    .map(|path| {
+                        let content = std::fs::read(&path).ok();
+                        (path, content)
+                    })
+                    .collect(),
+                config: Config::get(),
+                config2: Config2::get(),
+            }
+        }
+    }
+
+    impl Drop for ConfigFilesGuard {
+        fn drop(&mut self) {
+            Config::set(self.config.clone());
+            Config2::set(self.config2.clone());
+            for (path, content) in &self.files {
+                match content {
+                    Some(content) => {
+                        std::fs::write(path, content).ok();
+                    }
+                    None => {
+                        std::fs::remove_file(path).ok();
+                    }
+                }
+            }
+        }
+    }
+
+    /// The forms a secret could take in an IPC answer: serde writes bytes as
+    /// a list of numbers; base64 and hex for good measure. The seed half of
+    /// a key alone counts too.
+    pub(crate) fn reveals(text: &[u8], secret: &[u8]) -> bool {
+        let text = String::from_utf8_lossy(text);
+        [secret, &secret[..secret.len().min(32)]]
+            .iter()
+            .any(|part| {
+                let numbers = part
+                    .iter()
+                    .map(|b| b.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                text.contains(&numbers)
+                    || text.contains(&crate::encode64(part))
+                    || text.contains(&hex::encode(part))
+            })
+    }
+
+    /// Whether `text` carries the stored permanent password or the 2FA
+    /// secret, stored or plain.
+    pub(crate) fn reveals_any(text: &[u8], secrets: &TestSecrets) -> bool {
+        reveals(text, &secrets.key_pair.0)
+            || String::from_utf8_lossy(text).contains(&secrets.password.0)
+            || reveals(text, &secrets.two_fa_plain)
+            || reveals(text, &stored_2fa_secret(&secrets.two_fa))
+    }
+
+    /// The secret bytes inside a 2FA value as auth_2fa stores it (encrypted).
+    fn stored_2fa_secret(two_fa: &str) -> Vec<u8> {
+        serde_json::from_str::<crate::auth_2fa::TOTPInfo>(two_fa)
+            .map(|info| info.secret)
+            .unwrap_or_default()
+    }
+
+    /// Runs this process's IPC server under `postfix` on a thread of its own.
+    pub(crate) fn start_test_listener(postfix: &'static str) {
+        std::thread::spawn(move || {
+            let _ = start(postfix);
+        });
+        for _ in 0..50 {
+            if ask(postfix, &[]).is_some() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        panic!("the test IPC server did not start");
+    }
+
+    /// Sends each request as raw bytes and collects what came back within a
+    /// second each. None when the server cannot be reached.
+    #[tokio::main(flavor = "current_thread")]
+    pub(crate) async fn ask(postfix: &str, requests: &[Vec<u8>]) -> Option<Vec<Vec<u8>>> {
+        let mut c = connect(1000, postfix).await.ok()?;
+        let mut answers = Vec::new();
+        for request in requests {
+            c.send_raw(request.clone().into()).await.ok()?;
+            if let Ok(Ok(answer)) = timeout(1000, c.next_raw()).await {
+                answers.push(answer.to_vec());
+            }
+        }
+        Some(answers)
+    }
+
+    fn request(data: &Data) -> Vec<u8> {
+        serde_json::to_vec(data).unwrap()
+    }
+
+    fn answer_of(answer: Option<&Vec<u8>>) -> Option<Data> {
+        answer.and_then(|answer| serde_json::from_slice::<Data>(answer).ok())
+    }
+
+    /// This process's key pair as the holder makes or loads it, once it is
+    /// stored.
+    pub(crate) fn own_key_pair() -> (Vec<u8>, Vec<u8>) {
+        let key_pair = Config::get_key_pair();
+        // A key made now is stored by a thread of its own
+        std::thread::sleep(Duration::from_millis(300));
+        key_pair
+    }
+
+    /// A key pair made for the test.
+    pub(crate) fn test_key_pair() -> (Vec<u8>, Vec<u8>) {
+        let (pk, sk) = hbb_common::sodiumoxide::crypto::sign::gen_keypair();
+        (sk.0.to_vec(), pk.0.to_vec())
+    }
+
+    /// A 2FA value as auth_2fa stores it, and its secret in plain.
+    pub(crate) fn test_2fa() -> (String, Vec<u8>) {
+        let secret = hbb_common::sodiumoxide::randombytes::randombytes(20);
+        let info = crate::auth_2fa::TOTPInfo {
+            name: "123456789".to_owned(),
+            secret: secret.clone(),
+            digits: 6,
+            created_at: 0,
+        };
+        (info.into_string().unwrap(), secret)
+    }
+
+    /// A stored permanent password and its salt as the holder makes them;
+    /// this process's own password stays as it was.
+    pub(crate) fn test_permanent_password(password: &str) -> (String, String) {
+        let own = Config::get_local_permanent_password_storage_and_salt();
+        assert!(Config::set_permanent_password(password));
+        let made = Config::get_local_permanent_password_storage_and_salt();
+        if own.0.is_empty() {
+            Config::set_permanent_password("");
+        } else {
+            Config::set_permanent_password_storage_for_sync(&own.0, &own.1).unwrap();
+        }
+        made
+    }
+
+    /// The secrets of one device for a test.
+    pub(crate) struct TestSecrets {
+        pub(crate) key_pair: (Vec<u8>, Vec<u8>),
+        pub(crate) password: (String, String),
+        pub(crate) two_fa: String,
+        pub(crate) two_fa_plain: Vec<u8>,
+    }
+
+    impl TestSecrets {
+        pub(crate) fn new(password: &str) -> Self {
+            let (two_fa, two_fa_plain) = test_2fa();
+            Self {
+                key_pair: test_key_pair(),
+                password: test_permanent_password(password),
+                two_fa,
+                two_fa_plain,
+            }
+        }
+
+        /// Makes these the secrets this process (the service in a test)
+        /// holds, all but the key pair, which stays [`own_key_pair`].
+        pub(crate) fn hold(mut self) -> Self {
+            self.key_pair = own_key_pair();
+            Config::set_permanent_password("");
+            Config::set_permanent_password_storage_for_sync(&self.password.0, &self.password.1)
+                .unwrap();
+            Config::set_option(keys::OPTION_2FA.to_owned(), self.two_fa.clone());
+            self
+        }
+
+        pub(crate) fn handed(&self) -> config::ProfileSecrets {
+            let mut options = HashMap::new();
+            options.insert(keys::OPTION_2FA.to_owned(), self.two_fa.clone());
+            config::ProfileSecrets {
+                key_pair: Some(self.key_pair.clone()),
+                permanent_password: Some(self.password.clone()),
+                options,
+            }
+        }
+    }
+
+    /// Writes `key_pair` into this process's config file, the way an older
+    /// version left it in the person's profile.
+    pub(crate) fn write_key_pair_to_file(key_pair: &(Vec<u8>, Vec<u8>)) {
+        let config = hbb_common::config::load_path::<Config>(Config::file());
+        let mut value = serde_json::to_value(config).unwrap();
+        value["key_pair"] = serde_json::json!([key_pair.0, key_pair.1]);
+        let config: Config = serde_json::from_value(value).unwrap();
+        hbb_common::config::store_path(Config::file(), config).unwrap();
+    }
+
+    /// Writes all of `secrets` into this process's config files, the way an
+    /// older version left them in the person's profile.
+    pub(crate) fn write_secrets_to_files(secrets: &TestSecrets) {
+        let config = hbb_common::config::load_path::<Config>(Config::file());
+        let mut value = serde_json::to_value(config).unwrap();
+        value["key_pair"] = serde_json::json!([secrets.key_pair.0, secrets.key_pair.1]);
+        value["password"] = serde_json::json!(secrets.password.0);
+        value["salt"] = serde_json::json!(secrets.password.1);
+        let config: Config = serde_json::from_value(value).unwrap();
+        hbb_common::config::store_path(Config::file(), config).unwrap();
+        let mut config2 = hbb_common::config::load_path::<Config2>(Config2::file());
+        config2
+            .options
+            .insert(keys::OPTION_2FA.to_owned(), secrets.two_fa.clone());
+        hbb_common::config::store_path(Config2::file(), config2).unwrap();
+    }
+
+    /// The key pair in this process's config file, as JSON.
+    pub(crate) fn key_pair_of_file() -> Vec<u8> {
+        let config = hbb_common::config::load_path::<Config>(Config::file());
+        serde_json::to_vec(&serde_json::to_value(config).unwrap()["key_pair"]).unwrap()
+    }
+
+    /// This process's config files, as JSON.
+    fn files() -> Vec<u8> {
+        let config = hbb_common::config::load_path::<Config>(Config::file());
+        let config2 = hbb_common::config::load_path::<Config2>(Config2::file());
+        serde_json::to_vec(&(config, config2)).unwrap()
+    }
+
+    /// Makes this test process one that does not hold the device's secrets,
+    /// the way the window of an installed client runs on Windows, and the
+    /// holder again afterwards.
+    pub(crate) struct NotSecretsHolder;
+
+    impl NotSecretsHolder {
+        pub(crate) fn new() -> Self {
+            Config::set_holds_secrets(false);
+            Self
+        }
+    }
+
+    impl Drop for NotSecretsHolder {
+        fn drop(&mut self) {
+            Config::set_holds_secrets(true);
+        }
+    }
+
+    fn lock() -> std::sync::MutexGuard<'static, ()> {
+        DEVICE_KEY_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn the_service_keeps_its_secrets_and_answers_a_hand_over_with_its_public_key() {
+        let _lock = lock();
+        let _files = ConfigFilesGuard::new();
+        let handed = TestSecrets::new("handed-password");
+        let own = TestSecrets::new("own-password").hold();
+        start_test_listener("_l442_handover");
+
+        let answers = ask(
+            "_l442_handover",
+            &[request(&Data::HandOverSecrets(HandOver::Secrets(Box::new(
+                handed.handed(),
+            ))))],
+        )
+        .expect("the test IPC server answers");
+        let held = match answer_of(answers.first()) {
+            Some(Data::HandOverSecrets(HandOver::Held(key))) => key,
+            _ => String::new(),
+        };
+        assert_eq!(
+            held,
+            crate::encode64(&own.key_pair.1),
+            "the service did not answer with its public key"
+        );
+        assert!(
+            Config::get_key_pair().0 == own.key_pair.0,
+            "the service took a handed-over key while it had one"
+        );
+        assert!(
+            Config::get_local_permanent_password_storage_and_salt() == own.password,
+            "the service took a handed-over password while it had one"
+        );
+        assert!(
+            Config::get_option(keys::OPTION_2FA) == own.two_fa,
+            "the service took a handed-over 2FA secret while it had one"
+        );
+        assert!(reveals(&key_pair_of_file(), &own.key_pair.0));
+        for answer in &answers {
+            assert!(!reveals_any(answer, &own) && !reveals_any(answer, &handed));
+        }
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn the_service_takes_handed_over_secrets_it_does_not_have() {
+        let _lock = lock();
+        let _files = ConfigFilesGuard::new();
+        let own_key = own_key_pair();
+        Config::set_permanent_password("");
+        Config::set_option(keys::OPTION_2FA.to_owned(), "".to_owned());
+        let handed = TestSecrets::new("handed-password");
+        start_test_listener("_l442_take");
+
+        let mut broken = handed.handed();
+        broken
+            .options
+            .insert(keys::OPTION_2FA.to_owned(), "not a 2FA secret".to_owned());
+        broken.permanent_password = None;
+        ask(
+            "_l442_take",
+            &[request(&Data::HandOverSecrets(HandOver::Secrets(Box::new(broken))))],
+        )
+        .expect("the test IPC server answers");
+        assert!(
+            Config::get_option(keys::OPTION_2FA).is_empty(),
+            "the service took a 2FA value that is no 2FA secret"
+        );
+
+        let answers = ask(
+            "_l442_take",
+            &[request(&Data::HandOverSecrets(HandOver::Secrets(Box::new(
+                handed.handed(),
+            ))))],
+        )
+        .expect("the test IPC server answers");
+        assert!(matches!(
+            answer_of(answers.first()),
+            Some(Data::HandOverSecrets(HandOver::Held(_)))
+        ));
+        assert!(
+            Config::get_local_permanent_password_storage_and_salt() == handed.password,
+            "the service did not take the handed-over password"
+        );
+        assert!(
+            Config::get_option(keys::OPTION_2FA) == handed.two_fa,
+            "the service did not take the handed-over 2FA secret"
+        );
+        assert!(
+            Config::get_key_pair().0 == own_key.0,
+            "the service took a handed-over key while it had one"
+        );
+    }
+
+    #[test]
+    fn the_profile_copies_leave_once_the_service_holds_the_secrets() {
+        let _lock = lock();
+        let _files = ConfigFilesGuard::new();
+        let legacy = TestSecrets::new("legacy-password");
+        write_secrets_to_files(&legacy);
+        let _not_holder = NotSecretsHolder::new();
+
+        // No answer (an older service): the copies stay for a later start
+        assert!(!after_hand_over(None));
+        assert!(
+            reveals_any(&files(), &legacy),
+            "the copies left the profile before the service held the secrets"
+        );
+        let found = Config::secrets_in_files().expect("the profile holds copies");
+        assert!(found == legacy.handed(), "the copies found are not the ones stored");
+
+        let (_, service_public) = test_key_pair();
+        assert!(after_hand_over(Some(crate::encode64(&service_public))));
+        assert!(Config::secrets_in_files().is_none());
+        let files = files();
+        assert!(
+            !reveals_any(&files, &legacy),
+            "the profile still holds a secret"
+        );
+        assert!(
+            key_pair_of_file() == br#"[[],[]]"#.to_vec(),
+            "the profile still holds a key pair"
+        );
+        assert!(Config::get_key_pair().0.is_empty());
+        assert!(Config::get_key_pair().1 == service_public);
+    }
+
+    #[test]
+    fn a_window_without_the_device_key_signs_no_pairing_request() {
+        let _lock = lock();
+        let _files = ConfigFilesGuard::new();
+        let legacy = test_key_pair();
+        write_key_pair_to_file(&legacy);
+        let _not_holder = NotSecretsHolder::new();
+
+        let url = "http://127.0.0.1:9/api/pairing/redeem";
+        let request = crate::hbbs_http::enrollment::sign_request(
+            reqwest::Client::new().post(url),
+            "POST",
+            url,
+            "123456789",
+            None,
+        )
+        .build()
+        .unwrap();
+        assert!(
+            request
+                .headers()
+                .get(crate::hbbs_http::enrollment::HEADER_SIGNATURE)
+                .is_none(),
+            "a window without the device key signed a pairing request"
+        );
+        assert!(crate::hbbs_http::enrollment::public_key_b64()
+            .map_or(true, |key| key != crate::encode64(&legacy.1)));
+        assert!(reveals(&key_pair_of_file(), &legacy.0));
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn the_service_proves_its_key_for_a_pairing_without_handing_it_out() {
+        use crate::hbbs_http::enrollment::{
+            proof_payload, HEADER_NONCE, HEADER_SIGNATURE, HEADER_TIMESTAMP,
+        };
+        use hbb_common::sodiumoxide::crypto::sign;
+        let _lock = lock();
+        let _files = ConfigFilesGuard::new();
+        let (secret, public) = own_key_pair();
+        start_test_listener("_l442_proof");
+
+        let path = crate::hbbs_http::pairing_proof::PATH;
+        let answers = ask(
+            "_l442_proof",
+            &[request(&Data::PairingProof((path.to_owned(), None)))],
+        )
+        .expect("the test IPC server answers");
+        let Some(Data::PairingProof((_, Some((key, headers))))) = answer_of(answers.first()) else {
+            panic!("the service gave no proof");
+        };
+        assert_eq!(key, crate::encode64(&public));
+        let header = |name: &str| {
+            headers
+                .iter()
+                .find(|(header, _)| header == name)
+                .map(|(_, value)| value.clone())
+                .unwrap_or_default()
+        };
+        let payload = proof_payload(
+            "POST",
+            path,
+            &Config::get_id(),
+            &key,
+            &header(HEADER_TIMESTAMP),
+            &header(HEADER_NONCE),
+        );
+        let signature = crate::decode64(header(HEADER_SIGNATURE)).unwrap_or_default();
+        let signature = sign::Signature::from_bytes(&signature).expect("a signature");
+        assert!(sign::verify_detached(
+            &signature,
+            payload.as_bytes(),
+            &sign::PublicKey::from_slice(&public).unwrap()
+        ));
+        for answer in &answers {
+            assert!(!reveals(answer, &secret));
+        }
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn the_ipc_never_answers_with_the_device_secrets() {
+        let _lock = lock();
+        let _files = ConfigFilesGuard::new();
+        let own = TestSecrets::new("own-password").hold();
+        assert_eq!(own.key_pair.0.len(), 64);
+        Config::set_key_confirmed(true);
+        start_test_listener("_l442_secret");
+
+        let config = |name: &str| request(&Data::Config((name.to_owned(), None)));
+        let answers = ask(
+            "_l442_secret",
+            &[
+                br#"{"t":"ConfirmedKey","c":null}"#.to_vec(),
+                request(&Data::SyncConfig(None)),
+                config("key_pair"),
+                config(IPC_PUBLIC_KEY),
+                request(&Data::Options(None)),
+                config("permanent-password-storage-and-salt"),
+                config("permanent-password"),
+                config(keys::OPTION_2FA),
+                config(IPC_2FA_SET),
+                config("permanent-password-set"),
+            ],
+        )
+        .expect("the test IPC server answers");
+        assert!(answers.len() >= 5, "too few answers: {}", answers.len());
+        for (i, answer) in answers.iter().enumerate() {
+            assert!(
+                !reveals_any(answer, &own),
+                "IPC answer {i} carries one of the device's secrets"
+            );
+        }
+        let says = |name: &str| {
+            answers.iter().find_map(|answer| match answer_of(Some(answer)) {
+                Some(Data::Config((n, Some(value)))) if n == name => Some(value),
+                _ => None,
+            })
+        };
+        assert_eq!(says(IPC_2FA_SET).as_deref(), Some("Y"));
+        assert_eq!(says("permanent-password-set").as_deref(), Some("Y"));
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn a_config_sent_over_the_ipc_does_not_replace_the_device_secrets() {
+        let _lock = lock();
+        let _files = ConfigFilesGuard::new();
+        let planted = TestSecrets::new("planted-password");
+        let own = TestSecrets::new("own-password").hold();
+        start_test_listener("_l442_plant");
+
+        let mut config = serde_json::to_value(Config::get()).unwrap();
+        config["key_pair"] = serde_json::json!([planted.key_pair.0, planted.key_pair.1]);
+        config["password"] = serde_json::json!(planted.password.0);
+        config["salt"] = serde_json::json!(planted.password.1);
+        let mut config2 = serde_json::to_value(Config2::get()).unwrap();
+        config2["options"][keys::OPTION_2FA] = serde_json::json!(planted.two_fa);
+        let sync = serde_json::json!({"t": "SyncConfig", "c": [config, config2]});
+        let mut options = Config::get_options_for_other_process();
+        let without_2fa = options.clone();
+        options.insert(keys::OPTION_2FA.to_owned(), planted.two_fa.clone());
+        ask(
+            "_l442_plant",
+            &[
+                serde_json::to_vec(&sync).unwrap(),
+                request(&Data::Options(Some(options))),
+                request(&Data::Options(Some(without_2fa))),
+            ],
+        )
+        .expect("the test IPC server answers");
+
+        let in_files = files();
+        assert!(
+            !reveals_any(&in_files, &planted),
+            "a secret sent over the IPC went into the config files"
+        );
+        assert!(
+            reveals(&in_files, &own.key_pair.0),
+            "the device's own key left the file"
+        );
+        assert!(Config::get_key_pair().1 == own.key_pair.1);
+        assert!(
+            Config::get_local_permanent_password_storage_and_salt() == own.password,
+            "a password sent over the IPC replaced the own"
+        );
+        assert!(
+            Config::get_option(keys::OPTION_2FA) == own.two_fa,
+            "options sent over the IPC replaced or removed the 2FA secret"
+        );
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn the_window_turns_2fa_on_and_off_in_the_service() {
+        let _lock = lock();
+        let _files = ConfigFilesGuard::new();
+        Config::set_option(keys::OPTION_2FA.to_owned(), "".to_owned());
+        let (two_fa, _) = test_2fa();
+        start_test_listener("_l442_2fa");
+
+        let set = |value: &str| {
+            request(&Data::Config((
+                keys::OPTION_2FA.to_owned(),
+                Some(value.to_owned()),
+            )))
+        };
+        let is_set = request(&Data::Config((IPC_2FA_SET.to_owned(), None)));
+        let answers = ask(
+            "_l442_2fa",
+            &[set("not a 2FA secret"), set(&two_fa), is_set.clone()],
+        )
+        .expect("the test IPC server answers");
+        let values: Vec<Option<String>> = answers
+            .iter()
+            .map(|answer| match answer_of(Some(answer)) {
+                Some(Data::Config((_, value))) => value,
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            values,
+            vec![Some("N".to_owned()), Some("Y".to_owned()), Some("Y".to_owned())]
+        );
+        assert!(
+            Config::get_option(keys::OPTION_2FA) == two_fa,
+            "the service did not turn 2FA on"
+        );
+
+        let answers = ask("_l442_2fa", &[set(""), is_set]).expect("the test IPC server answers");
+        assert!(matches!(
+            answer_of(answers.last()),
+            Some(Data::Config((_, Some(value)))) if value == "N"
+        ));
+        assert!(
+            Config::get_option(keys::OPTION_2FA).is_empty(),
+            "2FA stayed on"
+        );
     }
 }

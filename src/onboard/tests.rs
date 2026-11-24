@@ -883,3 +883,34 @@ fn the_packed_exe_name_carries_the_invite() {
     assert_eq!(super::started_file(Some(extracted), None), Some(extracted));
     assert_eq!(super::started_file(Some(extracted), Some("")), Some(extracted));
 }
+
+// The window of an installed client does not hold the device's secrets (L442).
+// When no server process answers, its join sends the service's public key it
+// learned earlier, or none: never a key of the window's own, which nobody
+// signs with (L438), and never the copy an older version left in the profile.
+#[test]
+fn a_join_from_a_window_without_the_device_key_sends_no_key_of_its_own() {
+    use crate::ipc::device_key_tests::*;
+    let _lock = DEVICE_KEY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
+    let _files = ConfigFilesGuard::new();
+    let legacy = test_key_pair();
+    write_key_pair_to_file(&legacy);
+    let _not_holder = NotSecretsHolder::new();
+
+    // No server process answers in this test
+    let device = DeviceIdentity::of_this_device("123456789".to_owned(), true);
+    assert!(
+        device.public_key.is_none(),
+        "the join sent a key no server process signs with"
+    );
+    let (_, service_public) = test_key_pair();
+    hbb_common::config::Config::set_holder_public_key(service_public.clone());
+    let device = DeviceIdentity::of_this_device("123456789".to_owned(), true);
+    assert_eq!(device.public_key, Some(crate::encode64(&service_public)));
+    assert!(
+        reveals(&key_pair_of_file(), &legacy.0),
+        "the join changed the key pair in the profile"
+    );
+}
