@@ -678,14 +678,41 @@ fn bool_to_yn(value: bool) -> String {
 
 /// The IPC path of `postfix` for this process. A quick support process uses
 /// names of its own, so it never reaches an installed client's server,
-/// connection manager or service.
+/// connection manager or service. The pipes of an installed client's
+/// service on Windows have protected names.
 pub(crate) fn ipc_path(postfix: &str) -> String {
     let path = Config::ipc_path(postfix);
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     if crate::onboard::is_quick_support() {
         return crate::onboard::namespaced_ipc_path(&path);
     }
+    #[cfg(windows)]
+    if is_shared_pipe_on_windows(postfix) && is_installed_once() {
+        return protected_pipe_path(&path);
+    }
     path
+}
+
+/// The pipe path `path` under the prefix whose names only elevated
+/// administrators and LocalSystem may create (L485). Any account may make
+/// any other pipe name while the service is stopped and so keep the service
+/// from serving; this name it can't take.
+#[cfg(any(windows, test))]
+fn protected_pipe_path(path: &str) -> String {
+    const PIPES: &str = r"\\.\pipe\";
+    match path.strip_prefix(PIPES) {
+        Some(name) => format!(r"{PIPES}ProtectedPrefix\Administrators\{name}"),
+        None => path.to_owned(),
+    }
+}
+
+/// Whether the client is installed, read once per process: every process
+/// of an installed client, the service and the person's, must agree on the
+/// names of the service's pipes.
+#[cfg(windows)]
+fn is_installed_once() -> bool {
+    static INSTALLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *INSTALLED.get_or_init(crate::platform::is_installed)
 }
 
 pub async fn new_listener(postfix: &str) -> ResultType<Incoming> {
@@ -2487,6 +2514,18 @@ pub async fn set_install_option(k: String, v: String) -> ResultType<()> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn the_service_pipes_of_an_installed_client_get_protected_names() {
+        assert_eq!(
+            protected_pipe_path(r"\\.\pipe\neodesk\query"),
+            r"\\.\pipe\ProtectedPrefix\Administrators\neodesk\query"
+        );
+        assert_eq!(
+            protected_pipe_path(r"\\.\pipe\neodesk\query_service"),
+            r"\\.\pipe\ProtectedPrefix\Administrators\neodesk\query_service"
+        );
+    }
 
     #[test]
     fn verify_ffi_enum_data_size() {

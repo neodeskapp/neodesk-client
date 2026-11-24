@@ -633,7 +633,14 @@ pub async fn start_server(is_server: bool, no_server: bool) {
         std::thread::spawn(move || {
             if let Err(err) = crate::ipc::start("") {
                 log::error!("Failed to start ipc: {}", err);
-                if crate::is_server() {
+                // The window of an installed Windows client never runs the
+                // server, so it is not what holds the pipe: it stays open,
+                // and the service starts this process again (L485)
+                #[cfg(windows)]
+                let take_over = crate::is_server() && !crate::platform::is_installed();
+                #[cfg(not(windows))]
+                let take_over = crate::is_server();
+                if take_over {
                     log::error!("ipc is occupied by another process, try kill it");
                     std::thread::spawn(stop_main_window_process).join().ok();
                 }

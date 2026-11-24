@@ -551,6 +551,15 @@ fn service_main(arguments: Vec<OsString>) {
     }
 }
 
+/// Set when Windows asks the service to stop. The service loop checks it on
+/// every round, so a stop works even when the service's pipe could not be
+/// made (L485).
+static SERVICE_STOP_REQUESTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// How long the service waits before it tries again to make its pipe.
+const SERVICE_PIPE_RETRY: Duration = Duration::from_secs(10);
+
 pub fn start_os_service() {
     if let Err(e) =
         windows_service::service_dispatcher::start(crate::get_app_name(), ffi_service_main)
@@ -666,6 +675,8 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
         match control_event {
             ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
             ServiceControl::Stop | ServiceControl::Preshutdown | ServiceControl::Shutdown => {
+                SERVICE_STOP_REQUESTED.store(true, std::sync::atomic::Ordering::SeqCst);
+                // Wakes the loop at once when the service's pipe works
                 send_close(crate::POSTFIX_SERVICE).ok();
                 ServiceControlHandlerResult::NoError
             }
@@ -695,12 +706,72 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
     // Tell the system that the service is running now
     status_handle.set_service_status(next_status)?;
 
+    let served = serve().await;
+    if let Err(err) = &served {
+        log::error!("The service stops: {err}");
+    }
+    // Always reported, so Windows never keeps a service that no longer
+    // takes control requests as running
+    status_handle.set_service_status(ServiceStatus {
+        service_type: SERVICE_TYPE,
+        current_state: ServiceState::Stopped,
+        controls_accepted: ServiceControlAccept::empty(),
+        exit_code: if served.is_ok() {
+            ServiceExitCode::Win32(0)
+        } else {
+            ServiceExitCode::ServiceSpecific(1)
+        },
+        checkpoint: 0,
+        wait_hint: Duration::default(),
+        process_id: None,
+    })?;
+    served
+}
+
+/// The service's work until a stop: it keeps the server process of the
+/// active session running and takes requests on its pipe. When the pipe
+/// can't be made (another process holds its name), it says so in its log
+/// and the Application log and keeps trying, and still stops on request.
+async fn serve() -> ResultType<()> {
     let mut session_id = unsafe { get_current_session(share_rdp()) };
     log::info!("session id {}", session_id);
     let mut h_process = launch_server(session_id, true).await.unwrap_or(NULL);
-    let mut incoming = ipc::new_listener(crate::POSTFIX_SERVICE).await?;
+    let mut incoming = None;
+    let mut pipe_retry_at = Instant::now();
+    let mut pipe_failed = false;
     let mut stored_usid = None;
     loop {
+        if SERVICE_STOP_REQUESTED.load(std::sync::atomic::Ordering::SeqCst) {
+            log::info!("stop requested");
+            break;
+        }
+        if incoming.is_none() && Instant::now() >= pipe_retry_at {
+            match ipc::new_listener(crate::POSTFIX_SERVICE).await {
+                Ok(listener) => {
+                    if pipe_failed {
+                        log::info!("The service's pipe works again");
+                    }
+                    incoming = Some(listener);
+                }
+                Err(err) => {
+                    if !pipe_failed {
+                        let message = format!(
+                            "The NeoDesk service could not make its pipe and tries again every {} s: {err}",
+                            SERVICE_PIPE_RETRY.as_secs()
+                        );
+                        log::error!("{message}");
+                        hbb_common::platform::windows::write_application_event(
+                            &crate::get_app_name(),
+                            false,
+                            2,
+                            &message,
+                        );
+                        pipe_failed = true;
+                    }
+                    pipe_retry_at = Instant::now() + SERVICE_PIPE_RETRY;
+                }
+            }
+        }
         let sids: Vec<_> = get_available_sessions(false)
             .iter()
             .map(|e| e.sid)
@@ -716,9 +787,16 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                 }
             }
         }
-        let res = timeout(super::SERVICE_INTERVAL, incoming.next()).await;
+        // None: no request within the interval
+        let res = match incoming.as_mut() {
+            Some(incoming) => timeout(super::SERVICE_INTERVAL, incoming.next()).await.ok(),
+            None => {
+                hbb_common::sleep(super::SERVICE_INTERVAL as f32 / 1000.).await;
+                None
+            }
+        };
         match res {
-            Ok(res) => match res {
+            Some(res) => match res {
                 Some(Ok(stream)) => {
                     let mut stream = ipc::Connection::new(stream);
                     // Keep IPC authorization consistent with the session we are currently serving.
@@ -760,7 +838,7 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                 }
                 _ => {}
             },
-            Err(_) => {
+            None => {
                 // timeout
                 unsafe {
                     let tmp = get_current_session(share_rdp());
@@ -801,17 +879,6 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
         send_close_async("").await.ok();
         unsafe { CloseHandle(h_process) };
     }
-
-    status_handle.set_service_status(ServiceStatus {
-        service_type: SERVICE_TYPE,
-        current_state: ServiceState::Stopped,
-        controls_accepted: ServiceControlAccept::empty(),
-        exit_code: ServiceExitCode::Win32(0),
-        checkpoint: 0,
-        wait_hint: Duration::default(),
-        process_id: None,
-    })?;
-
     Ok(())
 }
 
