@@ -51,6 +51,7 @@ mod custom_server;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod install_standing;
 mod lang;
+mod own_name;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod port_forward;
 

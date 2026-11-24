@@ -14,9 +14,6 @@ lazy_static::lazy_static! {
     static ref CURRENT_2FA: Mutex<Option<(TOTPInfo, TOTP)>> = Mutex::new(None);
 }
 
-const ISSUER: &str = "RustDesk";
-const TAG_LOGIN: &str = "Connection";
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TOTPInfo {
     pub name: String,
@@ -33,7 +30,7 @@ impl TOTPInfo {
             1,
             30,
             self.secret.clone(),
-            Some(format!("{} {}", ISSUER, TAG_LOGIN)),
+            Some(crate::own_name::totp_issuer()),
             self.name.clone(),
         )?;
         Ok(totp)
