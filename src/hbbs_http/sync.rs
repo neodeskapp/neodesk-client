@@ -198,6 +198,13 @@ async fn start_hbbs_sync_async() {
                     if !note.is_empty() {
                         v[keys::OPTION_PRESET_NOTE] = json!(note);
                     }
+                    // Saved sign-in (L469): the server learns that this device
+                    // signs in by itself before any session reports it
+                    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+                    crate::server::nd_signin::add_capability_to_sysinfo(
+                        &mut v,
+                        crate::server::nd_signin_host::can_sign_in(),
+                    );
                     let v = v.to_string();
                     let mut hash = "".to_owned();
                     if crate::is_public(&url) {

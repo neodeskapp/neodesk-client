@@ -47,6 +47,9 @@ use std::{
 pub const CAPABILITY_KEY: &str = "nd_signin";
 /// The sealed sign-in format this client opens
 pub const FORMAT: u64 = 1;
+/// Top-level key of the sysinfo upload with the same additions as
+/// PeerInfo.platform_additions
+pub const SYSINFO_ADDITIONS_KEY: &str = "platform_additions";
 /// platform_additions key and JSON key of the console's state
 pub const LOGON_STATE_KEY: &str = "logon_state";
 /// Misc.plugin_request ids
@@ -121,6 +124,38 @@ pub fn logon_state_of(prelogin: bool, locked: bool, logon_ui: Option<bool>) -> O
 /// The content of an `nd.logon_state` request
 pub fn logon_state_content(state: LogonState) -> Vec<u8> {
     serde_json::to_vec(&serde_json::json!({ LOGON_STATE_KEY: state.as_str() })).unwrap_or_default()
+}
+
+/// Adds `nd_signin: 1` to platform_additions when this process can type a
+/// sign-in, and leaves the key out otherwise
+pub fn add_capability(
+    additions: &mut serde_json::Map<String, serde_json::Value>,
+    can_sign_in: bool,
+) {
+    if can_sign_in {
+        additions.insert(CAPABILITY_KEY.into(), FORMAT.into());
+    }
+}
+
+/// Adds the capability to the sysinfo upload's body, in its
+/// platform_additions object, so the server knows from the start that this
+/// device signs in by itself. A changed body is uploaded again.
+pub fn add_capability_to_sysinfo(body: &mut serde_json::Value, can_sign_in: bool) {
+    let Some(body) = body.as_object_mut() else {
+        return;
+    };
+    if !can_sign_in {
+        return;
+    }
+    let additions = body
+        .entry(SYSINFO_ADDITIONS_KEY)
+        .or_insert_with(|| serde_json::Value::Object(Default::default()));
+    if !additions.is_object() {
+        *additions = serde_json::Value::Object(Default::default());
+    }
+    if let Some(additions) = additions.as_object_mut() {
+        add_capability(additions, can_sign_in);
+    }
 }
 
 /// The answer to a sign-in request
@@ -556,6 +591,52 @@ mod tests {
         assert!(Locked.at_sign_in_screen());
         assert!(!LogonUi.at_sign_in_screen());
         assert!(!Desktop.at_sign_in_screen());
+    }
+
+    #[test]
+    fn the_capability_is_reported_only_where_this_process_signs_in() {
+        let mut additions = serde_json::Map::new();
+        additions.insert("is_installed".into(), true.into());
+        add_capability(&mut additions, false);
+        assert_eq!(
+            serde_json::Value::Object(additions.clone()),
+            serde_json::json!({"is_installed": true})
+        );
+        add_capability(&mut additions, true);
+        assert_eq!(
+            serde_json::Value::Object(additions),
+            serde_json::json!({"is_installed": true, "nd_signin": 1})
+        );
+    }
+
+    #[test]
+    fn the_sysinfo_upload_carries_the_capability_in_platform_additions() {
+        let plain = serde_json::json!({
+            "id": "123456789",
+            "uuid": "bWFkZS11cA==",
+            "hostname": "lab-pc",
+            "os": "Windows",
+            "version": "1.5.0",
+        });
+        let mut body = plain.clone();
+        add_capability_to_sysinfo(&mut body, false);
+        assert_eq!(body, plain);
+
+        add_capability_to_sysinfo(&mut body, true);
+        let mut want = plain.clone();
+        want["platform_additions"] = serde_json::json!({"nd_signin": 1});
+        assert_eq!(body, want);
+        // The upload is skipped while its text is unchanged; this one changed
+        assert_ne!(body.to_string(), plain.to_string());
+
+        // Joins an object that is already there
+        let mut body = plain.clone();
+        body["platform_additions"] = serde_json::json!({"is_wayland": true});
+        add_capability_to_sysinfo(&mut body, true);
+        assert_eq!(
+            body["platform_additions"],
+            serde_json::json!({"is_wayland": true, "nd_signin": 1})
+        );
     }
 
     #[test]
