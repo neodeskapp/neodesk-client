@@ -58,7 +58,7 @@ use ipc_auth::authorize_user_server_process;
 #[cfg(windows)]
 use ipc_auth::{
     authorize_windows_main_ipc_connection, portable_service_listener_security_attributes,
-    should_allow_everyone_create_on_windows,
+    connect_pipe, is_shared_pipe_on_windows, shared_pipe_security_attributes,
 };
 #[cfg(target_os = "linux")]
 pub(crate) use ipc_auth::{
@@ -707,8 +707,8 @@ pub async fn new_listener(postfix: &str) -> ResultType<Incoming> {
         {
             if postfix == "_portable_service" {
                 portable_service_listener_security_attributes()
-            } else if should_allow_everyone_create_on_windows(postfix) {
-                SecurityAttributes::allow_everyone_create()
+            } else if is_shared_pipe_on_windows(postfix) {
+                shared_pipe_security_attributes()
             } else {
                 Ok(SecurityAttributes::empty())
             }
@@ -1422,6 +1422,9 @@ where
 
 #[inline]
 async fn connect_with_path(ms_timeout: u64, path: &str) -> ResultType<ConnectionTmpl<ConnClient>> {
+    #[cfg(windows)]
+    let client = timeout(ms_timeout, connect_pipe(path)).await??;
+    #[cfg(not(windows))]
     let client = timeout(ms_timeout, Endpoint::connect(path)).await??;
     Ok(ConnectionTmpl::new(client))
 }
