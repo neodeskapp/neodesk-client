@@ -32,10 +32,77 @@ use windows::Win32::{
     System::Pipes::{GetNamedPipeClientProcessId, GetNamedPipeServerProcessId},
 };
 
+/// Whether processes of other accounts connect to the pipe of `postfix`: the
+/// main IPC (the person's window reaches the service's server process) and
+/// the service's own pipes. They get [`shared_pipe_security_attributes`].
 #[cfg(windows)]
 #[inline]
-pub(crate) fn should_allow_everyone_create_on_windows(postfix: &str) -> bool {
+pub(crate) fn is_shared_pipe_on_windows(postfix: &str) -> bool {
     postfix.is_empty() || hbb_common::config::is_service_ipc_postfix(postfix)
+}
+
+/// Access a client of a shared pipe gets: FILE_GENERIC_READ and
+/// FILE_WRITE_DATA. Not FILE_CREATE_PIPE_INSTANCE (FILE_APPEND_DATA), which
+/// GENERIC_WRITE includes.
+#[cfg(windows)]
+const PIPE_CLIENT_ACCESS: u32 = 0x0012_008B;
+
+/// The DACL of a shared pipe (L442). LocalSystem and the account that runs
+/// this process (LocalSystem for the service) may do anything with it. Any
+/// other signed-in account may only connect, read and write: it may not
+/// create instances of the pipe's name, so once the service runs no other
+/// process can answer the window in its place.
+#[cfg(windows)]
+pub(crate) fn shared_pipe_security_attributes() -> io::Result<SecurityAttributes> {
+    let user_sid = crate::platform::windows::current_process_user_sid_string().map_err(|err| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("failed to resolve current process SID: {}", err),
+        )
+    })?;
+    // `D:P` protected DACL; `(A;;GA;;;SY)` and `(A;;GA;;;{user_sid})`
+    // GENERIC_ALL; `(A;;0x12008b;;;AU)` PIPE_CLIENT_ACCESS to Authenticated
+    // Users
+    let sddl = format!("D:P(A;;GA;;;SY)(A;;GA;;;{user_sid})(A;;{PIPE_CLIENT_ACCESS:#x};;;AU)");
+    SecurityAttributes::from_sddl(&sddl).map_err(|err| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("failed to build shared pipe security attributes from SDDL '{sddl}': {err}"),
+        )
+    })
+}
+
+/// Opens the client end of the pipe at `path` with [`PIPE_CLIENT_ACCESS`]
+/// rather than GENERIC_READ | GENERIC_WRITE, which a shared pipe refuses to
+/// other accounts (L442), and with identification-level impersonation only.
+/// Waits while all instances are busy, as parity_tokio_ipc does.
+#[cfg(windows)]
+pub(crate) async fn connect_pipe(path: &str) -> io::Result<parity_tokio_ipc::ConnectionClient> {
+    use std::os::windows::{fs::OpenOptionsExt, io::IntoRawHandle};
+    const GENERIC_READ: u32 = 0x8000_0000;
+    const FILE_WRITE_DATA: u32 = 0x0000_0002;
+    const FILE_FLAG_OVERLAPPED: u32 = 0x4000_0000;
+    const SECURITY_IDENTIFICATION: u32 = 0x0001_0000;
+    const ERROR_PIPE_BUSY: i32 = 231;
+    loop {
+        match fs::OpenOptions::new()
+            .access_mode(GENERIC_READ | FILE_WRITE_DATA)
+            .custom_flags(FILE_FLAG_OVERLAPPED)
+            .security_qos_flags(SECURITY_IDENTIFICATION)
+            .open(path)
+        {
+            Ok(file) => {
+                // SAFETY: the handle is a pipe client opened for overlapped
+                // I/O and owned by nothing else
+                return unsafe {
+                    parity_tokio_ipc::ConnectionClient::from_raw_handle(file.into_raw_handle())
+                };
+            }
+            Err(err) if err.raw_os_error() == Some(ERROR_PIPE_BUSY) => {}
+            Err(err) => return Err(err),
+        }
+        hbb_common::tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
 }
 
 #[cfg(windows)]
@@ -1075,12 +1142,10 @@ mod tests {
 
     #[test]
     #[cfg(windows)]
-    fn test_should_allow_everyone_create_on_windows_policy() {
-        assert!(super::should_allow_everyone_create_on_windows(""));
-        assert!(super::should_allow_everyone_create_on_windows("_service"));
-        assert!(!super::should_allow_everyone_create_on_windows(
-            "_portable_service"
-        ));
+    fn test_shared_pipe_policy() {
+        assert!(super::is_shared_pipe_on_windows(""));
+        assert!(super::is_shared_pipe_on_windows("_service"));
+        assert!(!super::is_shared_pipe_on_windows("_portable_service"));
     }
 
     #[test]
