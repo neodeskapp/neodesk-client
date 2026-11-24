@@ -134,7 +134,41 @@ List<String> scanFonts() {
   return findings;
 }
 
+/// The `<first> <second>` pairs of a list in tool/ (# starts a comment).
+Map<String, String> _pairs(String path) => {
+      for (final line in File(path).readAsLinesSync())
+        if (line.split('#').first.trim().split(RegExp(r'\s+'))
+            case [final a, final b, ...])
+          a: b,
+    };
+
+String _camel(String snake) => snake.replaceAllMapped(
+    RegExp(r'_([a-z0-9])'), (m) => m.group(1)!.toUpperCase());
+
+/// Icons of [symbols] (dart name to glyph) named after a meaning of
+/// [console] (meaning to glyph) that use another glyph than the console.
+List<String> meaningMismatches(
+    Map<String, String> symbols, Map<String, String> console) {
+  final byDart = {for (final e in console.entries) _camel(e.key): e};
+  return [
+    for (final e in symbols.entries)
+      if (byDart[e.key] case final c? when c.value != e.value)
+        'NdIcons.${e.key} is ${e.value}, the console shows ${c.key} as ${c.value}',
+  ];
+}
+
 void main() {
+  test('icons named after a console meaning use the console glyph', () {
+    final symbols = _pairs('tool/nd_symbols.txt');
+    final console = _pairs('tool/console_icons.txt');
+    expect(console, hasLength(greaterThan(50)));
+    final findings = meaningMismatches(symbols, console);
+    expect(findings, isEmpty, reason: findings.join('\n'));
+    expect(
+        meaningMismatches({'password': 'password', 'tags': 'sell'}, console),
+        ['NdIcons.password is password, the console shows password as key']);
+  });
+
   test('the desktop sources draw icons only from NdIcons', () {
     final findings = scanSources();
     expect(findings, isEmpty, reason: findings.join('\n'));
