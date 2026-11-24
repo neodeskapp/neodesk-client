@@ -165,7 +165,7 @@ class _AddressBookState extends State<AddressBook> {
         final rule = gFFI.abModel.current.sharedProfile()?.rule;
         if (rule == ShareRule.read.value) {
           children.add(
-              icon(NdIcons.visibility, ShareRule.desc(ShareRule.read.value)));
+              icon(NdIcons.view, ShareRule.desc(ShareRule.read.value)));
         } else if (rule == ShareRule.readWrite.value) {
           children
               .add(icon(NdIcons.edit, ShareRule.desc(ShareRule.readWrite.value)));
@@ -175,7 +175,7 @@ class _AddressBookState extends State<AddressBook> {
         }
         final owner = gFFI.abModel.current.sharedProfile()?.owner;
         if (owner != null) {
-          children.add(icon(NdIcons.person, "${translate("Owner")}: $owner"));
+          children.add(icon(NdIcons.user, "${translate("Owner")}: $owner"));
         }
         return Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -595,8 +595,8 @@ class _AddressBookState extends State<AddressBook> {
                             suffixIcon: IconButton(
                               icon: Icon(
                                   passwordVisible
-                                      ? NdIcons.visibility
-                                      : NdIcons.visibilityOff,
+                                      ? NdIcons.view
+                                      : NdIcons.hide,
                                   color: MyTheme.lightTheme.primaryColor),
                               onPressed: () {
                                 setState(() {

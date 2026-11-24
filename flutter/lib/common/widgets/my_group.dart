@@ -297,7 +297,7 @@ class _MyGroupState extends State<MyGroup> {
                 Container(
                   width: 20,
                   height: 20,
-                  child: Icon(NdIcons.workspaces,
+                  child: Icon(NdIcons.groups,
                       color: MyTheme.accent, size: 19),
                 ).marginOnly(right: 4),
                 Expanded(child: Text(name)),
