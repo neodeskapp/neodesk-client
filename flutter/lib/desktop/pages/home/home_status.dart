@@ -56,6 +56,7 @@ HomeStatus homeStatusOf(
   VoidCallback? onTurnOn,
   VoidCallback? onSetUp,
   VoidCallback? onTryNow,
+  VoidCallback? onStartService,
 }) {
   final server = facts.server;
   if (facts.serviceStopped) {
@@ -92,7 +93,11 @@ HomeStatus homeStatusOf(
     return HomeStatus(NdStatusKind.wait, tr('nd-home-status-approval'));
   }
   if (facts.reason == 'ipc_disconnected') {
-    return HomeStatus(NdStatusKind.bad, tr('nd-home-status-no-service'));
+    // The window of an installed client waits for its service, which holds
+    // this computer's key, and offers to start it.
+    return HomeStatus(NdStatusKind.bad, tr('nd-home-status-no-service'),
+        linkLabel: onStartService == null ? null : tr('nd-home-start-service'),
+        onLink: onStartService);
   }
   if (facts.status == SvcStatus.connecting) {
     return HomeStatus(

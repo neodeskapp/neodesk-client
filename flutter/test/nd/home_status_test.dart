@@ -58,9 +58,35 @@ void main() {
     }
   });
 
-  test('a service that does not answer is not the server', () {
+  test('a service that is not running is not the server', () {
     final s = _of(SvcStatus.notReady, reason: 'ipc_disconnected');
-    expect(s.text, 'The NeoDesk service on this computer does not answer.');
+    expect(s.kind, NdStatusKind.bad);
+    expect(s.text, "The NeoDesk service isn't running on this computer.");
+    // Only an installed client has a service to start
+    expect(s.linkLabel, isNull);
+    var started = false;
+    final installed = homeStatusOf(
+        const HomeStatusFacts(
+            server: _server,
+            status: SvcStatus.notReady,
+            reason: 'ipc_disconnected'),
+        onStartService: () => started = true);
+    expect(installed.linkLabel, 'Start the service');
+    installed.onLink!();
+    expect(started, isTrue);
+  });
+
+  test('a service that is not running says so in German', () {
+    useLanguage('de');
+    final s = _of(SvcStatus.notReady, reason: 'ipc_disconnected');
+    expect(s.text, 'Der NeoDesk-Dienst läuft auf diesem Computer nicht.');
+    final installed = homeStatusOf(
+        const HomeStatusFacts(
+            server: _server,
+            status: SvcStatus.notReady,
+            reason: 'ipc_disconnected'),
+        onStartService: () {});
+    expect(installed.linkLabel, 'Dienst starten');
   });
 
   test("only a server without any answer is \"can't reach\"", () {
