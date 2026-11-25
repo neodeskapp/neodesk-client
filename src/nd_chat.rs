@@ -54,6 +54,9 @@ pub enum NdChat {
     Front(bool),
     /// To the window: whether a tray holds the chat and notifies.
     Tray(bool),
+    /// The server is starting or stopping (503 with `X-NeoDesk-Chat:
+    /// starting`): ask again after these seconds.
+    Starting(u32),
 }
 
 /// [`NdChat::Closed`] and [`NdChat::Uploaded`] when this computer holds no
@@ -67,6 +70,9 @@ pub const CHAT_OFF: u16 = 2;
 
 /// How long to wait with chat off when the server named no time.
 const CHAT_OFF_RETRY: u32 = 600;
+
+/// How long to wait for a server that is starting when it named no time.
+const STARTING_RETRY: u32 = 5;
 
 /// The largest file of the chat (PROTOCOL.md section 6).
 pub const MAX_FILE_BYTES: u64 = 50 << 20;
@@ -215,13 +221,12 @@ fn refusal(response: &tokio_tungstenite::tungstenite::handshake::client::Respons
             .map(str::trim)
             .unwrap_or_default()
     };
+    let retry_after = || header("Retry-After").parse::<u32>().ok().filter(|s| *s > 0);
     if status == 503 && header("X-NeoDesk-Chat") == "chat_off" {
-        let seconds = header("Retry-After")
-            .parse::<u32>()
-            .ok()
-            .filter(|s| *s > 0)
-            .unwrap_or(CHAT_OFF_RETRY);
-        return NdChat::ChatOff(seconds);
+        return NdChat::ChatOff(retry_after().unwrap_or(CHAT_OFF_RETRY));
+    }
+    if status == 503 && header("X-NeoDesk-Chat") == "starting" {
+        return NdChat::Starting(retry_after().unwrap_or(STARTING_RETRY));
     }
     NdChat::Closed(status)
 }
@@ -449,6 +454,8 @@ fn opened(generation: u64, out: tokio::sync::mpsc::UnboundedSender<String>) -> b
     }
     hub.connecting = false;
     hub.out = Some(out);
+    // The socket is open: a start or a drop before is over.
+    hub.trouble = None;
     true
 }
 
@@ -502,12 +509,10 @@ fn ended(generation: u64, why: NdChat, token: String, upgrade: bool) {
     hub.members.clear();
     hub.forget_socket();
     let now = std::time::Instant::now();
-    if why == NdChat::Closed(0) {
-        hub.trouble = Some((now, token));
-        hub.refused = None;
-        return;
+    if why == NdChat::Closed(0) || matches!(why, NdChat::Starting(_)) {
+        hub.trouble = Some((now, token.clone()));
     }
-    if !upgrade {
+    if why == NdChat::Closed(0) || !upgrade {
         hub.refused = None;
         return;
     }
@@ -540,30 +545,39 @@ async fn hold_socket(generation: u64) {
         socket.close(None).await.ok();
         return;
     }
-    let why = loop {
+    // A close with 4403 token_refused: the computer's credential ended
+    // while it was connected. It stands like a 403 on the upgrade, not like
+    // a drop.
+    let (why, refused) = loop {
         tokio::select! {
             frame = socket.next() => match frame {
                 Some(Ok(Message::Text(text))) => took(generation, text.as_str()),
                 Some(Ok(Message::Close(Some(frame))))
                     if u16::from(frame.code) == 1008 && frame.reason.as_str() == "chat_off" =>
                 {
-                    break NdChat::ChatOff(CHAT_OFF_RETRY);
+                    break (NdChat::ChatOff(CHAT_OFF_RETRY), false);
                 }
-                Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break NdChat::Closed(0),
+                Some(Ok(Message::Close(Some(frame))))
+                    if u16::from(frame.code) == 4403 && frame.reason.as_str() == "token_refused" =>
+                {
+                    log::info!("chat socket closed: the token was refused");
+                    break (NdChat::Closed(403), true);
+                }
+                Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break (NdChat::Closed(0), false),
                 Some(Ok(_)) => {}
             },
             text = from_members.recv() => match text {
                 Some(text) => {
                     if socket.send(Message::text(text)).await.is_err() {
-                        break NdChat::Closed(0);
+                        break (NdChat::Closed(0), false);
                     }
                 }
-                None => break NdChat::Closed(0),
+                None => break (NdChat::Closed(0), false),
             },
         }
     };
     socket.close(None).await.ok();
-    ended(generation, why, access.token, false);
+    ended(generation, why, access.token, refused);
 }
 
 /// One member's IPC connection: what the socket says goes out on it, the
@@ -578,7 +592,10 @@ async fn member(stream: &mut Connection, role: Role) {
         tokio::select! {
             message = from_hub.recv() => match message {
                 Some(message) => {
-                    let last = matches!(message, NdChat::Closed(_) | NdChat::ChatOff(_));
+                    let last = matches!(
+                        message,
+                        NdChat::Closed(_) | NdChat::ChatOff(_) | NdChat::Starting(_)
+                    );
                     if stream.send(&Data::NdChat(message)).await.is_err() || last {
                         break;
                     }
@@ -736,6 +753,7 @@ pub(crate) async fn client(
             data = c.next() => match data {
                 Ok(Some(Data::NdChat(NdChat::Closed(status)))) => return (status, 0),
                 Ok(Some(Data::NdChat(NdChat::ChatOff(seconds)))) => return (CHAT_OFF, seconds),
+                Ok(Some(Data::NdChat(NdChat::Starting(seconds)))) => return (503, seconds),
                 Ok(Some(Data::NdChat(message))) => {
                     if !on(message) {
                         return (0, 0);
@@ -1184,6 +1202,7 @@ mod tests {
             NdChat::OpenTray,
             NdChat::Front(true),
             NdChat::Tray(false),
+            NdChat::Starting(5),
         ] {
             let data = Data::NdChat(message.clone());
             let text = serde_json::to_string(&data).unwrap();
@@ -1252,7 +1271,9 @@ mod tests {
                         let got = got.clone();
                         let starting = starting.clone();
                         tokio::spawn(async move {
-                            let refuse = Arc::new(Mutex::new(false));
+                            // Set: the socket is accepted and closed at once
+                            // with this code and reason.
+                            let refuse: Arc<Mutex<Option<(u16, &'static str)>>> = Arc::default();
                             let refused = refuse.clone();
                             let callback = move |request: &Request, response: Response| {
                                 let auth = request
@@ -1285,6 +1306,20 @@ mod tests {
                                         tokio_tungstenite::tungstenite::http::StatusCode::UNAUTHORIZED;
                                     return Err(old);
                                 }
+                                if auth == "Bearer starting-token" {
+                                    let mut starting = ErrorResponse::new(None);
+                                    *starting.status_mut() =
+                                        tokio_tungstenite::tungstenite::http::StatusCode::SERVICE_UNAVAILABLE;
+                                    starting.headers_mut().insert("Retry-After", "5".parse().unwrap());
+                                    starting
+                                        .headers_mut()
+                                        .insert("X-NeoDesk-Chat", "starting".parse().unwrap());
+                                    return Err(starting);
+                                }
+                                if auth == "Bearer revoked-while-open-token" {
+                                    *refused.lock().unwrap() = Some((4403, "token_refused"));
+                                    return Ok(response);
+                                }
                                 if auth == "Bearer busy-token" {
                                     let mut busy = ErrorResponse::new(None);
                                     *busy.status_mut() =
@@ -1292,11 +1327,10 @@ mod tests {
                                     return Err(busy);
                                 }
                                 if auth == "Bearer closing-token" {
-                                    *refused.lock().unwrap() = true;
+                                    *refused.lock().unwrap() = Some((1008, "chat_off"));
                                     return Ok(response);
                                 }
                                 if auth != "Bearer chat-test-token" {
-                                    *refused.lock().unwrap() = true;
                                     let mut no = ErrorResponse::new(None);
                                     *no.status_mut() =
                                         tokio_tungstenite::tungstenite::http::StatusCode::FORBIDDEN;
@@ -1309,14 +1343,15 @@ mod tests {
                             else {
                                 return;
                             };
-                            if *refuse.lock().unwrap() {
+                            let close_with = *refuse.lock().unwrap();
+                            if let Some((code, reason)) = close_with {
                                 use tokio_tungstenite::tungstenite::protocol::{
                                     frame::coding::CloseCode, CloseFrame,
                                 };
                                 socket
                                     .close(Some(CloseFrame {
-                                        code: CloseCode::Policy,
-                                        reason: "chat_off".into(),
+                                        code: CloseCode::from(code),
+                                        reason: reason.into(),
                                     }))
                                     .await
                                     .ok();
@@ -1534,6 +1569,20 @@ mod tests {
         assert_eq!(run("chat-off-token"), (CHAT_OFF, 450), "503 chat_off with Retry-After");
         assert_eq!(run("busy-token"), (503, 0), "a 503 without chat_off is no chat_off");
         assert_eq!(run("closing-token"), (CHAT_OFF, 600), "an open socket closed with 1008 chat_off");
+        // L539: the server closes an open socket whose credential ended.
+        assert_eq!(
+            run("revoked-while-open-token"),
+            (403, 0),
+            "a close with 4403 token_refused is a 403, not a drop"
+        );
+        let before = seen.lock().unwrap().len();
+        assert_eq!(run("revoked-while-open-token"), (403, 0));
+        assert_eq!(
+            seen.lock().unwrap().len(),
+            before,
+            "held like a refused upgrade: no quick tries against the server"
+        );
+        assert_eq!(run("starting-token"), (503, 5), "503 starting carries its Retry-After");
 
         enrollment::clear_token();
         let before = seen.lock().unwrap().len();

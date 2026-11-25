@@ -1158,6 +1158,7 @@ class _PendingRow extends StatelessWidget {
     final failed = p.state == NdChatSendState.failed;
     final problem = switch (p.problem) {
       NdChatFileProblem.storageFull => tr('nd-chat-storage-full'),
+      NdChatFileProblem.serverStarting => tr('nd-chat-server-starting'),
       NdChatFileProblem.uploadFailed => tr('nd-chat-upload-failed'),
       NdChatFileProblem.tooBig => tr('nd-chat-too-big'),
       NdChatFileProblem.tooMany => tr('nd-chat-too-many'),

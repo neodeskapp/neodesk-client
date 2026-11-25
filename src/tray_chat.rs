@@ -244,7 +244,7 @@ impl TrayChat {
     /// try again.
     pub fn closed(&mut self, status: u16, retry_after: u32, spread: f64) -> Option<Duration> {
         self.connected = false;
-        if status == 0 {
+        if status == 0 || status == 503 {
             self.start_tries = START_TRIES;
         }
         let refusal = matches!(status, 401 | 403 | 404 | crate::nd_chat::NO_TOKEN);
@@ -278,6 +278,7 @@ impl TrayChat {
                     CHAT_OFF_RECHECK
                 })
             }
+            503 if retry_after > 0 => Some(Duration::from_secs(retry_after as u64)),
             429 => {
                 let b = self.backoff(spread);
                 Some(if b < TOO_MANY_WAIT { TOO_MANY_WAIT + b } else { b })
@@ -545,6 +546,28 @@ mod tests {
             assert!(settled >= Duration::from_secs(60), "{status}: then the long wait, {settled:?}");
             assert_eq!(chat.entry(), None, "{status}");
         }
+    }
+
+    #[test]
+    fn a_server_that_is_starting_is_asked_again_after_its_retry_after() {
+        let mut chat = connected();
+        assert_eq!(chat.closed(503, 5, 0.5), Some(Duration::from_secs(5)));
+        assert_eq!(chat.entry(), Some(0), "the entry stays while the server starts");
+        assert_eq!(
+            chat.closed(404, 0, 0.5),
+            Some(Duration::from_millis(1000)),
+            "a 404 during the start is part of it"
+        );
+        assert_eq!(chat.entry(), Some(0));
+    }
+
+    #[test]
+    fn a_refused_token_on_an_open_socket_waits_like_a_403() {
+        let mut chat = connected();
+        chat.closed(0, 0, 0.5);
+        chat.frame(&welcome()).unwrap();
+        assert_eq!(chat.closed(403, 0, 0.5), Some(Duration::from_secs(60)));
+        assert_eq!(chat.entry(), None);
     }
 
     #[test]

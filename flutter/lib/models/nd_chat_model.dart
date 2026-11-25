@@ -85,7 +85,15 @@ enum NdChatAvailability {
 
 enum NdChatSendState { sending, failed }
 
-enum NdChatFileProblem { tooMany, tooBig, storageFull, uploadFailed }
+enum NdChatFileProblem {
+  tooMany,
+  tooBig,
+  storageFull,
+  uploadFailed,
+
+  /// The server answered 503 while it starts or stops.
+  serverStarting,
+}
 
 class NdChatParty {
   const NdChatParty(this.kind, this.id, this.name);
@@ -445,7 +453,8 @@ class NdChatModel extends ChangeNotifier {
     final status = _noChatServer ? 404 : socket.closeStatus;
     _noChatServer = false;
     Duration wait;
-    if (status == 0) _startTries = _startTriesMax;
+    // 503: the server is starting or stopping (X-NeoDesk-Chat: starting).
+    if (status == 0 || status == 503) _startTries = _startTriesMax;
     final refusal = status == 401 ||
         status == 403 ||
         status == 404 ||
@@ -476,6 +485,9 @@ class NdChatModel extends ChangeNotifier {
       case kNdChatOff:
         availability = NdChatAvailability.off;
         wait = socket.retryAfter ?? _chatOffRecheck;
+        break;
+      case 503:
+        wait = socket.retryAfter ?? _backoff();
         break;
       case 429:
         final b = _backoff();
@@ -837,6 +849,8 @@ class NdChatModel extends ChangeNotifier {
               p,
               up.status == 507
                   ? NdChatFileProblem.storageFull
+                  : up.status == 503
+                      ? NdChatFileProblem.serverStarting
                   : up.status == 413
                       ? NdChatFileProblem.tooBig
                       : NdChatFileProblem.uploadFailed);

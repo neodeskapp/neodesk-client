@@ -467,6 +467,43 @@ void main() {
       });
     });
 
+    test('503 while the server starts keeps the entry and asks again after its Retry-After', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        open(async, server, ids: [1]);
+        server.last.drop(503, const Duration(seconds: 5));
+        async.flushMicrotasks();
+        expect(m.showEntry, isTrue);
+        async.elapse(const Duration(milliseconds: 4900));
+        expect(server.sockets, hasLength(1), reason: 'not before Retry-After');
+        async.elapse(const Duration(milliseconds: 200));
+        expect(server.sockets, hasLength(2));
+        server.last.drop(404);
+        async.flushMicrotasks();
+        expect(m.showEntry, isTrue, reason: 'a 404 during the start is part of the start');
+        async.elapse(const Duration(milliseconds: 1300));
+        expect(server.sockets, hasLength(3));
+      });
+    });
+
+    test('a socket the server closes for a refused token is a 403, not a drop', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        open(async, server, ids: [1]);
+        server.last.drop();
+        async.flushMicrotasks();
+        async.elapse(const Duration(milliseconds: 1300));
+        open(async, server, ids: [1]);
+        server.last.drop(403);
+        async.flushMicrotasks();
+        expect(m.showEntry, isFalse);
+        async.elapse(const Duration(seconds: 59));
+        expect(server.sockets, hasLength(2), reason: 'no quick tries once the socket was open again');
+      });
+    });
+
     test('chat turned off by an admin: no entry, the next try after Retry-After', () {
       fakeAsync((async) {
         final server = Server();
@@ -914,6 +951,20 @@ void main() {
         m.retry(m.pending.single.clientId);
         async.flushMicrotasks();
         expect(server.last.of('send').single['attachments'], ['id-/tmp/a.png']);
+      });
+    });
+
+    test('an upload while the server starts says to try again in a moment', () {
+      fakeAsync((async) {
+        final server = Server();
+        final files = FakeFiles()..failWith = 503;
+        final m = NdChatModel(connect: server.connect, files: files, random: Random(1), now: () => t0);
+        m.start();
+        open(async, server);
+        m.sendMessage('', paths: ['/tmp/a.png']);
+        async.flushMicrotasks();
+        expect(m.pending.single.state, NdChatSendState.failed);
+        expect(m.pending.single.problem, NdChatFileProblem.serverStarting);
       });
     });
 

@@ -387,6 +387,21 @@ void main() {
     });
   });
 
+  testWidgets('a file sent while the server starts says to try again in a moment', (tester) async {
+    await withChat(tester, before: (chat) => chat.files.failWith = 503, (chat) async {
+      chat.open();
+      await tester.pump();
+      chat.actions.picked.add([NdChatLocalFile('/tmp/shot.png', 2048)]);
+      await tester.tap(find.bySemanticsLabel('Attach files'));
+      await tester.pump();
+      await tester.tap(find.byType(TextField));
+      await key(tester, LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(find.text('Not sent: the server is starting. Try again in a moment.'), findsOneWidget);
+      expect(find.text('Not sent, try again'), findsOneWidget);
+    });
+  });
+
   testWidgets('files are attached, checked against the limits and sent with the message', (tester) async {
     await withChat(tester, (chat) async {
       chat.open();

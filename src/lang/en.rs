@@ -879,6 +879,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-pair-button", "Pair"),
         ("nd-pair-approved", "Paired. This device is approved."),
         ("nd-pair-waits", "Paired. This device waits for approval in the console."),
+        ("nd-chat-server-starting", "Not sent: the server is starting. Try again in a moment."),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }
