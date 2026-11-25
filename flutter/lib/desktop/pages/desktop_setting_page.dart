@@ -2656,7 +2656,10 @@ class _AboutState extends State<_About> {
         onCommunity: aboutCommunityLink(
             appName: bind.mainGetAppNameSync(),
             companyBranded: BrandingModel.current.hasBranding,
-            open: () => launchUrlString(kNeoDeskDiscordUrl)),
+            open: () => openLinkOrShowAddress(kNeoDeskDiscordUrl,
+                launch: launchUrlString,
+                copy: (url) => Clipboard.setData(ClipboardData(text: url)),
+                say: (message) => showToast(message))),
         // Update checks are off in this build; the releases page shows
         // the newest version.
         onCheckUpdates: () {

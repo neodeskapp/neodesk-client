@@ -1110,6 +1110,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-about-based-on", ""),
         ("nd-about-help", ""),
         ("nd-about-community", ""),
+        ("nd-link-copied", ""),
         ("nd-about-check", ""),
         ("nd-about-latest", ""),
         ("nd-about-new", ""),

@@ -27,6 +27,30 @@ void main() {
     expect(kNeoDeskDiscordUrl, 'https://discord.gg/nwERSawufr');
   });
 
+  // Linux without a browser set up for links: launching fails or throws.
+  for (final (name, launch) in <(String, Future<bool> Function(String))>[
+    ('says false', (_) async => false),
+    ('throws', (_) async => throw Exception('no handler')),
+  ]) {
+    test('a link nothing opens is copied and shown ($name)', () async {
+      useLanguage('en');
+      String? copied, said;
+      await openLinkOrShowAddress(kNeoDeskDiscordUrl,
+          launch: launch, copy: (u) => copied = u, say: (m) => said = m);
+      expect(copied, kNeoDeskDiscordUrl);
+      expect(said, contains(kNeoDeskDiscordUrl));
+      expect(said, isNot(contains('nd-link-copied')));
+    });
+  }
+
+  test('a link the browser opens is neither copied nor shown', () async {
+    String? copied, said;
+    await openLinkOrShowAddress(kNeoDeskDiscordUrl,
+        launch: (_) async => true, copy: (u) => copied = u, say: (m) => said = m);
+    expect(copied, isNull);
+    expect(said, isNull);
+  });
+
   for (final lang in ['en', 'de']) {
     testWidgets('About opens the Discord from its link ($lang)',
         (tester) async {

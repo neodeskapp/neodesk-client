@@ -386,6 +386,22 @@ VoidCallback? aboutCommunityLink(
         required VoidCallback open}) =>
     kNeoDeskOwnAppNames.contains(appName) && !companyBranded ? open : null;
 
+/// Opens [url] with [launch]. When nothing opens it (Linux without a
+/// browser set up for links), puts it on the clipboard with [copy] and says
+/// so with the address through [say], instead of doing nothing.
+Future<void> openLinkOrShowAddress(String url,
+    {required Future<bool> Function(String url) launch,
+    required void Function(String url) copy,
+    required void Function(String message) say}) async {
+  var opened = false;
+  try {
+    opened = await launch(url);
+  } catch (_) {}
+  if (opened) return;
+  copy(url);
+  say(tr('nd-link-copied', [url]));
+}
+
 /// About: the logo, the facts, Check for updates and the copyright line.
 class AboutView extends StatelessWidget {
   const AboutView({
