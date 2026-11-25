@@ -17,6 +17,8 @@
 // Only the Flutter FFI calls the UI part of this module.
 #![cfg_attr(not(feature = "flutter"), allow(dead_code))]
 
+#[cfg_attr(not(windows), allow(dead_code))]
+mod cli_output;
 mod device_key;
 mod grants;
 mod http;
@@ -808,20 +810,27 @@ pub fn core_main_hook(args: &[String]) -> Option<Option<CoreMainAction>> {
     }
 }
 
-/// Prints for the command line; a message box on Windows, where the client
-/// has no console.
+/// Prints for the command line. On Windows, where the client has no console
+/// of its own, see cli_output.rs (L521).
 fn say(text: &str) {
+    say_to(text, false);
+}
+
+fn say_to(text: &str, error: bool) {
     #[cfg(windows)]
-    crate::platform::message_box(text);
+    if cli_output::say(&mut cli_output::Process, text, error) == cli_output::Channel::MessageBox {
+        crate::platform::message_box(text);
+    }
     #[cfg(not(windows))]
-    println!("{text}");
+    if error {
+        eprintln!("{text}");
+    } else {
+        println!("{text}");
+    }
 }
 
 fn exit_with(err: &OnboardError, server: &str) -> ! {
-    #[cfg(windows)]
-    say(&err.message(server));
-    #[cfg(not(windows))]
-    eprintln!("{}", err.message(server));
+    say_to(&err.message(server), true);
     std::process::exit(1);
 }
 
