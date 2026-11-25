@@ -409,6 +409,10 @@ pub enum Data {
     /// handed to the process that holds them (L442), see
     /// [`settle_device_secrets`].
     HandOverSecrets(HandOver),
+    /// The chat window's socket and files, through the process that keeps
+    /// the device token (nd_chat.rs).
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    NdChat(crate::nd_chat::NdChat),
     RawMessage(Vec<u8>),
     Socks(Option<config::Socks5Server>),
     FS(FS),
@@ -983,6 +987,8 @@ async fn handle(data: Data, stream: &mut Connection) {
                     .await
             );
         }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::NdChat(request) => crate::nd_chat::serve(request, stream).await,
         Data::HandOverSecrets(HandOver::Secrets(secrets)) => {
             if let Some(public_key) = take_handed_over_secrets(*secrets) {
                 allow_err!(
