@@ -1551,16 +1551,25 @@ pub async fn connect(ms_timeout: u64, postfix: &str) -> ResultType<ConnectionTmp
     {
         let path = ipc_path(postfix);
         let conn = connect_with_path(ms_timeout, &path).await?;
-        // The window of an installed client talks to the service only, not
-        // to a process that made an instance of its pipe name before the
-        // service started: what it sends there can be a secret, a new
-        // permanent password, a 2FA secret or a device token (L442)
         #[cfg(windows)]
-        if postfix.is_empty() && !Config::holds_secrets() && !conn.server_is_local_system() {
+        if refuses_main_ipc_server(postfix, Config::holds_secrets(), conn.server_is_local_system())
+        {
             bail!("the main IPC server is not the service");
         }
         Ok(conn)
     }
+}
+
+/// Whether a process refuses the IPC server it reached under `postfix`.
+/// The window of an installed client (it does not hold the device's
+/// secrets) talks on the main pipe to the service only, not to a process
+/// that made an instance of its pipe name before the service started: what
+/// it sends there can be a secret, a new permanent password, a 2FA secret
+/// or a device token (L442), and what it takes from there includes the key
+/// proof of a pairing or a join ([`pairing_proof`], L483).
+#[cfg(any(windows, test))]
+fn refuses_main_ipc_server(postfix: &str, holds_secrets: bool, server_is_service: bool) -> bool {
+    postfix.is_empty() && !holds_secrets && !server_is_service
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -1735,7 +1744,10 @@ pub async fn get_config(name: &str) -> ResultType<Option<String>> {
 
 /// The server process's public key and key proof for the pairing request
 /// or the join at `path`, None when no server process answers or it
-/// refuses (an older one signs no join).
+/// refuses (an older one signs no join). In the window of an installed
+/// client on Windows, [`connect`] refuses a main pipe whose server is not
+/// the service ([`refuses_main_ipc_server`]), so a proof from any other
+/// process is never used: the request then goes out without one.
 pub async fn pairing_proof(path: &str) -> Option<(String, Vec<(String, String)>)> {
     let mut c = connect(1_000, "").await.ok()?;
     c.send(&Data::PairingProof((path.to_owned(), None)))
@@ -3031,6 +3043,22 @@ pub(crate) mod device_key_tests {
         assert!(crate::hbbs_http::enrollment::public_key_b64()
             .map_or(true, |key| key != crate::encode64(&legacy.1)));
         assert!(reveals(&key_pair_of_file(), &legacy.0));
+    }
+
+    // The window of an installed client takes the key proof of a pairing or a
+    // join from the service only (L483). pairing_proof asks on the main pipe
+    // (postfix "") through connect, which on Windows refuses that pipe when
+    // its server is not the service; the request then goes out unsigned.
+    #[test]
+    fn the_window_takes_a_key_proof_from_the_service_only() {
+        assert!(
+            refuses_main_ipc_server("", false, false),
+            "the window used a main pipe whose server is not the service"
+        );
+        assert!(!refuses_main_ipc_server("", false, true));
+        // A process that holds the device's secrets signs itself when no
+        // server process answers
+        assert!(!refuses_main_ipc_server("", true, false));
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
