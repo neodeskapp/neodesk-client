@@ -138,7 +138,7 @@ fn make_tray() -> hbb_common::ResultType<()> {
             let mut builder = TrayIconBuilder::new()
                 .with_id(crate::get_exe_name())
                 .with_menu(Box::new(tray_menu.menu.clone()))
-                .with_tooltip(tooltip(0, &tray_menu.status()))
+                .with_tooltip(tooltip(0, &tray_menu.tooltip_status()))
                 .with_icon(icon.clone());
             #[cfg(target_os = "macos")]
             {
@@ -177,7 +177,7 @@ fn make_tray() -> hbb_common::ResultType<()> {
             }
         }
 
-        let status = tray_menu.status();
+        let status = tray_menu.tooltip_status();
         let copied = tray_menu.just_copied();
         if let Some(menu) = tray_menu.update() {
             let _ = _tray_icon
@@ -186,7 +186,7 @@ fn make_tray() -> hbb_common::ResultType<()> {
                 .as_mut()
                 .map(|t| t.set_menu(Some(Box::new(menu))));
         }
-        if status != tray_menu.status() || copied != tray_menu.just_copied() {
+        if status != tray_menu.tooltip_status() || copied != tray_menu.just_copied() {
             let text = if tray_menu.just_copied() {
                 format!(
                     "{}\n{}",
@@ -194,7 +194,7 @@ fn make_tray() -> hbb_common::ResultType<()> {
                     translate("nd-tray-id-copied".to_owned())
                 )
             } else {
-                tooltip(sessions, &tray_menu.status())
+                tooltip(sessions, &tray_menu.tooltip_status())
             };
             let _ = _tray_icon
                 .lock()
@@ -234,7 +234,7 @@ fn make_tray() -> hbb_common::ResultType<()> {
                         .lock()
                         .unwrap()
                         .as_mut()
-                        .map(|t| t.set_tooltip(Some(tooltip(count, &tray_menu.status()))));
+                        .map(|t| t.set_tooltip(Some(tooltip(count, &tray_menu.tooltip_status()))));
                 }
                 _ => {}
             }

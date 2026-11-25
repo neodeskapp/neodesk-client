@@ -41,6 +41,9 @@ pub struct TrayMenu {
     clipboard: Option<arboard::Clipboard>,
     /// Menus replaced while one may still be open.
     retired: Vec<Menu>,
+    /// The chat with support as the tray holds it (tray_chat.rs).
+    chat: Option<u32>,
+    chats: mpsc::Receiver<crate::tray_chat::ChatReport>,
 }
 
 impl TrayMenu {
@@ -49,6 +52,8 @@ impl TrayMenu {
     pub fn new() -> Self {
         let (sender, reports) = mpsc::channel();
         std::thread::spawn(move || watch(sender));
+        let (chat_sender, chats) = mpsc::channel();
+        std::thread::spawn(move || crate::tray_chat::watch(chat_sender));
         let mut menu = TrayMenu {
             menu: Menu::new(),
             items: Vec::new(),
@@ -68,6 +73,8 @@ impl TrayMenu {
             copied_at: None,
             clipboard: None,
             retired: Vec::new(),
+            chat: None,
+            chats,
         };
         menu.update();
         menu
@@ -78,6 +85,10 @@ impl TrayMenu {
     pub fn update(&mut self) -> Option<Menu> {
         while let Ok(report) = self.reports.try_recv() {
             self.report = report;
+            self.changed = true;
+        }
+        while let Ok(chat) = self.chats.try_recv() {
+            self.chat = chat.entry;
             self.changed = true;
         }
         if self
@@ -113,8 +124,10 @@ impl TrayMenu {
     }
 
     fn lines(&self) -> Vec<Shown> {
+        let mut facts = self.report.facts.clone();
+        facts.chat = self.chat;
         let items = tray_model::menu(
-            &self.report.facts,
+            &facts,
             &self.report.id,
             crate::VERSION,
             self.offers,
@@ -181,12 +194,26 @@ impl TrayMenu {
             .unwrap_or_default()
     }
 
+    /// The first line of the menu and, with new messages in the chat, a line
+    /// saying so: the tooltip.
+    pub fn tooltip_status(&self) -> String {
+        let status = self.status();
+        match tray_model::chat_tooltip(self.chat) {
+            Some((key, count)) => format!(
+                "{status}\n{}",
+                translate(key.to_owned()).replace("{}", &count)
+            ),
+            None => status,
+        }
+    }
+
     /// Runs the actions that need nothing from the tray icon itself.
     pub fn run(&mut self, action: Action) {
         match action {
             Action::CopyId => self.copy_id(),
             Action::Settings => open_link("settings"),
             Action::About => open_link("settings/about"),
+            Action::Chat => open_link("chat"),
             Action::StopService => set_paused(true),
             Action::AcceptConnections => set_paused(false),
             Action::Status | Action::Open => {}
@@ -234,8 +261,8 @@ fn set_paused(paused: bool) {
 }
 
 /// Opens the main window at a page, with a link the window handles:
-/// neodesk://settings and neodesk://settings/about.
-fn open_link(page: &str) {
+/// neodesk://settings, neodesk://settings/about and neodesk://chat.
+pub(crate) fn open_link(page: &str) {
     let link = format!("{}{}", crate::get_uri_prefix(), page);
     #[cfg(target_os = "windows")]
     {
@@ -309,6 +336,7 @@ fn facts_of(options: &HashMap<String, String>, online: Online, reason: &str) -> 
         reason: reason.to_owned(),
         standing: standing_of(&get("neodesk-device-standing")),
         service_stopped: config::option2bool("stop-service", &get("stop-service")),
+        chat: None,
     }
 }
 

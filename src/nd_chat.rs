@@ -2,13 +2,16 @@
 //! chat protocol, version 2: neodesk-server/console/routes/chat/PROTOCOL.md).
 //!
 //! The device token stays in the process that keeps it: the one that runs
-//! the sync loop and the IPC server. The chat window's process asks that
-//! process over IPC ([`NdChat`] in `Data::NdChat`) to open the chat socket
-//! and pass the text frames both ways on that IPC connection, and to upload
-//! and fetch the files of the chat. The window's process hands the frames to
-//! Flutter as global events named "nd-chat" (see [`window`] and
-//! flutter/lib/models/nd_chat_bridge.dart). The token is never put in a URL,
-//! a log line or an IPC message.
+//! the sync loop and the IPC server. That process holds one chat socket for
+//! the computer while anyone wants it: the tray, from login on
+//! (tray_chat.rs), and the chat window. Each joins over IPC ([`NdChat`] in
+//! `Data::NdChat`), gets every frame of the socket on its IPC connection and
+//! sends frames on it; the window also uploads and fetches the files of the
+//! chat that way. The tray learns whether the window shows the chat in
+//! front, the window whether a tray notifies, so only one of them does. The
+//! window's process hands the frames to Flutter as global events named
+//! "nd-chat" (see [`window`] and flutter/lib/models/nd_chat_bridge.dart).
+//! The token is never put in a URL, a log line or an IPC message.
 
 use crate::hbbs_http::enrollment;
 use crate::ipc::{Connection, Data};
@@ -26,8 +29,10 @@ use std::time::Duration;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "t", content = "c")]
 pub enum NdChat {
-    /// Window: open the chat socket and relay it on this connection.
+    /// Window: join the chat socket on this connection.
     Open,
+    /// Tray: join the chat socket on this connection.
+    OpenTray,
     /// A text frame of the chat socket, either way.
     Frame(String),
     /// The chat socket is gone: the HTTP status of a refused upgrade, 0 when
@@ -44,6 +49,11 @@ pub enum NdChat {
     /// An admin turned "Chat with computers" off: ask again after these
     /// seconds.
     ChatOff(u32),
+    /// Window: its chat is shown in front, or not any more. To the tray:
+    /// whether a window shows the chat in front.
+    Front(bool),
+    /// To the window: whether a tray holds the chat and notifies.
+    Tray(bool),
 }
 
 /// [`NdChat::Closed`] and [`NdChat::Uploaded`] when this computer holds no
@@ -163,11 +173,13 @@ pub fn multipart_body(boundary: &str, name: &str, bytes: &[u8]) -> Vec<u8> {
 
 // ------------------------------------------------- the process with the token
 
-/// Answers one chat request of the window's process. [`NdChat::Open`] keeps
-/// the IPC connection until the chat socket or the window goes away.
+/// Answers one chat request of the window's or the tray's process.
+/// [`NdChat::Open`] and [`NdChat::OpenTray`] keep the IPC connection until
+/// the chat socket or the caller goes away.
 pub async fn serve(request: NdChat, stream: &mut Connection) {
     match request {
-        NdChat::Open => relay(stream).await,
+        NdChat::Open => member(stream, Role::Window).await,
+        NdChat::OpenTray => member(stream, Role::Tray).await,
         NdChat::Upload { name, size } => {
             let answer = upload(stream, &name, size).await;
             stream.send(&Data::NdChat(answer)).await.ok();
@@ -248,55 +260,283 @@ async fn open_socket(access: &Access) -> Result<Socket, NdChat> {
     }
 }
 
-/// Passes text frames between the chat socket and the window's IPC
-/// connection, and ends with [`NdChat::Closed`] when the socket goes.
-async fn relay(stream: &mut Connection) {
+/// Who joined the chat socket.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Role {
+    Window,
+    Tray,
+}
+
+struct Member {
+    id: u64,
+    role: Role,
+    to: tokio::sync::mpsc::UnboundedSender<NdChat>,
+    /// A window that shows the chat in front.
+    front: bool,
+}
+
+/// The one chat socket of this computer and who listens to it.
+#[derive(Default)]
+struct Hub {
+    next: u64,
+    /// Counts the sockets, so a task of an earlier one changes nothing.
+    generation: u64,
+    members: Vec<Member>,
+    /// While the socket is open: the way to send it frames.
+    out: Option<tokio::sync::mpsc::UnboundedSender<String>>,
+    connecting: bool,
+    /// The socket's welcome and last helper frame, for those who join later.
+    welcome: Option<String>,
+    helper: Option<String>,
+    /// The last refusal, the token it was for and when: a second caller
+    /// asking right after gets it without a second upgrade.
+    refused: Option<(std::time::Instant, String, NdChat)>,
+}
+
+lazy_static::lazy_static! {
+    static ref HUB: std::sync::Mutex<Hub> = Default::default();
+}
+
+const REFUSAL_KEPT: Duration = Duration::from_secs(5);
+/// What a member that joins an open socket needs after the welcome.
+const NEWEST_PAGE: &str = r#"{"type":"history","before":"0","limit":50}"#;
+
+impl Hub {
+    fn front(&self) -> bool {
+        self.members
+            .iter()
+            .any(|m| m.role == Role::Window && m.front)
+    }
+
+    fn has_tray(&self) -> bool {
+        self.members.iter().any(|m| m.role == Role::Tray)
+    }
+
+    fn tell(&self, role: Role, message: NdChat) {
+        for m in self.members.iter().filter(|m| m.role == role) {
+            m.to.send(message.clone()).ok();
+        }
+    }
+
+    fn forget_socket(&mut self) {
+        self.out = None;
+        self.connecting = false;
+        self.welcome = None;
+        self.helper = None;
+        self.generation += 1;
+    }
+}
+
+fn hub() -> std::sync::MutexGuard<'static, Hub> {
+    HUB.lock().unwrap_or_else(|err| err.into_inner())
+}
+
+/// Adds a member. Answers its id (0 when it got a refusal right away) and
+/// the generation of a socket to open, when none is open or opening.
+fn join(role: Role, to: tokio::sync::mpsc::UnboundedSender<NdChat>) -> (u64, Option<u64>) {
+    let token = access().map(|a| a.token).unwrap_or_default();
+    let mut hub = hub();
+    if let Some((at, for_token, why)) = &hub.refused {
+        if at.elapsed() < REFUSAL_KEPT && *for_token == token {
+            to.send(why.clone()).ok();
+            return (0, None);
+        }
+    }
+    match role {
+        Role::Window => {
+            to.send(NdChat::Tray(hub.has_tray())).ok();
+        }
+        Role::Tray => {
+            to.send(NdChat::Front(hub.front())).ok();
+            if !hub.has_tray() {
+                hub.tell(Role::Window, NdChat::Tray(true));
+            }
+        }
+    }
+    hub.next += 1;
+    let id = hub.next;
+    if let Some(out) = &hub.out {
+        if let Some(welcome) = &hub.welcome {
+            to.send(NdChat::Frame(welcome.clone())).ok();
+        }
+        if let Some(helper) = &hub.helper {
+            to.send(NdChat::Frame(helper.clone())).ok();
+        }
+        out.send(NEWEST_PAGE.to_owned()).ok();
+    }
+    hub.members.push(Member {
+        id,
+        role,
+        to,
+        front: false,
+    });
+    if hub.out.is_some() || hub.connecting {
+        return (id, None);
+    }
+    hub.connecting = true;
+    hub.generation += 1;
+    (id, Some(hub.generation))
+}
+
+fn leave(id: u64) {
+    let mut hub = hub();
+    let Some(i) = hub.members.iter().position(|m| m.id == id) else {
+        return;
+    };
+    let gone = hub.members.remove(i);
+    if gone.role == Role::Tray && !hub.has_tray() {
+        hub.tell(Role::Window, NdChat::Tray(false));
+    }
+    if gone.front && !hub.front() {
+        hub.tell(Role::Tray, NdChat::Front(false));
+    }
+    if hub.members.is_empty() {
+        // Nobody listens: the socket task sees its way in closed and ends.
+        hub.forget_socket();
+    }
+}
+
+fn set_front(id: u64, front: bool) {
+    let mut hub = hub();
+    let before = hub.front();
+    if let Some(m) = hub.members.iter_mut().find(|m| m.id == id) {
+        m.front = front;
+    }
+    let after = hub.front();
+    if before != after {
+        hub.tell(Role::Tray, NdChat::Front(after));
+    }
+}
+
+fn to_socket(text: String) {
+    if let Some(out) = &hub().out {
+        out.send(text).ok();
+    }
+}
+
+/// The socket of `generation` is open: answers false when nobody wants it
+/// any more.
+fn opened(generation: u64, out: tokio::sync::mpsc::UnboundedSender<String>) -> bool {
+    let mut hub = hub();
+    if hub.generation != generation {
+        return false;
+    }
+    hub.connecting = false;
+    hub.out = Some(out);
+    true
+}
+
+/// A frame of the socket of `generation` for every member.
+fn took(generation: u64, text: &str) {
+    let mut hub = hub();
+    if hub.generation != generation {
+        return;
+    }
+    let kind = serde_json::from_str::<serde_json::Value>(text)
+        .ok()
+        .and_then(|v| v["type"].as_str().map(str::to_owned))
+        .unwrap_or_default();
+    match kind.as_str() {
+        "welcome" => hub.welcome = Some(text.to_owned()),
+        "helper" => hub.helper = Some(text.to_owned()),
+        _ => {}
+    }
+    for m in &hub.members {
+        m.to.send(NdChat::Frame(text.to_owned())).ok();
+    }
+}
+
+/// The socket of `generation` is gone, or was never opened (`refused`
+/// with the token it was for): every member gets `why` and leaves.
+fn ended(generation: u64, why: NdChat, refused: Option<String>) {
+    let mut hub = hub();
+    if hub.generation != generation {
+        return;
+    }
+    for m in &hub.members {
+        m.to.send(why.clone()).ok();
+    }
+    hub.members.clear();
+    hub.forget_socket();
+    hub.refused = refused
+        .filter(|_| why != NdChat::Closed(0))
+        .map(|token| (std::time::Instant::now(), token, why));
+}
+
+/// Opens the socket of `generation` and passes its frames to the members
+/// until it ends or nobody listens.
+async fn hold_socket(generation: u64) {
     use tokio_tungstenite::tungstenite::Message;
     let Some(access) = access() else {
-        stream.send(&Data::NdChat(NdChat::Closed(NO_TOKEN))).await.ok();
+        ended(generation, NdChat::Closed(NO_TOKEN), Some(String::new()));
         return;
     };
     let mut socket = match open_socket(&access).await {
         Ok(socket) => socket,
         Err(why) => {
-            stream.send(&Data::NdChat(why)).await.ok();
+            ended(generation, why, Some(access.token));
             return;
         }
     };
-    loop {
+    let (out, mut from_members) = tokio::sync::mpsc::unbounded_channel::<String>();
+    if !opened(generation, out) {
+        socket.close(None).await.ok();
+        return;
+    }
+    let why = loop {
         tokio::select! {
             frame = socket.next() => match frame {
-                Some(Ok(Message::Text(text))) => {
-                    let frame = Data::NdChat(NdChat::Frame(text.as_str().to_owned()));
-                    if stream.send(&frame).await.is_err() {
-                        break;
-                    }
-                }
+                Some(Ok(Message::Text(text))) => took(generation, text.as_str()),
                 Some(Ok(Message::Close(Some(frame))))
                     if u16::from(frame.code) == 1008 && frame.reason.as_str() == "chat_off" =>
                 {
-                    stream.send(&Data::NdChat(NdChat::ChatOff(CHAT_OFF_RETRY))).await.ok();
-                    break;
+                    break NdChat::ChatOff(CHAT_OFF_RETRY);
                 }
-                Some(Ok(Message::Close(_))) | Some(Err(_)) | None => {
-                    stream.send(&Data::NdChat(NdChat::Closed(0))).await.ok();
-                    break;
-                }
+                Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break NdChat::Closed(0),
                 Some(Ok(_)) => {}
             },
-            data = stream.next() => match data {
-                Ok(Some(Data::NdChat(NdChat::Frame(text)))) => {
+            text = from_members.recv() => match text {
+                Some(text) => {
                     if socket.send(Message::text(text)).await.is_err() {
-                        stream.send(&Data::NdChat(NdChat::Closed(0))).await.ok();
+                        break NdChat::Closed(0);
+                    }
+                }
+                None => break NdChat::Closed(0),
+            },
+        }
+    };
+    socket.close(None).await.ok();
+    ended(generation, why, None);
+}
+
+/// One member's IPC connection: what the socket says goes out on it, the
+/// frames and the front state it sends go to the socket and the hub.
+async fn member(stream: &mut Connection, role: Role) {
+    let (to, mut from_hub) = tokio::sync::mpsc::unbounded_channel();
+    let (id, open) = join(role, to);
+    if let Some(generation) = open {
+        tokio::spawn(hold_socket(generation));
+    }
+    loop {
+        tokio::select! {
+            message = from_hub.recv() => match message {
+                Some(message) => {
+                    let last = matches!(message, NdChat::Closed(_) | NdChat::ChatOff(_));
+                    if stream.send(&Data::NdChat(message)).await.is_err() || last {
                         break;
                     }
                 }
+                None => break,
+            },
+            data = stream.next() => match data {
+                Ok(Some(Data::NdChat(NdChat::Frame(text)))) => to_socket(text),
+                Ok(Some(Data::NdChat(NdChat::Front(front)))) => set_front(id, front),
                 Ok(_) => {}
                 Err(_) => break,
             },
         }
     }
-    socket.close(None).await.ok();
+    leave(id);
 }
 
 async fn upload(stream: &mut Connection, name: &str, size: u64) -> NdChat {
@@ -399,6 +639,165 @@ async fn fetch(id: &str, inline: bool) -> (u16, Option<Bytes>) {
     }
 }
 
+// ------------------------------------------------------------- the members
+
+/// What a member sends on its IPC connection.
+pub enum Out {
+    Frame(String),
+    /// The window's chat is shown in front, or not any more.
+    Front(bool),
+}
+
+/// Joins the chat socket through the IPC server of `postfix` with `open`
+/// ([`NdChat::Open`] or [`NdChat::OpenTray`]): what `out` gives is sent,
+/// what comes goes to `on`, which answers false to leave. Answers the
+/// closing status and, with [`CHAT_OFF`], the seconds to wait.
+pub(crate) async fn client(
+    postfix: &str,
+    open: NdChat,
+    mut out: Option<&mut tokio::sync::mpsc::UnboundedReceiver<Out>>,
+    mut on: impl FnMut(NdChat) -> bool,
+) -> (u16, u32) {
+    let mut c = match crate::ipc::connect(1000, postfix).await {
+        Ok(c) => c,
+        Err(err) => {
+            log::debug!("chat: no IPC server: {err}");
+            return (0, 0);
+        }
+    };
+    if c.send(&Data::NdChat(open)).await.is_err() {
+        return (0, 0);
+    }
+    loop {
+        let next = async {
+            match out.as_mut() {
+                Some(out) => out.recv().await,
+                None => std::future::pending().await,
+            }
+        };
+        tokio::select! {
+            data = c.next() => match data {
+                Ok(Some(Data::NdChat(NdChat::Closed(status)))) => return (status, 0),
+                Ok(Some(Data::NdChat(NdChat::ChatOff(seconds)))) => return (CHAT_OFF, seconds),
+                Ok(Some(Data::NdChat(message))) => {
+                    if !on(message) {
+                        return (0, 0);
+                    }
+                }
+                Ok(_) => {}
+                Err(_) => return (0, 0),
+            },
+            sent = next => {
+                let message = match sent {
+                    Some(Out::Frame(text)) => NdChat::Frame(text),
+                    Some(Out::Front(front)) => NdChat::Front(front),
+                    None => return (0, 0),
+                };
+                if c.send(&Data::NdChat(message)).await.is_err() {
+                    return (0, 0);
+                }
+            },
+        }
+    }
+}
+
+/// The tray's membership: frames feed `chat`, its notifications go to
+/// `notify`, `report` hears of every change. A socket whose first frame
+/// shows a server without chat of version 2 is left with
+/// [`crate::tray_chat::NOT_CHAT`].
+pub(crate) async fn hold(
+    postfix: &str,
+    chat: &mut crate::tray_chat::TrayChat,
+    notify: &mut impl FnMut(crate::tray_chat::Note),
+    report: &mut impl FnMut(&crate::tray_chat::TrayChat),
+) -> (u16, u32) {
+    let mut not_chat = false;
+    let end = client(postfix, NdChat::OpenTray, None, |message| {
+        match message {
+            NdChat::Frame(text) => match chat.frame(&text) {
+                Ok(notes) => notes.into_iter().for_each(&mut *notify),
+                Err(()) => {
+                    not_chat = true;
+                    return false;
+                }
+            },
+            NdChat::Front(front) => chat.set_front(front),
+            _ => {}
+        }
+        report(chat);
+        true
+    })
+    .await;
+    if not_chat {
+        (crate::tray_chat::NOT_CHAT, 0)
+    } else {
+        end
+    }
+}
+
+/// Shows an OS notification; `on_click` runs when the person clicks it
+/// (Windows). Linux shows it without a click action; macOS shows none.
+pub(crate) fn show_notification(
+    title: &str,
+    body: &str,
+    on_click: impl Fn() + Send + 'static,
+) {
+    #[cfg(windows)]
+    {
+        use tauri_winrt_notification::{Duration as ToastDuration, Sound, Toast};
+        let app_id = format!("{}.Chat", crate::get_app_name().replace(' ', ""));
+        if let Err(err) = crate::tray_menu::register_toast_sender(&app_id) {
+            log::debug!("Failed to register {app_id} for notifications: {err}");
+        }
+        Toast::new(&app_id)
+            .title(title)
+            .text1(body)
+            .sound(Some(Sound::Default))
+            .duration(ToastDuration::Short)
+            .on_activated(move || {
+                on_click();
+                Ok(())
+            })
+            .show()
+            .ok();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = on_click;
+        use dbus::{arg::PropMap, blocking::Connection};
+        let shown = (|| -> Result<(), dbus::Error> {
+            let c = Connection::new_session()?;
+            let proxy = c.with_proxy(
+                "org.freedesktop.Notifications",
+                "/org/freedesktop/Notifications",
+                Duration::from_secs(3),
+            );
+            let _: (u32,) = proxy.method_call(
+                "org.freedesktop.Notifications",
+                "Notify",
+                (
+                    crate::get_app_name(),
+                    0u32,
+                    "",
+                    title,
+                    body,
+                    Vec::<String>::new(),
+                    PropMap::new(),
+                    -1i32,
+                ),
+            )?;
+            Ok(())
+        })();
+        if let Err(err) = shown {
+            log::debug!("chat notification failed: {err}");
+        }
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
+    {
+        let _ = (title, body, on_click);
+    }
+}
+
 // --------------------------------------------------------- the window's side
 
 /// The chat window's side: Flutter calls these through `main_get_common`
@@ -408,17 +807,19 @@ pub mod window {
     use super::*;
     use hbb_common::tokio::sync::mpsc;
     use std::sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Mutex,
     };
 
     lazy_static::lazy_static! {
-        /// The open socket's number and the way to its relay; None sends
-        /// nothing more and closes it.
-        static ref SOCKET: Mutex<Option<(u64, mpsc::UnboundedSender<Option<String>>)>> =
+        /// The open socket's number and the way to its membership; dropping
+        /// it leaves the socket.
+        static ref SOCKET: Mutex<Option<(u64, mpsc::UnboundedSender<Out>)>> =
             Mutex::new(None);
     }
     static NEXT: AtomicU64 = AtomicU64::new(0);
+    /// The window shows the chat in front; told again on every new socket.
+    static FRONT: AtomicBool = AtomicBool::new(false);
 
     /// Answers `main_get_common` for a key starting "nd-chat-".
     pub fn get(key: &str) -> String {
@@ -437,6 +838,7 @@ pub mod window {
     pub fn set(key: &str, value: &str) {
         match key {
             "nd-chat-send" => send(value),
+            "nd-chat-front" => front(value == "1"),
             "nd-chat-close" => close(),
             "nd-chat-notify" => notify(value),
             _ => {}
@@ -447,25 +849,41 @@ pub mod window {
         crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, event.to_string());
     }
 
-    /// Opens a chat socket through the IPC server of `postfix` and answers
-    /// its number. Its frames come as events {"name": "nd-chat", "socket":
-    /// n, "frame": text} and its end as {"name": "nd-chat", "socket": n,
-    /// "closed": status, "retry_after": seconds}. A socket opened before is
-    /// closed.
+    /// Joins the chat socket through the IPC server of `postfix` and answers
+    /// the membership's number. Its frames come as events {"name":
+    /// "nd-chat", "socket": n, "frame": text}, whether a tray notifies as
+    /// {"name": "nd-chat", "tray": bool}, and its end as {"name": "nd-chat",
+    /// "socket": n, "closed": status, "retry_after": seconds}. A membership
+    /// opened before is left.
     pub(super) fn open(postfix: &'static str) -> u64 {
         let n = NEXT.fetch_add(1, Ordering::SeqCst) + 1;
-        let (sender, receiver) = mpsc::unbounded_channel();
-        if let Some((_, old)) = SOCKET.lock().unwrap().replace((n, sender)) {
-            old.send(None).ok();
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        if FRONT.load(Ordering::SeqCst) {
+            sender.send(Out::Front(true)).ok();
         }
+        SOCKET.lock().unwrap().replace((n, sender));
         std::thread::spawn(move || {
             let (status, retry_after) = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
             {
-                Ok(runtime) => runtime.block_on(run(postfix, n, receiver, |frame| {
-                    push(serde_json::json!({"name": "nd-chat", "socket": n, "frame": frame}))
-                })),
+                Ok(runtime) => runtime.block_on(client(
+                    postfix,
+                    NdChat::Open,
+                    Some(&mut receiver),
+                    |message| {
+                        match message {
+                            NdChat::Frame(frame) => push(
+                                serde_json::json!({"name": "nd-chat", "socket": n, "frame": frame}),
+                            ),
+                            NdChat::Tray(tray) => {
+                                push(serde_json::json!({"name": "nd-chat", "tray": tray}))
+                            }
+                            _ => {}
+                        }
+                        true
+                    },
+                )),
                 Err(err) => {
                     log::error!("chat: no runtime: {err}");
                     (0, 0)
@@ -487,56 +905,21 @@ pub mod window {
         n
     }
 
-    /// Relays one socket: frames from the IPC server go to `frame`, frames
-    /// from `receiver` go to the IPC server. Answers the closing status and,
-    /// with [`CHAT_OFF`], the seconds to wait before asking again.
-    pub(super) async fn run(
-        postfix: &str,
-        n: u64,
-        mut receiver: mpsc::UnboundedReceiver<Option<String>>,
-        frame: impl Fn(String),
-    ) -> (u16, u32) {
-        let mut c = match crate::ipc::connect(1000, postfix).await {
-            Ok(c) => c,
-            Err(err) => {
-                log::debug!("chat {n}: no IPC server: {err}");
-                return (0, 0);
-            }
-        };
-        if c.send(&Data::NdChat(NdChat::Open)).await.is_err() {
-            return (0, 0);
-        }
-        loop {
-            tokio::select! {
-                data = c.next() => match data {
-                    Ok(Some(Data::NdChat(NdChat::Frame(text)))) => frame(text),
-                    Ok(Some(Data::NdChat(NdChat::Closed(status)))) => return (status, 0),
-                    Ok(Some(Data::NdChat(NdChat::ChatOff(seconds)))) => return (CHAT_OFF, seconds),
-                    Ok(_) => {}
-                    Err(_) => return (0, 0),
-                },
-                out = receiver.recv() => match out {
-                    Some(Some(text)) => {
-                        if c.send(&Data::NdChat(NdChat::Frame(text))).await.is_err() {
-                            return (0, 0);
-                        }
-                    }
-                    _ => return (0, 0),
-                },
-            }
+    fn send(frame: &str) {
+        if let Some((_, sender)) = SOCKET.lock().unwrap().as_ref() {
+            sender.send(Out::Frame(frame.to_owned())).ok();
         }
     }
 
-    fn send(frame: &str) {
+    fn front(front: bool) {
+        FRONT.store(front, Ordering::SeqCst);
         if let Some((_, sender)) = SOCKET.lock().unwrap().as_ref() {
-            sender.send(Some(frame.to_owned())).ok();
+            sender.send(Out::Front(front)).ok();
         }
     }
 
     fn close() {
-        if let Some((_, sender)) = SOCKET.lock().unwrap().take() {
-            sender.send(None).ok();
-        }
+        SOCKET.lock().unwrap().take();
     }
 
     /// Uploads the file at `path` and answers {"status": ..., "file_id":
@@ -656,62 +1039,12 @@ pub mod window {
         };
         let title = request["title"].as_str().unwrap_or_default().to_owned();
         let body = request["body"].as_str().unwrap_or_default().to_owned();
-        std::thread::spawn(move || show_notification(&title, &body));
-    }
-
-    #[cfg(windows)]
-    fn show_notification(title: &str, body: &str) {
-        use tauri_winrt_notification::{Duration as ToastDuration, Sound, Toast};
-        let app_id = format!("{}.Chat", crate::get_app_name().replace(' ', ""));
-        if let Err(err) = crate::tray_menu::register_toast_sender(&app_id) {
-            log::debug!("Failed to register {app_id} for notifications: {err}");
-        }
-        Toast::new(&app_id)
-            .title(title)
-            .text1(body)
-            .sound(Some(Sound::Default))
-            .duration(ToastDuration::Short)
-            .on_activated(|| {
-                push(serde_json::json!({"name": "nd-chat", "activated": true}));
-                Ok(())
+        std::thread::spawn(move || {
+            show_notification(&title, &body, || {
+                push(serde_json::json!({"name": "nd-chat", "activated": true}))
             })
-            .show()
-            .ok();
+        });
     }
-
-    #[cfg(target_os = "linux")]
-    fn show_notification(title: &str, body: &str) {
-        use dbus::{arg::PropMap, blocking::Connection};
-        let shown = (|| -> Result<(), dbus::Error> {
-            let c = Connection::new_session()?;
-            let proxy = c.with_proxy(
-                "org.freedesktop.Notifications",
-                "/org/freedesktop/Notifications",
-                Duration::from_secs(3),
-            );
-            let _: (u32,) = proxy.method_call(
-                "org.freedesktop.Notifications",
-                "Notify",
-                (
-                    crate::get_app_name(),
-                    0u32,
-                    "",
-                    title,
-                    body,
-                    Vec::<String>::new(),
-                    PropMap::new(),
-                    -1i32,
-                ),
-            )?;
-            Ok(())
-        })();
-        if let Err(err) = shown {
-            log::debug!("chat notification failed: {err}");
-        }
-    }
-
-    #[cfg(not(any(windows, target_os = "linux")))]
-    fn show_notification(_title: &str, _body: &str) {}
 }
 
 #[cfg(test)]
@@ -791,6 +1124,9 @@ mod tests {
             },
             NdChat::Downloaded { status: 200, size: 3 },
             NdChat::ChatOff(600),
+            NdChat::OpenTray,
+            NdChat::Front(true),
+            NdChat::Tray(false),
         ] {
             let data = Data::NdChat(message.clone());
             let text = serde_json::to_string(&data).unwrap();
@@ -802,8 +1138,10 @@ mod tests {
     }
 
     /// The relay against a local chat server: the token goes as a bearer
-    /// header and never in the address, frames pass both ways, a refused
-    /// upgrade comes back with its status, chat turned off comes back as
+    /// header and never in the address, frames pass both ways, the tray and
+    /// the window share one socket (the window learns a tray notifies, the
+    /// tray that the window shows the chat in front), a refused upgrade
+    /// comes back with its status, chat turned off comes back as
     /// [`CHAT_OFF`] with the time to wait, and without a token nothing is
     /// opened.
     #[cfg(all(feature = "flutter", any(target_os = "linux", target_os = "macos")))]
@@ -918,6 +1256,12 @@ mod tests {
                             while let Some(Ok(message)) = socket.next().await {
                                 if let Message::Text(text) = message {
                                     got.lock().unwrap().push(text.as_str().to_owned());
+                                    let v: serde_json::Value =
+                                        serde_json::from_str(text.as_str()).unwrap_or_default();
+                                    if v["type"] == "push" {
+                                        let frame = v["frame"].as_str().unwrap_or_default().to_owned();
+                                        socket.send(Message::text(frame)).await.ok();
+                                    }
                                     if text.as_str() == "{\"type\":\"bye\"}" {
                                         socket.close(None).await.ok();
                                         break;
@@ -936,28 +1280,49 @@ mod tests {
         enrollment::store_token("chat-test-token", &device_id, &api);
         start_test_listener("_ndchat_test");
 
-        let frames: Arc<Mutex<Vec<String>>> = Arc::default();
-        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
-        sender.send(Some("{\"type\":\"read\"}".to_owned())).unwrap();
-        let relay = {
-            let frames = frames.clone();
-            std::thread::spawn(move || {
+        let runtime = || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+        };
+        let wait_until = |what: &str, done: &dyn Fn() -> bool| {
+            for _ in 0..100 {
+                if done() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            panic!("waited in vain for {what}");
+        };
+        /// A window's membership on its own thread: its frames and the tray
+        /// flags it got.
+        type Seen = Arc<Mutex<Vec<String>>>;
+        let window = |frames: Seen, trays: Arc<Mutex<Vec<bool>>>| {
+            let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<Out>();
+            let thread = std::thread::spawn(move || {
                 tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
                     .unwrap()
-                    .block_on(window::run("_ndchat_test", 1, receiver, move |f| {
-                        frames.lock().unwrap().push(f)
+                    .block_on(client("_ndchat_test", NdChat::Open, Some(&mut receiver), |m| {
+                        match m {
+                            NdChat::Frame(f) => frames.lock().unwrap().push(f),
+                            NdChat::Tray(t) => trays.lock().unwrap().push(t),
+                            _ => {}
+                        }
+                        true
                     }))
-            })
+            });
+            (sender, thread)
         };
-        for _ in 0..50 {
-            if got.lock().unwrap().len() == 1 {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(100));
-        }
-        sender.send(Some("{\"type\":\"bye\"}".to_owned())).ok();
+
+        let frames: Seen = Arc::default();
+        let (sender, relay) = window(frames.clone(), Arc::default());
+        wait_until("the welcome", &|| !frames.lock().unwrap().is_empty());
+        sender.send(Out::Frame("{\"type\":\"read\"}".to_owned())).unwrap();
+        wait_until("the read frame", &|| got.lock().unwrap().len() == 1);
+        sender.send(Out::Frame("{\"type\":\"bye\"}".to_owned())).ok();
         let status = relay.join().unwrap();
         assert_eq!(status, (0, 0), "the socket closed by the server ends with 0");
         assert_eq!(frames.lock().unwrap().as_slice(), ["{\"type\":\"welcome\",\"v\":2}"]);
@@ -971,36 +1336,90 @@ mod tests {
             assert_eq!(seen[0].1, "Bearer chat-test-token");
         }
 
-        enrollment::store_token("revoked-token", &device_id, &api);
-        let (_sender, receiver) = tokio::sync::mpsc::unbounded_channel();
-        let status = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(window::run("_ndchat_test", 2, receiver, |_| {}));
-        assert_eq!(status, (403, 0));
-
-        let run = |token: &str, n: u64| {
-            enrollment::store_token(token, &device_id, &api);
-            let (_sender, receiver) = tokio::sync::mpsc::unbounded_channel();
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(window::run("_ndchat_test", n, receiver, |_| {}))
+        // The tray holds the chat; a window joins the same socket.
+        got.lock().unwrap().clear();
+        let sockets = seen.lock().unwrap().len();
+        let notes: Arc<Mutex<Vec<crate::tray_chat::Note>>> = Arc::default();
+        let entry: Arc<Mutex<Option<Option<u32>>>> = Arc::default();
+        let tray = {
+            let notes = notes.clone();
+            let entry = entry.clone();
+            std::thread::spawn(move || {
+                let mut chat = crate::tray_chat::TrayChat::default();
+                runtime().block_on(hold(
+                    "_ndchat_test",
+                    &mut chat,
+                    &mut |note: crate::tray_chat::Note| notes.lock().unwrap().push(note),
+                    &mut |chat: &crate::tray_chat::TrayChat| {
+                        *entry.lock().unwrap() = Some(chat.entry())
+                    },
+                ))
+            })
         };
-        assert_eq!(run("chat-off-token", 4), (CHAT_OFF, 450), "503 chat_off with Retry-After");
-        assert_eq!(run("busy-token", 5), (503, 0), "a 503 without chat_off is no chat_off");
-        assert_eq!(run("closing-token", 6), (CHAT_OFF, 600), "an open socket closed with 1008 chat_off");
+        wait_until("the tray's welcome", &|| *entry.lock().unwrap() == Some(Some(0)));
+        let frames: Seen = Arc::default();
+        let trays: Arc<Mutex<Vec<bool>>> = Arc::default();
+        let (sender, joined) = window(frames.clone(), trays.clone());
+        wait_until("the welcome for the window", &|| {
+            frames.lock().unwrap().first().map(String::as_str) == Some("{\"type\":\"welcome\",\"v\":2}")
+        });
+        assert_eq!(trays.lock().unwrap().as_slice(), [true], "a tray notifies");
+        assert_eq!(seen.lock().unwrap().len(), sockets + 1, "one socket for both");
+        wait_until("the newest page for the window", &|| {
+            got.lock().unwrap().iter().any(|f| f.as_str() == NEWEST_PAGE)
+        });
+        let push = |id: &str, text: &str| {
+            let frame = serde_json::json!({
+                "type": "message.new",
+                "message": {"id": id, "from": {"kind": "user", "id": "7", "name": "Anna Weber"},
+                            "text": text, "deleted": false},
+            });
+            Out::Frame(serde_json::json!({"type": "push", "frame": frame.to_string()}).to_string())
+        };
+        sender.send(Out::Front(true)).unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        sender.send(push("5", "first")).unwrap();
+        wait_until("one new message", &|| *entry.lock().unwrap() == Some(Some(1)));
+        assert!(notes.lock().unwrap().is_empty(), "nothing while the window shows the chat");
+        sender.send(Out::Front(false)).unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        sender.send(push("6", "second")).unwrap();
+        wait_until("two new messages", &|| *entry.lock().unwrap() == Some(Some(2)));
+        assert_eq!(
+            notes.lock().unwrap().as_slice(),
+            [crate::tray_chat::Note {
+                title: "Anna Weber".to_owned(),
+                body: "second".to_owned()
+            }]
+        );
+        drop(sender);
+        assert_eq!(joined.join().unwrap(), (0, 0));
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!tray.is_finished(), "the tray keeps the chat when the window goes");
+        let (sender, last) = window(Arc::default(), Arc::default());
+        sender.send(Out::Frame("{\"type\":\"bye\"}".to_owned())).unwrap();
+        assert_eq!(tray.join().unwrap(), (0, 0));
+        assert_eq!(last.join().unwrap(), (0, 0));
+        assert_eq!(seen.lock().unwrap().len(), sockets + 1, "still the one socket");
+
+        let run = |token: &str| {
+            enrollment::store_token(token, &device_id, &api);
+            let (_sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<Out>();
+            runtime().block_on(client("_ndchat_test", NdChat::Open, Some(&mut receiver), |_| true))
+        };
+        assert_eq!(run("revoked-token"), (403, 0));
+        let before = seen.lock().unwrap().len();
+        assert_eq!(run("revoked-token"), (403, 0), "asked again right away");
+        assert_eq!(seen.lock().unwrap().len(), before, "the refusal is answered without a second upgrade");
+        assert_eq!(run("chat-off-token"), (CHAT_OFF, 450), "503 chat_off with Retry-After");
+        assert_eq!(run("busy-token"), (503, 0), "a 503 without chat_off is no chat_off");
+        assert_eq!(run("closing-token"), (CHAT_OFF, 600), "an open socket closed with 1008 chat_off");
 
         enrollment::clear_token();
-        let (_sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let before = seen.lock().unwrap().len();
-        let status = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(window::run("_ndchat_test", 3, receiver, |_| {}));
+        let (_sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<Out>();
+        let status =
+            runtime().block_on(client("_ndchat_test", NdChat::Open, Some(&mut receiver), |_| true));
         assert_eq!(status, (NO_TOKEN, 0));
         assert_eq!(seen.lock().unwrap().len(), before, "no socket without a token");
 
