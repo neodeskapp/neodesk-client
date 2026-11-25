@@ -280,7 +280,7 @@ class _JoinServerDialogState extends State<_JoinServerDialog> {
     final currentServer = widget.currentServer;
     if (currentServer.isNotEmpty &&
         newHost.isNotEmpty &&
-        newHost != currentServer) {
+        !isSameServer(currentServer, newHost)) {
       final go = await showNdDialog<bool>((c2, _) => NdDialog(
             title: tr('nd-join-leave-title'),
             width: 480,

@@ -372,6 +372,32 @@ class InviteInput {
 
 enum InviteKind { empty, invalid, code, joinLink, supportLink }
 
+/// The host of a server address as the settings and invites write it
+/// (`host`, `host:port`, `[v6]:port`, with or without a scheme), lower case
+/// and without its port.
+String serverHostOf(String address) {
+  var s = address.trim().toLowerCase();
+  final scheme = s.indexOf('://');
+  if (scheme >= 0) s = s.substring(scheme + 3);
+  final slash = s.indexOf('/');
+  if (slash >= 0) s = s.substring(0, slash);
+  if (s.startsWith('[')) {
+    final end = s.indexOf(']');
+    return end > 0 ? s.substring(1, end) : s;
+  }
+  // One colon is a port; more is an IPv6 address without brackets
+  final colon = s.indexOf(':');
+  if (colon >= 0 && colon == s.lastIndexOf(':')) s = s.substring(0, colon);
+  return s;
+}
+
+/// Whether an invite's console [inviteHost] belongs to the server this
+/// computer uses, [currentServer] (its ID server). The console, the ID
+/// server and the API run on one host on their own ports, and a console
+/// moves to another port with an update, so the host decides (L508).
+bool isSameServer(String currentServer, String inviteHost) =>
+    serverHostOf(currentServer) == serverHostOf(inviteHost);
+
 /// The screens' test double, and the demo for screenshots: every phase can
 /// be set by hand, redeemJoin walks through the three steps.
 class FakeOnboardingService extends OnboardingService {

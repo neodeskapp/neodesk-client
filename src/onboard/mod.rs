@@ -441,6 +441,24 @@ fn known_console() -> Option<Console> {
     Console::from_base(&Config::get_option(OPTION_CONSOLE))
 }
 
+/// The port the console listens on since server 3.6.0, before that 5000.
+const CONSOLE_PORT: u16 = 3375;
+
+/// Where to try a bare code again when the console of an earlier join no
+/// longer answers on its port: the same host on [`CONSOLE_PORT`] (L508).
+/// The server updated and its console moved; the join then stores the
+/// address the console gives. A console without its own port (behind a
+/// proxy on 443 or 80) did not move.
+fn moved_console(known: &Console) -> Option<Console> {
+    match known.port {
+        Some(port) if port != CONSOLE_PORT => Some(Console {
+            port: Some(CONSOLE_PORT),
+            ..known.clone()
+        }),
+        _ => None,
+    }
+}
+
 fn block_on<F: std::future::Future>(future: F) -> Option<F::Output> {
     match hbb_common::tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -509,6 +527,7 @@ fn join_now(console: Option<Console>, code: &str) -> Result<Joined, OnboardError
 }
 
 fn join_with(console: Option<Console>, code: &str) -> Result<Joined, OnboardError> {
+    let from_invite = console.is_some();
     let console = console.or_else(known_console).ok_or(OnboardError::NeedsServer)?;
     STATE.update(|s| {
         s.phase = Phase::Joining;
@@ -523,11 +542,30 @@ fn join_with(console: Option<Console>, code: &str) -> Result<Joined, OnboardErro
     ))
     .flatten();
     let (device, proof) = DeviceIdentity::for_join(device_id, from_server_process);
-    let joined = block_on(async {
-        let http = http::Http::new(console).await?;
-        join::redeem_join(&http, code, &device, &proof).await
-    })
-    .unwrap_or(Err(OnboardError::Server(0)))?;
+    let redeem = |console: Console| {
+        block_on(async {
+            let http = http::Http::new(console).await?;
+            join::redeem_join(&http, code, &device, &proof).await
+        })
+        .unwrap_or(Err(OnboardError::Server(0)))
+    };
+    let mut result = redeem(console.clone());
+    if matches!(result, Err(OnboardError::Unreachable)) && !from_invite {
+        if let Some(moved) = moved_console(&console) {
+            log::info!(
+                "{} does not answer, trying {} for the code",
+                console.base(),
+                moved.base()
+            );
+            result = redeem(moved.clone()).map(|mut joined| {
+                if joined.console.is_empty() {
+                    joined.console = moved.base();
+                }
+                joined
+            });
+        }
+    }
+    let joined = result?;
     STATE.update(|s| s.join_step = 1);
     apply_join(&joined, &device.device_id);
     STATE.update(|s| {

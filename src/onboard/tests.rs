@@ -271,6 +271,29 @@ fn a_join_refused_for_its_key_keeps_the_servers_words_and_the_invite() {
     assert_eq!(state.error_reason, None);
 }
 
+/// L508: a bare code whose console (from an earlier join) no longer answers
+/// on its old port is tried on the same host on the console port of 3.6.0.
+/// A console without a port of its own, or already on that port, is not
+/// tried elsewhere.
+#[test]
+fn a_known_console_on_an_old_port_is_tried_on_the_console_port() {
+    let at = |https: bool, port: Option<u16>| Console {
+        https,
+        host: "10.10.10.74".to_owned(),
+        port,
+    };
+    assert_eq!(
+        super::moved_console(&at(false, Some(5000))),
+        Some(at(false, Some(3375)))
+    );
+    assert_eq!(
+        super::moved_console(&at(true, Some(8443))),
+        Some(at(true, Some(3375)))
+    );
+    assert_eq!(super::moved_console(&at(false, Some(3375))), None);
+    assert_eq!(super::moved_console(&at(true, None)), None);
+}
+
 #[test]
 fn a_console_that_does_not_answer_is_unreachable() {
     let port = {
