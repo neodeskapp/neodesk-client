@@ -56,8 +56,22 @@ Widget _cmBar(_Calls calls) => Row(children: [
       const SizedBox(width: 46),
     ]);
 
+const _barKey = Key('bar');
+
 Future<void> _pump(WidgetTester tester, Widget bar) => tester.pumpWidget(
-    MaterialApp(home: Scaffold(body: SizedBox(height: 40, child: bar))));
+    MaterialApp(
+        home: Scaffold(
+            body: Column(children: [
+      SizedBox(key: _barKey, height: 39, child: bar),
+    ]))));
+
+/// Points in the free part of the bar, 2 px from its top and bottom edges
+/// (the band the lab found dead: L482 follow-up).
+List<Offset> _edges(WidgetTester tester) {
+  final bar = tester.getRect(find.byKey(_barKey));
+  final x = _gap(tester).dx;
+  return [Offset(x, bar.top + 2), Offset(x, bar.bottom - 2)];
+}
 
 /// A point in the empty middle of the bar, away from brand and buttons.
 Offset _gap(WidgetTester tester) {
@@ -83,6 +97,34 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     await tester.tapAt(_gap(tester), kind: PointerDeviceKind.mouse);
     expect(calls.taps, 2);
+  });
+
+  testWidgets('the main bar drags and double-clicks near its edges',
+      (tester) async {
+    final calls = _Calls();
+    await _pump(tester, _mainBar(calls));
+    for (final point in _edges(tester)) {
+      await tester.dragFrom(point, const Offset(60, 20),
+          kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tapAt(point, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tapAt(point, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(calls.drags, 2);
+    expect(calls.taps, 4);
+  });
+
+  testWidgets('the connection manager bar drags near its edges',
+      (tester) async {
+    final calls = _Calls();
+    await _pump(tester, _cmBar(calls));
+    for (final point in _edges(tester)) {
+      await tester.dragFrom(point, const Offset(60, 20),
+          kind: PointerDeviceKind.mouse);
+    }
+    expect(calls.drags, 2);
   });
 
   testWidgets('Settings next to the area still takes its click',

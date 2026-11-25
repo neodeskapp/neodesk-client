@@ -181,9 +181,10 @@ class _WinButtonState extends State<NdWinButton> {
 }
 
 /// The free part of a custom title bar. All of it moves the window, also
-/// where nothing is drawn (the gap between the brand and the buttons), and
-/// takes taps for a double click to maximise. Widgets inside it that handle
-/// taps themselves (tabs) keep them.
+/// where nothing is drawn (the gap between the brand and the buttons, and
+/// above and below the brand: it takes the bar's full height), and takes
+/// taps for a double click to maximise. Widgets inside it that handle taps
+/// themselves (tabs) keep them. Needs a bar of bounded height.
 class NdTitleDragArea extends StatelessWidget {
   const NdTitleDragArea({
     super.key,
@@ -208,7 +209,7 @@ class NdTitleDragArea extends StatelessWidget {
       onPanStart: (_) => onDragStart(),
       onPanCancel: onDragCancel,
       onPanEnd: onDragEnd == null ? null : (_) => onDragEnd!(),
-      child: child,
+      child: SizedBox(height: double.infinity, child: child),
     );
   }
 }
