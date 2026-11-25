@@ -41,11 +41,22 @@ pub enum NdChat {
     Download { id: String, inline: bool },
     /// The download's HTTP status; on 200 the bytes follow as a raw frame.
     Downloaded { status: u16, size: u64 },
+    /// An admin turned "Chat with computers" off: ask again after these
+    /// seconds.
+    ChatOff(u32),
 }
 
 /// [`NdChat::Closed`] and [`NdChat::Uploaded`] when this computer holds no
 /// device token for its server: no NeoDesk console, or not approved yet.
 pub const NO_TOKEN: u16 = 1;
+
+/// The window's closing status when chat with computers is off: the
+/// upgrade answered 503 with `X-NeoDesk-Chat: chat_off`, or the open
+/// socket was closed with 1008 `chat_off`.
+pub const CHAT_OFF: u16 = 2;
+
+/// How long to wait with chat off when the server named no time.
+const CHAT_OFF_RETRY: u32 = 600;
 
 /// The largest file of the chat (PROTOCOL.md section 6).
 pub const MAX_FILE_BYTES: u64 = 50 << 20;
@@ -181,16 +192,41 @@ fn connector(api: &str) -> Option<tokio_tungstenite::Connector> {
         .map(|config| tokio_tungstenite::Connector::Rustls(std::sync::Arc::new(config)))
 }
 
-/// Opens the chat socket with the token as a bearer header, or answers the
-/// status the server refused it with (0 for no answer).
-async fn open_socket(access: &Access) -> Result<Socket, u16> {
+/// Why the chat socket isn't open: [`NdChat::Closed`] or [`NdChat::ChatOff`].
+fn refusal(response: &tokio_tungstenite::tungstenite::handshake::client::Response) -> NdChat {
+    let status = response.status().as_u16();
+    let header = |name: &str| {
+        response
+            .headers()
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::trim)
+            .unwrap_or_default()
+    };
+    if status == 503 && header("X-NeoDesk-Chat") == "chat_off" {
+        let seconds = header("Retry-After")
+            .parse::<u32>()
+            .ok()
+            .filter(|s| *s > 0)
+            .unwrap_or(CHAT_OFF_RETRY);
+        return NdChat::ChatOff(seconds);
+    }
+    NdChat::Closed(status)
+}
+
+/// Opens the chat socket with the token as a bearer header, or answers why
+/// not: the refused upgrade's status (0 for no answer) or chat turned off.
+async fn open_socket(access: &Access) -> Result<Socket, NdChat> {
     use tokio_tungstenite::tungstenite::{
         client::IntoClientRequest, http::HeaderValue, Error,
     };
-    let url = socket_url(&access.api, &access.device_id).ok_or(0u16)?;
-    let mut request = url.as_str().into_client_request().map_err(|_| 0u16)?;
-    let bearer =
-        HeaderValue::from_str(&format!("Bearer {}", access.token)).map_err(|_| 0u16)?;
+    let url = socket_url(&access.api, &access.device_id).ok_or(NdChat::Closed(0))?;
+    let mut request = url
+        .as_str()
+        .into_client_request()
+        .map_err(|_| NdChat::Closed(0))?;
+    let bearer = HeaderValue::from_str(&format!("Bearer {}", access.token))
+        .map_err(|_| NdChat::Closed(0))?;
     request.headers_mut().insert("Authorization", bearer);
     let connecting = tokio_tungstenite::connect_async_tls_with_config(
         request,
@@ -202,13 +238,13 @@ async fn open_socket(access: &Access) -> Result<Socket, u16> {
         Ok(Ok((socket, _))) => Ok(socket),
         Ok(Err(Error::Http(response))) => {
             log::info!("chat socket refused: HTTP {}", response.status().as_u16());
-            Err(response.status().as_u16())
+            Err(refusal(&response))
         }
         Ok(Err(err)) => {
             log::debug!("chat socket failed: {err}");
-            Err(0)
+            Err(NdChat::Closed(0))
         }
-        Err(_) => Err(0),
+        Err(_) => Err(NdChat::Closed(0)),
     }
 }
 
@@ -222,8 +258,8 @@ async fn relay(stream: &mut Connection) {
     };
     let mut socket = match open_socket(&access).await {
         Ok(socket) => socket,
-        Err(status) => {
-            stream.send(&Data::NdChat(NdChat::Closed(status))).await.ok();
+        Err(why) => {
+            stream.send(&Data::NdChat(why)).await.ok();
             return;
         }
     };
@@ -235,6 +271,12 @@ async fn relay(stream: &mut Connection) {
                     if stream.send(&frame).await.is_err() {
                         break;
                     }
+                }
+                Some(Ok(Message::Close(Some(frame))))
+                    if u16::from(frame.code) == 1008 && frame.reason.as_str() == "chat_off" =>
+                {
+                    stream.send(&Data::NdChat(NdChat::ChatOff(CHAT_OFF_RETRY))).await.ok();
+                    break;
                 }
                 Some(Ok(Message::Close(_))) | Some(Err(_)) | None => {
                     stream.send(&Data::NdChat(NdChat::Closed(0))).await.ok();
@@ -408,7 +450,8 @@ pub mod window {
     /// Opens a chat socket through the IPC server of `postfix` and answers
     /// its number. Its frames come as events {"name": "nd-chat", "socket":
     /// n, "frame": text} and its end as {"name": "nd-chat", "socket": n,
-    /// "closed": status}. A socket opened before is closed.
+    /// "closed": status, "retry_after": seconds}. A socket opened before is
+    /// closed.
     pub(super) fn open(postfix: &'static str) -> u64 {
         let n = NEXT.fetch_add(1, Ordering::SeqCst) + 1;
         let (sender, receiver) = mpsc::unbounded_channel();
@@ -416,7 +459,7 @@ pub mod window {
             old.send(None).ok();
         }
         std::thread::spawn(move || {
-            let status = match tokio::runtime::Builder::new_current_thread()
+            let (status, retry_after) = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
             {
@@ -425,7 +468,7 @@ pub mod window {
                 })),
                 Err(err) => {
                     log::error!("chat: no runtime: {err}");
-                    0
+                    (0, 0)
                 }
             };
             {
@@ -434,44 +477,51 @@ pub mod window {
                     *socket = None;
                 }
             }
-            push(serde_json::json!({"name": "nd-chat", "socket": n, "closed": status}));
+            push(serde_json::json!({
+                "name": "nd-chat",
+                "socket": n,
+                "closed": status,
+                "retry_after": retry_after,
+            }));
         });
         n
     }
 
     /// Relays one socket: frames from the IPC server go to `frame`, frames
-    /// from `receiver` go to the IPC server. Answers the closing status.
+    /// from `receiver` go to the IPC server. Answers the closing status and,
+    /// with [`CHAT_OFF`], the seconds to wait before asking again.
     pub(super) async fn run(
         postfix: &str,
         n: u64,
         mut receiver: mpsc::UnboundedReceiver<Option<String>>,
         frame: impl Fn(String),
-    ) -> u16 {
+    ) -> (u16, u32) {
         let mut c = match crate::ipc::connect(1000, postfix).await {
             Ok(c) => c,
             Err(err) => {
                 log::debug!("chat {n}: no IPC server: {err}");
-                return 0;
+                return (0, 0);
             }
         };
         if c.send(&Data::NdChat(NdChat::Open)).await.is_err() {
-            return 0;
+            return (0, 0);
         }
         loop {
             tokio::select! {
                 data = c.next() => match data {
                     Ok(Some(Data::NdChat(NdChat::Frame(text)))) => frame(text),
-                    Ok(Some(Data::NdChat(NdChat::Closed(status)))) => return status,
+                    Ok(Some(Data::NdChat(NdChat::Closed(status)))) => return (status, 0),
+                    Ok(Some(Data::NdChat(NdChat::ChatOff(seconds)))) => return (CHAT_OFF, seconds),
                     Ok(_) => {}
-                    Err(_) => return 0,
+                    Err(_) => return (0, 0),
                 },
                 out = receiver.recv() => match out {
                     Some(Some(text)) => {
                         if c.send(&Data::NdChat(NdChat::Frame(text))).await.is_err() {
-                            return 0;
+                            return (0, 0);
                         }
                     }
-                    _ => return 0,
+                    _ => return (0, 0),
                 },
             }
         }
@@ -740,6 +790,7 @@ mod tests {
                 inline: true,
             },
             NdChat::Downloaded { status: 200, size: 3 },
+            NdChat::ChatOff(600),
         ] {
             let data = Data::NdChat(message.clone());
             let text = serde_json::to_string(&data).unwrap();
@@ -752,7 +803,8 @@ mod tests {
 
     /// The relay against a local chat server: the token goes as a bearer
     /// header and never in the address, frames pass both ways, a refused
-    /// upgrade comes back with its status, and without a token nothing is
+    /// upgrade comes back with its status, chat turned off comes back as
+    /// [`CHAT_OFF`] with the time to wait, and without a token nothing is
     /// opened.
     #[cfg(all(feature = "flutter", any(target_os = "linux", target_os = "macos")))]
     #[test]
@@ -810,6 +862,27 @@ mod tests {
                                     .unwrap_or_default()
                                     .to_owned();
                                 seen.lock().unwrap().push((request.uri().to_string(), auth.clone()));
+                                if auth == "Bearer chat-off-token" {
+                                    let mut off = ErrorResponse::new(Some(
+                                        "{\"success\":false,\"code\":\"chat_off\"}".to_owned(),
+                                    ));
+                                    *off.status_mut() =
+                                        tokio_tungstenite::tungstenite::http::StatusCode::SERVICE_UNAVAILABLE;
+                                    off.headers_mut().insert("Retry-After", "450".parse().unwrap());
+                                    off.headers_mut()
+                                        .insert("X-NeoDesk-Chat", "chat_off".parse().unwrap());
+                                    return Err(off);
+                                }
+                                if auth == "Bearer busy-token" {
+                                    let mut busy = ErrorResponse::new(None);
+                                    *busy.status_mut() =
+                                        tokio_tungstenite::tungstenite::http::StatusCode::SERVICE_UNAVAILABLE;
+                                    return Err(busy);
+                                }
+                                if auth == "Bearer closing-token" {
+                                    *refused.lock().unwrap() = true;
+                                    return Ok(response);
+                                }
                                 if auth != "Bearer chat-test-token" {
                                     *refused.lock().unwrap() = true;
                                     let mut no = ErrorResponse::new(None);
@@ -824,6 +897,20 @@ mod tests {
                             else {
                                 return;
                             };
+                            if *refuse.lock().unwrap() {
+                                use tokio_tungstenite::tungstenite::protocol::{
+                                    frame::coding::CloseCode, CloseFrame,
+                                };
+                                socket
+                                    .close(Some(CloseFrame {
+                                        code: CloseCode::Policy,
+                                        reason: "chat_off".into(),
+                                    }))
+                                    .await
+                                    .ok();
+                                while socket.next().await.is_some() {}
+                                return;
+                            }
                             socket
                                 .send(Message::text("{\"type\":\"welcome\",\"v\":2}"))
                                 .await
@@ -872,7 +959,7 @@ mod tests {
         }
         sender.send(Some("{\"type\":\"bye\"}".to_owned())).ok();
         let status = relay.join().unwrap();
-        assert_eq!(status, 0, "the socket closed by the server ends with 0");
+        assert_eq!(status, (0, 0), "the socket closed by the server ends with 0");
         assert_eq!(frames.lock().unwrap().as_slice(), ["{\"type\":\"welcome\",\"v\":2}"]);
         assert_eq!(
             got.lock().unwrap().as_slice(),
@@ -891,7 +978,20 @@ mod tests {
             .build()
             .unwrap()
             .block_on(window::run("_ndchat_test", 2, receiver, |_| {}));
-        assert_eq!(status, 403);
+        assert_eq!(status, (403, 0));
+
+        let run = |token: &str, n: u64| {
+            enrollment::store_token(token, &device_id, &api);
+            let (_sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(window::run("_ndchat_test", n, receiver, |_| {}))
+        };
+        assert_eq!(run("chat-off-token", 4), (CHAT_OFF, 450), "503 chat_off with Retry-After");
+        assert_eq!(run("busy-token", 5), (503, 0), "a 503 without chat_off is no chat_off");
+        assert_eq!(run("closing-token", 6), (CHAT_OFF, 600), "an open socket closed with 1008 chat_off");
 
         enrollment::clear_token();
         let (_sender, receiver) = tokio::sync::mpsc::unbounded_channel();
@@ -901,7 +1001,7 @@ mod tests {
             .build()
             .unwrap()
             .block_on(window::run("_ndchat_test", 3, receiver, |_| {}));
-        assert_eq!(status, NO_TOKEN);
+        assert_eq!(status, (NO_TOKEN, 0));
         assert_eq!(seen.lock().unwrap().len(), before, "no socket without a token");
 
         for (key, value) in kept {
