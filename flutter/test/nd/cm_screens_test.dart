@@ -132,7 +132,9 @@ void main() {
   test('connected time reads in minutes, then hours and minutes', () {
     useLanguage('en');
     expect(cmConnectedFor(const Duration(minutes: 12)),
-        'Connected for 12 minutes');
+        'Connected for 12 min');
+    // One minute too: no "1 minutes".
+    expect(cmConnectedFor(const Duration(seconds: 70)), 'Connected for 1 min');
     expect(cmConnectedFor(const Duration(minutes: 80)),
         'Connected for 1 h 20 min');
   });
