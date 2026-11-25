@@ -285,8 +285,9 @@ struct Hub {
     /// While the socket is open: the way to send it frames.
     out: Option<tokio::sync::mpsc::UnboundedSender<String>>,
     connecting: bool,
-    /// The socket's welcome and last helper frame, for those who join later.
-    welcome: Option<String>,
+    /// The socket's welcome and when it came, and the last helper frame,
+    /// for those who join later.
+    welcome: Option<(String, std::time::Instant)>,
     helper: Option<String>,
     /// The last refusal, the token it was for, when and for how long it
     /// stands: a caller asking in that time gets it without an upgrade.
@@ -374,8 +375,8 @@ fn join(role: Role, to: tokio::sync::mpsc::UnboundedSender<NdChat>) -> (u64, Opt
     hub.next += 1;
     let id = hub.next;
     if let Some(out) = &hub.out {
-        if let Some(welcome) = &hub.welcome {
-            to.send(NdChat::Frame(welcome.clone())).ok();
+        if let Some((welcome, at)) = &hub.welcome {
+            to.send(NdChat::Frame(welcome_now(welcome, at.elapsed()))).ok();
         }
         if let Some(helper) = &hub.helper {
             to.send(NdChat::Frame(helper.clone())).ok();
@@ -455,13 +456,27 @@ fn took(generation: u64, text: &str) {
         .and_then(|v| v["type"].as_str().map(str::to_owned))
         .unwrap_or_default();
     match kind.as_str() {
-        "welcome" => hub.welcome = Some(text.to_owned()),
+        "welcome" => hub.welcome = Some((text.to_owned(), std::time::Instant::now())),
         "helper" => hub.helper = Some(text.to_owned()),
         _ => {}
     }
     for m in &hub.members {
         m.to.send(NdChat::Frame(text.to_owned())).ok();
     }
+}
+
+/// A welcome for a member that joins later: its server_time moved on by
+/// the time since the welcome came, so the member's clock offset is the
+/// one of now.
+pub fn welcome_now(text: &str, since: Duration) -> String {
+    let Ok(mut welcome) = serde_json::from_str::<serde_json::Value>(text) else {
+        return text.to_owned();
+    };
+    let Some(time) = welcome["server_time"].as_i64() else {
+        return text.to_owned();
+    };
+    welcome["server_time"] = serde_json::json!(time + since.as_millis() as i64);
+    welcome.to_string()
 }
 
 /// The socket of `generation` is gone, or was never opened (`refused`
@@ -1274,7 +1289,7 @@ mod tests {
                                 return;
                             }
                             socket
-                                .send(Message::text("{\"type\":\"welcome\",\"v\":2}"))
+                                .send(Message::text("{\"type\":\"welcome\",\"v\":2,\"server_time\":1000000}"))
                                 .await
                                 .unwrap();
                             while let Some(Ok(message)) = socket.next().await {
@@ -1349,7 +1364,7 @@ mod tests {
         sender.send(Out::Frame("{\"type\":\"bye\"}".to_owned())).ok();
         let status = relay.join().unwrap();
         assert_eq!(status, (0, 0), "the socket closed by the server ends with 0");
-        assert_eq!(frames.lock().unwrap().as_slice(), ["{\"type\":\"welcome\",\"v\":2}"]);
+        assert_eq!(frames.lock().unwrap().as_slice(), ["{\"type\":\"welcome\",\"v\":2,\"server_time\":1000000}"]);
         assert_eq!(
             got.lock().unwrap().as_slice(),
             ["{\"type\":\"read\"}", "{\"type\":\"bye\"}"]
@@ -1381,12 +1396,20 @@ mod tests {
             })
         };
         wait_until("the tray's welcome", &|| *entry.lock().unwrap() == Some(Some(0)));
+        // The window opens later than the tray (L535).
+        std::thread::sleep(Duration::from_millis(1500));
         let frames: Seen = Arc::default();
         let trays: Arc<Mutex<Vec<bool>>> = Arc::default();
         let (sender, joined) = window(frames.clone(), trays.clone());
-        wait_until("the welcome for the window", &|| {
-            frames.lock().unwrap().first().map(String::as_str) == Some("{\"type\":\"welcome\",\"v\":2}")
-        });
+        wait_until("the welcome for the window", &|| !frames.lock().unwrap().is_empty());
+        let welcome: serde_json::Value =
+            serde_json::from_str(&frames.lock().unwrap()[0]).unwrap();
+        assert_eq!(welcome["type"], "welcome");
+        let server_time = welcome["server_time"].as_i64().unwrap();
+        assert!(
+            (1_001_400..1_010_000).contains(&server_time),
+            "a window that joins later gets the server's time of now, not of the welcome: {server_time}"
+        );
         assert_eq!(trays.lock().unwrap().as_slice(), [true], "a tray notifies");
         assert_eq!(seen.lock().unwrap().len(), sockets + 1, "one socket for both");
         wait_until("the newest page for the window", &|| {
