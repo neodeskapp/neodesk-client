@@ -68,28 +68,146 @@ fn collect_disk_percent() -> Option<f64> {
     }
 }
 
-fn collect_network_metrics() -> Option<Value> {
-    let networks = hbb_common::sysinfo::Networks::new_with_refreshed_list();
-    if networks.is_empty() {
-        return None;
+/// One reading of the usage counters. sysinfo measures CPU load between two
+/// refreshes of the same System, so `cpu_percent` means something only when
+/// an earlier reading of the same sampler came before it.
+#[derive(Clone, Debug)]
+struct UsageReading {
+    at: Instant,
+    cpu_percent: Option<f32>,
+    /// Bytes received and sent since boot, per interface
+    network: BTreeMap<String, (u64, u64)>,
+}
+
+/// CPU load and network rates over the time between two readings.
+#[derive(Debug, Default, PartialEq)]
+struct Usage {
+    cpu_percent: Option<f64>,
+    window_seconds: Option<f64>,
+    received_bytes: Option<u64>,
+    transmitted_bytes: Option<u64>,
+    received_per_second: Option<f64>,
+    transmitted_per_second: Option<f64>,
+}
+
+/// What the device did between `previous` and `now`. Without an earlier
+/// reading, or with less than `min_gap` between the two, nothing is known:
+/// a single refresh reads 100 % CPU on Windows and 0 % on Linux. Network
+/// rates count only interfaces seen both times whose counters went up.
+fn usage_between(previous: Option<&UsageReading>, now: &UsageReading, min_gap: Duration) -> Usage {
+    let Some(previous) = previous else {
+        return Usage::default();
+    };
+    let window = now.at.saturating_duration_since(previous.at);
+    if window < min_gap || window.is_zero() {
+        return Usage::default();
     }
-    Some(json!({
-        "received_bytes": networks.iter().map(|(_, network)| network.received()).sum::<u64>(),
-        "transmitted_bytes": networks.iter().map(|(_, network)| network.transmitted()).sum::<u64>(),
-    }))
+    let seconds = window.as_secs_f64();
+    let cpu_percent = now
+        .cpu_percent
+        .filter(|value| value.is_finite())
+        .map(|value| (value as f64).clamp(0.0, 100.0));
+    let mut received = 0_u64;
+    let mut transmitted = 0_u64;
+    let mut counted = false;
+    for (name, (rx, tx)) in &now.network {
+        if let Some((old_rx, old_tx)) = previous.network.get(name) {
+            if rx >= old_rx && tx >= old_tx {
+                received += rx - old_rx;
+                transmitted += tx - old_tx;
+                counted = true;
+            }
+        }
+    }
+    Usage {
+        cpu_percent,
+        window_seconds: Some(seconds),
+        received_bytes: counted.then_some(received),
+        transmitted_bytes: counted.then_some(transmitted),
+        received_per_second: counted.then(|| received as f64 / seconds),
+        transmitted_per_second: counted.then(|| transmitted as f64 / seconds),
+    }
+}
+
+/// Loopback traffic is the computer talking to itself.
+fn is_loopback(name: &str) -> bool {
+    name == "lo" || name.starts_with("lo0") || name.to_ascii_lowercase().starts_with("loopback")
+}
+
+/// Keeps one System and one network list across heartbeats, so each
+/// heartbeat reports the load since the one before.
+struct UsageSampler {
+    system: hbb_common::sysinfo::System,
+    networks: hbb_common::sysinfo::Networks,
+    last: Option<UsageReading>,
+}
+
+impl UsageSampler {
+    fn new() -> Self {
+        Self {
+            system: hbb_common::sysinfo::System::new(),
+            networks: hbb_common::sysinfo::Networks::new(),
+            last: None,
+        }
+    }
+
+    fn read(&mut self) -> UsageReading {
+        self.system.refresh_cpu_usage();
+        self.networks.refresh_list();
+        let cpu_percent = if self.system.cpus().is_empty() {
+            None
+        } else {
+            Some(self.system.global_cpu_info().cpu_usage())
+        };
+        let network = self
+            .networks
+            .iter()
+            .filter(|(name, _)| !is_loopback(name))
+            .map(|(name, data)| {
+                (
+                    name.clone(),
+                    (data.total_received(), data.total_transmitted()),
+                )
+            })
+            .collect();
+        UsageReading {
+            at: Instant::now(),
+            cpu_percent,
+            network,
+        }
+    }
+
+    /// The usage since the previous call. The first call reads twice, the
+    /// shortest gap sysinfo allows apart, so it has a value too.
+    fn sample(&mut self) -> Usage {
+        let min_gap = hbb_common::sysinfo::MINIMUM_CPU_UPDATE_INTERVAL;
+        if self.last.is_none() {
+            self.last = Some(self.read());
+            std::thread::sleep(min_gap);
+        }
+        let now = self.read();
+        let usage = usage_between(self.last.as_ref(), &now, min_gap);
+        self.last = Some(now);
+        usage
+    }
+}
+
+lazy_static::lazy_static! {
+    static ref USAGE_SAMPLER: Mutex<UsageSampler> = Mutex::new(UsageSampler::new());
+}
+
+fn sample_usage() -> Usage {
+    match USAGE_SAMPLER.lock() {
+        Ok(mut sampler) => sampler.sample(),
+        Err(_) => Usage::default(),
+    }
 }
 
 pub fn heartbeat() -> Value {
     let mut system = hbb_common::sysinfo::System::new();
     system.refresh_memory();
-    system.refresh_cpu();
-
-    let cpus = system.cpus();
-    let cpu_percent = if cpus.is_empty() {
-        None
-    } else {
-        Some(cpus.iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / cpus.len() as f32)
-    };
+    let usage = sample_usage();
+    let cpu_percent = usage.cpu_percent;
     let memory_percent = if system.total_memory() == 0 {
         None
     } else {
@@ -111,7 +229,15 @@ pub fn heartbeat() -> Value {
         }),
     );
     let disk_percent = collect_disk_percent();
-    let network = collect_network_metrics();
+    let network = usage.received_per_second.map(|_| {
+        json!({
+            "received_bytes": usage.received_bytes,
+            "transmitted_bytes": usage.transmitted_bytes,
+            "received_per_second": usage.received_per_second,
+            "transmitted_per_second": usage.transmitted_per_second,
+            "window_seconds": usage.window_seconds,
+        })
+    });
     status.insert(
         "disk".to_owned(),
         json!(if disk_percent.is_some() {
@@ -132,6 +258,10 @@ pub fn heartbeat() -> Value {
 
     let metrics = json!({
         "cpu_percent": cpu_percent,
+        // The time the CPU load and the network rates cover. Clients
+        // before it sent the CPU value of a single refresh, which means
+        // nothing, and no rates
+        "cpu_window_seconds": cpu_percent.and(usage.window_seconds),
         "memory_percent": memory_percent,
         "disk_percent": disk_percent,
         "gpu_percent": Value::Null,
@@ -509,7 +639,10 @@ fn safe_file_path(raw: Option<&str>) -> Result<PathBuf, &'static str> {
 }
 
 fn collect_processes() -> Value {
+    // A process's CPU use is measured between two refreshes too
     let mut system = hbb_common::sysinfo::System::new();
+    system.refresh_processes();
+    std::thread::sleep(hbb_common::sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
     system.refresh_processes();
     let processes = system
         .processes()
@@ -1003,6 +1136,123 @@ pub fn process_commands(commands: &[Value]) -> Vec<Value> {
 mod tests {
     use super::*;
 
+    fn reading(at: Instant, cpu: Option<f32>, network: &[(&str, u64, u64)]) -> UsageReading {
+        UsageReading {
+            at,
+            cpu_percent: cpu,
+            network: network
+                .iter()
+                .map(|(name, rx, tx)| (name.to_string(), (*rx, *tx)))
+                .collect(),
+        }
+    }
+
+    const GAP: Duration = Duration::from_millis(200);
+
+    #[test]
+    fn first_reading_reports_nothing() {
+        // A single refresh on Windows reads 100 %: not a measurement
+        let now = reading(Instant::now(), Some(100.0), &[("eth0", 5_000, 7_000)]);
+        assert_eq!(usage_between(None, &now, GAP), Usage::default());
+    }
+
+    #[test]
+    fn readings_closer_than_the_minimum_gap_report_nothing() {
+        let start = Instant::now();
+        let before = reading(start, Some(10.0), &[("eth0", 0, 0)]);
+        let same = reading(start, Some(55.0), &[("eth0", 100, 100)]);
+        assert_eq!(usage_between(Some(&before), &same, GAP), Usage::default());
+        let soon = reading(
+            start + Duration::from_millis(50),
+            Some(55.0),
+            &[("eth0", 100, 100)],
+        );
+        assert_eq!(usage_between(Some(&before), &soon, GAP), Usage::default());
+    }
+
+    #[test]
+    fn cpu_and_network_rates_cover_the_window() {
+        let start = Instant::now();
+        let before = reading(start, Some(3.0), &[("eth0", 1_000, 2_000), ("wlan0", 0, 0)]);
+        let after = reading(
+            start + Duration::from_secs(60),
+            Some(37.5),
+            &[("eth0", 61_000, 3_200), ("wlan0", 6_000, 600)],
+        );
+        let usage = usage_between(Some(&before), &after, GAP);
+        assert_eq!(usage.cpu_percent, Some(37.5));
+        assert_eq!(usage.window_seconds, Some(60.0));
+        assert_eq!(usage.received_bytes, Some(66_000));
+        assert_eq!(usage.transmitted_bytes, Some(1_800));
+        assert_eq!(usage.received_per_second, Some(1_100.0));
+        assert_eq!(usage.transmitted_per_second, Some(30.0));
+    }
+
+    #[test]
+    fn a_counter_that_went_back_or_a_new_interface_is_left_out() {
+        let start = Instant::now();
+        let before = reading(
+            start,
+            Some(1.0),
+            &[("eth0", 9_000, 9_000), ("eth1", 100, 100)],
+        );
+        let after = reading(
+            start + Duration::from_secs(10),
+            Some(1.0),
+            &[
+                ("eth0", 500, 500),
+                ("eth1", 1_100, 200),
+                ("docker0", 50_000, 50_000),
+            ],
+        );
+        let usage = usage_between(Some(&before), &after, GAP);
+        assert_eq!(usage.received_per_second, Some(100.0));
+        assert_eq!(usage.transmitted_per_second, Some(10.0));
+
+        // Nothing comparable at all: no rates rather than zero
+        let reset = reading(
+            start + Duration::from_secs(20),
+            Some(1.0),
+            &[("eth0", 1, 1)],
+        );
+        let usage = usage_between(Some(&before), &reset, GAP);
+        assert_eq!(usage.received_per_second, None);
+        assert_eq!(usage.cpu_percent, Some(1.0));
+    }
+
+    #[test]
+    fn cpu_outside_zero_to_hundred_is_clamped_or_dropped() {
+        let start = Instant::now();
+        let before = reading(start, None, &[]);
+        let high = reading(start + Duration::from_secs(1), Some(100.4), &[]);
+        assert_eq!(
+            usage_between(Some(&before), &high, GAP).cpu_percent,
+            Some(100.0)
+        );
+        let nan = reading(start + Duration::from_secs(1), Some(f32::NAN), &[]);
+        assert_eq!(usage_between(Some(&before), &nan, GAP).cpu_percent, None);
+    }
+
+    #[test]
+    fn loopback_interfaces_are_not_traffic() {
+        assert!(is_loopback("lo"));
+        assert!(is_loopback("lo0"));
+        assert!(is_loopback("Loopback Pseudo-Interface 1"));
+        assert!(!is_loopback("eth0"));
+        assert!(!is_loopback("Ethernet"));
+    }
+
+    #[test]
+    fn heartbeat_says_which_window_its_cpu_value_covers() {
+        heartbeat();
+        std::thread::sleep(Duration::from_millis(300));
+        let value = heartbeat();
+        let window = value["metrics"]["cpu_window_seconds"]
+            .as_f64()
+            .expect("a window");
+        assert!(window > 0.0);
+    }
+
     #[test]
     fn heartbeat_has_bounded_contract_fields() {
         let value = heartbeat();
@@ -1018,6 +1268,43 @@ mod tests {
         assert_eq!(value["status"]["services"], "on_demand");
         assert_eq!(value["status"]["processes"], "on_demand");
         assert_eq!(value["status"]["events"], "on_demand");
+    }
+
+    /// A busy second between two heartbeats shows as CPU load. The old
+    /// heartbeat read one refresh of a new System: 100 on Windows and 0 on
+    /// Linux whatever the computer did (L480).
+    #[test]
+    fn heartbeat_measures_cpu_load_between_samples() {
+        use std::sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        };
+        heartbeat();
+        let stop = Arc::new(AtomicBool::new(false));
+        let cores = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(2);
+        let workers = (0..cores)
+            .map(|_| {
+                let stop = stop.clone();
+                std::thread::spawn(move || {
+                    let mut x = 0_u64;
+                    while !stop.load(Ordering::Relaxed) {
+                        x = std::hint::black_box(x.wrapping_mul(31).wrapping_add(7));
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+        std::thread::sleep(Duration::from_millis(1500));
+        let value = heartbeat();
+        stop.store(true, Ordering::Relaxed);
+        for worker in workers {
+            worker.join().ok();
+        }
+        let cpu = value["metrics"]["cpu_percent"]
+            .as_f64()
+            .expect("a CPU value");
+        assert!(cpu > 50.0, "a busy second reported as {cpu} % CPU");
     }
 
     #[test]
