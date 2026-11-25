@@ -90,6 +90,7 @@ class ThisComputerColumn extends StatefulWidget {
     this.statusWidget,
     this.footer,
     this.unavailable = false,
+    this.chat,
   });
 
   final String id;
@@ -120,6 +121,9 @@ class ThisComputerColumn extends StatefulWidget {
   /// password: they are greyed and can't be copied (the status line says
   /// why).
   final bool unavailable;
+
+  /// The way to the chat with support, below the hint (NdChatEntry).
+  final Widget? chat;
 
   @override
   State<ThisComputerColumn> createState() => _ThisComputerColumnState();
@@ -242,6 +246,7 @@ class _ThisComputerColumnState extends State<ThisComputerColumn> {
                     style: t.small,
                   ),
                 ],
+                if (widget.chat != null) widget.chat!,
                 const Spacer(),
                 if (support != null && !support.isEmpty) ...[
                   const SizedBox(height: 32),

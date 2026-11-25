@@ -10,7 +10,9 @@ import 'package:flutter_hbb/common/widgets/custom_password.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/connection_page.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
+import 'package:flutter_hbb/desktop/pages/nd_chat_page.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
+import 'package:flutter_hbb/models/nd_chat_bridge.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/server_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -80,12 +82,14 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     }
     final isIncomingOnly = bind.isIncomingOnly();
     final isOutgoingOnly = bind.isOutgoingOnly();
-    return _buildBlock(
-      child: ChangeNotifierProvider.value(
-        value: gFFI.serverModel,
-        child: HomeLayout(
-          left: isOutgoingOnly ? null : buildLeftPane(context),
-          right: isIncomingOnly ? null : const ConnectionPage(),
+    return NdChatHome(
+      home: _buildBlock(
+        child: ChangeNotifierProvider.value(
+          value: gFFI.serverModel,
+          child: HomeLayout(
+            left: isOutgoingOnly ? null : buildLeftPane(context),
+            right: isIncomingOnly ? null : const ConnectionPage(),
+          ),
         ),
       ),
     );
@@ -136,6 +140,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
             },
           ),
           notices: notices,
+          chat: NdChatEntry(
+              model: NdChatService.instance.model,
+              onOpen: NdChatService.instance.show),
           unavailable: _serviceDown.value,
           onNewPassword: permanentOnly
               ? null
@@ -601,6 +608,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       }
     });
     _uniLinksSubscription = listenUniLinks();
+    NdChatService.instance.start();
     _onboardingSub = _onboarding.states.listen((s) {
       if (!mounted) return;
       setState(() {

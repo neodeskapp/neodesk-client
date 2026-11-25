@@ -44,6 +44,7 @@ import 'models/platform_model.dart';
 import 'onboarding/onboarding_flow.dart' show confirmOnboardingLink;
 import 'onboarding/onboarding_service_bind.dart';
 import 'desktop/pages/settings_link.dart' show openSettingsLink;
+import 'models/nd_chat_bridge.dart' show openChatLink;
 
 import 'package:flutter_hbb/native/win32.dart'
     if (dart.library.html) 'package:flutter_hbb/web/win32.dart';
@@ -2158,6 +2159,9 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     return null;
   } else if (isDesktop && uri.authority == 'settings') {
     openSettingsLink(uri);
+    return null;
+  } else if (isDesktop && uri.authority == 'chat') {
+    openChatLink();
     return null;
   } else if (uri.authority == "config") {
     if (isAndroid || isIOS) {
