@@ -177,9 +177,9 @@ for needle in ('ExeCommand="--claim-rustdesk-scheme"', 'ExeCommand="--release-ru
     require("res/msi/Package/Components/RustDesk.wxs", msi_components, needle)
 # A pause (stop-service) keeps the service: the running service refuses
 # connections itself. So every install, repair and update creates and starts
-# the service and the tray, whatever stop-service says in the installing
-# user's or the service's settings, and keeps the tray's startup link.
-for action in ("CreateStartService", "CreateStartService.SetParam", "LaunchAppTray"):
+# the service, whatever stop-service says in the installing user's or the
+# service's settings, and keeps the tray's startup link.
+for action in ("CreateStartService", "CreateStartService.SetParam"):
     found = re.search(rf'<Custom Action="{re.escape(action)}"[^>]*Condition="([^"]*)"', msi_components)
     if not found:
         failures.append(f"res/msi/Package/Components/RustDesk.wxs: {action} is not scheduled")
@@ -187,12 +187,41 @@ for action in ("CreateStartService", "CreateStartService.SetParam", "LaunchAppTr
         failures.append(f"res/msi/Package/Components/RustDesk.wxs: {action} is skipped on a paused client: {found.group(1)}")
 if '<Custom Action="TryDeleteStartupShortcut"' in msi_components:
     failures.append("res/msi/Package/Components/RustDesk.wxs: removes the tray's startup link on a paused client")
+# The tray never runs elevated or in session 0 (L540, L528): the installer
+# starts no tray, since it would run with the installer's token. The service
+# the install starts brings up the tray in the signed-in person's session as
+# that person, also on a paused client.
+for line in msi_components.splitlines():
+    if "<CustomAction " in line and "--tray" in line:
+        failures.append(f"res/msi/Package/Components/RustDesk.wxs: the installer starts the tray: {line.strip()}")
+if '<Custom Action="LaunchAppTray"' in msi_components or "LAUNCH_TRAY_APP" in msi_components:
+    failures.append("res/msi/Package/Components/RustDesk.wxs: LaunchAppTray is scheduled again")
+if "LAUNCH_TRAY_APP" in read("res/msi/Package/Fragments/AddRemoveProperties.wxs"):
+    failures.append("res/msi/Package/Fragments/AddRemoveProperties.wxs: LAUNCH_TRAY_APP has no action any more")
 windows_rs = read("src/platform/windows.rs")
+bring_back = re.search(r"\nfn bring_back_tray\(.*?\n}\n", windows_rs, re.S)
+if not bring_back:
+    failures.append("src/platform/windows.rs: the service does not bring up the tray (bring_back_tray)")
+else:
+    if 'run_exe_in_session(' not in bring_back.group(0) or '"--tray"' not in bring_back.group(0):
+        failures.append("src/platform/windows.rs: bring_back_tray does not start --tray in the person's session")
+    if "stop-service" in bring_back.group(0):
+        failures.append("src/platform/windows.rs: the service starts no tray on a paused client")
+if "bring_back_tray(session_id" not in windows_rs:
+    failures.append("src/platform/windows.rs: the service loop never calls bring_back_tray")
 after_install = re.search(r"\nfn run_after_run_cmds\(.*?\n}\n", windows_rs, re.S)
 if not after_install:
     failures.append("src/platform/windows.rs: run_after_run_cmds is missing")
-elif "stop-service" in after_install.group(0):
-    failures.append("src/platform/windows.rs: the exe install starts no tray on a paused client")
+else:
+    body = after_install.group(0)
+    if "stop-service" in body:
+        failures.append("src/platform/windows.rs: the exe install starts no tray on a paused client")
+    # The exe install runs elevated: it starts a tray only when no service
+    # runs to start it as the person
+    if '"--tray"' in body and "if !is_self_service_running()" not in body:
+        failures.append("src/platform/windows.rs: the exe install starts the tray itself while the service runs")
+if "LAUNCH_TRAY_APP" in read("src/platform/windows/verified_update.rs"):
+    failures.append("src/platform/windows/verified_update.rs: passes LAUNCH_TRAY_APP, which has no action any more")
 require("src/platform/windows.rs", windows_rs, "legacy_uri_scheme = add_rustdesk_scheme_commands(&nested_exe)")
 require("src/platform/windows.rs", windows_rs, "link_schemes::may_claim_rustdesk_scheme(")
 require("res/msi/Package/Components/RustDesk.wxs", read("res/msi/Package/Components/RustDesk.wxs"), 'Name="$(var.Executable)"')

@@ -6,7 +6,6 @@
 
 		<Property Id="AddRemovePropertiesFile" Value="1" />
 
-		<Property Id="LAUNCH_TRAY_APP" Value="Y" />
 		<Property Id="LAUNCH_MAIN_APP" Value="N" />
 
 		<!--

@@ -4253,16 +4253,9 @@ pub fn handle_custom_client_staging_dir_before_update(
     Ok(())
 }
 
-// Don't launch tray app when running with `\qn`.
-// 1. Because `/qn` requires administrator permission and the tray app should be launched with user permission.
-//   Or launching the main window from the tray app will cause the main window to be launched with administrator permission.
-// 2. We are not able to launch the tray app if the UI is in the login screen.
-// `fn update_me()` can handle the above cases, but for msi update, we need to do more work to handle the above cases.
-//    1. Record the tray app session ids.
-//    2. Do the update.
-//    3. Restore the tray app sessions.
-//    `1` and `3` must be done in custom actions.
-//    We need also to handle the command line parsing to find the tray processes.
+// The MSI starts no tray: it would run with the installer's token. The
+// service the update starts again brings up the tray in the signed-in
+// person's session as that person (bring_back_tray, L528, L540).
 pub fn update_me_msi(msi: &str, expected_sha256: &str, quiet: bool) -> ResultType<()> {
     verified_update::install_verified_msi(msi, expected_sha256, quiet)
 }
@@ -4304,10 +4297,14 @@ fn run_after_run_cmds(silent: bool) {
             .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
             .spawn());
     }
-    // A paused client keeps its tray: it says Paused and offers Accept
-    // connections.
-    allow_err!(std::process::Command::new(&exe).arg("--tray").spawn());
-    std::thread::sleep(std::time::Duration::from_millis(300));
+    // This process runs elevated: the running service starts the tray in
+    // the person's session as the person (L528, L540). Only without one
+    // (the service was just removed) the tray comes from here. A paused
+    // client keeps its tray: it says Paused and offers Accept connections.
+    if !is_self_service_running() {
+        allow_err!(std::process::Command::new(&exe).arg("--tray").spawn());
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
 }
 
 #[inline]

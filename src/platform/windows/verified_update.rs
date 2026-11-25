@@ -121,7 +121,7 @@ fn verified_msi_install_commands(
     // ancestor junction. Copy and reverify it in the protected runner directory.
     let source = path_for_cmd_environment(msi)?;
     let hash_pattern = verified_update_hash_pattern(expected_sha256)?;
-    let quiet_args = if quiet { " /qn LAUNCH_TRAY_APP=N" } else { "" };
+    let quiet_args = if quiet { " /qn" } else { "" };
     let app_name = crate::get_app_name();
     let subkey = format!(".{}", app_name.to_lowercase());
     let printer_installed = get_reg_of_hkcr(&subkey, REG_NAME_INSTALL_PRINTER).as_deref()
