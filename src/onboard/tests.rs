@@ -1023,6 +1023,47 @@ fn a_join_without_a_server_process_is_signed_with_the_key_of_this_process() {
     assert!(proof_verifies(&sent), "the join's proof does not verify");
 }
 
+// A window that got no proof from the service (none runs, it is an older
+// one, or the main pipe's server is not the service) still sends its join,
+// unsigned. For an ID the server knows, the server refuses it and the person
+// sees why; the client does not hold the join back itself (L483).
+#[test]
+fn a_join_without_a_proof_from_the_service_goes_out_unsigned() {
+    use crate::ipc::device_key_tests::*;
+    const REASON: &str = "This computer's ID is already enrolled. The join has to prove its key.";
+    let _lock = DEVICE_KEY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
+    let _files = ConfigFilesGuard::new();
+    let _not_holder = NotSecretsHolder::new();
+    let (_, service_public) = test_key_pair();
+    hbb_common::config::Config::set_holder_public_key(service_public.clone());
+
+    let (device, proof) = DeviceIdentity::for_join("123456789".to_owned(), None);
+    assert!(proof.is_empty(), "the window signed the join");
+    let console = FakeConsole::start(|request| {
+        if request.headers.contains_key("x-nd-enrollment-signature") {
+            (500, Value::Null)
+        } else {
+            (
+                403,
+                json!({"success": false, "error": "device_refused", "message": REASON}),
+            )
+        }
+    });
+    let result = block_on(async {
+        let http = Http::new(console.console()).await?;
+        redeem_join(&http, "ABCDEF23", &device, &proof).await
+    });
+    assert_eq!(result, Err(OnboardError::Refused(REASON.to_owned())));
+    let sent = console.requests_to("/api/onboard/join");
+    assert_eq!(sent.len(), 1, "the join did not go out");
+    for name in PROOF_HEADERS {
+        assert!(!sent[0].headers.contains_key(name), "the window sent {name}");
+    }
+    assert_eq!(sent[0].body["public_key"], json!(crate::encode64(&service_public)));
+}
+
 // The window of an installed client does not hold the device's secrets (L442).
 // When no server process answers, its join sends the service's public key it
 // learned earlier, or none: never a key of the window's own, which nobody
