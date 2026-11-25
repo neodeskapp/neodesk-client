@@ -119,7 +119,6 @@ Patch dialog sequence:
             <ProgressText Action="CreateStartService.SetParam" Message="!(loc.ProgressTextStartService)" />
             <ProgressText Action="CustomActionHello" Message="!(loc.ProgressTextFinish)" />
             <ProgressText Action="LaunchApp" Message="!(loc.ProgressTextLaunch)" />
-            <ProgressText Action="LaunchAppTray" Message="!(loc.ProgressTextLaunch)" />
         </UI>
 
         <UIRef Id="WixUI_Common" />

@@ -367,4 +367,16 @@ mod tests {
             super::SERVICE_TRAY_WINDOW + Duration::from_secs(1)
         ));
     }
+
+    /// L540: the installer started the tray with its own token, elevated
+    /// after the UAC prompt. No custom action of the MSI starts the tray;
+    /// the service starts it as the person.
+    #[test]
+    fn the_installer_starts_no_tray() {
+        let wxs = include_str!("../res/msi/Package/Components/RustDesk.wxs");
+        for line in wxs.lines().filter(|l| l.contains("<CustomAction ")) {
+            assert!(!line.contains("--tray"), "{line}");
+        }
+        assert!(!wxs.contains("Action=\"LaunchAppTray\""));
+    }
 }
