@@ -18,7 +18,10 @@ discretion.
 ## Reporting a vulnerability
 
 Please don't post a security problem in public, on Discord or in the
-Discussions. Report it privately by email to security@neode.sk.
+Discussions. Report it privately through GitHub: the repository's
+Security tab, "Report a vulnerability"
+(<https://github.com/neodeskapp/neodesk-client/security/advisories/new>),
+or by email to security@neode.sk.
 
 Please include, where you can:
 
