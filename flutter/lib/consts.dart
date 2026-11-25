@@ -731,6 +731,7 @@ const kUpstreamProjectName = 'RustDesk';
 const kUpstreamRepoUrl = 'https://github.com/rustdesk/rustdesk';
 const kNeoDeskClientRepoUrl =
     'https://github.com/neodeskapp/neodesk-client';
+const kNeoDeskDiscordUrl = 'https://discord.gg/nwERSawufr';
 const kNeoDeskLicenseSpdx = 'AGPL-3.0-only';
 const kNeoDeskLicenseName = 'GNU Affero General Public License v3.0';
 const kNeoDeskClientProduct = 'neodesk-desktop';

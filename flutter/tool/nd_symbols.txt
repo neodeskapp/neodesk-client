@@ -62,6 +62,7 @@ fingerprint fingerprint
 flashOn flash_on
 folder folder
 folderOpen folder_open
+forum forum
 fullscreen fullscreen
 fullscreenExit fullscreen_exit
 gppBad gpp_bad

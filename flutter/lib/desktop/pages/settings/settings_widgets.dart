@@ -377,6 +377,7 @@ class AboutView extends StatelessWidget {
     required this.onSource,
     required this.onUpstream,
     required this.onCheckUpdates,
+    this.onCommunity,
     this.updateResult,
     this.sourceLabel = 'github.com/neodeskapp/neodesk-client',
   });
@@ -386,6 +387,8 @@ class AboutView extends StatelessWidget {
   final VoidCallback onSource;
   final VoidCallback onUpstream;
   final VoidCallback onCheckUpdates;
+  /// Opens the NeoDesk Discord; no Help row without it.
+  final VoidCallback? onCommunity;
   final String? updateResult;
   final String sourceLabel;
 
@@ -427,6 +430,15 @@ class AboutView extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: NdButton.link(label: 'RustDesk', onPressed: onUpstream),
                     )),
+                if (onCommunity != null)
+                  NdFact(tr('nd-about-help'), '',
+                      child: Row(children: [
+                        Icon(NdIcons.forum, size: 18, color: c.textMuted),
+                        const SizedBox(width: 6),
+                        NdButton.link(
+                            label: tr('nd-about-community'),
+                            onPressed: onCommunity),
+                      ])),
               ]),
               const SizedBox(height: 20),
               Row(children: [
