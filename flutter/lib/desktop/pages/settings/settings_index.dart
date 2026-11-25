@@ -90,7 +90,7 @@ const kSettingsIndex = <SettingsIndexEntry>[
   SettingsIndexEntry('security', 'Permissions', 'Enable blocking user input', 'nd-desc:Enable blocking user input', 'switch', true, '', [], 'Windows'),
   SettingsIndexEntry('security', 'Permissions', 'Enable privacy mode', 'nd-desc:Enable privacy mode', 'switch', true, '', [], 'Windows and macOS'),
   SettingsIndexEntry('security', 'Permissions', 'Enable remote configuration modification', 'nd-desc:Enable remote configuration modification', 'switch', false, '', [], ''),
-  SettingsIndexEntry('security', 'Permissions', 'Enable application activity telemetry (opt-in)', 'nd-desc:nd-set-row-share-app-activity-with-the-server', 'switch', false, '', [], ''),
+  SettingsIndexEntry('security', 'Permissions', 'nd-set-row-share-app-activity-with-the-server', 'nd-desc:nd-set-row-share-app-activity-with-the-server', 'switch', false, '', [], ''),
   SettingsIndexEntry('security', 'Password', 'Accept sessions via password', 'nd-desc:nd-set-row-how-someone-gets-in', 'select', false, 'Accept sessions via password', ['Accept sessions via password', 'Accept sessions via click', 'Accept sessions via both'], ''),
   SettingsIndexEntry('security', 'Password', 'Accept sessions via click', 'nd-desc:nd-set-row-how-someone-gets-in', 'select', false, 'Accept sessions via click', ['Accept sessions via password', 'Accept sessions via click', 'Accept sessions via both'], ''),
   SettingsIndexEntry('security', 'Password', 'Accept sessions via both', 'nd-desc:nd-set-row-how-someone-gets-in', 'select', false, 'Accept sessions via both', ['Accept sessions via password', 'Accept sessions via click', 'Accept sessions via both'], ''),

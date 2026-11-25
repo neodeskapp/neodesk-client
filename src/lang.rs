@@ -365,51 +365,44 @@ mod test {
     }
 
     /// The German texts address the reader with "du". "Sie" and the capitalised
-    /// forms of "Ihr" are the formal address, except where a text means
-    /// "they", "their" or "it"; those texts are listed with the word.
+    /// forms of "Ihr" read as the formal address wherever they stand, also
+    /// where "they", "their" or "it" was meant, so no text has them.
     #[test]
     fn test_german_says_du() {
-        const NOT_YOU: &[(&str, &str)] = &[
-            // The session toolbar's "their sound", "their cursor", "their
-            // computer", "their sign-in password", "their active window" and
-            // "their screens": the other computer's, at the start of the label.
-            ("Mute", "Ihren"),
-            ("Show remote cursor", "Ihren"),
-            ("Insert Lock", "Ihren"),
-            ("OS Password", "Ihr"),
-            ("Follow remote cursor", "Ihrem"),
-            ("Follow remote window focus", "Ihrem"),
-            ("nd-tb-their-computer", "Ihr"),
-            ("nd-set-row-show-their-screens-in-the-toolbar", "Ihre"),
-            // "Let them control this computer".
-            ("Switch Sides", "Sie"),
-            // "It": the server address, then the invite.
-            ("nd-invite-server-hint", "Sie"),
-            ("nd-join-failed-next-refused", "Sie"),
-        ];
         let formal =
             super::Regex::new(r"\b(Sie|Ihr|Ihre|Ihren|Ihrem|Ihrer|Ihres|Ihnen)\b").unwrap();
-        let mut found = Vec::new();
-        for (key, text) in super::de::T.iter() {
-            for word in formal.find_iter(text) {
-                if !NOT_YOU.contains(&(*key, word.as_str())) {
-                    found.push(format!("{key}: {text}"));
-                }
-            }
-        }
+        let mut found: Vec<String> = super::de::T
+            .iter()
+            .filter(|(_, text)| formal.is_match(text))
+            .map(|(key, text)| format!("{key}: {text}"))
+            .collect();
         found.sort();
-        found.dedup();
         assert!(
             found.is_empty(),
             "formal address in de.rs:\n{}",
             found.join("\n")
         );
-        for (key, word) in NOT_YOU {
+    }
+
+    /// The labels for the other side's things ("their cursor", "lock their
+    /// computer", "let them control this computer") name the other computer
+    /// or the person at it in German, instead of a "their" that reads as
+    /// the formal "your".
+    #[test]
+    fn test_german_names_the_other_side() {
+        for key in [
+            "Mute",
+            "Show remote cursor",
+            "Insert Lock",
+            "OS Password",
+            "Follow remote cursor",
+            "Follow remote window focus",
+            "nd-tb-their-computer",
+            "nd-set-row-show-their-screens-in-the-toolbar",
+            "Switch Sides",
+        ] {
             let text = super::de::T.get(key).copied().unwrap_or_default();
-            assert!(
-                formal.find_iter(text).any(|m| m.as_str() == *word),
-                "{key} no longer has {word}, drop it from the list"
-            );
+            assert!(text.contains("andere"), "{key}: {text}");
         }
     }
 

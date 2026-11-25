@@ -1078,7 +1078,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                 enabled: enabled, fakeValue: fakeValue),
             _OptionCheckBox(
                 context,
-                'Enable application activity telemetry (opt-in)',
+                'nd-set-row-share-app-activity-with-the-server',
                 'telemetry-activity-enabled',
                 enabled: enabled,
                 fakeValue: fakeValue),
@@ -3290,10 +3290,9 @@ void showPairWithCodeDialog() async {
         isInProgress = false;
         isError = !ok;
         if (ok && status == 'approved') {
-          message = translate('Paired. This device is approved.');
+          message = tr('nd-pair-approved');
         } else if (ok) {
-          message = translate(
-              'Paired. This device waits for approval in the console.');
+          message = tr('nd-pair-waits');
         } else {
           message = translate(error.isEmpty ? 'Failed' : error);
         }
@@ -3301,7 +3300,7 @@ void showPairWithCodeDialog() async {
     }
 
     return CustomAlertDialog(
-      title: Text(translate('Pair with code')),
+      title: Text(tr('nd-set-pair-code')),
       content: ConstrainedBox(
         constraints: const BoxConstraints(minWidth: 500),
         child: Column(
@@ -3331,7 +3330,7 @@ void showPairWithCodeDialog() async {
       ),
       actions: [
         dialogButton('Close', onPressed: close, isOutline: true),
-        dialogButton('Pair', onPressed: isInProgress ? null : submit),
+        dialogButton('nd-pair-button', onPressed: isInProgress ? null : submit),
       ],
       onSubmit: submit,
       onCancel: close,

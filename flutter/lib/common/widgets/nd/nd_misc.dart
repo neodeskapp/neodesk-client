@@ -137,7 +137,8 @@ class NdFacts extends StatelessWidget {
   const NdFacts({super.key, required this.facts, this.labelWidth});
   final List<NdFact> facts;
 
-  /// Fixed label column; by default the widest label decides.
+  /// The label column's least width, so pages line up; a wider label (a
+  /// longer language) widens it. By default the widest label decides.
   final double? labelWidth;
 
   @override
@@ -166,7 +167,8 @@ class NdFacts extends StatelessWidget {
     return Table(
       columnWidths: {
         0: labelWidth != null
-            ? FixedColumnWidth(labelWidth!)
+            ? MaxColumnWidth(
+                FixedColumnWidth(labelWidth!), const IntrinsicColumnWidth())
             : const IntrinsicColumnWidth(),
         1: const FlexColumnWidth(),
       },
