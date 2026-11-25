@@ -27,6 +27,7 @@ class NdIcons {
   static const IconData arrowForwardIos = IconData(0xe5e1, fontFamily: _f);
   static const IconData arrowUpward = IconData(0xe5d8, fontFamily: _f);
   static const IconData article = IconData(0xef42, fontFamily: _f);
+  static const IconData attachFile = IconData(0xe226, fontFamily: _f);
   static const IconData build = IconData(0xf8cd, fontFamily: _f);
   static const IconData call = IconData(0xf0d4, fontFamily: _f);
   static const IconData callEnd = IconData(0xf0bc, fontFamily: _f);
@@ -58,6 +59,7 @@ class NdIcons {
   static const IconData deleteForever = IconData(0xe92b, fontFamily: _f);
   static const IconData description = IconData(0xe873, fontFamily: _f);
   static const IconData desktopWindows = IconData(0xe30c, fontFamily: _f);
+  static const IconData download = IconData(0xf090, fontFamily: _f);
   static const IconData dragHandle = IconData(0xe25d, fontFamily: _f);
   static const IconData dragIndicator = IconData(0xe945, fontFamily: _f);
   static const IconData dragPan = IconData(0xf71e, fontFamily: _f);
