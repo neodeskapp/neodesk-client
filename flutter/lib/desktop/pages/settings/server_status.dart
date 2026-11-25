@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 
 /// What the Server page shows of this computer's server: the options with
@@ -8,6 +9,12 @@ class ServerReading {
   const ServerReading({required this.options, required this.connected});
   final Map<String, dynamic> options;
   final bool connected;
+
+  /// Whether [other] shows the same, so the page needs no new frame.
+  bool sameAs(ServerReading? other) =>
+      other != null &&
+      other.connected == connected &&
+      mapEquals(other.options, options);
 }
 
 /// Whether a connect status (main_get_connect_status) says the service is
@@ -57,7 +64,10 @@ class _LiveServerReadingState extends State<LiveServerReading> {
     _busy = true;
     try {
       final r = await widget.read();
-      if (mounted) setState(() => _reading = r);
+      // A new frame only when something changed: a rebuild every second
+      // redraws the window, which costs about a tenth of a core without a
+      // GPU (L529)
+      if (mounted && !r.sameAs(_reading)) setState(() => _reading = r);
     } finally {
       _busy = false;
     }

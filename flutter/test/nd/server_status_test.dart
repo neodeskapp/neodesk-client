@@ -58,4 +58,42 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
     expect(reads, after);
   });
+
+  // L529: the window used about a tenth of a core on the Server page while
+  // nothing changed: the page was rebuilt (and the window redrawn) every
+  // second. It still reads every second, and builds again only on a change.
+  testWidgets('the Server page draws again only when its reading changes',
+      (tester) async {
+    var connected = true;
+    var reads = 0;
+    var builds = 0;
+    await pumpScreen(
+      tester,
+      LiveServerReading(
+        read: () async {
+          reads++;
+          return ServerReading(
+              options: {'custom-rendezvous-server': '10.10.10.74'},
+              connected: connected);
+        },
+        builder: (context, r) {
+          builds++;
+          return Text(r.connected ? 'on' : 'off');
+        },
+      ),
+      size: const Size(800, 400),
+    );
+    final first = builds;
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(reads, greaterThan(10));
+    expect(builds, first);
+
+    connected = false;
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    expect(builds, first + 1);
+    expect(find.text('off'), findsOneWidget);
+  });
 }
