@@ -18,11 +18,13 @@ import 'package:flutter/foundation.dart';
 /// its server: the server is no NeoDesk console or hasn't approved it yet.
 const kNdChatNoToken = 1;
 
+/// [NdChatSocket.closeStatus] when an admin turned "Chat with computers"
+/// off: refused with 503 and X-NeoDesk-Chat: chat_off, or closed with 1008
+/// chat_off.
+const kNdChatOff = 2;
+
 /// The most text a message may have (PROTOCOL.md section 6).
 const kNdChatMaxText = 4096;
-
-/// The largest frame the server takes; a larger one closes the socket.
-const kNdChatMaxFrameBytes = 8192;
 
 /// The most files of one message, and the largest file.
 const kNdChatMaxFiles = 10;
@@ -35,6 +37,9 @@ const kNdChatMaxFileBytes = 50 * 1024 * 1024;
 abstract class NdChatSocket {
   Stream<String> get frames;
   int get closeStatus;
+
+  /// The server's Retry-After with [kNdChatOff], when it sent one.
+  Duration? get retryAfter;
   void send(String frame);
   void close();
 }
@@ -244,6 +249,7 @@ class NdChatModel extends ChangeNotifier {
   static const _typingEvery = Duration(milliseconds: 2500);
   static const _noChatRecheck = Duration(minutes: 10);
   static const _noTokenRecheck = Duration(minutes: 2);
+  static const _chatOffRecheck = Duration(seconds: 600);
   static const _tooManyWait = Duration(seconds: 30);
   static const _backoffMax = Duration(seconds: 30);
   static const _catchUpPage = 100;
@@ -298,9 +304,14 @@ class NdChatModel extends ChangeNotifier {
   late final String _clientPrefix =
       'c-${_random.nextInt(1 << 32).toRadixString(36)}';
 
-  /// The edit last sent, for a too_late answer (it names no message).
-  String? _lastEdit;
+  /// Messages the server answered too_late (no more edits) or not_yours
+  /// (no edit, no delete) for.
   final _tooLate = <String>{};
+  final _notMine = <String>{};
+
+  /// The open socket's first frame was not a welcome of version 2: the
+  /// server has no chat for computers.
+  bool _noChatServer = false;
 
   bool _front = false;
   bool _atNewest = true;
@@ -369,10 +380,12 @@ class NdChatModel extends ChangeNotifier {
       isOwn(m) &&
       !m.deleted &&
       !_tooLate.contains(m.id) &&
+      !_notMine.contains(m.id) &&
       serverNow.millisecondsSinceEpoch - m.createdAt <
           _editFor.inMilliseconds;
 
-  bool canDelete(NdChatMessage m) => isOwn(m) && !m.deleted;
+  bool canDelete(NdChatMessage m) =>
+      isOwn(m) && !m.deleted && !_notMine.contains(m.id);
 
   bool reactedByMe(NdChatMessage m, String emoji) =>
       (m.reactions[emoji] ?? const []).any((p) =>
@@ -409,7 +422,8 @@ class NdChatModel extends ChangeNotifier {
       _newestBefore = list.isEmpty ? null : list.last.id;
     }
     _setTyping(null);
-    final status = socket.closeStatus;
+    final status = _noChatServer ? 404 : socket.closeStatus;
+    _noChatServer = false;
     Duration? wait;
     switch (status) {
       case 401:
@@ -424,6 +438,10 @@ class NdChatModel extends ChangeNotifier {
       case kNdChatNoToken:
         availability = NdChatAvailability.off;
         wait = _noTokenRecheck;
+        break;
+      case kNdChatOff:
+        availability = NdChatAvailability.off;
+        wait = socket.retryAfter ?? _chatOffRecheck;
         break;
       case 429:
         final b = _backoff();
@@ -453,11 +471,17 @@ class NdChatModel extends ChangeNotifier {
   }
 
   void _onFrame(NdChatSocket socket, String text) {
-    if (!identical(socket, _socket)) return;
+    if (!identical(socket, _socket) || _noChatServer) return;
     Object? v;
     try {
       v = jsonDecode(text);
     } catch (_) {
+      v = null;
+    }
+    if (!connected && !(v is Map && v['type'] == 'welcome' && v['v'] == 2)) {
+      // An older server ignores v=2 and speaks version 1.
+      _noChatServer = true;
+      socket.close();
       return;
     }
     if (v is! Map) return;
@@ -658,9 +682,10 @@ class NdChatModel extends ChangeNotifier {
       }
       return;
     }
-    if (code == 'too_late' && v['for'] == 'edit' && _lastEdit != null) {
-      _tooLate.add(_lastEdit!);
-    }
+    final messageId = _str(v['message_id']);
+    if (messageId.isEmpty) return;
+    if (code == 'too_late') _tooLate.add(messageId);
+    if (code == 'not_yours') _notMine.add(messageId);
   }
 
   void _setTyping(String? name) {
@@ -705,22 +730,11 @@ class NdChatModel extends ChangeNotifier {
 
   // ---------------------------------------------------------------- writing
 
-  /// [text] cut to [kNdChatMaxText] characters and further until [frame]
-  /// with it fits in [kNdChatMaxFrameBytes].
-  static String _fit(String text, Map<String, Object?> Function(String) frame) {
-    var t = text;
-    if (t.runes.length > kNdChatMaxText) {
-      t = String.fromCharCodes(t.runes.take(kNdChatMaxText));
-    }
-    while (t.isNotEmpty &&
-        utf8.encode(jsonEncode(frame(t))).length > kNdChatMaxFrameBytes) {
-      final runes = t.runes.toList();
-      final over =
-          utf8.encode(jsonEncode(frame(t))).length - kNdChatMaxFrameBytes;
-      final cut = max(1, (over / 6).ceil());
-      t = String.fromCharCodes(runes.take(max(0, runes.length - cut)));
-    }
-    return t;
+  /// [text] cut to [kNdChatMaxText] characters; a frame with that much
+  /// text always fits in a frame of version 2.
+  static String _fit(String text) {
+    if (text.runes.length <= kNdChatMaxText) return text;
+    return String.fromCharCodes(text.runes.take(kNdChatMaxText));
   }
 
   NdChatFileProblem? checkFiles(List<NdChatLocalFile> chosen) {
@@ -795,7 +809,7 @@ class NdChatModel extends ChangeNotifier {
     }
     if (!pending.contains(p) || p.state != NdChatSendState.sending) return;
     if (_socket == null || !connected || _catchingUp) return;
-    final text = _fit(p.text, (t) => _sendFrame(p, t));
+    final text = _fit(p.text);
     _send(_sendFrame(p, text));
     p.sentOn = _socket;
   }
@@ -817,10 +831,7 @@ class NdChatModel extends ChangeNotifier {
   void edit(String id, String text) {
     final t = text.trimRight();
     if (t.trim().isEmpty) return;
-    _lastEdit = id;
-    Map<String, Object?> frame(String s) =>
-        {'type': 'edit', 'message_id': id, 'text': s};
-    _send(frame(_fit(t, frame)));
+    _send({'type': 'edit', 'message_id': id, 'text': _fit(t)});
   }
 
   void delete(String id) => _send({'type': 'delete', 'message_id': id});

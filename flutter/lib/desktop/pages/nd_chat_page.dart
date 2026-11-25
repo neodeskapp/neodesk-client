@@ -513,7 +513,13 @@ class _NdChatPageState extends State<NdChatPage> {
                   : tr('nd-chat-replying-to', [reply!.from.name]),
               text: editing != null
                   ? ''
-                  : (reply!.deleted ? tr('nd-chat-deleted') : reply.text),
+                  : reply!.deleted
+                      ? tr('nd-chat-deleted')
+                      : reply.text.isNotEmpty
+                          ? reply.text
+                          : reply.files.isNotEmpty
+                              ? reply.files.first.name
+                              : '',
               stopLabel: editing != null
                   ? tr('nd-chat-stop-edit')
                   : tr('nd-chat-stop-reply'),

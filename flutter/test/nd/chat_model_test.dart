@@ -179,20 +179,21 @@ void main() {
       });
     });
 
-    test('long text is cut to 4096 characters and every frame fits in 8192 bytes', () {
+    test('long text is cut to 4096 characters, multi-byte text too, and the frame fits in 32768 bytes', () {
       fakeAsync((async) {
         final server = Server();
         final m = model(server);
         open(async, server, ids: [1]);
         m.sendMessage('a' * 5000);
         m.sendMessage('ü"\n' * 3000);
-        m.edit('1', '€' * 4096);
+        m.sendMessage('😀' * 5000);
+        m.edit('1', '€' * 5000);
         async.flushMicrotasks();
-        final sends = server.last.of('send');
-        expect((sends[0]['text'] as String).length, 4096);
-        for (final f in [...sends, ...server.last.of('edit')]) {
-          expect(utf8.encode(jsonEncode(f)).length, lessThanOrEqualTo(8192));
-          expect((f['text'] as String).isNotEmpty, isTrue);
+        final frames = [...server.last.of('send'), ...server.last.of('edit')];
+        expect(frames, hasLength(4));
+        for (final f in frames) {
+          expect((f['text'] as String).runes.length, 4096);
+          expect(utf8.encode(jsonEncode(f)).length, lessThanOrEqualTo(32768));
         }
       });
     });
@@ -261,16 +262,33 @@ void main() {
       });
     });
 
-    test('a too_late answer hides edit for that message', () {
+    test('a too_late answer hides edit for the message it names', () {
       fakeAsync((async) {
         final server = Server();
         final m = model(server);
-        open(async, server, ids: [1], make: (id) => msg(id, from: me));
+        open(async, server, ids: [1, 2], make: (id) => msg(id, from: me));
         m.edit('1', 'late');
+        m.edit('2', 'also late');
         async.flushMicrotasks();
-        server.last.serve({'type': 'error', 'code': 'too_late', 'for': 'edit'});
+        server.last.serve({'type': 'error', 'code': 'too_late', 'for': 'edit', 'message_id': '1'});
         async.flushMicrotasks();
-        expect(m.canEdit(m.messages.single), isFalse);
+        expect(m.canEdit(m.byId('1')!), isFalse);
+        expect(m.canEdit(m.byId('2')!), isTrue);
+      });
+    });
+
+    test('a not_yours answer hides edit and delete for the message it names', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        open(async, server, ids: [1, 2], make: (id) => msg(id, from: me));
+        m.delete('2');
+        async.flushMicrotasks();
+        server.last.serve({'type': 'error', 'code': 'not_yours', 'for': 'delete', 'message_id': '2'});
+        async.flushMicrotasks();
+        expect(m.canDelete(m.byId('2')!), isFalse);
+        expect(m.canEdit(m.byId('2')!), isFalse);
+        expect(m.canDelete(m.byId('1')!), isTrue);
       });
     });
 
@@ -396,6 +414,68 @@ void main() {
         expect(server.sockets, hasLength(3));
         open(async, server);
         expect(m.showEntry, isTrue);
+      });
+    });
+
+    test('chat turned off by an admin: no entry, the next try after Retry-After', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        async.flushMicrotasks();
+        server.last.drop(kNdChatOff, const Duration(seconds: 600));
+        async.flushMicrotasks();
+        expect(m.availability, NdChatAvailability.off);
+        expect(m.showEntry, isFalse);
+        async.elapse(const Duration(seconds: 599));
+        expect(server.sockets, hasLength(1));
+        async.elapse(const Duration(seconds: 2));
+        expect(server.sockets, hasLength(2));
+      });
+    });
+
+    test('an open chat closed with chat_off loses its entry and asks again after some minutes', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        open(async, server, ids: [1]);
+        expect(m.showEntry, isTrue);
+        server.last.drop(kNdChatOff);
+        async.flushMicrotasks();
+        expect(m.showEntry, isFalse);
+        async.elapse(const Duration(minutes: 5));
+        expect(server.sockets, hasLength(1));
+        async.elapse(const Duration(minutes: 6));
+        expect(server.sockets, hasLength(2));
+      });
+    });
+
+    test('an older server that answers v=2 with frames of version 1 is no chat', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        async.flushMicrotasks();
+        server.last.serve({'type': 'history', 'messages': [msg(1)]});
+        async.flushMicrotasks();
+        expect(server.last.closedByClient, isTrue);
+        expect(m.availability, NdChatAvailability.off);
+        expect(m.showEntry, isFalse);
+        expect(m.messages, isEmpty);
+        async.elapse(const Duration(minutes: 9));
+        expect(server.sockets, hasLength(1));
+        async.elapse(const Duration(minutes: 2));
+        expect(server.sockets, hasLength(2));
+      });
+    });
+
+    test('a welcome of another version is no chat either', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        async.flushMicrotasks();
+        server.last.serve({...welcome(), 'v': 1});
+        async.flushMicrotasks();
+        expect(server.last.closedByClient, isTrue);
+        expect(m.showEntry, isFalse);
       });
     });
 
