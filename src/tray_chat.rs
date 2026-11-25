@@ -17,6 +17,10 @@ const NO_CHAT_RECHECK: Duration = Duration::from_secs(600);
 const NO_TOKEN_RECHECK: Duration = Duration::from_secs(120);
 const CHAT_OFF_RECHECK: Duration = Duration::from_secs(600);
 const TOO_MANY_WAIT: Duration = Duration::from_secs(30);
+/// After 401 or 403: the service holds the refusal and asks the server
+/// again only after a long wait, with a new token or after it starts again
+/// (nd_chat.rs), so asking the service often costs the server nothing.
+const REFUSED_RECHECK: Duration = Duration::from_secs(60);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
 /// The longest text of a notification.
 const NOTE_CHARS: usize = 120;
@@ -50,8 +54,6 @@ pub struct TrayChat {
     connected: bool,
     /// The server took the chat and hasn't refused it since.
     available: bool,
-    /// 401 or 403: no more tries until the tray starts again.
-    stopped: bool,
     attempt: u32,
     /// Staff messages after the computer's read mark, by id.
     unread: BTreeMap<u64, Unread>,
@@ -83,7 +85,7 @@ fn shorten(text: &str) -> String {
 impl TrayChat {
     /// The menu's chat entry: None without chat, else the new messages.
     pub fn entry(&self) -> Option<u32> {
-        if !self.available || self.stopped {
+        if !self.available {
             return None;
         }
         Some(self.unread.values().filter(|m| !m.deleted).count() as u32)
@@ -232,14 +234,13 @@ impl TrayChat {
     /// upgrade, 0 when it dropped, nd_chat's NO_TOKEN or CHAT_OFF, or
     /// [`NOT_CHAT`]) and, with chat off, the server's wait in seconds.
     /// `spread` is a number from 0 to 1 for the backoff. Answers when to
-    /// try again, None for never.
+    /// try again.
     pub fn closed(&mut self, status: u16, retry_after: u32, spread: f64) -> Option<Duration> {
         self.connected = false;
         match status {
             401 | 403 => {
                 self.available = false;
-                self.stopped = true;
-                None
+                Some(REFUSED_RECHECK)
             }
             404 | NOT_CHAT => {
                 self.available = false;
@@ -491,10 +492,18 @@ mod tests {
         assert_eq!(chat.closed(crate::nd_chat::CHAT_OFF, 0, 0.5), Some(secs(600)));
         let too_many = chat.closed(429, 0, 0.5).unwrap();
         assert!(too_many >= secs(30), "{too_many:?}");
-        assert_eq!(chat.closed(403, 0, 0.5), None);
-        assert_eq!(chat.entry(), None);
-        let mut chat = connected();
-        assert_eq!(chat.closed(401, 0, 0.5), None);
+        for status in [401, 403] {
+            let mut chat = connected();
+            assert_eq!(
+                chat.closed(status, 0, 0.5),
+                Some(secs(60)),
+                "{status}: the service holds the refusal, the tray asks it again"
+            );
+            assert_eq!(chat.entry(), None);
+            assert_eq!(chat.closed(status, 0, 0.5), Some(secs(60)), "{status}: no growth");
+            chat.frame(&welcome()).unwrap();
+            assert_eq!(chat.entry(), Some(0), "{status}: a new token brings the chat back");
+        }
     }
 
     #[test]

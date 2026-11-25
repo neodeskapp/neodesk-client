@@ -75,7 +75,8 @@ enum NdChatAvailability {
   /// The server took the socket at least once.
   available,
 
-  /// 401 or 403: the token is wrong or revoked. No more tries.
+  /// 401 or 403: the token is refused, or the server's API port has no
+  /// chat (an older server answers 401). Asked again later.
   refused,
 
   /// 404, or no device token: this server has no chat for computers.
@@ -251,6 +252,11 @@ class NdChatModel extends ChangeNotifier {
   static const _noTokenRecheck = Duration(minutes: 2);
   static const _chatOffRecheck = Duration(seconds: 600);
   static const _tooManyWait = Duration(seconds: 30);
+
+  /// After 401 or 403 the service holds the refusal and asks the server
+  /// again only after a long wait, with a new token or after it starts
+  /// again (src/nd_chat.rs), so asking the service often costs nothing.
+  static const _refusedRecheck = Duration(minutes: 1);
   static const _backoffMax = Duration(seconds: 30);
   static const _catchUpPage = 100;
   static const _olderPage = 50;
@@ -431,12 +437,12 @@ class NdChatModel extends ChangeNotifier {
     _setTyping(null);
     final status = _noChatServer ? 404 : socket.closeStatus;
     _noChatServer = false;
-    Duration? wait;
+    Duration wait;
     switch (status) {
       case 401:
       case 403:
         availability = NdChatAvailability.refused;
-        wait = null;
+        wait = _refusedRecheck;
         break;
       case 404:
         availability = NdChatAvailability.off;
@@ -457,7 +463,7 @@ class NdChatModel extends ChangeNotifier {
       default:
         wait = _backoff();
     }
-    if (wait != null) _retry = Timer(wait, _open);
+    _retry = Timer(wait, _open);
     notifyListeners();
   }
 

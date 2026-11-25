@@ -288,9 +288,9 @@ struct Hub {
     /// The socket's welcome and last helper frame, for those who join later.
     welcome: Option<String>,
     helper: Option<String>,
-    /// The last refusal, the token it was for and when: a second caller
-    /// asking right after gets it without a second upgrade.
-    refused: Option<(std::time::Instant, String, NdChat)>,
+    /// The last refusal, the token it was for, when and for how long it
+    /// stands: a caller asking in that time gets it without an upgrade.
+    refused: Option<(std::time::Instant, Duration, String, NdChat)>,
 }
 
 lazy_static::lazy_static! {
@@ -298,6 +298,24 @@ lazy_static::lazy_static! {
 }
 
 const REFUSAL_KEPT: Duration = Duration::from_secs(5);
+/// 401, 403 and 404 change only with a new token or another server: the
+/// server is asked again after this long, or at once with a new token or
+/// after the service starts again.
+const REFUSAL_HELD: Duration = Duration::from_secs(600);
+
+/// How long a refusal stands before the server is asked again. 401 comes
+/// from a server whose API port has no chat route (its auth layer refuses
+/// the device token), 403 from a refused token, 404 from a console without
+/// chat of version 2; chat off names its own wait; anything else (a busy
+/// or failing server) stands only for a moment, so two callers asking
+/// together cause one upgrade.
+fn kept_for(why: &NdChat) -> Duration {
+    match why {
+        NdChat::Closed(401 | 403 | 404) => REFUSAL_HELD,
+        NdChat::ChatOff(seconds) => Duration::from_secs(u64::from(*seconds)),
+        _ => REFUSAL_KEPT,
+    }
+}
 /// What a member that joins an open socket needs after the welcome.
 const NEWEST_PAGE: &str = r#"{"type":"history","before":"0","limit":50}"#;
 
@@ -336,8 +354,8 @@ fn hub() -> std::sync::MutexGuard<'static, Hub> {
 fn join(role: Role, to: tokio::sync::mpsc::UnboundedSender<NdChat>) -> (u64, Option<u64>) {
     let token = access().map(|a| a.token).unwrap_or_default();
     let mut hub = hub();
-    if let Some((at, for_token, why)) = &hub.refused {
-        if at.elapsed() < REFUSAL_KEPT && *for_token == token {
+    if let Some((at, kept, for_token, why)) = &hub.refused {
+        if at.elapsed() < *kept && *for_token == token {
             to.send(why.clone()).ok();
             return (0, None);
         }
@@ -460,7 +478,7 @@ fn ended(generation: u64, why: NdChat, refused: Option<String>) {
     hub.forget_socket();
     hub.refused = refused
         .filter(|_| why != NdChat::Closed(0))
-        .map(|token| (std::time::Instant::now(), token, why));
+        .map(|token| (std::time::Instant::now(), kept_for(&why), token, why));
 }
 
 /// Opens the socket of `generation` and passes its frames to the members
@@ -1211,6 +1229,12 @@ mod tests {
                                         .insert("X-NeoDesk-Chat", "chat_off".parse().unwrap());
                                     return Err(off);
                                 }
+                                if auth == "Bearer old-server-token" {
+                                    let mut old = ErrorResponse::new(None);
+                                    *old.status_mut() =
+                                        tokio_tungstenite::tungstenite::http::StatusCode::UNAUTHORIZED;
+                                    return Err(old);
+                                }
                                 if auth == "Bearer busy-token" {
                                     let mut busy = ErrorResponse::new(None);
                                     *busy.status_mut() =
@@ -1411,6 +1435,22 @@ mod tests {
         let before = seen.lock().unwrap().len();
         assert_eq!(run("revoked-token"), (403, 0), "asked again right away");
         assert_eq!(seen.lock().unwrap().len(), before, "the refusal is answered without a second upgrade");
+        // An older server's API port answers 401 (L526): held for a long
+        // wait, not for a moment, and a new token asks again at once.
+        assert_eq!(run("old-server-token"), (401, 0));
+        assert_eq!(seen.lock().unwrap().len(), before + 1, "a new token asks the server at once");
+        std::thread::sleep(Duration::from_secs(6));
+        assert_eq!(run("old-server-token"), (401, 0));
+        assert_eq!(
+            seen.lock().unwrap().len(),
+            before + 1,
+            "401 is held past the short hold of other refusals"
+        );
+        let before = seen.lock().unwrap().len();
+        assert_eq!(run("busy-token"), (503, 0));
+        std::thread::sleep(Duration::from_secs(6));
+        assert_eq!(run("busy-token"), (503, 0));
+        assert_eq!(seen.lock().unwrap().len(), before + 2, "a 503 is held only for a moment");
         assert_eq!(run("chat-off-token"), (CHAT_OFF, 450), "503 chat_off with Retry-After");
         assert_eq!(run("busy-token"), (503, 0), "a 503 without chat_off is no chat_off");
         assert_eq!(run("closing-token"), (CHAT_OFF, 600), "an open socket closed with 1008 chat_off");

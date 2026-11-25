@@ -365,32 +365,30 @@ void main() {
       });
     });
 
-    test('403 stops retrying and says chat is not available', () {
-      fakeAsync((async) {
-        final server = Server();
-        final m = model(server);
-        async.flushMicrotasks();
-        server.last.drop(403);
-        async.flushMicrotasks();
-        async.elapse(const Duration(hours: 2));
-        expect(server.sockets, hasLength(1));
-        expect(m.availability, NdChatAvailability.refused);
-        expect(m.showEntry, isFalse);
+    for (final status in [401, 403]) {
+      test('$status says chat is not available and asks the service again after a minute', () {
+        fakeAsync((async) {
+          final server = Server();
+          final m = model(server);
+          async.flushMicrotasks();
+          server.last.drop(status);
+          async.flushMicrotasks();
+          expect(m.availability, NdChatAvailability.refused);
+          expect(m.showEntry, isFalse);
+          async.elapse(const Duration(seconds: 59));
+          expect(server.sockets, hasLength(1));
+          async.elapse(const Duration(seconds: 2));
+          expect(server.sockets, hasLength(2), reason: 'the service decides whether to ask the server');
+          server.last.drop(status);
+          async.flushMicrotasks();
+          async.elapse(const Duration(seconds: 61));
+          expect(server.sockets, hasLength(3), reason: 'no backoff growth: the service holds the refusal');
+          open(async, server);
+          expect(m.availability, NdChatAvailability.available);
+          expect(m.showEntry, isTrue);
+        });
       });
-    });
-
-    test('401 is handled like 403 on a computer\'s socket', () {
-      fakeAsync((async) {
-        final server = Server();
-        final m = model(server);
-        async.flushMicrotasks();
-        server.last.drop(401);
-        async.flushMicrotasks();
-        async.elapse(const Duration(hours: 1));
-        expect(server.sockets, hasLength(1));
-        expect(m.availability, NdChatAvailability.refused);
-      });
-    });
+    }
 
     test('404 and a computer without a device token mean no chat: no entry, a slow check later', () {
       fakeAsync((async) {
