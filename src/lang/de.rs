@@ -1062,7 +1062,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-set-advanced", "Erweitert"),
         ("nd-set-advanced-lead", "Alles andere. Die meisten brauchen diese Einstellungen nie."),
         ("nd-set-about", "Über"),
-        ("nd-set-search", "Einstellungen durchsuchen"),
+        ("nd-set-search", "Einstellung suchen"),
         ("nd-set-search-none", "Keine Einstellung passt zu '{}'."),
         ("nd-set-locked", "Diese Einstellungen sind gesperrt. Zum Entsperren brauchen Sie Administratorrechte oder Ihre PIN."),
         ("nd-set-unlock", "Entsperren"),
