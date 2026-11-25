@@ -293,6 +293,17 @@ pub fn is_server_running() -> bool {
     *SERVER_RUNNING.read().unwrap()
 }
 
+/// Whether this process seals the device's NeoDesk API requests: the one
+/// that runs the server, which holds the device's key and its sequence
+/// counter. Any other process has it make its calls
+/// (hbbs_http/sealed_calls.rs, L500, L507).
+pub fn seals_neodesk_requests() -> bool {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    return true;
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    is_server_running()
+}
+
 #[inline]
 pub fn valid_for_numlock(evt: &KeyEvent) -> bool {
     if let Some(key_event::Union::ControlKey(ck)) = evt.union {
@@ -1972,33 +1983,18 @@ pub async fn http_request_sync(
 ) -> ResultType<String> {
     #[cfg(not(target_os = "ios"))]
     if neodesk_api_url(&url) {
-        let payload = body
-            .as_deref()
-            .and_then(|value| serde_json::from_str::<Value>(value).ok())
-            .filter(|value| value.is_object())
-            .unwrap_or_else(|| json!({}));
-        let (key_id, public_key) =
-            crate::hbbs_http::neodesk::fetch_telemetry_server_key().await?;
-        let envelope =
-            crate::telemetry::seal_payload(&payload, &key_id, &public_key, &Config::get_id())
-                .map_err(|err| anyhow!("NeoDesk request encryption failed: {err}"))?;
-        let secure_body = json!({"neodesk_envelope": envelope}).to_string();
-        let mut headers: Map<String, Value> = if header.trim().is_empty() {
-            Map::new()
-        } else {
-            serde_json::from_str(&header)?
-        };
-        headers.insert("X-NeoDesk-Envelope".to_owned(), json!("1"));
-        headers.insert("X-NeoDesk-Device".to_owned(), json!(Config::get_id()));
-        let secure_header = serde_json::to_string(&headers)?;
-        let response = with_tcp_proxy_fallback(
-            &url,
-            &method,
-            http_request_http(&url, &method, Some(secure_body.clone()), &secure_header),
-            http_request_via_tcp_proxy(&url, &method, Some(&secure_body), &secure_header),
-        )
-        .await?;
-        return unwrap_neodesk_http_response(response);
+        if !seals_neodesk_requests() {
+            return call_through_server_process(
+                &url,
+                &method,
+                &header,
+                |method, path, authorization| async move {
+                    crate::ipc::sealed_call(&method, &path, &authorization).await
+                },
+            )
+            .await;
+        }
+        return sealed_http_request(&url, &method, body, &header).await;
     }
     with_tcp_proxy_fallback(
         &url,
@@ -2007,6 +2003,119 @@ pub async fn http_request_sync(
         http_request_via_tcp_proxy(&url, &method, body.as_deref(), &header),
     )
     .await
+}
+
+/// Seals the NeoDesk API request with the device's key and sequence number,
+/// sends it and opens the answer. In the process that seals only
+/// ([`seals_neodesk_requests`]).
+#[cfg(not(target_os = "ios"))]
+async fn sealed_http_request(
+    url: &str,
+    method: &str,
+    body: Option<String>,
+    header: &str,
+) -> ResultType<String> {
+    let payload = body
+        .as_deref()
+        .and_then(|value| serde_json::from_str::<Value>(value).ok())
+        .filter(|value| value.is_object())
+        .unwrap_or_else(|| json!({}));
+    let (key_id, public_key) = crate::hbbs_http::neodesk::fetch_telemetry_server_key().await?;
+    let envelope =
+        crate::telemetry::seal_payload(&payload, &key_id, &public_key, &Config::get_id())
+            .map_err(|err| anyhow!("NeoDesk request encryption failed: {err}"))?;
+    let secure_body = json!({"neodesk_envelope": envelope}).to_string();
+    let mut headers: Map<String, Value> = if header.trim().is_empty() {
+        Map::new()
+    } else {
+        serde_json::from_str(header)?
+    };
+    headers.insert("X-NeoDesk-Envelope".to_owned(), json!("1"));
+    headers.insert("X-NeoDesk-Device".to_owned(), json!(Config::get_id()));
+    let secure_header = serde_json::to_string(&headers)?;
+    let response = with_tcp_proxy_fallback(
+        url,
+        method,
+        http_request_http(url, method, Some(secure_body.clone()), &secure_header),
+        http_request_via_tcp_proxy(url, method, Some(&secure_body), &secure_header),
+    )
+    .await?;
+    unwrap_neodesk_http_response(response)
+}
+
+/// A NeoDesk API call of a process that does not seal (the window of an
+/// installed client, the window next to a running `--server`): `ask` has the
+/// server process make it, for the calls it makes for others only
+/// (hbbs_http/sealed_calls.rs). The answer reads as an HTTP answer; without a
+/// server process to ask it is a 503 the Devices tab explains.
+#[cfg(not(target_os = "ios"))]
+async fn call_through_server_process<F, Fut>(
+    url: &str,
+    method: &str,
+    header: &str,
+    ask: F,
+) -> ResultType<String>
+where
+    F: FnOnce(String, String, String) -> Fut,
+    Fut: Future<Output = Option<Result<String, String>>>,
+{
+    use crate::hbbs_http::sealed_calls;
+    let api = get_api_server(
+        Config::get_option("api-server"),
+        Config::get_option("custom-rendezvous-server"),
+    );
+    let Some(path) =
+        sealed_calls::path_and_query(url, &api).filter(|path| sealed_calls::allows(method, path))
+    else {
+        bail!(
+            "only the device's server process sends sealed requests like {method} {}",
+            tcp_proxy_log_target(url)
+        );
+    };
+    let authorization = parse_json_header_entries(header)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|entry| entry.name.eq_ignore_ascii_case("authorization"))
+        .map(|entry| entry.value)
+        .unwrap_or_default();
+    match ask(method.to_owned(), path.to_owned(), authorization).await {
+        Some(Ok(response)) => Ok(response),
+        Some(Err(err)) => bail!("{err}"),
+        None => Ok(sealed_calls::service_unavailable_response()),
+    }
+}
+
+/// The server process's side of [`call_through_server_process`]: makes the
+/// call `method` `path` on its own API server with the caller's account
+/// token, when it is one the server process makes for others.
+#[cfg(not(target_os = "ios"))]
+pub(crate) async fn sealed_call_for_other_process(
+    method: &str,
+    path: &str,
+    authorization: &str,
+) -> Result<String, String> {
+    use crate::hbbs_http::sealed_calls;
+    if !sealed_calls::allows(method, path) {
+        return Err("the server process makes no such call for another process".to_owned());
+    }
+    if !sealed_calls::authorization_ok(authorization) {
+        return Err("the call needs an account token".to_owned());
+    }
+    if !seals_neodesk_requests() {
+        return Err("this process does not seal requests".to_owned());
+    }
+    let api = get_api_server(
+        Config::get_option("api-server"),
+        Config::get_option("custom-rendezvous-server"),
+    );
+    if api.is_empty() {
+        return Err("no API server is set up".to_owned());
+    }
+    let url = format!("{}{path}", api.trim_end_matches('/'));
+    let header = json!({ "Authorization": authorization }).to_string();
+    sealed_http_request(&url, method, None, &header)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 #[cfg(not(target_os = "ios"))]
@@ -3731,5 +3840,144 @@ mod tests {
         let combined_mask = MOUSE_TYPE_DOWN | ((MOUSE_BUTTON_LEFT | MOUSE_BUTTON_RIGHT) << 3);
         assert_eq!(combined_mask & MOUSE_TYPE_MASK, MOUSE_TYPE_DOWN);
         assert_eq!(combined_mask >> 3, MOUSE_BUTTON_LEFT | MOUSE_BUTTON_RIGHT);
+    }
+
+    /// An API server for one test at a time, set in memory only. Nothing
+    /// listens on port 9, so a request that leaves this process fails.
+    struct TestApiServer(#[allow(dead_code)] std::sync::MutexGuard<'static, ()>);
+
+    const TEST_API: &str = "http://127.0.0.1:9";
+
+    impl TestApiServer {
+        fn set() -> Self {
+            static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+            let guard = ONE_AT_A_TIME
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            config::OVERWRITE_SETTINGS
+                .write()
+                .unwrap()
+                .insert("api-server".to_owned(), TEST_API.to_owned());
+            TestApiServer(guard)
+        }
+    }
+
+    impl Drop for TestApiServer {
+        fn drop(&mut self) {
+            config::OVERWRITE_SETTINGS
+                .write()
+                .unwrap()
+                .remove("api-server");
+        }
+    }
+
+    fn sequence_now() -> String {
+        LocalConfig::get_option("neodesk-telemetry-sequence")
+    }
+
+    /// L500, L507: a process that does not run the server (the window) has
+    /// the server process make the Devices tab's calls, with the account
+    /// token and nothing else, and hands on its answer.
+    #[tokio::test]
+    async fn a_window_call_is_made_by_the_server_process() {
+        let _api = TestApiServer::set();
+        assert!(!seals_neodesk_requests());
+        let before = sequence_now();
+        let url = format!("{TEST_API}/api/users?current=1&pageSize=100&accessible=&status=1");
+        let header =
+            json!({"Authorization": "Bearer t0k", "Content-Type": "application/json"}).to_string();
+        let asked = Arc::new(Mutex::new(None));
+        let record = asked.clone();
+        let answer = call_through_server_process(&url, "get", &header, |method, path, token| {
+            *record.lock().unwrap() = Some((method, path, token));
+            async {
+                Some(Ok(
+                    r#"{"status_code":200,"headers":{},"body":"{\"total\":0}"}"#.to_owned(),
+                ))
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            asked.lock().unwrap().clone(),
+            Some((
+                "get".to_owned(),
+                "/api/users?current=1&pageSize=100&accessible=&status=1".to_owned(),
+                "Bearer t0k".to_owned()
+            ))
+        );
+        assert!(answer.contains(r#"\"total\":0"#));
+        assert_eq!(sequence_now(), before);
+    }
+
+    /// L500, L507: without a server process to ask, the window's call is not
+    /// sealed here (no counter is read or written, no "device signing key
+    /// unavailable") but answers with the 503 the Devices tab explains.
+    #[test]
+    fn a_window_call_without_a_server_process_says_so() {
+        let _api = TestApiServer::set();
+        let before = sequence_now();
+        let answer = http_request_sync(
+            format!("{TEST_API}/api/device-group/accessible?current=1&pageSize=100"),
+            "get".to_owned(),
+            None,
+            json!({"Authorization": "Bearer t0k"}).to_string(),
+        )
+        .expect("an answer, not an error");
+        let answer: Value = serde_json::from_str(&answer).unwrap();
+        assert_eq!(answer["status_code"], 503);
+        assert_eq!(
+            answer["body"],
+            json!({"error": "neodesk_service_unavailable"}).to_string()
+        );
+        assert_eq!(sequence_now(), before);
+    }
+
+    /// The window has the server process make the Devices tab's reads only,
+    /// and the server process makes no other call for another process.
+    #[tokio::test]
+    async fn only_the_devices_tab_calls_are_made_for_another_process() {
+        let _api = TestApiServer::set();
+        for (method, url) in [
+            ("post", format!("{TEST_API}/api/audit/conn")),
+            (
+                "get",
+                format!("{TEST_API}/api/peers/525129550/connect-password"),
+            ),
+            ("put", format!("{TEST_API}/api/users")),
+            ("get", format!("{TEST_API}/api/peers?id=1")),
+        ] {
+            let asked = Arc::new(Mutex::new(false));
+            let record = asked.clone();
+            let answer = call_through_server_process(&url, method, "{}", |_, _, _| {
+                *record.lock().unwrap() = true;
+                async { Some(Ok(String::new())) }
+            })
+            .await;
+            assert!(answer.is_err(), "{method} {url}");
+            assert!(
+                !*asked.lock().unwrap(),
+                "{method} {url} went to the server process"
+            );
+        }
+        for (method, path) in [
+            ("POST", "/api/audit/conn"),
+            ("GET", "/api/peers/525129550/connect-password"),
+            ("GET", "/api/heartbeat"),
+            ("GET", "/api/onboard/join"),
+            ("DELETE", "/api/peers"),
+        ] {
+            let refused = sealed_call_for_other_process(method, path, "Bearer t0k")
+                .await
+                .unwrap_err();
+            assert!(
+                refused.contains("no such call"),
+                "{method} {path}: {refused}"
+            );
+        }
+        let refused = sealed_call_for_other_process("GET", "/api/peers", "")
+            .await
+            .unwrap_err();
+        assert!(refused.contains("account token"), "{refused}");
     }
 }

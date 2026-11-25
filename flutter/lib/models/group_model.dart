@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/hbbs/hbbs.dart';
 import 'package:flutter_hbb/common/widgets/peers_view.dart';
+import 'package:flutter_hbb/models/group_pull.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
@@ -12,6 +13,10 @@ import '../utils/http_service.dart' as http;
 class GroupModel {
   final RxBool groupLoading = false.obs;
   final RxString groupLoadError = "".obs;
+
+  /// The error of the last pull has a sentence of its own and the Devices
+  /// tab offers Retry (group_pull.dart).
+  final RxBool groupLoadCanRetry = false.obs;
   final RxList<DeviceGroupPayload> deviceGroups = RxList.empty(growable: true);
   final RxList<UserPayload> users = RxList.empty(growable: true);
   final RxList<Peer> peers = RxList.empty(growable: true);
@@ -45,6 +50,7 @@ class GroupModel {
       groupLoading.value = true;
       groupLoadError.value = "";
     }
+    groupLoadCanRetry.value = false;
     try {
       await _pull();
       _tryHandlePullError();
@@ -215,8 +221,7 @@ class GroupModel {
       return true;
     } catch (err) {
       debugPrint('get accessible users: $err');
-      groupLoadError.value =
-          '${translate('pull_group_failed_tip')}: ${translate(err.toString())}';
+      _setLoadError(err);
     }
     return false;
   }
@@ -275,10 +280,16 @@ class GroupModel {
       return true;
     } catch (err) {
       debugPrint('get accessible peers: $err');
-      groupLoadError.value =
-          '${translate('pull_group_failed_tip')}: ${translate(err.toString())}';
+      _setLoadError(err);
     }
     return false;
+  }
+
+  void _setLoadError(Object err) {
+    final sentence = groupPullErrorText(err.toString());
+    groupLoadCanRetry.value = sentence != null;
+    groupLoadError.value = sentence ??
+        '${translate('pull_group_failed_tip')}: ${translate(err.toString())}';
   }
 
   Map<String, dynamic> _jsonDecodeResp(String body, int statusCode) {

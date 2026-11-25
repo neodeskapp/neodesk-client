@@ -48,7 +48,9 @@ class _MyGroupState extends State<MyGroup> {
           buildErrorBanner(context,
               loading: gFFI.groupModel.groupLoading,
               err: gFFI.groupModel.groupLoadError,
-              retry: null,
+              retry: gFFI.groupModel.groupLoadCanRetry.value
+                  ? () => gFFI.groupModel.pull()
+                  : null,
               close: () => gFFI.groupModel.groupLoadError.value = ''),
           Expanded(
               child: Obx(() => stateGlobal.isPortrait.isTrue
