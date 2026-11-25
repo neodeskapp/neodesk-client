@@ -277,7 +277,7 @@ fn notify_copied(id: &str) {
 /// Names the notification sender in the current user's registry, which is
 /// what Windows shows on the notification.
 #[cfg(windows)]
-fn register_toast_sender(app_id: &str) -> std::io::Result<()> {
+pub(crate) fn register_toast_sender(app_id: &str) -> std::io::Result<()> {
     use winreg::{enums::HKEY_CURRENT_USER, RegKey};
     let (key, _) = RegKey::predef(HKEY_CURRENT_USER)
         .create_subkey(format!("Software\\Classes\\AppUserModelId\\{app_id}"))?;

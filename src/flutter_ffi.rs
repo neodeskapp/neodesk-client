@@ -2750,6 +2750,10 @@ pub fn main_get_printer_names() -> SyncReturn<String> {
 }
 
 pub fn main_get_common(key: String) -> String {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if key.starts_with("nd-chat-") {
+        return crate::nd_chat::window::get(&key);
+    }
     if key == "is-printer-installed" {
         #[cfg(target_os = "windows")]
         {
@@ -2854,6 +2858,11 @@ fn verified_update_artifact_for_release_page_url(
 }
 
 pub fn main_set_common(_key: String, _value: String) {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if _key.starts_with("nd-chat-") {
+        crate::nd_chat::window::set(&_key, &_value);
+        return;
+    }
     // The install page of an exe next to an installed client of another
     // version: update it (the page follows the install progress) or open it.
     #[cfg(target_os = "windows")]
