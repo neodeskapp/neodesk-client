@@ -689,6 +689,37 @@ void main() {
       });
     });
 
+    test('the window leaves notifications to a tray that holds the chat', () {
+      fakeAsync((async) {
+        final server = Server();
+        final notes = <(String, String)>[];
+        final m = model(server, notes: notes);
+        open(async, server);
+        m.othersNotify = true;
+        server.last.serve({'type': 'message.new', 'message': msg(2)});
+        async.flushMicrotasks();
+        expect(notes, isEmpty);
+        m.othersNotify = false;
+        server.last.serve({'type': 'message.new', 'message': msg(3)});
+        async.flushMicrotasks();
+        expect(notes, hasLength(1));
+      });
+    });
+
+    test('the window says when its chat comes in front and goes', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        final fronts = <bool>[];
+        m.onFront = fronts.add;
+        open(async, server);
+        m.setFront(true);
+        m.setFront(true);
+        m.setFront(false);
+        expect(fronts, [true, false]);
+      });
+    });
+
     test('a message of files only notifies with the file name', () {
       fakeAsync((async) {
         final server = Server();

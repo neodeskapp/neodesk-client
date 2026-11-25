@@ -139,6 +139,8 @@ class NdChatService with WindowListener {
     platformFFI.registerEventHandler('nd-chat', 'nd-chat', _onEvent);
     windowManager.addListener(this);
     windowManager.isFocused().then((v) => focused.value = v);
+    model.onFront = (front) =>
+        bind.mainSetCommon(key: 'nd-chat-front', value: front ? '1' : '');
     model.start();
   }
 
@@ -154,6 +156,10 @@ class NdChatService with WindowListener {
   Future<void> _onEvent(Map<String, dynamic> evt) async {
     if (evt['activated'] == true) {
       show();
+      return;
+    }
+    if (evt.containsKey('tray')) {
+      model.othersNotify = evt['tray'] == true;
       return;
     }
     final s = _socket;
