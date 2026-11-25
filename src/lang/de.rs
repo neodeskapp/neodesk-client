@@ -1252,6 +1252,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-tray-accept", "Verbindungen annehmen"),
         ("nd-home-status-paused", "Pausiert. Dieser Computer nimmt gerade keine Verbindungen an."),
         ("nd-home-accept", "Verbindungen annehmen"),
+        ("nd-devices-no-service", "Der NeoDesk-Dienst läuft auf diesem Computer nicht, darum lädt die Geräteliste nicht. Starte den Dienst und klick dann auf Erneut versuchen."),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

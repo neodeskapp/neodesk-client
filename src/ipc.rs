@@ -309,6 +309,32 @@ pub enum DataPortableService {
     CmShowElevation(bool),
 }
 
+/// See [`Data::SealedCall`].
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(tag = "t", content = "c")]
+pub enum SealedCall {
+    /// The call: method, path with query on the API server, the account
+    /// token header.
+    Ask {
+        method: String,
+        path: String,
+        authorization: String,
+    },
+    /// The answer as an HTTP answer (status_code, headers, body), or why
+    /// the server process did not make the call.
+    Answer(Result<String, String>),
+}
+
+impl std::fmt::Debug for SealedCall {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Neither the token nor the answer goes into a log line
+        match self {
+            Self::Ask { method, .. } => write!(f, "SealedCall::Ask({method})"),
+            Self::Answer(answer) => write!(f, "SealedCall::Answer(ok: {})", answer.is_ok()),
+        }
+    }
+}
+
 /// See [`Data::HandOverSecrets`]. Its Debug output names no secret.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "t", content = "c")]
@@ -376,6 +402,9 @@ pub enum Data {
     /// the server process's public key and key proof for it
     /// (hbbs_http/pairing_proof.rs); None for any other path.
     PairingProof((String, Option<(String, Vec<(String, String)>)>)),
+    /// A NeoDesk API call another process has the server process seal, send
+    /// and open, for the calls of hbbs_http/sealed_calls.rs only (L500, L507).
+    SealedCall(SealedCall),
     /// The device's secrets an older version left in the person's profile,
     /// handed to the process that holds them (L442), see
     /// [`settle_device_secrets`].
@@ -932,6 +961,27 @@ async fn handle(data: Data, stream: &mut Connection) {
                 &path,
             );
             allow_err!(stream.send(&Data::PairingProof((path, proof))).await);
+        }
+        #[cfg(not(target_os = "ios"))]
+        Data::SealedCall(SealedCall::Ask {
+            method,
+            path,
+            authorization,
+        }) => {
+            let answer =
+                crate::common::sealed_call_for_other_process(&method, &path, &authorization).await;
+            if let Err(err) = &answer {
+                hbb_common::throttled_log!(
+                    std::time::Duration::from_secs(60),
+                    warn,
+                    "Sealed call {method} for another process not made: {err}"
+                );
+            }
+            allow_err!(
+                stream
+                    .send(&Data::SealedCall(SealedCall::Answer(answer)))
+                    .await
+            );
         }
         Data::HandOverSecrets(HandOver::Secrets(secrets)) => {
             if let Some(public_key) = take_handed_over_secrets(*secrets) {
@@ -1755,6 +1805,34 @@ pub async fn pairing_proof(path: &str) -> Option<(String, Vec<(String, String)>)
         .ok()?;
     match c.next_timeout(1_000).await {
         Ok(Some(Data::PairingProof((answered, Some(proof))))) if answered == path => Some(proof),
+        _ => None,
+    }
+}
+
+/// How long the window waits for the server process to make a sealed call:
+/// the call may try plain TLS, native TLS and the TCP proxy, 12 s each.
+const SEALED_CALL_TIMEOUT_MS: u64 = 60_000;
+
+/// Has the server process make the sealed NeoDesk API call `method` `path`
+/// with the account token `authorization` (common.rs
+/// call_through_server_process). None when no server process answers; in
+/// the window of an installed client on Windows that includes a main pipe
+/// whose server is not the service ([`refuses_main_ipc_server`]).
+pub async fn sealed_call(
+    method: &str,
+    path: &str,
+    authorization: &str,
+) -> Option<Result<String, String>> {
+    let mut c = connect(1_000, "").await.ok()?;
+    c.send(&Data::SealedCall(SealedCall::Ask {
+        method: method.to_owned(),
+        path: path.to_owned(),
+        authorization: authorization.to_owned(),
+    }))
+    .await
+    .ok()?;
+    match c.next_timeout(SEALED_CALL_TIMEOUT_MS).await {
+        Ok(Some(Data::SealedCall(SealedCall::Answer(answer)))) => Some(answer),
         _ => None,
     }
 }
