@@ -101,3 +101,5 @@ The language flags in `flutter/assets/flags` are from [Twemoji](https://github.c
 
 - [NeoDesk Discord](https://discord.gg/nwERSawufr)
 - [Discussions of neodeskapp/neodesk](https://github.com/neodeskapp/neodesk/discussions)
+- [Contributing](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md)
+- [Report a security problem](SECURITY.md) privately
