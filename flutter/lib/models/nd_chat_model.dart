@@ -315,6 +315,13 @@ class NdChatModel extends ChangeNotifier {
 
   bool _front = false;
   bool _atNewest = true;
+
+  /// A tray holds the chat and notifies (src/tray_chat.rs): the window
+  /// shows no notifications of its own.
+  bool othersNotify = false;
+
+  /// Hears when the window's chat comes in front or goes.
+  void Function(bool front)? onFront;
   String? _readSentFor;
 
   List<NdChatMessage> get messages => _sorted ??=
@@ -638,7 +645,7 @@ class NdChatModel extends ChangeNotifier {
 
   void _notifyOf(NdChatMessage m) {
     final n = notify;
-    if (n == null) return;
+    if (n == null || othersNotify) return;
     var body = m.text.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (body.isEmpty && m.files.isNotEmpty) {
       body = m.files.map((f) => f.name).join(', ');
@@ -706,6 +713,7 @@ class NdChatModel extends ChangeNotifier {
   void setFront(bool front) {
     if (_front == front) return;
     _front = front;
+    onFront?.call(front);
     _maybeRead();
   }
 
