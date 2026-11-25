@@ -10,6 +10,7 @@ class FakeSocket implements NdChatSocket {
   final _frames = StreamController<String>();
   final sent = <Map<String, dynamic>>[];
   var _status = 0;
+  Duration? _retryAfter;
   var closedByClient = false;
 
   @override
@@ -17,6 +18,9 @@ class FakeSocket implements NdChatSocket {
 
   @override
   int get closeStatus => _status;
+
+  @override
+  Duration? get retryAfter => _retryAfter;
 
   @override
   void send(String frame) => sent.add(jsonDecode(frame) as Map<String, dynamic>);
@@ -30,8 +34,9 @@ class FakeSocket implements NdChatSocket {
   void serve(Map<String, dynamic> frame) => _frames.add(jsonEncode(frame));
   void raw(String text) => _frames.add(text);
 
-  void drop([int status = 0]) {
+  void drop([int status = 0, Duration? retryAfter]) {
     _status = status;
+    _retryAfter = retryAfter;
     _frames.close();
   }
 

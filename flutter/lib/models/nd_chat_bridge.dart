@@ -26,6 +26,7 @@ class _BridgeSocket implements NdChatSocket {
   final _frames = StreamController<String>();
   int? number;
   int _status = 0;
+  Duration? _retryAfter;
   final _early = <Map<String, dynamic>>[];
 
   @override
@@ -33,6 +34,9 @@ class _BridgeSocket implements NdChatSocket {
 
   @override
   int get closeStatus => _status;
+
+  @override
+  Duration? get retryAfter => _retryAfter;
 
   @override
   void send(String frame) =>
@@ -63,6 +67,8 @@ class _BridgeSocket implements NdChatSocket {
       _frames.add(frame);
     } else if (evt.containsKey('closed')) {
       final s = evt['closed'];
+      final retry = evt['retry_after'];
+      if (retry is int && retry > 0) _retryAfter = Duration(seconds: retry);
       _end(s is int ? s : int.tryParse('$s') ?? 0);
     }
   }

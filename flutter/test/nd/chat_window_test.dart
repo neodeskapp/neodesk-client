@@ -202,6 +202,21 @@ void main() {
     });
   });
 
+  testWidgets('replying to a message of files only names its first file', (tester) async {
+    await withChat(tester, (chat) async {
+      chat.open(messages: [
+        {...msg(1, text: ''), 'attachments': [file('error.png', 48213, picture: true)]},
+      ]);
+      await tester.pump();
+      await tester.tap(find.bySemanticsLabel('Message options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reply'));
+      await tester.pumpAndSettle();
+      expect(find.text('Replying to Anna Weber'), findsOneWidget);
+      expect(find.text('error.png'), findsOneWidget);
+    });
+  });
+
   testWidgets('a reply carries the message it answers', (tester) async {
     await withChat(tester, (chat) async {
       chat.open(messages: [msg(1, text: 'Can you send a screenshot?')]);
