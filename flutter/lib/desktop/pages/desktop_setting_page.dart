@@ -2641,7 +2641,8 @@ class _AboutState extends State<_About> {
         'myId': await bind.mainGetMyId(),
       };
     }(), hasData: (data) {
-      return AboutView(
+      // Rebuilds when the branding arrives from the server.
+      return Obx(() => AboutView(
         facts: AboutFacts(
           version: data['version'].toString(),
           buildDate: data['buildDate'].toString(),
@@ -2652,7 +2653,10 @@ class _AboutState extends State<_About> {
             launchUrlString('https://www.gnu.org/licenses/agpl-3.0.html'),
         onSource: () => launchUrlString(kNeoDeskClientRepoUrl),
         onUpstream: () => launchUrlString(kUpstreamRepoUrl),
-        onCommunity: () => launchUrlString(kNeoDeskDiscordUrl),
+        onCommunity: aboutCommunityLink(
+            appName: bind.mainGetAppNameSync(),
+            companyBranded: BrandingModel.current.hasBranding,
+            open: () => launchUrlString(kNeoDeskDiscordUrl)),
         // Update checks are off in this build; the releases page shows
         // the newest version.
         onCheckUpdates: () {
@@ -2661,7 +2665,7 @@ class _AboutState extends State<_About> {
         },
         updateResult: _result,
         sourceLabel: kNeoDeskClientRepoUrl.replaceFirst('https://', ''),
-      );
+      ));
     });
   }
 }

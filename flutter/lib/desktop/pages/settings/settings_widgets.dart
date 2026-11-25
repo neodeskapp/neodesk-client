@@ -368,6 +368,24 @@ class AboutFacts {
   final String fingerprint;
 }
 
+/// The app names of NeoDesk's own builds. A custom client config that sets
+/// another name makes a branded build.
+const kNeoDeskOwnAppNames = {
+  'NeoDesk Client',
+  'NeoDesk Support Agent',
+  'NeoDesk Quick Support',
+};
+
+/// What About's Discord link does: [open] in NeoDesk's own builds, nothing
+/// (no row) in a branded one, whose users belong to whoever branded it:
+/// another [appName], or a company's name, contact or logo
+/// ([companyBranded]).
+VoidCallback? aboutCommunityLink(
+        {required String appName,
+        required bool companyBranded,
+        required VoidCallback open}) =>
+    kNeoDeskOwnAppNames.contains(appName) && !companyBranded ? open : null;
+
 /// About: the logo, the facts, Check for updates and the copyright line.
 class AboutView extends StatelessWidget {
   const AboutView({
