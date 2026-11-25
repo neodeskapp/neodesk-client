@@ -13,7 +13,9 @@ use serde_json::Value;
 use super::link::Console;
 use crate::hbbs_http::{create_http_client_async, create_http_client_async_with_url_strict};
 
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
+/// A console that takes no connection ends a join with "Can't reach" within
+/// about this long (L524).
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Why a join or a quick support step did not work.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -346,6 +346,47 @@ fn a_join_on_the_moved_console_names_the_console_that_answered() {
     );
 }
 
+/// L524: after a join, the same code typed again with another address
+/// (here one that does not answer) left the screen on "Connecting" for
+/// ever: the code stayed taken and the join was refused without a word.
+/// A code is taken only while its join runs.
+#[test]
+fn a_code_is_free_again_once_its_join_ended() {
+    let first = super::JoinRun::start("L524AAAA").expect("free at first");
+    assert!(
+        super::JoinRun::start("L524AAAA").is_none(),
+        "the same code twice at once"
+    );
+    // The join ended (joined): the same code may be joined again
+    drop(first);
+    let again = super::JoinRun::start("L524AAAA").expect("free after the join ended");
+    drop(again);
+}
+
+/// L524: a console that takes the connection but never answers ends the
+/// join with "Can't reach" within about 15 seconds.
+#[test]
+fn a_console_that_never_answers_is_unreachable_within_15_seconds() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let console = Console {
+        https: false,
+        host: "127.0.0.1".to_owned(),
+        port: Some(listener.local_addr().unwrap().port()),
+    };
+    let started = Instant::now();
+    let result = block_on(async {
+        let http = Http::new(console).await?;
+        redeem_join(&http, "ABCDEF23", &device(), &[]).await
+    });
+    assert_eq!(result, Err(OnboardError::Unreachable));
+    assert!(
+        started.elapsed() < Duration::from_secs(17),
+        "{:?}",
+        started.elapsed()
+    );
+    drop(listener);
+}
+
 #[test]
 fn a_console_that_does_not_answer_is_unreachable() {
     let port = {

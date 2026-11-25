@@ -500,13 +500,10 @@ pub fn redeem_join(text: String) {
 /// Joins the console with `code` and takes over its settings. Blocks; runs
 /// outside any async runtime. With the join, the console that answered.
 fn join_now(console: Option<Console>, code: &str) -> Result<(Joined, Console), OnboardError> {
-    {
-        let mut joining = JOINING.lock().unwrap();
-        if joining.as_deref() == Some(code) {
-            return Err(OnboardError::WrongState);
-        }
-        *joining = Some(code.to_owned());
-    }
+    // The join of this code that runs tells the screens how it ends
+    let Some(_run) = JoinRun::start(code) else {
+        return Err(OnboardError::WrongState);
+    };
     let result = join_with(console, code);
     STATE.update(|s| match &result {
         Ok((joined, _)) => {
@@ -520,10 +517,33 @@ fn join_now(console: Option<Console>, code: &str) -> Result<(Joined, Console), O
             s.fail(err);
         }
     });
-    if result.is_err() {
-        *JOINING.lock().unwrap() = None;
-    }
     result
+}
+
+/// A join of a code that runs. A link can arrive twice at once, and the
+/// same code is joined once at a time. The code is free again once that
+/// join ended, also after it joined: a code kept after a join refused the
+/// next join of it without a word, and the screen waited for ever (L524).
+struct JoinRun(String);
+
+impl JoinRun {
+    fn start(code: &str) -> Option<Self> {
+        let mut joining = JOINING.lock().unwrap();
+        if joining.as_deref() == Some(code) {
+            return None;
+        }
+        *joining = Some(code.to_owned());
+        Some(JoinRun(code.to_owned()))
+    }
+}
+
+impl Drop for JoinRun {
+    fn drop(&mut self) {
+        let mut joining = JOINING.lock().unwrap();
+        if joining.as_deref() == Some(self.0.as_str()) {
+            *joining = None;
+        }
+    }
 }
 
 fn join_with(console: Option<Console>, code: &str) -> Result<(Joined, Console), OnboardError> {
