@@ -332,6 +332,10 @@ pub fn seal_payload(
     server_public_key: &str,
     device_id: &str,
 ) -> Result<Value, String> {
+    // Only the server process counts (hbbs_http/sealed_calls.rs, L500)
+    if !crate::common::seals_neodesk_requests() {
+        return Err("only the device's server process seals requests".to_owned());
+    }
     let server_public_bytes = STANDARD
         .decode(server_public_key)
         .map_err(|_| "invalid server telemetry key".to_owned())?;
@@ -344,12 +348,7 @@ pub fn seal_payload(
     let plaintext = serde_json::to_vec(payload).map_err(|err| err.to_string())?;
     let ciphertext = secretbox::seal(&plaintext, &nonce, &shared_key);
 
-    let current_sequence = match LocalConfig::get_option(TELEMETRY_SEQUENCE).parse::<u64>() {
-        Ok(value) => value,
-        Err(_) => 0,
-    };
-    let sequence = current_sequence.saturating_add(1);
-    LocalConfig::set_option(TELEMETRY_SEQUENCE.to_owned(), sequence.to_string());
+    let sequence = next_sequence()?;
 
     let ephemeral_public = STANDARD.encode(ephemeral_public.0);
     let nonce_value = STANDARD.encode(nonce.0);
@@ -377,6 +376,29 @@ pub fn seal_payload(
         "ciphertext": ciphertext_value,
         "signature": STANDARD.encode(signature.as_ref()),
     }))
+}
+
+/// The sequence number of the next sealed envelope, from the counter file
+/// next to the config (hbbs_http/seal_sequence.rs). The local config's copy
+/// is a floor, since older versions counted there, and is kept up to date
+/// for them.
+fn next_sequence() -> Result<u64, String> {
+    let floor = [
+        LocalConfig::get_option(TELEMETRY_SEQUENCE),
+        LocalConfig::get_option_from_file(TELEMETRY_SEQUENCE),
+    ]
+    .iter()
+    .filter_map(|value| value.parse::<u64>().ok())
+    .max()
+    .unwrap_or(0);
+    let sequence = crate::hbbs_http::seal_sequence::next(&sequence_file(), floor)
+        .map_err(|err| format!("sequence counter unavailable: {err}"))?;
+    LocalConfig::set_option(TELEMETRY_SEQUENCE.to_owned(), sequence.to_string());
+    Ok(sequence)
+}
+
+fn sequence_file() -> PathBuf {
+    Config::path(format!("{}_sequence", *config::APP_NAME.read().unwrap()))
 }
 
 fn response_keypair() -> Result<(box_::PublicKey, box_::SecretKey), String> {
@@ -1328,6 +1350,28 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0]["status"], "ok");
         assert_eq!(results[0]["result"]["snapshot"]["kind"], "metrics");
+    }
+
+    /// L500: a process that does not run the server (the window) never
+    /// seals, so it neither reads nor writes the sequence counter. The
+    /// window used to count from its own stale copy and write it back.
+    #[test]
+    fn only_the_server_process_seals_and_counts() {
+        assert!(!crate::common::seals_neodesk_requests());
+        let before = (
+            LocalConfig::get_option(TELEMETRY_SEQUENCE),
+            crate::hbbs_http::seal_sequence::read(&sequence_file()),
+        );
+        let server_key = STANDARD.encode([7u8; 32]);
+        let refused = seal_payload(&json!({}), "key-id", &server_key, "523280558").unwrap_err();
+        assert!(refused.contains("server process"), "{refused}");
+        assert_eq!(
+            (
+                LocalConfig::get_option(TELEMETRY_SEQUENCE),
+                crate::hbbs_http::seal_sequence::read(&sequence_file()),
+            ),
+            before
+        );
     }
 
     #[test]

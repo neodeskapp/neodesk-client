@@ -27,6 +27,7 @@ class GroupModel {
   var initialized = false;
   var _cacheLoadOnceFlag = false;
   var _statusCode = 200;
+  var _error = '';
 
   final Map<String, VoidCallback> _peerIdUpdateListeners = {};
 
@@ -50,6 +51,7 @@ class GroupModel {
       groupLoading.value = true;
       groupLoadError.value = "";
     }
+    _error = '';
     groupLoadCanRetry.value = false;
     try {
       await _pull();
@@ -60,7 +62,7 @@ class GroupModel {
     groupLoading.value = false;
     initialized = true;
     platformFFI.tryHandle({'name': LoadEvent.group});
-    if (_statusCode == 401) {
+    if (groupPullSignsOut(_statusCode, _error)) {
       gFFI.userModel.reset(resetOther: true);
     } else {
       _saveCache();
@@ -130,6 +132,7 @@ class GroupModel {
         Map<String, dynamic> json =
             _jsonDecodeResp(decode_http_response(resp), resp.statusCode);
         if (json.containsKey('error')) {
+          _error = '${json['error']}';
           throw json['error'];
         }
         if (resp.statusCode != 200) {
@@ -188,6 +191,7 @@ class GroupModel {
         Map<String, dynamic> json =
             _jsonDecodeResp(decode_http_response(resp), resp.statusCode);
         if (json.containsKey('error')) {
+          _error = '${json['error']}';
           if (json['error'] == 'Admin required!' ||
               json['error']
                   .toString()
@@ -253,6 +257,7 @@ class GroupModel {
         Map<String, dynamic> json =
             _jsonDecodeResp(decode_http_response(resp), resp.statusCode);
         if (json.containsKey('error')) {
+          _error = '${json['error']}';
           throw json['error'];
         }
         if (resp.statusCode != 200) {

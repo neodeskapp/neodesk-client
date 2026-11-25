@@ -1614,6 +1614,9 @@ async fn secure_neodesk_post(
     if !payload.is_object() {
         return Ok((body.to_owned(), header.to_owned()));
     }
+    if !seals_neodesk_requests() {
+        bail!("only the device's server process sends sealed POST requests");
+    }
     let (key_id, public_key) = crate::hbbs_http::neodesk::fetch_telemetry_server_key().await?;
     let envelope =
         crate::telemetry::seal_payload(&payload, &key_id, &public_key, &Config::get_id())
@@ -3871,8 +3874,12 @@ mod tests {
         }
     }
 
-    fn sequence_now() -> String {
-        LocalConfig::get_option("neodesk-telemetry-sequence")
+    fn sequence_now() -> (String, u64) {
+        let file = Config::path(format!("{}_sequence", *config::APP_NAME.read().unwrap()));
+        (
+            LocalConfig::get_option("neodesk-telemetry-sequence"),
+            crate::hbbs_http::seal_sequence::read(&file),
+        )
     }
 
     /// L500, L507: a process that does not run the server (the window) has
