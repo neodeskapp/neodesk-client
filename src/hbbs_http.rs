@@ -11,6 +11,7 @@ mod http_client;
 pub mod pairing;
 pub mod pairing_proof;
 pub mod record_upload;
+pub mod seal_sequence;
 pub mod sealed_calls;
 pub mod sync;
 pub use http_client::{
