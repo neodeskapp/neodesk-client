@@ -498,8 +498,8 @@ pub fn redeem_join(text: String) {
 }
 
 /// Joins the console with `code` and takes over its settings. Blocks; runs
-/// outside any async runtime.
-fn join_now(console: Option<Console>, code: &str) -> Result<Joined, OnboardError> {
+/// outside any async runtime. With the join, the console that answered.
+fn join_now(console: Option<Console>, code: &str) -> Result<(Joined, Console), OnboardError> {
     {
         let mut joining = JOINING.lock().unwrap();
         if joining.as_deref() == Some(code) {
@@ -509,7 +509,7 @@ fn join_now(console: Option<Console>, code: &str) -> Result<Joined, OnboardError
     }
     let result = join_with(console, code);
     STATE.update(|s| match &result {
-        Ok(joined) => {
+        Ok((joined, _)) => {
             s.phase = Phase::Joined;
             s.clear_error();
             s.device_name = Some(joined.device_name.clone()).filter(|n| !n.is_empty());
@@ -526,7 +526,7 @@ fn join_now(console: Option<Console>, code: &str) -> Result<Joined, OnboardError
     result
 }
 
-fn join_with(console: Option<Console>, code: &str) -> Result<Joined, OnboardError> {
+fn join_with(console: Option<Console>, code: &str) -> Result<(Joined, Console), OnboardError> {
     let from_invite = console.is_some();
     let console = console.or_else(known_console).ok_or(OnboardError::NeedsServer)?;
     STATE.update(|s| {
@@ -549,23 +549,7 @@ fn join_with(console: Option<Console>, code: &str) -> Result<Joined, OnboardErro
         })
         .unwrap_or(Err(OnboardError::Server(0)))
     };
-    let mut result = redeem(console.clone());
-    if matches!(result, Err(OnboardError::Unreachable)) && !from_invite {
-        if let Some(moved) = moved_console(&console) {
-            log::info!(
-                "{} does not answer, trying {} for the code",
-                console.base(),
-                moved.base()
-            );
-            result = redeem(moved.clone()).map(|mut joined| {
-                if joined.console.is_empty() {
-                    joined.console = moved.base();
-                }
-                joined
-            });
-        }
-    }
-    let joined = result?;
+    let (joined, answered) = redeem_at(console, from_invite, redeem)?;
     STATE.update(|s| s.join_step = 1);
     apply_join(&joined, &device.device_id);
     STATE.update(|s| {
@@ -573,7 +557,47 @@ fn join_with(console: Option<Console>, code: &str) -> Result<Joined, OnboardErro
         s.device_id = Some(device.device_id.clone());
     });
     log::info!("Joined {} as device {}", joined.console, device.device_id);
-    Ok(joined)
+    Ok((joined, answered))
+}
+
+/// Redeems the code at `console`, and for a code without a console of its
+/// own (`from_invite` false) once more where the console moved
+/// ([`moved_console`]) when it does not answer. With the join, the console
+/// that answered (L525).
+fn redeem_at(
+    console: Console,
+    from_invite: bool,
+    mut redeem: impl FnMut(Console) -> Result<Joined, OnboardError>,
+) -> Result<(Joined, Console), OnboardError> {
+    match redeem(console.clone()) {
+        Err(OnboardError::Unreachable) if !from_invite => {
+            let Some(moved) = moved_console(&console) else {
+                return Err(OnboardError::Unreachable);
+            };
+            log::info!(
+                "{} does not answer, trying {} for the code",
+                console.base(),
+                moved.base()
+            );
+            let mut joined = redeem(moved.clone())?;
+            if joined.console.is_empty() {
+                joined.console = moved.base();
+            }
+            Ok((joined, moved))
+        }
+        result => result.map(|joined| (joined, console)),
+    }
+}
+
+/// The line `--join` prints: the console that answered, the device's name
+/// when the invite gave one, and the ID.
+fn joined_line(answered: &Console, device_name: &str, id: &str) -> String {
+    let name = if device_name.is_empty() {
+        String::new()
+    } else {
+        format!(" as {device_name}")
+    };
+    format!("This computer joined {}{name}. ID: {id}", answered.host_port())
 }
 
 /// Takes over the server settings of a join, in the server process when one
@@ -884,16 +908,8 @@ fn cli_join(invite: Invite) -> Option<CoreMainAction> {
         .map(|c| c.host_port())
         .unwrap_or_default();
     match join_now(invite.console, &invite.code) {
-        Ok(joined) => {
-            let name = if joined.device_name.is_empty() {
-                String::new()
-            } else {
-                format!(" as {}", joined.device_name)
-            };
-            say(&format!(
-                "This computer joined {server}{name}. ID: {}",
-                Config::get_id()
-            ));
+        Ok((joined, answered)) => {
+            say(&joined_line(&answered, &joined.device_name, &Config::get_id()));
             None
         }
         Err(err) => exit_with(&err, &server),

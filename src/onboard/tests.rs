@@ -294,6 +294,58 @@ fn a_known_console_on_an_old_port_is_tried_on_the_console_port() {
     assert_eq!(super::moved_console(&at(true, None)), None);
 }
 
+/// L525: a code retried where the console moved reports the console that
+/// answered, and `--join` prints that one, not the old port.
+#[test]
+fn a_join_on_the_moved_console_names_the_console_that_answered() {
+    let old = Console {
+        https: false,
+        host: "10.10.10.74".to_owned(),
+        port: Some(5000),
+    };
+    let joined = super::join::Joined {
+        server: ServerSettings::default(),
+        device_token: "token".to_owned(),
+        device_name: String::new(),
+        folder_id: None,
+        console: String::new(),
+    };
+    let mut asked = Vec::new();
+    let (got, answered) = super::redeem_at(old.clone(), false, |console| {
+        asked.push(console.port);
+        if console.port == Some(5000) {
+            Err(OnboardError::Unreachable)
+        } else {
+            Ok(joined.clone())
+        }
+    })
+    .unwrap();
+    assert_eq!(asked, vec![Some(5000), Some(3375)]);
+    assert_eq!(answered.port, Some(3375));
+    assert_eq!(got.console, "http://10.10.10.74:3375");
+    assert_eq!(
+        super::joined_line(&answered, "", "525129550"),
+        "This computer joined 10.10.10.74:3375. ID: 525129550"
+    );
+
+    // A console the invite named is not tried elsewhere
+    let mut asked = Vec::new();
+    let refused = super::redeem_at(old.clone(), true, |console| {
+        asked.push(console.port);
+        Err(OnboardError::Unreachable)
+    });
+    assert_eq!(refused.unwrap_err(), OnboardError::Unreachable);
+    assert_eq!(asked, vec![Some(5000)]);
+
+    // A console that answers is the one named
+    let (_, answered) = super::redeem_at(old.clone(), false, |_| Ok(joined.clone())).unwrap();
+    assert_eq!(answered, old);
+    assert_eq!(
+        super::joined_line(&answered, "Front desk", "1"),
+        "This computer joined 10.10.10.74:5000 as Front desk. ID: 1"
+    );
+}
+
 #[test]
 fn a_console_that_does_not_answer_is_unreachable() {
     let port = {
