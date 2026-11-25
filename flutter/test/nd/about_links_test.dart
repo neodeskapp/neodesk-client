@@ -47,4 +47,31 @@ void main() {
     expect(find.text(tr('nd-about-community')), findsNothing);
     expect(find.byIcon(NdIcons.forum), findsNothing);
   });
+
+  // Branded builds (another app name from a custom client config, or a
+  // company's branding) belong to whoever branded them: no NeoDesk Discord.
+  const cases = <(String, bool, bool)>[
+    ('NeoDesk Client', false, true),
+    ('NeoDesk Support Agent', false, true),
+    ('NeoDesk Quick Support', false, true),
+    ('Fernhill Remote', false, false),
+    ('NeoDesk Client', true, false),
+    ('NeoDesk Support Agent', true, false),
+  ];
+  for (final (appName, companyBranded, shows) in cases) {
+    testWidgets(
+        '${shows ? 'shows' : 'hides'} the Discord row for $appName'
+        '${companyBranded ? ' with company branding' : ''}', (tester) async {
+      await pumpScreen(
+          tester,
+          _about(
+              onCommunity: aboutCommunityLink(
+                  appName: appName,
+                  companyBranded: companyBranded,
+                  open: () {})),
+          size: const Size(900, 700));
+      expect(find.text(tr('nd-about-community')),
+          shows ? findsOneWidget : findsNothing);
+    });
+  }
 }
