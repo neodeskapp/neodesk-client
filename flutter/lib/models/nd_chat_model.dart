@@ -267,6 +267,13 @@ class NdChatModel extends ChangeNotifier {
   StreamSubscription<String>? _sub;
   Timer? _retry;
   int _attempt = 0;
+
+  /// Short tries left for a refusal right after a drop: the server or the
+  /// service is likely starting (its API port answers 404 for a moment,
+  /// the service has no token yet), so the long waits come only after
+  /// these.
+  int _startTries = 0;
+  static const _startTriesMax = 5;
   bool _disposed = false;
 
   bool connected = false;
@@ -438,6 +445,20 @@ class NdChatModel extends ChangeNotifier {
     final status = _noChatServer ? 404 : socket.closeStatus;
     _noChatServer = false;
     Duration wait;
+    if (status == 0) _startTries = _startTriesMax;
+    final refusal = status == 401 ||
+        status == 403 ||
+        status == 404 ||
+        status == kNdChatNoToken;
+    if (refusal && _startTries > 0) {
+      // Something answers again: its start, not the old outage, sets the
+      // pace.
+      if (_startTries == _startTriesMax) _attempt = 0;
+      _startTries--;
+      _retry = Timer(_backoff(), _open);
+      notifyListeners();
+      return;
+    }
     switch (status) {
       case 401:
       case 403:
@@ -538,6 +559,7 @@ class NdChatModel extends ChangeNotifier {
     connected = true;
     availability = NdChatAvailability.available;
     _attempt = 0;
+    _startTries = 0;
     final id = _str(v['device_id']);
     if (id.isNotEmpty) deviceId = id;
     final serverTime = _int(v['server_time']);

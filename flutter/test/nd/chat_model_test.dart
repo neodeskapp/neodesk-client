@@ -415,6 +415,58 @@ void main() {
       });
     });
 
+    test('a 404 right after a drop is a server starting: short tries keep the entry, then the long wait', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        open(async, server, ids: [1]);
+        server.last.drop();
+        async.flushMicrotasks();
+        async.elapse(const Duration(milliseconds: 1300));
+        expect(server.sockets, hasLength(2));
+        var count = 2;
+        for (final wait in [1300, 2500, 5000, 10000, 20000]) {
+          server.last.drop(404);
+          async.flushMicrotasks();
+          expect(m.showEntry, isTrue, reason: 'a server that is starting keeps the entry');
+          async.elapse(Duration(milliseconds: wait));
+          count++;
+          expect(server.sockets, hasLength(count), reason: 'asked again after at most $wait ms');
+        }
+        server.last.drop(404);
+        async.flushMicrotasks();
+        expect(m.showEntry, isFalse);
+        async.elapse(const Duration(minutes: 9));
+        expect(server.sockets, hasLength(count), reason: 'then the long wait');
+      });
+    });
+
+    test('no device token right after the service restarts keeps the entry and asks again within seconds', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        open(async, server, ids: [1]);
+        server.last.drop();
+        async.flushMicrotasks();
+        // The service is down for a while: the waits grow.
+        for (var i = 0; i < 4; i++) {
+          async.elapse(const Duration(seconds: 40));
+          server.last.drop();
+          async.flushMicrotasks();
+        }
+        async.elapse(const Duration(seconds: 40));
+        // It is up, but has no token for this server yet.
+        server.last.drop(kNdChatNoToken);
+        async.flushMicrotasks();
+        expect(m.showEntry, isTrue);
+        final sockets = server.sockets.length;
+        async.elapse(const Duration(milliseconds: 1300));
+        expect(server.sockets, hasLength(sockets + 1), reason: 'the service just started');
+        open(async, server, ids: [1]);
+        expect(m.showEntry, isTrue);
+      });
+    });
+
     test('chat turned off by an admin: no entry, the next try after Retry-After', () {
       fakeAsync((async) {
         final server = Server();

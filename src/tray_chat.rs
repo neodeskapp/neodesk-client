@@ -21,6 +21,10 @@ const TOO_MANY_WAIT: Duration = Duration::from_secs(30);
 /// again only after a long wait, with a new token or after it starts again
 /// (nd_chat.rs), so asking the service often costs the server nothing.
 const REFUSED_RECHECK: Duration = Duration::from_secs(60);
+/// After the socket dropped or couldn't connect, a refusal (401, 403, 404,
+/// no token) likely comes from a server or a service that is starting:
+/// this many short tries before the long wait.
+const START_TRIES: u32 = 5;
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
 /// The longest text of a notification.
 const NOTE_CHARS: usize = 120;
@@ -54,6 +58,8 @@ pub struct TrayChat {
     connected: bool,
     /// The server took the chat and hasn't refused it since.
     available: bool,
+    /// Short tries left for a refusal after a drop ([`START_TRIES`]).
+    start_tries: u32,
     attempt: u32,
     /// Staff messages after the computer's read mark, by id.
     unread: BTreeMap<u64, Unread>,
@@ -115,6 +121,7 @@ impl TrayChat {
             self.connected = true;
             self.available = true;
             self.attempt = 0;
+            self.start_tries = 0;
             if let Some(id) = v["device_id"].as_str() {
                 self.device_id = id.to_owned();
             }
@@ -237,6 +244,19 @@ impl TrayChat {
     /// try again.
     pub fn closed(&mut self, status: u16, retry_after: u32, spread: f64) -> Option<Duration> {
         self.connected = false;
+        if status == 0 {
+            self.start_tries = START_TRIES;
+        }
+        let refusal = matches!(status, 401 | 403 | 404 | crate::nd_chat::NO_TOKEN);
+        if refusal && self.start_tries > 0 {
+            // Something answers again: its start, not the old outage, sets
+            // the pace.
+            if self.start_tries == START_TRIES {
+                self.attempt = 0;
+            }
+            self.start_tries -= 1;
+            return Some(self.backoff(spread));
+        }
         match status {
             401 | 403 => {
                 self.available = false;
@@ -503,6 +523,27 @@ mod tests {
             assert_eq!(chat.closed(status, 0, 0.5), Some(secs(60)), "{status}: no growth");
             chat.frame(&welcome()).unwrap();
             assert_eq!(chat.entry(), Some(0), "{status}: a new token brings the chat back");
+        }
+    }
+
+    #[test]
+    fn a_refusal_right_after_a_drop_is_a_start_short_tries_keep_the_entry() {
+        let ms = Duration::from_millis;
+        for status in [404, crate::nd_chat::NO_TOKEN, 401, 403] {
+            let mut chat = connected();
+            for _ in 0..4 {
+                chat.closed(0, 0, 0.5);
+            }
+            let waits: Vec<_> = (0..5).map(|_| chat.closed(status, 0, 0.5)).collect();
+            assert_eq!(
+                waits,
+                [Some(ms(1000)), Some(ms(2000)), Some(ms(4000)), Some(ms(8000)), Some(ms(16000))],
+                "{status}: the server or the service is starting"
+            );
+            assert_eq!(chat.entry(), Some(0), "{status}: the entry stays while it starts");
+            let settled = chat.closed(status, 0, 0.5).unwrap();
+            assert!(settled >= Duration::from_secs(60), "{status}: then the long wait, {settled:?}");
+            assert_eq!(chat.entry(), None, "{status}");
         }
     }
 

@@ -292,6 +292,9 @@ struct Hub {
     /// The last refusal, the token it was for, when and for how long it
     /// stands: a caller asking in that time gets it without an upgrade.
     refused: Option<(std::time::Instant, Duration, String, NdChat)>,
+    /// When the socket of a token last dropped or couldn't connect: a
+    /// refusal right after is likely a server that is starting.
+    trouble: Option<(std::time::Instant, String)>,
 }
 
 lazy_static::lazy_static! {
@@ -299,6 +302,10 @@ lazy_static::lazy_static! {
 }
 
 const REFUSAL_KEPT: Duration = Duration::from_secs(5);
+/// A refusal this soon after the token's socket dropped or couldn't connect
+/// comes from a server that is starting (its API port answers 404 for a
+/// moment before the console is up): it is held only for a moment.
+const TROUBLE_RECENT: Duration = Duration::from_secs(120);
 /// 401, 403 and 404 change only with a new token or another server: the
 /// server is asked again after this long, or at once with a new token or
 /// after the service starts again.
@@ -465,6 +472,8 @@ fn took(generation: u64, text: &str) {
     }
 }
 
+/// The socket of `generation` is gone, or was never opened (`refused`
+/// with the token it was for): every member gets `why` and leaves.
 /// A welcome for a member that joins later: its server_time moved on by
 /// the time since the welcome came, so the member's clock offset is the
 /// one of now.
@@ -479,9 +488,10 @@ pub fn welcome_now(text: &str, since: Duration) -> String {
     welcome.to_string()
 }
 
-/// The socket of `generation` is gone, or was never opened (`refused`
-/// with the token it was for): every member gets `why` and leaves.
-fn ended(generation: u64, why: NdChat, refused: Option<String>) {
+/// The socket of `generation` for `token` is gone (`upgrade` false), or
+/// its upgrade was refused (`upgrade` true): every member gets `why` and
+/// leaves.
+fn ended(generation: u64, why: NdChat, token: String, upgrade: bool) {
     let mut hub = hub();
     if hub.generation != generation {
         return;
@@ -491,9 +501,23 @@ fn ended(generation: u64, why: NdChat, refused: Option<String>) {
     }
     hub.members.clear();
     hub.forget_socket();
-    hub.refused = refused
-        .filter(|_| why != NdChat::Closed(0))
-        .map(|token| (std::time::Instant::now(), kept_for(&why), token, why));
+    let now = std::time::Instant::now();
+    if why == NdChat::Closed(0) {
+        hub.trouble = Some((now, token));
+        hub.refused = None;
+        return;
+    }
+    if !upgrade {
+        hub.refused = None;
+        return;
+    }
+    let starting = matches!(why, NdChat::Closed(401 | 403 | 404))
+        && hub
+            .trouble
+            .as_ref()
+            .is_some_and(|(at, t)| *t == token && at.elapsed() < TROUBLE_RECENT);
+    let kept = if starting { REFUSAL_KEPT } else { kept_for(&why) };
+    hub.refused = Some((now, kept, token, why));
 }
 
 /// Opens the socket of `generation` and passes its frames to the members
@@ -501,13 +525,13 @@ fn ended(generation: u64, why: NdChat, refused: Option<String>) {
 async fn hold_socket(generation: u64) {
     use tokio_tungstenite::tungstenite::Message;
     let Some(access) = access() else {
-        ended(generation, NdChat::Closed(NO_TOKEN), Some(String::new()));
+        ended(generation, NdChat::Closed(NO_TOKEN), String::new(), true);
         return;
     };
     let mut socket = match open_socket(&access).await {
         Ok(socket) => socket,
         Err(why) => {
-            ended(generation, why, Some(access.token));
+            ended(generation, why, access.token, true);
             return;
         }
     };
@@ -539,7 +563,7 @@ async fn hold_socket(generation: u64) {
         }
     };
     socket.close(None).await.ok();
-    ended(generation, why, None);
+    ended(generation, why, access.token, false);
 }
 
 /// One member's IPC connection: what the socket says goes out on it, the
@@ -1205,11 +1229,15 @@ mod tests {
 
         let seen: Arc<Mutex<Vec<(String, String)>>> = Arc::default();
         let got: Arc<Mutex<Vec<String>>> = Arc::default();
+        // Set: the server answers the good token with 404, as an API port
+        // does while the console starts (L536).
+        let starting: Arc<Mutex<bool>> = Arc::default();
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         {
             let seen = seen.clone();
             let got = got.clone();
+            let starting = starting.clone();
             std::thread::spawn(move || {
                 let runtime = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
@@ -1222,6 +1250,7 @@ mod tests {
                         let (tcp, _) = listener.accept().await.unwrap();
                         let seen = seen.clone();
                         let got = got.clone();
+                        let starting = starting.clone();
                         tokio::spawn(async move {
                             let refuse = Arc::new(Mutex::new(false));
                             let refused = refuse.clone();
@@ -1243,6 +1272,12 @@ mod tests {
                                     off.headers_mut()
                                         .insert("X-NeoDesk-Chat", "chat_off".parse().unwrap());
                                     return Err(off);
+                                }
+                                if *starting.lock().unwrap() {
+                                    let mut no = ErrorResponse::new(None);
+                                    *no.status_mut() =
+                                        tokio_tungstenite::tungstenite::http::StatusCode::NOT_FOUND;
+                                    return Err(no);
                                 }
                                 if auth == "Bearer old-server-token" {
                                     let mut old = ErrorResponse::new(None);
@@ -1448,6 +1483,28 @@ mod tests {
         assert_eq!(tray.join().unwrap(), (0, 0));
         assert_eq!(last.join().unwrap(), (0, 0));
         assert_eq!(seen.lock().unwrap().len(), sockets + 1, "still the one socket");
+
+        // The server restarts: the socket dropped, and the API port answers
+        // 404 until the console is up. That is held only for a moment.
+        *starting.lock().unwrap() = true;
+        let before = seen.lock().unwrap().len();
+        let (_sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<Out>();
+        assert_eq!(
+            runtime().block_on(client("_ndchat_test", NdChat::Open, Some(&mut receiver), |_| true)),
+            (404, 0)
+        );
+        std::thread::sleep(Duration::from_secs(6));
+        let (_sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<Out>();
+        assert_eq!(
+            runtime().block_on(client("_ndchat_test", NdChat::Open, Some(&mut receiver), |_| true)),
+            (404, 0)
+        );
+        assert_eq!(
+            seen.lock().unwrap().len(),
+            before + 2,
+            "a 404 right after the socket dropped is asked again after a moment"
+        );
+        *starting.lock().unwrap() = false;
 
         let run = |token: &str| {
             enrollment::store_token(token, &device_id, &api);
