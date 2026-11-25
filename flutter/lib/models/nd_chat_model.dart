@@ -642,6 +642,9 @@ class NdChatModel extends ChangeNotifier {
     if (isOwn(m) && m.clientId.isNotEmpty) {
       pending.removeWhere((p) => p.clientId == m.clientId);
     }
+    // The person's message opens a closed conversation again (PROTOCOL.md,
+    // the helper frame).
+    if (isOwn(m)) helperClosed = false;
     if (m.from.isStaff) {
       if (typingName == m.from.name) _setTyping(null);
       if (!known && !_front) _notifyOf(m);

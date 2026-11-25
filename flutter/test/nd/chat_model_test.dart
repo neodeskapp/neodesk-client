@@ -633,6 +633,26 @@ void main() {
     });
   });
 
+  group('the conversation', () {
+    test('the computer\'s own message opens a closed conversation again', () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        open(async, server, ids: [1]);
+        server.last.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'closed'});
+        async.flushMicrotasks();
+        expect(m.helperClosed, isTrue);
+        server.last.serve({'type': 'message.new', 'message': msg(2)});
+        async.flushMicrotasks();
+        expect(m.helperClosed, isTrue, reason: 'a staff message alone changes nothing');
+        server.last.serve({'type': 'message.new', 'message': msg(3, from: me)});
+        async.flushMicrotasks();
+        expect(m.helperClosed, isFalse);
+        expect(m.helperName, 'Anna Weber');
+      });
+    });
+  });
+
   group('unread, seen and notifications', () {
     test('unread counts staff messages after the computer\'s read mark', () {
       fakeAsync((async) {
