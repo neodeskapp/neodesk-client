@@ -597,6 +597,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-about-based-on", "Based on"),
         ("nd-about-help", "Help"),
         ("nd-about-community", "Community on Discord"),
+        ("nd-link-copied", "No browser opened the link. The address is copied: {}"),
         ("nd-about-check", "Check for updates"),
         ("nd-about-latest", "You have the latest version."),
         ("nd-about-new", "Version {} is out."),
