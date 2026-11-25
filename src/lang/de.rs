@@ -967,7 +967,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-cm-perm-block", "Meine Maus und Tastatur sperren"),
         ("nd-cm-perm-privacy", "Meinen Bildschirm abdunkeln"),
         ("nd-cm-allow-elevated", "Mit Administratorrechten erlauben"),
-        ("nd-cm-connected-min", "Seit {} Minuten verbunden"),
+        ("nd-cm-connected-min", "Seit {} Min. verbunden"),
         ("nd-cm-connected-h", "Seit {} Std. {} Min. verbunden"),
         ("nd-cm-tab-access", "Zugriff"),
         ("nd-cm-tab-files", "Dateien"),
