@@ -16,10 +16,25 @@ pub fn start_tray() {
         }
     }
 
+    // Session 0 has no desktop: a tray an installer run over SSH or by a
+    // management tool started there shows nothing (L528)
+    #[cfg(windows)]
+    if !shows_in_session(crate::platform::windows::get_current_process_session_id()) {
+        log::info!("No tray in session 0, exit");
+        return;
+    }
+
     #[cfg(target_os = "linux")]
     crate::server::check_zombie();
 
     allow_err!(make_tray());
+}
+
+/// Whether a tray in the Windows session `session` can be seen: not in
+/// session 0, where services and remote shells run.
+#[cfg(any(windows, test))]
+fn shows_in_session(session: Option<u32>) -> bool {
+    session != Some(0)
 }
 
 fn make_tray() -> hbb_common::ResultType<()> {
@@ -295,4 +310,18 @@ fn load_icon_from_asset() -> Option<image::DynamicImage> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    /// L528: an MSI update from an elevated SSH session left a tray in
+    /// session 0, next to the person's.
+    #[test]
+    fn no_tray_in_session_0() {
+        assert!(!super::shows_in_session(Some(0)));
+        assert!(super::shows_in_session(Some(1)));
+        assert!(super::shows_in_session(Some(3)));
+        // Unknown session: as before
+        assert!(super::shows_in_session(None));
+    }
 }
