@@ -76,6 +76,23 @@ void main() {
     }
   });
 
+  test('the texts use the words of the tab and the menu', () {
+    useLanguage('en');
+    final tab = translate('nd-tab-favourites').toLowerCase();
+    expect(translate('Add to Favorites').toLowerCase(), contains(tab));
+    expect(translate('nd-home-empty-favourites').toLowerCase(), contains(tab));
+    useLanguage('de');
+    // The Recent tab ("Zuletzt") lists past sessions, not current ones.
+    expect(translate('nd-home-empty-recent'), 'Noch keine Sitzungen.');
+    // Menu items and buttons named mid-sentence are quoted.
+    expect(translate('nd-home-empty-favourites-hint'),
+        contains('„${translate('Add to Favorites')}“'));
+    expect(translate('nd-home-empty-address-book-hint'),
+        contains('„${translate('Add to address book')}“'));
+    expect(translate('nd-home-empty-recent-hint'),
+        contains('„${translate('Connect')}“'));
+  });
+
   test('the old cheerful texts are gone from every language file', () {
     final old = RegExp(r'"empty_(recent|favorite|lan|address_book)_tip"');
     final files = Directory('../src/lang')
