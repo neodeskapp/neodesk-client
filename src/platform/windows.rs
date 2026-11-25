@@ -779,6 +779,8 @@ async fn serve() -> ResultType<()> {
     let mut session_id = unsafe { get_current_session(share_rdp()) };
     log::info!("session id {}", session_id);
     let mut h_process = launch_server(session_id, true).await.unwrap_or(NULL);
+    let started = Instant::now();
+    let mut tray_check_at = Some(started + Duration::from_secs(5));
     let mut incoming = None;
     let mut pipe_retry_at = Instant::now();
     let mut pipe_failed = false;
@@ -787,6 +789,10 @@ async fn serve() -> ResultType<()> {
         if SERVICE_STOP_REQUESTED.load(std::sync::atomic::Ordering::SeqCst) {
             log::info!("stop requested");
             break;
+        }
+        if tray_check_at.map_or(false, |at| Instant::now() >= at) {
+            tray_check_at = bring_back_tray(session_id, started.elapsed())
+                .then(|| Instant::now() + Duration::from_secs(10));
         }
         if incoming.is_none() && Instant::now() >= pipe_retry_at {
             match ipc::new_listener(crate::POSTFIX_SERVICE).await {
@@ -923,6 +929,39 @@ async fn serve() -> ResultType<()> {
         unsafe { CloseHandle(h_process) };
     }
     Ok(())
+}
+
+/// Starts the tray in `session` as the person signed in there, after the
+/// service came up: an install or update ended the person's tray (L528).
+/// The tray runs with the token of the person's explorer, so never
+/// elevated (L540). True to look again later: nobody is signed in yet, or
+/// starting it failed.
+fn bring_back_tray(session: DWORD, since_start: Duration) -> bool {
+    if since_start > crate::tray::SERVICE_TRAY_WINDOW || config::is_outgoing_only() {
+        return false;
+    }
+    let app_exe_name = format!("{}.exe", crate::get_exe_name());
+    let tray_sessions = crate::platform::get_pids_of_process_with_args(&app_exe_name, &["--tray"])
+        .iter()
+        .filter_map(|pid| get_session_id_of_process(pid.as_u32()))
+        .collect::<Vec<_>>();
+    if !crate::tray::service_starts_tray(session, &tray_sessions, since_start) {
+        // A tray runs there, or nobody can see one yet
+        return session == 0 || session == u32::MAX;
+    }
+    let Ok(exe) = std::env::current_exe() else {
+        return false;
+    };
+    match run_exe_in_session(&exe.to_string_lossy(), vec!["--tray"], session, true) {
+        Ok(_) => {
+            log::info!("Started the tray in session {session}");
+            false
+        }
+        Err(err) => {
+            log::warn!("The tray did not start in session {session}: {err}");
+            true
+        }
+    }
 }
 
 async fn launch_server(session_id: DWORD, close_first: bool) -> ResultType<HANDLE> {

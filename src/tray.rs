@@ -37,6 +37,27 @@ fn shows_in_session(session: Option<u32>) -> bool {
     session != Some(0)
 }
 
+/// How long after it starts the service looks for a person signed in
+/// without a tray. An install or update ends the person's tray and starts
+/// the service again (L528); a later sign-in starts the tray itself.
+#[cfg(any(windows, test))]
+pub const SERVICE_TRAY_WINDOW: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// Whether the service starts the tray in the session it serves, `session`,
+/// `since_start` after it started, with trays running in `tray_sessions`:
+/// in a session someone sees, without a tray there, soon after the start.
+#[cfg(any(windows, test))]
+pub fn service_starts_tray(
+    session: u32,
+    tray_sessions: &[u32],
+    since_start: std::time::Duration,
+) -> bool {
+    session != u32::MAX
+        && shows_in_session(Some(session))
+        && since_start <= SERVICE_TRAY_WINDOW
+        && !tray_sessions.contains(&session)
+}
+
 fn make_tray() -> hbb_common::ResultType<()> {
     // https://github.com/tauri-apps/tray-icon/blob/dev/examples/tao.rs
     use hbb_common::anyhow::Context;
@@ -323,5 +344,27 @@ mod tests {
         assert!(super::shows_in_session(Some(3)));
         // Unknown session: as before
         assert!(super::shows_in_session(None));
+    }
+
+    /// L528: a quiet MSI update ended the person's tray and nothing started
+    /// it again. The service, started by the update, starts it in the
+    /// session it serves, once, and never a second one.
+    #[test]
+    fn the_service_brings_back_the_persons_tray() {
+        use std::time::Duration;
+        let soon = Duration::from_secs(5);
+        assert!(super::service_starts_tray(1, &[], soon));
+        assert!(super::service_starts_tray(2, &[1], soon));
+        // A tray runs there already
+        assert!(!super::service_starts_tray(1, &[1], soon));
+        // Nobody signed in to see it
+        assert!(!super::service_starts_tray(0, &[], soon));
+        assert!(!super::service_starts_tray(u32::MAX, &[], soon));
+        // Long after the start a sign-in starts the tray itself
+        assert!(!super::service_starts_tray(
+            1,
+            &[],
+            super::SERVICE_TRAY_WINDOW + Duration::from_secs(1)
+        ));
     }
 }
