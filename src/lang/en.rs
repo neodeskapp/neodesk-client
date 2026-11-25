@@ -185,7 +185,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("doc_fix_wayland", "https://rustdesk.com/docs/en/client/linux/#x11-required"),
         ("display_is_plugged_out_msg", "The display is plugged out, switch to the first display."),
         ("selinux_tip", "SELinux is enabled on your device, which may prevent RustDesk from running properly as controlled side."),
-        ("id_input_tip", "You can input an ID, a direct IP, or a domain with a port (<domain>:<port>).\nIf you want to access a device on another NeoDesk server, append the server address (<id>@<server_address>?key=<key_value>), for example,\n9123456234@192.168.16.1:21117?key=<your-server-public-key>.\nPublic RustDesk servers (@public) are disabled in NeoDesk — configure Network settings instead.\n\nIf you want to force a relay connection on the first connection, add \"/r\" at the end of the ID, for example, \"9123456234/r\"."),
+        ("id_input_tip", "You can input an ID, a direct IP, or a domain with a port (<domain>:<port>).\nIf you want to access a device on another NeoDesk server, append the server address (<id>@<server_address>?key=<key_value>), for example,\n9123456234@192.168.16.1:21117?key=<your-server-public-key>.\nPublic servers (@public) are off in NeoDesk. Set up the Network settings instead.\n\nIf you want to force a relay connection on the first connection, add \"/r\" at the end of the ID, for example, \"9123456234/r\"."),
         ("privacy_mode_impl_mag_tip", "Mode 1"),
         ("privacy_mode_impl_virtual_display_tip", "Mode 2"),
         ("idd_not_support_under_win10_2004_tip", "Indirect display driver is not supported. Windows 10, version 2004 or newer is required."),

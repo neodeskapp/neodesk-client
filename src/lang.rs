@@ -347,6 +347,23 @@ mod test {
         );
     }
 
+    /// L519: the hint under the ID field says public servers are off in
+    /// NeoDesk, and the app's name does not land inside "Public ... servers".
+    #[test]
+    fn test_id_hint_says_public_servers_are_off() {
+        let hint = super::with_app_name(
+            "id_input_tip",
+            super::en::T["id_input_tip"].to_owned(),
+            "NeoDesk Client",
+        );
+        assert!(
+            hint.contains("Public servers (@public) are off in NeoDesk."),
+            "{hint}"
+        );
+        assert!(!hint.contains("NeoDesk Client servers"), "{hint}");
+        assert!(!hint.contains('\u{2014}'), "{hint}");
+    }
+
     /// The German texts address the reader with "du". "Sie" and the capitalised
     /// forms of "Ihr" are the formal address, except where a text means
     /// "they", "their" or "it"; those texts are listed with the word.
