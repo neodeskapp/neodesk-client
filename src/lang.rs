@@ -347,6 +347,55 @@ mod test {
         );
     }
 
+    /// The German texts address the reader with "du". "Sie" and the capitalised
+    /// forms of "Ihr" are the formal address, except where a text means
+    /// "they", "their" or "it"; those texts are listed with the word.
+    #[test]
+    fn test_german_says_du() {
+        const NOT_YOU: &[(&str, &str)] = &[
+            // The session toolbar's "their sound", "their cursor", "their
+            // computer", "their sign-in password", "their active window" and
+            // "their screens": the other computer's, at the start of the label.
+            ("Mute", "Ihren"),
+            ("Show remote cursor", "Ihren"),
+            ("Insert Lock", "Ihren"),
+            ("OS Password", "Ihr"),
+            ("Follow remote cursor", "Ihrem"),
+            ("Follow remote window focus", "Ihrem"),
+            ("nd-tb-their-computer", "Ihr"),
+            ("nd-set-row-show-their-screens-in-the-toolbar", "Ihre"),
+            // "Let them control this computer".
+            ("Switch Sides", "Sie"),
+            // "It": the server address, then the invite.
+            ("nd-invite-server-hint", "Sie"),
+            ("nd-join-failed-next-refused", "Sie"),
+        ];
+        let formal =
+            super::Regex::new(r"\b(Sie|Ihr|Ihre|Ihren|Ihrem|Ihrer|Ihres|Ihnen)\b").unwrap();
+        let mut found = Vec::new();
+        for (key, text) in super::de::T.iter() {
+            for word in formal.find_iter(text) {
+                if !NOT_YOU.contains(&(*key, word.as_str())) {
+                    found.push(format!("{key}: {text}"));
+                }
+            }
+        }
+        found.sort();
+        found.dedup();
+        assert!(
+            found.is_empty(),
+            "formal address in de.rs:\n{}",
+            found.join("\n")
+        );
+        for (key, word) in NOT_YOU {
+            let text = super::de::T.get(key).copied().unwrap_or_default();
+            assert!(
+                formal.find_iter(text).any(|m| m.as_str() == *word),
+                "{key} no longer has {word}, drop it from the list"
+            );
+        }
+    }
+
     #[test]
     fn test_resolve_lang_forces_english_for_saved_cjk_when_target_disables_cjk() {
         use super::resolve_lang as f;
