@@ -301,7 +301,9 @@ class _JoinServerDialogState extends State<_JoinServerDialog> {
       _joining = newHost;
       _failed = null;
     });
-    await widget.service.redeemJoin(text);
+    await widget.service.redeemJoin(
+        joinRequestFor(_invite.text, _server.text, widget.knownConsole) ??
+            text);
     final outcome = await joinOutcome(widget.service);
     if (!mounted) return;
     if (outcome.phase == OnboardingPhase.joined) {

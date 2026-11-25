@@ -49,6 +49,23 @@ String? joinTextFor(String typed, String server) {
   return joinLinkFor(server, input.displayCode ?? '');
 }
 
+/// What the Join a server dialog hands to the join for [typed] with the
+/// server address [server], when it prefilled [prefilled], the console of
+/// the earlier join. A bare code with that address left as it was goes as
+/// the bare code: the client sends it to that console, tries the console's
+/// new port when the old one does not answer and keeps the address that
+/// answered, as `--join CODE` does (L524). An address the person typed or
+/// changed goes with the code as a link, to that address only.
+String? joinRequestFor(String typed, String server, String prefilled) {
+  final input = InviteInput.parse(typed);
+  if (input.needsServer &&
+      prefilled.trim().isNotEmpty &&
+      server.trim() == prefilled.trim()) {
+    return input.displayCode;
+  }
+  return joinTextFor(typed, server);
+}
+
 /// First start without a server: one task, paste the invite.
 class FirstStartView extends StatefulWidget {
   const FirstStartView({
