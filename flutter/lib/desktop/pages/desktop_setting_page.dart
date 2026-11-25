@@ -2652,6 +2652,7 @@ class _AboutState extends State<_About> {
             launchUrlString('https://www.gnu.org/licenses/agpl-3.0.html'),
         onSource: () => launchUrlString(kNeoDeskClientRepoUrl),
         onUpstream: () => launchUrlString(kUpstreamRepoUrl),
+        onCommunity: () => launchUrlString(kNeoDeskDiscordUrl),
         // Update checks are off in this build; the releases page shows
         // the newest version.
         onCheckUpdates: () {

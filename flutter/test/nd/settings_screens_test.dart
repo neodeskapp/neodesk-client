@@ -92,6 +92,7 @@ Widget _settings(String group, {bool locked = false}) {
       onSource: () {},
       onUpstream: () {},
       onCheckUpdates: () {},
+      onCommunity: () {},
       updateResult: tr('nd-about-latest'),
     );
   } else {

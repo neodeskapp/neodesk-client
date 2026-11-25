@@ -72,6 +72,7 @@ class NdIcons {
   static const IconData flashOn = IconData(0xe3e7, fontFamily: _f);
   static const IconData folder = IconData(0xe2c7, fontFamily: _f);
   static const IconData folderOpen = IconData(0xe2c8, fontFamily: _f);
+  static const IconData forum = IconData(0xe8af, fontFamily: _f);
   static const IconData fullscreen = IconData(0xe5d0, fontFamily: _f);
   static const IconData fullscreenExit = IconData(0xe5d1, fontFamily: _f);
   static const IconData gppBad = IconData(0xf012, fontFamily: _f);

@@ -25,6 +25,8 @@ NeoDesk is a fork of [RustDesk](https://github.com/rustdesk/rustdesk). Licensed 
 
 This repository is the **official NeoDesk desktop client** ([neodeskapp/neodesk-client](https://github.com/neodeskapp/neodesk-client)). Active work targets **Flutter desktop on Windows and Linux**. Mobile and web trees remain in-repo but are not the current focus.
 
+**Getting help:** ask on the [NeoDesk Discord](https://discord.gg/nwERSawufr) or in the [Discussions of neodeskapp/neodesk](https://github.com/neodeskapp/neodesk/discussions).
+
 > **AI-assisted development:** NeoDesk Client is created and maintained with the assistance of artificial intelligence tools.
 
 The client **does not** connect to public `*.rustdesk.com` infrastructure. Configure your own ID / Relay / API / Key (Settings → Network), import a deploy string from the NeoDesk panel, or use a Generator bake-in (`custom.txt`). Without a configured server, the client does not register on a public cloud.
@@ -97,5 +99,5 @@ The language flags in `flutter/assets/flags` are from [Twemoji](https://github.c
 
 ## Support
 
-- [NeoDesk issues](https://github.com/neodeskapp/neodesk/issues)
-- [NeoDesk Client issues](https://github.com/neodeskapp/neodesk-client/issues)
+- [NeoDesk Discord](https://discord.gg/nwERSawufr)
+- [Discussions of neodeskapp/neodesk](https://github.com/neodeskapp/neodesk/discussions)
