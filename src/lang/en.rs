@@ -873,6 +873,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-chat-remove-file", "Remove {}"),
         ("nd-chat-reaction", "{} from {}, click to add or take back yours"),
         ("nd-chat-date-format", "d MMM yyyy"),
+        ("nd-tray-chat", "Chat with support"),
+        ("nd-tray-chat-new", "Chat with support ({} new)"),
+        ("nd-tray-chat-tooltip", "New messages in the chat: {}"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

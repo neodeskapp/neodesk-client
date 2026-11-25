@@ -53,6 +53,9 @@ pub struct Facts {
     pub service_stopped: bool,
     /// No server is set up.
     pub no_server: bool,
+    /// The chat with support: None while this computer has none (not
+    /// approved, chat off, no chat on the server), else its new messages.
+    pub chat: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -157,6 +160,8 @@ pub enum Action {
     AcceptConnections,
     /// Opens Settings at About.
     About,
+    /// Opens the chat with support in the main window.
+    Chat,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -202,7 +207,8 @@ pub struct Offers {
     pub stop_service: bool,
 }
 
-/// The menu, top to bottom: the state line, the ID, Open, Settings; then
+/// The menu, top to bottom: the state line, the ID, Open, the chat with
+/// support while this computer has one, Settings; then
 /// pausing connections, or accepting them again while paused, neither while
 /// the service isn't running; then About. The ID is left out until the
 /// service has told it.
@@ -218,6 +224,11 @@ pub fn menu(facts: &Facts, id: &str, version: &str, offers: Offers) -> Vec<Item>
         first.push(Item::entry(Action::CopyId, "nd-tray-id", &format_id(id)));
     }
     first.push(Item::entry(Action::Open, "nd-tray-open", ""));
+    match facts.chat {
+        Some(0) => first.push(Item::entry(Action::Chat, "nd-tray-chat", "")),
+        Some(n) => first.push(Item::entry(Action::Chat, "nd-tray-chat-new", &n.to_string())),
+        None => {}
+    }
     if offers.settings {
         first.push(Item::entry(Action::Settings, "Settings", ""));
     }
@@ -242,6 +253,15 @@ pub fn menu(facts: &Facts, id: &str, version: &str, offers: Offers) -> Vec<Item>
         items.extend(group);
     }
     items
+}
+
+/// The tooltip's line about the chat: a translation key and its count, when
+/// there are new messages.
+pub fn chat_tooltip(chat: Option<u32>) -> Option<(&'static str, String)> {
+    match chat {
+        Some(n) if n > 0 => Some(("nd-tray-chat-tooltip", n.to_string())),
+        _ => None,
+    }
 }
 
 /// An ID in groups of three from the right, as Home shows it (formatID).
@@ -314,6 +334,7 @@ mod tests {
             standing,
             service_stopped: false,
             no_server: false,
+            chat: None,
         }
     }
 
@@ -398,6 +419,38 @@ mod tests {
                 "nd-tray-about 1.5.0",
             ]
         );
+    }
+
+    #[test]
+    fn the_chat_entry_follows_open_with_the_count_of_new_messages() {
+        let mut f = ready();
+        f.chat = Some(0);
+        assert_eq!(
+            lines(&menu(&f, "123456789", "1.5.0", ON))[..4],
+            [
+                "[nd-home-status-ready 10.10.10.74]",
+                "nd-tray-id 123 456 789",
+                "nd-tray-open",
+                "nd-tray-chat",
+            ]
+        );
+        f.chat = Some(3);
+        assert_eq!(lines(&menu(&f, "123456789", "1.5.0", ON))[3], "nd-tray-chat-new 3");
+        let chat = menu(&f, "1", "1", ON)
+            .into_iter()
+            .find(|i| i.action() == Some(Action::Chat));
+        assert!(matches!(chat, Some(Item::Entry { enabled: true, .. })));
+        assert_eq!(chat_tooltip(Some(3)), Some(("nd-tray-chat-tooltip", "3".to_owned())));
+        assert_eq!(chat_tooltip(Some(0)), None);
+        assert_eq!(chat_tooltip(None), None);
+    }
+
+    #[test]
+    fn a_computer_without_chat_has_no_chat_entry() {
+        let f = ready();
+        assert!(menu(&f, "123456789", "1.5.0", ON)
+            .iter()
+            .all(|i| i.action() != Some(Action::Chat)));
     }
 
     #[test]
@@ -550,6 +603,9 @@ mod tests {
             "nd-tray-stop",
             "nd-tray-accept",
             "nd-tray-about",
+            "nd-tray-chat",
+            "nd-tray-chat-new",
+            "nd-tray-chat-tooltip",
         ];
         for state in [
             State::Off,
