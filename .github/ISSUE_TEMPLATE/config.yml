@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: NeoDesk Discord
-    url: https://discord.gg/nwERSawufr
-    about: Ask questions and talk with other NeoDesk users.
-  - name: NeoDesk Discussions
-    url: https://github.com/neodeskapp/neodesk/discussions
-    about: Report problems and suggest features for NeoDesk and its client.
