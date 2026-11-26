@@ -45,15 +45,15 @@ ICONS = {
     "os-windows": ("windows", "#0078d4", "#ffffff", 40, 0.5),
     "os-linux": ("linux", "#fcc624", "#1b1e1f", 40, 0.62),
     "os-macos": ("apple", "#1b1e1f", "#ffffff", 40, 0.54),  # with a light edge for dark pages
-    "pkg-windows-exe": ("install_desktop", "rgba(0,120,212,.16)", "#2b88d8", 28, 0.68),
-    "pkg-windows-msi": ("deployed_code", "rgba(0,120,212,.16)", "#2b88d8", 28, 0.68),
-    "pkg-windows-portable": ("folder_zip", "rgba(0,120,212,.16)", "#2b88d8", 28, 0.68),
-    "pkg-debian": ("debian", "rgba(215,10,83,.14)", "#d70a53", 28, 0.6),
-    "pkg-fedora": ("fedora", "rgba(81,162,218,.18)", "#3c8fcb", 28, 0.6),
-    "pkg-opensuse": ("opensuse", "rgba(115,186,37,.18)", "#5f9e1c", 28, 0.66),
-    "pkg-linux-portable": ("folder_zip", "rgba(212,160,10,.18)", "#c08f06", 28, 0.68),
-    "pkg-macos-dmg": ("deployed_code", "rgba(139,148,158,.2)", "#7d8590", 28, 0.68),
-    "pkg-macos-portable": ("folder_zip", "rgba(139,148,158,.2)", "#7d8590", 28, 0.68),
+    "pkg-windows-exe": ("install_desktop", "rgba(0,120,212,.2)", "#3d95e6", 28, 0.68),
+    "pkg-windows-msi": ("deployed_code", "rgba(0,120,212,.2)", "#3d95e6", 28, 0.68),
+    "pkg-windows-portable": ("folder_zip", "rgba(0,120,212,.2)", "#3d95e6", 28, 0.68),
+    "pkg-debian": ("debian", "rgba(224,36,94,.18)", "#e0245e", 28, 0.68),
+    "pkg-fedora": ("fedora", "rgba(81,162,218,.2)", "#4a9fd8", 28, 0.64),
+    "pkg-opensuse": ("opensuse", "rgba(115,186,37,.2)", "#6aae22", 28, 0.7),
+    "pkg-linux-portable": ("folder_zip", "rgba(212,160,10,.2)", "#cf9d0c", 28, 0.68),
+    "pkg-macos-dmg": ("deployed_code", "rgba(139,148,158,.22)", "#8b949e", 28, 0.68),
+    "pkg-macos-portable": ("folder_zip", "rgba(139,148,158,.22)", "#8b949e", 28, 0.68),
 }
 
 BUTTON = {"name": "download", "width": 116, "height": 32, "fill": "#1f6feb", "label": "Download"}
