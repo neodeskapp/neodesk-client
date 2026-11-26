@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import re
 import subprocess
 import sys
 import tarfile
@@ -271,15 +272,21 @@ def check_prerelease_table(tmp: Path) -> None:
         expect(table.count(f'href="{base}{name}"') == 1,
                f"the download table of a pre-release does not link {name} once")
     expect("neodesk-template-" not in table, "download table links an MSI template as an installer")
-    msi_cell = table.split(f'href="{base}neodesk-{PRERELEASE}-windows-x86_64.msi"', 1)[1].split("</td>", 1)[0]
-    expect("<sub>25.6 MB</sub>" in msi_cell, f"the download table does not give the MSI's size: {msi_cell}")
+    # The size is in the button: its pieces spell 25.6 MB, without whitespace between them
+    msi_cell = table.split(f'href="{base}neodesk-{PRERELEASE}-windows-x86_64.msi"', 1)[1].split("</a>", 1)[0]
+    pieces = re.findall(r'release-icons/(btn-[a-z0-9]+)\.png"', msi_cell)
+    expect(pieces == ["btn-start", "btn-2", "btn-5", "btn-dot", "btn-6", "btn-mb"],
+           f"the MSI's button does not say 25.6 MB: {pieces}")
+    expect("> <" not in msi_cell and ">\n<" not in msi_cell, "the button's pieces have gaps between them")
+    for name in ["btn-start", "btn-dot", "btn-mb", "btn-kb"] + [f"btn-{d}" for d in range(10)]:
+        expect((HERE.parent / "res" / "release-icons" / f"{name}.png").is_file(), f"{name}.png is not in the repo")
     # One row per package under the heading row, each system once with its icon
     expect(table.count("<tr>") == 1 + 9, f"the download table has {table.count('<tr>')} rows, not one per package")
     icons = f"https://raw.githubusercontent.com/neodeskapp/neodesk-client/desktop-v{PRERELEASE}/res/release-icons/"
-    for icon in ("os-windows", "os-macos", "os-linux", "pkg-debian", "pkg-fedora", "pkg-opensuse", "download"):
+    for icon in ("os-windows", "os-macos", "os-linux", "pkg-debian", "pkg-fedora", "pkg-opensuse", "btn-start"):
         expect(f'src="{icons}{icon}.png"' in table, f"the download table does not show {icon}.png")
         expect((HERE.parent / "res" / "release-icons" / f"{icon}.png").is_file(), f"{icon}.png is not in the repo")
-    expect('alt="Download Linux RPM for SUSE ARM64"' in table, "a download button does not say what it downloads")
+    expect('alt="Download Linux RPM for SUSE ARM64,"' in table, "a download button does not say what it downloads")
     # Checksums stay folded under the table
     after = notes.split("</table>", 1)[1]
     expect("<details>" in after and f"({base}SHA256SUMS)" in after.split("<details>", 1)[1],

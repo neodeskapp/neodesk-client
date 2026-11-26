@@ -158,6 +158,24 @@ def _size(n: int) -> str:
     return f"{n / (1024 * 1024):.1f} MB"
 
 
+# Widths of the button pieces in res/release-icons (make.py draws them)
+_PIECE_WIDTH = {"start": 122, "dot": 4, "mb": 34, "kb": 34, **{str(d): 9 for d in range(10)}}
+
+
+def _button(img, alt: str, size: int) -> str:
+    """The download button with the file's size in it, put together from pieces.
+
+    No whitespace between the images, so they meet as one button."""
+    text = _size(size)
+    if not text:
+        return img("download", 116, alt, 32)
+    number, unit = text.split(" ")
+    pieces = [("start", alt + ",")]
+    pieces += [("dot" if c == "." else c, c) for c in number]
+    pieces.append((unit.lower(), " " + unit))
+    return "".join(img(f"btn-{name}", _PIECE_WIDTH[name], text, 32) for name, text in pieces)
+
+
 def _extension(name: str) -> str:
     for ext in (".tar.gz", ".zip", ".exe", ".msi", ".deb", ".rpm", ".dmg"):
         if name.endswith(ext):
@@ -188,7 +206,7 @@ def render_table(
         "<table>",
         "<tr>",
         '<th align="left" colspan="3">Package</th>',
-        *(f'<th width="132">{label}<br><sub>{runs_on}</sub></th>' for _, label, runs_on in arches),
+        *(f'<th width="200">{label}<br><sub>{runs_on}</sub></th>' for _, label, runs_on in arches),
         "</tr>",
     ]
     for platform, system, os_icon in SYSTEMS:
@@ -208,13 +226,8 @@ def render_table(
                 if not path:
                     lines.append('<td align="center"><sub>not built</sub></td>')
                     continue
-                button = img("download", 116, f"Download {system} {label} {arch_label}", 32)
-                size = _size(path.stat().st_size)
-                lines.append(
-                    f'<td align="center"><a href="{_url(repo, tag, path.name)}">{button}</a>'
-                    + (f"<br><sub>{size}</sub>" if size else "")
-                    + "</td>"
-                )
+                button = _button(img, f"Download {system} {label} {arch_label}", path.stat().st_size)
+                lines.append(f'<td align="center"><a href="{_url(repo, tag, path.name)}">{button}</a></td>')
             lines.append("</tr>")
     lines.append("</table>")
     footer = DESKTOP_FOOTER if product == "desktop" else SUPPORT_FOOTER

@@ -58,6 +58,14 @@ ICONS = {
 
 BUTTON = {"name": "download", "width": 116, "height": 32, "fill": "#1f6feb", "label": "Download"}
 
+# The button with the file's size is put together from pieces in one link:
+# btn-start, one btn-<digit> or btn-dot per character, then btn-mb or btn-kb.
+# The pieces are whole pixels wide, so they meet without a seam.
+SIZE_START = 122  # "Download" and a divider
+SIZE_DIGIT = 9  # tabular figures, every digit equally wide
+SIZE_DOT = 4
+SIZE_UNIT = 34  # " MB" or " KB" and the rounded end
+
 
 def glyph(name: str, colour: str) -> str:
     """The glyph's SVG with every shape filled in the colour."""
@@ -80,6 +88,9 @@ html, body {{ margin: 0; background: transparent; width: {width}px; height: {hei
   display: flex; align-items: center; justify-content: center; gap: 6px;
   font: 600 14px/1 Plex, sans-serif; color: #fff; letter-spacing: .01em; }}
 .button svg {{ width: 18px; height: 18px; display: block; }}
+.piece {{ box-sizing: border-box; width: {width}px; height: {height}px; display: flex; align-items: center;
+  font: 600 14px/1 Plex, sans-serif; color: #fff; font-variant-numeric: tabular-nums; white-space: pre; }}
+.piece svg {{ width: 18px; height: 18px; display: block; }}
 </style></head><body>{body}</body></html>"""
 
 
@@ -97,6 +108,29 @@ def button() -> str:
         f'<div class="button" style="background:{BUTTON["fill"]}">'
         f'{glyph("download", "#ffffff")}<span>{BUTTON["label"]}</span></div>'
     )
+
+
+def size_pieces() -> dict[str, tuple[int, str]]:
+    """name: (width, HTML) of every piece of the button with the size."""
+    fill = BUTTON["fill"]
+    start = (
+        f'<div class="piece" style="background:{fill};border-radius:4px 0 0 4px;padding-left:12px;gap:6px">'
+        f'{glyph("download", "#ffffff")}<span>{BUTTON["label"]}</span>'
+        f'<span style="margin-left:auto;margin-right:9px;width:1px;height:16px;background:rgba(255,255,255,.45)"></span>'
+        "</div>"
+    )
+    pieces = {"btn-start": (SIZE_START, start)}
+    for char, name, width in [(str(d), f"btn-{d}", SIZE_DIGIT) for d in range(10)] + [(".", "btn-dot", SIZE_DOT)]:
+        pieces[name] = (
+            width,
+            f'<div class="piece" style="background:{fill};justify-content:center">{char}</div>',
+        )
+    for unit in ("MB", "KB"):
+        pieces[f"btn-{unit.lower()}"] = (
+            SIZE_UNIT,
+            f'<div class="piece" style="background:{fill};border-radius:0 4px 4px 0;padding-left:4px">{unit}</div>',
+        )
+    return pieces
 
 
 def find_chrome(given: str | None) -> str:
@@ -139,6 +173,8 @@ def main() -> int:
             shoot(chrome, page(tile(g, bg, fg, size, share), size, size), size, size, HERE / f"{name}.png", tmp)
         w, h = BUTTON["width"], BUTTON["height"]
         shoot(chrome, page(button(), w, h), w, h, HERE / f"{BUTTON['name']}.png", tmp)
+        for name, (width, body) in size_pieces().items():
+            shoot(chrome, page(body, width, h), width, h, HERE / f"{name}.png", tmp)
     return 0
 
 
