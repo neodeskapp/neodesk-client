@@ -15,6 +15,8 @@ import 'package:window_manager/window_manager.dart';
 import '../../common.dart';
 import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
+import 'login.dart' show loginDialog;
+import 'nd/nd_button.dart';
 import 'peer_card.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart'
     show PeerListEmpty;
@@ -89,6 +91,16 @@ Widget peersEmpty(String loadEvent) {
   return PeerListEmpty(
     text: translate(texts?.$1 ?? 'Empty'),
     hint: texts == null ? null : translate(texts.$2),
+  );
+}
+
+/// A list that needs an account while nobody is signed in: [text] says what
+/// signing in shows, then the Sign in button.
+Widget peersSignIn(String text) {
+  return PeerListEmpty(
+    text: translate(text),
+    action: NdButton.primary(
+        label: translate('nd-sign-in'), onPressed: loginDialog),
   );
 }
 

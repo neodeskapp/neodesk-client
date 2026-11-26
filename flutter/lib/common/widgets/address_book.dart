@@ -21,7 +21,6 @@ import 'package:flex_color_picker/flex_color_picker.dart';
 import '../../common.dart';
 import '../../common/theme/nd_theme.dart';
 import 'dialog.dart';
-import 'login.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 
 final hideAbTagsPanel = false.obs;
@@ -42,9 +41,7 @@ class _AddressBookState extends State<AddressBook> {
   @override
   Widget build(BuildContext context) => Obx(() {
         if (!gFFI.userModel.isLogin) {
-          return Center(
-              child: ElevatedButton(
-                  onPressed: loginDialog, child: Text(translate("Login"))));
+          return peersSignIn('nd-home-sign-in-ab');
         } else if (gFFI.userModel.networkError.isNotEmpty) {
           return netWorkErrorWidget();
         } else {
