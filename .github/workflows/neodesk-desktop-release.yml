@@ -371,11 +371,14 @@ jobs:
           fi
 
           if git rev-parse --verify "${PREV}" >/dev/null 2>&1 || git cat-file -e "${PREV}^{commit}" 2>/dev/null; then
-            git log --pretty=tformat:'- %s (%h)' "${RANGE}" | head -n 80 > changes.md
+            git log --pretty=tformat:'- %s (%h)' "${RANGE}" > all-changes.md
           else
-            git log --pretty=tformat:'- %s (%h)' -n 20 > changes.md
+            git log --pretty=tformat:'- %s (%h)' -n 20 > all-changes.md
           fi
-          COUNT=$(grep -c '^- ' changes.md || true)
+          # Counted before the list is cut to 80, and without a pipe that
+          # pipefail would end when head closes it
+          COUNT=$(grep -c '^- ' all-changes.md || true)
+          head -n 80 all-changes.md > changes.md
 
           # The commit list stays folded, so the notes and the downloads lead
           {
