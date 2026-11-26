@@ -113,7 +113,15 @@ pub(super) fn verified_update_artifact_from_release_page_url(
     let sums = fetch_update_sidecar_bytes(&release_download_url(&tag, SUMS_FILE))?;
     let signature = fetch_update_sidecar_bytes(&release_download_url(&tag, SUMS_SIGNATURE_FILE))?;
     let manifest = fetch_update_sidecar_bytes(&release_download_url(&tag, MANIFEST_FILE))?;
-    verified_package(&tag, &sums, &signature, &manifest, query, &RELEASE_PUBLIC_KEY)
+    verified_package(
+        &tag,
+        &sums,
+        &signature,
+        &manifest,
+        query,
+        &RELEASE_PUBLIC_KEY,
+        crate::VERSION,
+    )
 }
 
 /// The desktop release tag of a release page URL

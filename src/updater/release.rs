@@ -343,8 +343,9 @@ pub fn package_file_name(version: &str, query: &UpdateArtifactQuery<'_>) -> Stri
 }
 
 /// The package of release `tag` for `query`, checked against the release's
-/// signed SHA256SUMS: the signature, the manifest's hash and version, and the
-/// package's hash in both lists.
+/// signed SHA256SUMS: the release is newer than `running_version` (an older
+/// signed release handed in by its address is no update), the signature, the
+/// manifest's hash and version, and the package's hash in both lists.
 pub fn verified_package(
     tag: &str,
     sums: &[u8],
@@ -352,8 +353,14 @@ pub fn verified_package(
     manifest: &[u8],
     query: &UpdateArtifactQuery<'_>,
     public_key: &[u8; 32],
+    running_version: &str,
 ) -> ResultType<VerifiedUpdateArtifact> {
     let version = version_of_tag(tag).ok_or_else(|| anyhow!("{tag} is not a desktop release"))?;
+    let running = Version::parse(running_version)
+        .ok_or_else(|| anyhow!("the running version {running_version} is not a version"))?;
+    if Version::parse(&version).map_or(true, |release| release <= running) {
+        bail!("release {version} is not newer than the running {running_version}");
+    }
     let hashes = verify_signed_sums(sums, signature, public_key)?;
     let manifest_hash = crate::update_hash::sha256_reader_hex(&mut &manifest[..])?;
     if hashes.get(MANIFEST_FILE) != Some(&manifest_hash) {
@@ -515,6 +522,7 @@ mod tests {
     const EXE: &str = "neodesk-1.5.0-rc.9-windows-x86_64.exe";
     const EXE_HASH: &str = "6bf93803e7bd6e42c9a57a6b7fbeb5824b364418fb060541d8738368e18595ec";
     const TAG: &str = "desktop-v1.5.0-rc.9";
+    const RUNNING: &str = "1.5.0-rc.8";
     const QUERY: UpdateArtifactQuery<'static> = UpdateArtifactQuery {
         platform: "windows",
         arch: "x86_64",
@@ -556,7 +564,7 @@ mod tests {
         let f = fixture();
         let signature = sign_sums(&f.sums, &f.secret);
         let package =
-            verified_package(TAG, &f.sums, &signature, &f.manifest, &QUERY, &f.public).unwrap();
+            verified_package(TAG, &f.sums, &signature, &f.manifest, &QUERY, &f.public, RUNNING).unwrap();
         assert_eq!(package.version, "1.5.0-rc.9");
         assert_eq!(
             package.url,
@@ -573,7 +581,7 @@ mod tests {
         let f = fixture();
         let (_, other_secret) = sign::gen_keypair();
         let signature = sign_sums(&f.sums, &other_secret);
-        let err = verified_package(TAG, &f.sums, &signature, &f.manifest, &QUERY, &f.public)
+        let err = verified_package(TAG, &f.sums, &signature, &f.manifest, &QUERY, &f.public, RUNNING)
             .err().expect("refused");
         assert!(err.to_string().contains("signature"), "{err}");
     }
@@ -588,7 +596,7 @@ mod tests {
             .replace(EXE_HASH, &other)
             .into_bytes();
         assert!(
-            verified_package(TAG, &tampered, &signature, &f.manifest, &QUERY, &f.public).is_err()
+            verified_package(TAG, &tampered, &signature, &f.manifest, &QUERY, &f.public, RUNNING).is_err()
         );
     }
 
@@ -598,7 +606,7 @@ mod tests {
         let signature = sign_sums(&f.sums, &f.secret);
         // Same package hash, but a bigger size: the manifest's own hash changes.
         let bigger = manifest("1.5.0-rc.9", EXE_HASH, 99999999);
-        let err = verified_package(TAG, &f.sums, &signature, &bigger, &QUERY, &f.public)
+        let err = verified_package(TAG, &f.sums, &signature, &bigger, &QUERY, &f.public, RUNNING)
             .err().expect("refused");
         assert!(err.to_string().contains("manifest"), "{err}");
     }
@@ -614,9 +622,30 @@ mod tests {
             &f.manifest,
             &QUERY,
             &f.public,
+            RUNNING,
         )
         .err().expect("refused");
         assert!(err.to_string().contains("1.5.0-rc.10"), "{err}");
+    }
+
+    #[test]
+    fn a_signed_release_not_newer_than_the_running_build_is_refused() {
+        // A release page handed in by address (About, the notice, update-me)
+        // skips the release list: the package check refuses a downgrade too.
+        let f = fixture();
+        let signature = sign_sums(&f.sums, &f.secret);
+        for running in ["1.5.0-rc.9", "1.5.0-rc.10", "1.5.0", "1.6.0"] {
+            let err = verified_package(TAG, &f.sums, &signature, &f.manifest, &QUERY, &f.public, running)
+                .err()
+                .unwrap_or_else(|| panic!("rc.9 accepted on {running}"));
+            assert!(err.to_string().contains("not newer"), "{running}: {err}");
+        }
+        assert!(
+            verified_package(TAG, &f.sums, &signature, &f.manifest, &QUERY, &f.public, "dev").is_err()
+        );
+        assert!(
+            verified_package(TAG, &f.sums, &signature, &f.manifest, &QUERY, &f.public, "1.5.0-rc.8").is_ok()
+        );
     }
 
     #[test]
@@ -627,7 +656,7 @@ mod tests {
         let manifest = manifest("1.5.0-rc.9", &other, 25586064);
         let sums = sums_for(&manifest, EXE_HASH);
         let signature = sign_sums(&sums, &secret);
-        let err = verified_package(TAG, &sums, &signature, &manifest, &QUERY, &public.0)
+        let err = verified_package(TAG, &sums, &signature, &manifest, &QUERY, &public.0, RUNNING)
             .err().expect("refused");
         assert!(err.to_string().contains("disagree"), "{err}");
     }
@@ -640,7 +669,7 @@ mod tests {
             format: "msi",
             ..QUERY
         };
-        assert!(verified_package(TAG, &f.sums, &signature, &f.manifest, &msi, &f.public).is_err());
+        assert!(verified_package(TAG, &f.sums, &signature, &f.manifest, &msi, &f.public, RUNNING).is_err());
     }
 
     #[test]
