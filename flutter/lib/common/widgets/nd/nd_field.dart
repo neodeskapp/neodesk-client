@@ -317,6 +317,17 @@ class NdSelect<T> extends StatefulWidget {
   /// reader says it with the current choice.
   final String? semanticLabel;
 
+  /// This select, named [name].
+  NdSelect<T> withSemanticLabel(String name) => NdSelect<T>(
+        key: key,
+        options: options,
+        value: value,
+        onChanged: onChanged,
+        width: width,
+        placeholder: placeholder,
+        semanticLabel: name,
+      );
+
   @override
   State<NdSelect<T>> createState() => _NdSelectState<T>();
 }

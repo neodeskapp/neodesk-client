@@ -222,10 +222,29 @@ class SettingsRow extends StatelessWidget {
   final Widget? below;
   final bool rule;
 
+  /// The row's control, named by the row's label when it has no name of
+  /// its own: a switch, a choice or a select beside the label is otherwise
+  /// read as "toggle button, on" with nothing to say what it switches.
+  Widget? get _namedControl {
+    final w = control;
+    if (w is NdSwitch && w.semanticLabel == null) {
+      return NdSwitch(
+          key: w.key, value: w.value, onChanged: w.onChanged, semanticLabel: label);
+    }
+    if (w is NdSelect && w.semanticLabel == null) {
+      return w.withSemanticLabel(label);
+    }
+    if (w is NdSegmented && w.semanticLabel == null) {
+      return w.withSemanticLabel(label);
+    }
+    return w;
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.nd;
     final t = context.ndText;
+    final control = _namedControl;
     return Container(
       constraints: const BoxConstraints(minHeight: 58),
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -256,7 +275,7 @@ class SettingsRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (control != null) ...[const SizedBox(width: 24), control!],
+            if (control != null) ...[const SizedBox(width: 24), control],
           ],
         ),
       ),

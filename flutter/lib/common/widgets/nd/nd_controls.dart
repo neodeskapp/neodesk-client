@@ -204,6 +204,15 @@ class NdSegmented<T> extends StatefulWidget {
   /// The name of the whole group (usually the settings row's label).
   final String? semanticLabel;
 
+  /// These segments, named [name].
+  NdSegmented<T> withSemanticLabel(String name) => NdSegmented<T>(
+        key: key,
+        segments: segments,
+        value: value,
+        onChanged: onChanged,
+        semanticLabel: name,
+      );
+
   @override
   State<NdSegmented<T>> createState() => _NdSegmentedState<T>();
 }
