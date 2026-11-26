@@ -11,8 +11,12 @@
 //! Wire format 1:
 //!
 //! - When: the person allowed quick support, a connection came through the
-//!   relay, and its first login request has no password. Once per
-//!   connection.
+//!   relay, its first login request has no password, and the console's
+//!   address is HTTPS. Once per connection. On a console reached over
+//!   plain HTTP the app never asks (A273): someone on the way could fake
+//!   the answer, so quick support takes only the one-time password there,
+//!   and the server refuses to vouch over plain HTTP as well
+//!   (`not_https`).
 //! - Request: `POST /api/support/session/caller` on the console, with
 //!   `Authorization: Bearer <session token>` and the body
 //!   `{"session": "<relay session UUID>"}`: `RequestRelay.uuid` as signal
@@ -118,12 +122,22 @@ pub async fn ask(channel: &Channel, device_id: &str, session: &str, wait: Durati
 /// caller the server does not confirm.
 pub async fn vouched_caller(device_id: &str, session: &str) -> Option<String> {
     let channel = CHANNEL.lock().unwrap().clone()?;
+    if !may_ask(&channel) {
+        log::info!("Quick support: the console is not on HTTPS; a caller needs the password");
+        return None;
+    }
     let helper = ask(&channel, device_id, session, WAIT).await;
     match &helper {
         Some(_) => log::info!("Quick support: the server vouched for the caller of a relay session"),
         None => log::info!("Quick support: the server did not vouch for a caller; it needs the password"),
     }
     helper
+}
+
+/// Whether the app may ask `channel` about a caller: only a console on
+/// HTTPS (A273).
+pub fn may_ask(channel: &Channel) -> bool {
+    channel.console.https
 }
 
 /// Whether the connection manager's Allow may let a connection in: in

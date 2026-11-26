@@ -781,6 +781,30 @@ fn the_caller_check_asks_the_console_with_the_session_token() {
     assert!(start.elapsed() < Duration::from_millis(1200), "{:?}", start.elapsed());
 }
 
+/// A console on plain HTTP is never asked about a caller (A273): the
+/// connection needs the password, and the console hears nothing.
+#[test]
+fn the_caller_check_never_asks_a_console_on_plain_http() {
+    let (me, relay) = ("123456789", "6f1c2a9e-relay");
+    let console = FakeConsole::start(move |_| (200, vouched(me, relay, "Olga Operator")));
+    let plain = caller::Channel {
+        console: console.console(),
+        token: "tok".to_owned(),
+    };
+    assert!(!caller::may_ask(&plain));
+    assert!(caller::may_ask(&caller::Channel {
+        console: Console {
+            https: true,
+            ..console.console()
+        },
+        token: "tok".to_owned(),
+    }));
+    caller::open(plain);
+    assert_eq!(block_on(caller::vouched_caller(me, relay)), None);
+    caller::close();
+    assert!(console.requests_to(caller::PATH).is_empty());
+}
+
 /// The run lets connections ask about their caller only after the person
 /// allowed quick support, with the session's console and token, and takes
 /// that away once the session is over here.
