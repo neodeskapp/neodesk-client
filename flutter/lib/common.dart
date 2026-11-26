@@ -792,6 +792,8 @@ void showToast(String text,
     Alignment alignment = const Alignment(0.0, 0.8)}) {
   final overlayState = globalKey.currentState?.overlay;
   if (overlayState == null) return;
+  // The toast goes after a few seconds; a screen reader says it at once.
+  ndAnnounce(overlayState.context, text);
   final entry = OverlayEntry(builder: (context) {
     return IgnorePointer(
         child: Align(

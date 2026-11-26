@@ -221,7 +221,12 @@ class NdNotice extends StatelessWidget {
           NdTone.danger => NdIcons.error,
           NdTone.good => NdIcons.checkCircle,
         };
-    return Container(
+    // A live region: a screen reader says the notice when it appears or
+    // its text changes.
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Container(
       decoration: BoxDecoration(
         color: tone == NdTone.info ? c.bgSubtle : c.noticeBg(color),
         borderRadius: NdSize.r,
@@ -270,7 +275,7 @@ class NdNotice extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 

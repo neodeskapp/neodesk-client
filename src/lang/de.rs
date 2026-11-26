@@ -1324,6 +1324,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-file-kind-folder", "Ordner"),
         ("nd-file-kind-file", "Datei"),
         ("nd-file-kind-drive", "Laufwerk"),
+        ("nd-chat-message-from", "Nachricht von {}: {}"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

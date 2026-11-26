@@ -59,7 +59,30 @@ class _QuickSupportViewState extends State<QuickSupportView> {
   @override
   void didUpdateWidget(covariant QuickSupportView old) {
     super.didUpdateWidget(old);
-    if (old.state.phase != widget.state.phase) _armTimer();
+    if (old.state.phase != widget.state.phase) {
+      _armTimer();
+      // The person being helped must hear when someone is on their
+      // computer, and when that ends.
+      final line = _phaseLine(widget.state);
+      if (line != null) ndAnnounce(context, line, assertive: true);
+    }
+  }
+
+  String? _phaseLine(OnboardingState s) {
+    final company = (s.company ?? '').trim();
+    final full = (s.supporterName ?? '').trim();
+    final short = s.supporterShortName.isNotEmpty ? s.supporterShortName : full;
+    return switch (s.phase) {
+      OnboardingPhase.supportConsent => company.isNotEmpty
+          ? tr('nd-qs-consent-title', [full, company])
+          : tr('nd-qs-consent-title-nocompany', [full]),
+      OnboardingPhase.supportConnecting => tr('nd-qs-connecting-title'),
+      OnboardingPhase.supportWaiting => tr('nd-qs-waiting-title', [short]),
+      OnboardingPhase.supportInSession => tr('nd-qs-bar-viewing', [short]),
+      OnboardingPhase.supportEnded => tr('nd-qs-ended-title'),
+      OnboardingPhase.supportExpired => tr('nd-qs-expired-title'),
+      _ => null,
+    };
   }
 
   void _armTimer() {
