@@ -589,7 +589,13 @@ class NdDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.nd;
     final t = context.ndText;
-    return Container(
+    // A dialog to assistive tech, named by its title, as AlertDialog does.
+    return Semantics(
+      scopesRoute: true,
+      namesRoute: true,
+      explicitChildNodes: true,
+      label: title,
+      child: Container(
       width: width,
       decoration: BoxDecoration(
         color: c.bgFloat,
@@ -608,7 +614,10 @@ class NdDialog extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: Text(title, style: t.titleMd)),
+                  Expanded(
+                      child: Semantics(
+                          header: true,
+                          child: Text(title, style: t.titleMd))),
                   if (onClose != null)
                     NdIconButton(
                         icon: NdIcons.close,
@@ -649,7 +658,7 @@ class NdDialog extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 
