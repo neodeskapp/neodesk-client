@@ -60,6 +60,28 @@ void main() {
       });
     });
 
+    test("helper carries the version of the helper's picture", () {
+      fakeAsync((async) {
+        final server = Server();
+        final m = model(server);
+        open(async, server);
+        expect(m.helperPicture, isNull);
+        server.last.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open', 'picture': 'a1b2'});
+        async.flushMicrotasks();
+        expect(m.helperPicture, 'a1b2');
+        // An older server sends no picture; nobody has none
+        server.last.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open'});
+        async.flushMicrotasks();
+        expect(m.helperPicture, isNull);
+        server.last.serve({'type': 'helper', 'name': null, 'state': 'open', 'picture': 'a1b2'});
+        async.flushMicrotasks();
+        expect(m.helperPicture, isNull);
+        server.last.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open', 'picture': 7});
+        async.flushMicrotasks();
+        expect(m.helperPicture, isNull);
+      });
+    });
+
     test('ids compare as numbers, not as text', () {
       fakeAsync((async) {
         final server = Server();

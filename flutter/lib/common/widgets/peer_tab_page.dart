@@ -276,7 +276,6 @@ class _PeerTabPageState extends State<PeerTabPage>
   Widget _createRefresh(
       {required PeerTabIndex index, required RxBool loading}) {
     final model = Provider.of<PeerTabModel>(context);
-    final textColor = Theme.of(context).textTheme.titleLarge?.color;
     return Offstage(
       offstage: model.currentTab != index.index,
       child: Tooltip(
@@ -293,7 +292,7 @@ class _PeerTabPageState extends State<PeerTabPage>
                 child: Icon(
                   NdIcons.refresh,
                   size: 18,
-                  color: textColor,
+                  color: context.nd.textMuted,
                 ))),
       ),
     );
@@ -304,7 +303,6 @@ class _PeerTabPageState extends State<PeerTabPage>
   }
 
   Widget _createMultiSelection() {
-    final textColor = Theme.of(context).textTheme.titleLarge?.color;
     final model = Provider.of<PeerTabModel>(context);
     return _hoverAction(
       toolTip: translate('Select'),
@@ -315,7 +313,7 @@ class _PeerTabPageState extends State<PeerTabPage>
           Navigator.pop(context);
         }
       },
-      child: Icon(NdIcons.checkBox, size: 18, color: textColor),
+      child: Icon(NdIcons.checkBox),
     );
   }
 
@@ -645,14 +643,13 @@ class _PeerTabPageState extends State<PeerTabPage>
 
     dropDown(List<Widget> menus) {
       final padding = 6.0;
-      final textColor = Theme.of(context).textTheme.titleLarge?.color;
       return PullDownButton(
         buttonBuilder:
             (BuildContext context, Future<void> Function() showMenu) {
           return _hoverAction(
             context: context,
             toolTip: translate('More'),
-            child: Icon(NdIcons.unfoldMore, size: 18, color: textColor),
+            child: Icon(NdIcons.unfoldMore),
             onTap: showMenu,
           );
         },
@@ -728,7 +725,6 @@ class _PeerSearchBarState extends State<PeerSearchBar> {
         : _hoverAction(
             context: context,
             toolTip: translate('Search'),
-            padding: const EdgeInsets.only(right: 2),
             onTap: () {
               setState(() {
                 drawer = true;
@@ -1020,66 +1016,127 @@ class RefreshWidgetState extends State<RefreshWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final deco = BoxDecoration(
-      color: Theme.of(context).colorScheme.background,
-      borderRadius: BorderRadius.circular(6),
-    );
-    return AnimatedRotation(
-        turns: turns,
-        duration: const Duration(milliseconds: 200),
-        onEnd: () {
-          if (widget.spinning?.value == true && mounted) {
-            setState(() => turns += 1.0);
-          }
-        },
+    final c = context.nd;
+    void press() {
+      if (mounted) setState(() => turns += 1.0);
+      widget.onPressed();
+    }
+
+    // Drawn like the other list header buttons; only the icon turns.
+    return FocusableActionDetector(
+      mouseCursor: SystemMouseCursors.click,
+      onShowHoverHighlight: (v) {
+        if (mounted) setState(() => hover = v);
+      },
+      actions: {
+        ActivateIntent:
+            CallbackAction<ActivateIntent>(onInvoke: (_) => press()),
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: press,
         child: Container(
-          padding: EdgeInsets.all(4.0),
-          margin: EdgeInsets.symmetric(horizontal: 1),
-          decoration: hover ? deco : null,
-          child: InkWell(
-              onTap: () {
-                if (mounted) setState(() => turns += 1.0);
-                widget.onPressed();
-              },
-              onHover: (value) {
-                if (mounted) {
-                  setState(() {
-                    hover = value;
-                  });
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: hover ? c.hover : Colors.transparent,
+            borderRadius: NdSize.r,
+          ),
+          child: AnimatedRotation(
+              turns: turns,
+              duration: const Duration(milliseconds: 200),
+              onEnd: () {
+                if (widget.spinning?.value == true && mounted) {
+                  setState(() => turns += 1.0);
                 }
               },
               child: widget.child),
-        ));
+        ),
+      ),
+    );
   }
 }
 
+/// An icon button of the list header, drawn like [NdIconButton]: a 30 px
+/// box, the icon at 18 px in the muted text colour, the hover fill on hover.
+/// [hoverableWhenfalse] makes it a toggle that shows as on (accent tint)
+/// while the value is false, as the tags panel does.
 Widget _hoverAction(
     {required BuildContext context,
     required Widget child,
     required Function() onTap,
     required String toolTip,
     GestureTapDownCallback? onTapDown,
-    RxBool? hoverableWhenfalse,
-    EdgeInsetsGeometry padding = const EdgeInsets.all(4.0)}) {
-  final hover = false.obs;
-  final deco = BoxDecoration(
-    color: Theme.of(context).colorScheme.background,
-    borderRadius: BorderRadius.circular(6),
+    RxBool? hoverableWhenfalse}) {
+  return PeerListAction(
+    tooltip: toolTip,
+    onTap: onTap,
+    onTapDown: onTapDown,
+    on: hoverableWhenfalse,
+    child: child,
   );
-  return Tooltip(
-    message: toolTip,
-    child: Obx(
-      () => Container(
-          margin: EdgeInsets.symmetric(horizontal: 1),
-          decoration:
-              (hover.value || hoverableWhenfalse?.value == false) ? deco : null,
-          child: InkWell(
-              onHover: (value) => hover.value = value,
-              onTap: onTap,
-              onTapDown: onTapDown,
-              child: Container(padding: padding, child: child))),
-    ),
-  );
+}
+
+class PeerListAction extends StatefulWidget {
+  const PeerListAction({
+    super.key,
+    required this.tooltip,
+    required this.onTap,
+    required this.child,
+    this.onTapDown,
+    this.on,
+  });
+
+  final String tooltip;
+  final Function() onTap;
+  final GestureTapDownCallback? onTapDown;
+  final RxBool? on;
+  final Widget child;
+
+  @override
+  State<PeerListAction> createState() => _PeerListActionState();
+}
+
+class _PeerListActionState extends State<PeerListAction> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.nd;
+    Widget box(bool on) => Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: on ? c.accentTint : (_hover ? c.hover : Colors.transparent),
+            borderRadius: NdSize.r,
+          ),
+          child: IconTheme.merge(
+            data: IconThemeData(size: 18, color: on ? c.accent : c.textMuted),
+            child: widget.child,
+          ),
+        );
+    return Tooltip(
+      message: widget.tooltip,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        onShowHoverHighlight: (v) => setState(() => _hover = v),
+        actions: {
+          ActivateIntent:
+              CallbackAction<ActivateIntent>(onInvoke: (_) => widget.onTap()),
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          onTapDown: widget.onTapDown,
+          child: widget.on == null
+              ? box(false)
+              : Obx(() => box(widget.on!.value == false)),
+        ),
+      ),
+    );
+  }
 }
 
 class PullDownMenuEntryImpl extends StatelessWidget

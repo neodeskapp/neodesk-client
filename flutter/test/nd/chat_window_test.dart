@@ -2,12 +2,15 @@
 // section 9): what the person sees, the keyboard, the screen reader labels,
 // German, and the client's small windows.
 
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart' show NdMenuItem;
 import 'package:flutter_hbb/desktop/pages/nd_chat_page.dart';
 import 'package:flutter_hbb/models/nd_chat_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +22,8 @@ class Actions {
   final picked = <List<NdChatLocalFile>>[];
   final saved = <String>[];
   final opened = <Uri>[];
+  final helperAsked = <String>[];
+  Uint8List? helperBytes;
   String? saveTo = '/home/me/Downloads/report.pdf';
 
   NdChatPageActions get it => NdChatPageActions(
@@ -29,6 +34,10 @@ class Actions {
         },
         picture: (f) async => null,
         openLink: opened.add,
+        helperPicture: (version) async {
+          helperAsked.add(version);
+          return helperBytes;
+        },
       );
 }
 
@@ -123,6 +132,40 @@ void main() {
       chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'closed'});
       await tester.pump();
       expect(find.text('This conversation was closed. Write to open it again.'), findsOneWidget);
+    });
+  });
+
+  testWidgets("shows the helper's picture beside who helps, or their initials", (tester) async {
+    await withChat(tester, (chat) async {
+      chat.actions.helperBytes = base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC');
+      chat.open(helper: null);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('nd-chat-helper-avatar')), findsNothing);
+
+      chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open'});
+      await tester.pump();
+      final avatar = find.byKey(const ValueKey('nd-chat-helper-avatar'));
+      expect(avatar, findsOneWidget);
+      expect(find.descendant(of: avatar, matching: find.text('AW')), findsOneWidget);
+      expect(chat.actions.helperAsked, isEmpty);
+
+      chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open', 'picture': 'v1'});
+      await tester.pump();
+      await tester.pump();
+      expect(chat.actions.helperAsked, ['v1']);
+      expect(find.descendant(of: avatar, matching: find.byKey(const ValueKey('nd-avatar-picture'))),
+          findsOneWidget);
+
+      // A new picture is fetched once; a closed conversation shows none
+      chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open', 'picture': 'v2'});
+      await tester.pump();
+      chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open', 'picture': 'v2'});
+      await tester.pump();
+      expect(chat.actions.helperAsked, ['v1', 'v2']);
+      chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'closed', 'picture': 'v2'});
+      await tester.pump();
+      expect(find.byKey(const ValueKey('nd-chat-helper-avatar')), findsNothing);
     });
   });
 
@@ -350,6 +393,48 @@ void main() {
     });
   });
 
+  testWidgets('typing shows in the header, and the field has even room above and below', (tester) async {
+    await withChat(tester, (chat) async {
+      chat.open(helper: 'Anna Weber');
+      await tester.pump();
+      final field = tester.getRect(find.ancestor(of: find.byType(TextField), matching: find.byType(Container)).first);
+      final composer = tester.getRect(find.byKey(const ValueKey('nd-chat-composer')));
+      expect(field.top - composer.top - 1, composer.bottom - field.bottom,
+          reason: 'no empty line kept above the field (the top has the 1 px rule)');
+      chat.serve({'type': 'typing', 'conversation_id': device, 'from': anna});
+      await tester.pump();
+      final title = tester.getRect(find.text('Chat with support'));
+      final typing = tester.getRect(find.text('Anna Weber is typing'));
+      expect(typing.top, greaterThanOrEqualTo(title.bottom));
+      expect(typing.bottom, lessThan(composer.top - 100), reason: 'under the title, not by the field');
+      expect(find.text('Anna Weber is helping you'), findsNothing);
+      expect(tester.getRect(find.ancestor(of: find.byType(TextField), matching: find.byType(Container)).first), field);
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.text('Anna Weber is helping you'), findsOneWidget);
+    });
+  });
+
+  testWidgets('the options open as the app menu beside an own message, and a reaction closes it', (tester) async {
+    await withChat(tester, (chat) async {
+      chat.open(messages: [msg(1, text: 'The printer blinks orange', from: me)]);
+      await tester.pump();
+      final button = tester.getRect(find.bySemanticsLabel('Message options'));
+      final bubble = tester.getRect(find.text('The printer blinks orange'));
+      await tester.tap(find.bySemanticsLabel('Message options'));
+      await tester.pump();
+      for (final label in ['Reply', 'Edit', 'Delete']) {
+        expect(find.widgetWithText(NdMenuItem, label), findsOneWidget, reason: label);
+        expect(tester.getRect(find.text(label)).right, lessThan(bubble.left), reason: '$label is not over the message');
+      }
+      expect(tester.getRect(find.bySemanticsLabel('React 🙏')).right, lessThanOrEqualTo(button.right));
+      await tester.tap(find.bySemanticsLabel('React 😂'));
+      await tester.pump();
+      expect(find.text('Reply'), findsNothing);
+      expect(chat.server.last.of('react').single,
+          {'type': 'react', 'message_id': '1', 'emoji': '😂', 'on': true});
+    });
+  });
+
   testWidgets('pictures open from a thumbnail; other files show name, size and download', (tester) async {
     await withChat(tester, (chat) async {
       chat.open(messages: [
@@ -546,7 +631,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(tester.takeException(), isNull);
-      expect(find.text('Anna Weber is helping you'), findsOneWidget);
+      expect(find.text('Anna Weber is typing'), findsOneWidget);
       expect(find.text('Seen'), findsOneWidget);
       await shot(tester, 'chat-conversation', b);
     });

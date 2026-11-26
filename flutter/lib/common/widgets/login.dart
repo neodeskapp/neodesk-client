@@ -11,10 +11,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../common.dart';
-import '../../common/theme/nd_theme.dart';
 import './dialog.dart';
 import './oidc_auth_status.dart';
-import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_dialog_host.dart';
 
 const kOpSvgList = [
   'github',
@@ -554,8 +554,7 @@ class _WidgetOPState extends State<WidgetOP> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(NdIcons.error,
-                                color: errorColor, size: 16),
+                            Icon(NdIcons.error, color: errorColor, size: 16),
                             const SizedBox(width: 6),
                             Flexible(
                               child: SelectableText(
@@ -632,71 +631,97 @@ class LoginWidgetOP extends StatelessWidget {
   }
 }
 
-class LoginWidgetUserPass extends StatelessWidget {
-  final TextEditingController username;
-  final TextEditingController pass;
-  final String? usernameMsg;
-  final String? passMsg;
-  final bool isInProgress;
-  final RxString curOP;
-  final Function() onLogin;
-  final FocusNode? userFocusNode;
-  const LoginWidgetUserPass({
-    Key? key,
-    this.userFocusNode,
+/// The sign-in dialog: Username and Password with the labels above, the
+/// error under the field it belongs to, Cancel and Sign in at the end.
+/// [below] holds the third-party sign-in buttons. Enter in Username moves
+/// to Password, Enter in Password signs in.
+class NdLoginDialog extends StatefulWidget {
+  const NdLoginDialog({
+    super.key,
     required this.username,
-    required this.pass,
-    required this.usernameMsg,
-    required this.passMsg,
-    required this.isInProgress,
-    required this.curOP,
-    required this.onLogin,
-  }) : super(key: key);
+    required this.password,
+    required this.onSignIn,
+    required this.onCancel,
+    this.usernameError,
+    this.passwordError,
+    this.busy = false,
+    this.userFocusNode,
+    this.below,
+  });
+
+  final TextEditingController username;
+  final TextEditingController password;
+  final VoidCallback onSignIn;
+  final VoidCallback onCancel;
+  final String? usernameError;
+  final String? passwordError;
+
+  /// A sign-in is running: Sign in is off and a bar runs under the fields.
+  final bool busy;
+  final FocusNode? userFocusNode;
+  final Widget? below;
+
+  @override
+  State<NdLoginDialog> createState() => _NdLoginDialogState();
+}
+
+class _NdLoginDialogState extends State<NdLoginDialog> {
+  final _passwordFocus = FocusNode();
+  bool _hidden = true;
+
+  @override
+  void dispose() {
+    _passwordFocus.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!widget.busy) widget.onSignIn();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-        padding: EdgeInsets.all(0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 8.0),
-            DialogTextField(
-                title: translate(DialogTextField.kUsernameTitle),
-                controller: username,
-                focusNode: userFocusNode,
-                prefixIcon: DialogTextField.kUsernameIcon,
-                errorText: usernameMsg),
-            PasswordWidget(
-              controller: pass,
-              autoFocus: false,
-              reRequestFocus: true,
-              errorText: passMsg,
-            ),
-            // NOT use Offstage to wrap LinearProgressIndicator
-            if (isInProgress) const LinearProgressIndicator(),
-            const SizedBox(height: 12.0),
-            FittedBox(
-                child:
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Container(
-                height: 38,
-                width: 200,
-                child: Obx(() => ElevatedButton(
-                      child: Text(
-                        translate('Login'),
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      onPressed: curOP.value.isEmpty && !isInProgress
-                          ? () {
-                              onLogin();
-                            }
-                          : null,
-                    )),
-              ),
-            ])),
-          ],
-        ));
+    final c = context.nd;
+    return NdDialog(
+      title: translate('nd-sign-in'),
+      width: 420,
+      onClose: widget.onCancel,
+      closeTooltip: translate('Close'),
+      children: [
+        NdField(
+          label: translate('Username'),
+          controller: widget.username,
+          focusNode: widget.userFocusNode,
+          error: widget.usernameError,
+          onSubmitted: (_) => _passwordFocus.requestFocus(),
+        ),
+        NdField(
+          label: translate('Password'),
+          controller: widget.password,
+          focusNode: _passwordFocus,
+          obscureText: _hidden,
+          error: widget.passwordError,
+          onSubmitted: (_) => _submit(),
+          trailing: NdIconButton(
+            icon: _hidden ? NdIcons.view : NdIcons.hide,
+            tooltip:
+                translate(_hidden ? 'nd-show-password' : 'nd-hide-password'),
+            size: 28,
+            onPressed: () => setState(() => _hidden = !_hidden),
+          ),
+        ),
+        if (widget.busy)
+          LinearProgressIndicator(
+              minHeight: 2, color: c.accent, backgroundColor: c.rule),
+        if (widget.below != null) widget.below!,
+      ],
+      actions: [
+        NdButton(label: translate('Cancel'), onPressed: widget.onCancel),
+        NdButton.primary(
+            label: translate('nd-sign-in'),
+            onPressed: widget.busy ? null : _submit),
+      ],
+    );
   }
 }
 
@@ -735,8 +760,7 @@ Future<bool?> _openLoginDialog() async {
   var isInProgress = false;
   final oidcAuth = _OidcAuthController();
   final curOP = oidcAuth.curOP;
-  // Track hover state for the close icon
-  bool isCloseHovered = false;
+  var listening = false;
 
   final loginOptions = [].obs;
   final loginOptionsError = Rxn<Object>();
@@ -756,246 +780,208 @@ Future<bool?> _openLoginDialog() async {
 
   Future.delayed(Duration.zero, fetchLoginOptions);
 
-  final res = await gFFI.dialogManager.show<bool>((setState, close, context) {
-    username.addListener(() {
-      if (usernameMsg != null) {
-        setState(() => usernameMsg = null);
-      }
-    });
-
-    password.addListener(() {
-      if (passwordMsg != null) {
-        setState(() => passwordMsg = null);
-      }
-    });
-
-    onDialogCancel() {
-      isInProgress = false;
-      close(false);
-    }
-
-    handleLoginResponse(LoginResponse resp, bool storeIfAccessToken,
-        void Function([dynamic])? close) async {
-      switch (resp.type) {
-        case HttpType.kAuthResTypeToken:
-          if (resp.access_token != null) {
-            if (storeIfAccessToken) {
-              await bind.mainSetLocalOption(
-                  key: 'access_token', value: resp.access_token!);
-              await bind.mainSetLocalOption(
-                  key: 'user_info', value: jsonEncode(resp.user ?? {}));
+  final res = await showNdDialog<bool>((close, setState) =>
+      Builder(builder: (context) {
+        // Typing clears the field's error. Added once, not on every build.
+        if (!listening) {
+          listening = true;
+          username.addListener(() {
+            if (usernameMsg != null) {
+              setState(() => usernameMsg = null);
             }
-            if (close != null) {
-              close(true);
+          });
+          password.addListener(() {
+            if (passwordMsg != null) {
+              setState(() => passwordMsg = null);
             }
-            return;
-          }
-          break;
-        case HttpType.kAuthResTypeEmailCheck:
-          bool? isEmailVerification;
-          if (resp.tfa_type == null ||
-              resp.tfa_type == HttpType.kAuthResTypeEmailCheck) {
-            isEmailVerification = true;
-          } else if (resp.tfa_type == HttpType.kAuthResTypeTfaCheck) {
-            isEmailVerification = false;
-          } else {
-            passwordMsg = "Failed, bad tfa type from server";
-          }
-          if (isEmailVerification != null) {
-            if (isMobile) {
-              if (close != null) close(null);
-              verificationCodeDialog(
-                  resp.user, resp.secret, isEmailVerification);
-            } else {
-              setState(() => isInProgress = false);
-              // Workaround for web, close the dialog first, then show the verification code dialog.
-              // Otherwise, the text field will keep selecting the text and we can't input the code.
-              // Not sure why this happens.
-              if (isWeb && close != null) close(null);
-              final res = await verificationCodeDialog(
-                  resp.user, resp.secret, isEmailVerification);
-              if (res == true) {
-                if (!isWeb && close != null) close(false);
+          });
+        }
+
+        onDialogCancel() {
+          isInProgress = false;
+          close(false);
+        }
+
+        handleLoginResponse(LoginResponse resp, bool storeIfAccessToken,
+            void Function([bool?])? close) async {
+          switch (resp.type) {
+            case HttpType.kAuthResTypeToken:
+              if (resp.access_token != null) {
+                if (storeIfAccessToken) {
+                  await bind.mainSetLocalOption(
+                      key: 'access_token', value: resp.access_token!);
+                  await bind.mainSetLocalOption(
+                      key: 'user_info', value: jsonEncode(resp.user ?? {}));
+                }
+                if (close != null) {
+                  close(true);
+                }
                 return;
               }
-            }
+              break;
+            case HttpType.kAuthResTypeEmailCheck:
+              bool? isEmailVerification;
+              if (resp.tfa_type == null ||
+                  resp.tfa_type == HttpType.kAuthResTypeEmailCheck) {
+                isEmailVerification = true;
+              } else if (resp.tfa_type == HttpType.kAuthResTypeTfaCheck) {
+                isEmailVerification = false;
+              } else {
+                passwordMsg = "Failed, bad tfa type from server";
+              }
+              if (isEmailVerification != null) {
+                if (isMobile) {
+                  if (close != null) close(null);
+                  verificationCodeDialog(
+                      resp.user, resp.secret, isEmailVerification);
+                } else {
+                  setState(() => isInProgress = false);
+                  // Workaround for web, close the dialog first, then show the verification code dialog.
+                  // Otherwise, the text field will keep selecting the text and we can't input the code.
+                  // Not sure why this happens.
+                  if (isWeb && close != null) close(null);
+                  final res = await verificationCodeDialog(
+                      resp.user, resp.secret, isEmailVerification);
+                  if (res == true) {
+                    if (!isWeb && close != null) close(false);
+                    return;
+                  }
+                }
+              }
+              break;
+            default:
+              passwordMsg = "Failed, bad response from server";
+              break;
           }
-          break;
-        default:
-          passwordMsg = "Failed, bad response from server";
-          break;
-      }
-    }
+        }
 
-    onLogin() async {
-      if (curOP.value.isNotEmpty || isInProgress) {
-        return;
-      }
-      // validate
-      if (username.text.isEmpty) {
-        setState(() => usernameMsg = translate('Username missed'));
-        return;
-      }
-      if (password.text.isEmpty) {
-        setState(() => passwordMsg = translate('Password missed'));
-        return;
-      }
-      curOP.value = 'rustdesk';
-      setState(() => isInProgress = true);
-      try {
-        final resp = await gFFI.userModel.login(LoginRequest(
-            username: username.text,
-            password: password.text,
-            id: await bind.mainGetMyId(),
-            uuid: await bind.mainGetUuid(),
-            autoLogin: true,
-            type: HttpType.kAuthReqTypeAccount));
-        await handleLoginResponse(resp, true, close);
-      } on RequestException catch (err) {
-        passwordMsg = translate(err.cause);
-      } catch (err) {
-        passwordMsg = "Unknown Error: $err";
-      }
-      curOP.value = '';
-      setState(() => isInProgress = false);
-    }
-
-    thirdAuthWidget() => Obx(() {
-          final error = loginOptionsError.value;
-          final inProgress = loginOptionsInProgress.value;
-          if (error != null) {
-            return Column(
-              children: [
-                const SizedBox(height: 8.0),
-                // NOT use Offstage to wrap LinearProgressIndicator
-                if (inProgress) const LinearProgressIndicator(),
-                if (!inProgress && error is! RequestException)
-                  Text(
-                    translate('network_error_tip'),
-                    style: const TextStyle(fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.primary,
-                  ),
-                  onPressed: inProgress ? null : fetchLoginOptions,
-                  child: Text(translate('Retry')),
-                ),
-                if (!inProgress)
-                  SelectableText(
-                    error.toString(),
-                    style: TextStyle(fontSize: 11, color: context.nd.danger),
-                    textAlign: TextAlign.center,
-                  ),
-              ],
-            );
+        onLogin() async {
+          if (curOP.value.isNotEmpty || isInProgress) {
+            return;
           }
-          return Offstage(
-            offstage: loginOptions.isEmpty,
-            child: Column(
-              children: [
-                const SizedBox(
-                  height: 8.0,
-                ),
-                Center(
-                    child: Text(
-                  translate('or'),
-                  style: TextStyle(fontSize: 16),
-                )),
-                const SizedBox(
-                  height: 8.0,
-                ),
-                LoginWidgetOP(
-                  ops: loginOptions
-                      .map((e) => ConfigOP(op: e['name'], icon: e['icon']))
-                      .toList(),
-                  curOP: curOP,
-                  startAuth: oidcAuth.start,
-                  cancelAuth: oidcAuth.cancelCurrent,
-                  canStartAuth: oidcAuth.canStart,
-                  cbLogin: (Map<String, dynamic> authBody) async {
-                    LoginResponse? resp;
-                    try {
-                      // access_token is already stored in the rust side.
-                      resp =
-                          gFFI.userModel.getLoginResponseFromAuthBody(authBody);
-                    } catch (e) {
-                      debugPrint(
-                          'Failed to parse oidc login body: "$authBody"');
-                    }
-                    close(true);
+          // validate
+          if (username.text.isEmpty) {
+            setState(() => usernameMsg = translate('Username missed'));
+            return;
+          }
+          if (password.text.isEmpty) {
+            setState(() => passwordMsg = translate('Password missed'));
+            return;
+          }
+          curOP.value = 'rustdesk';
+          setState(() => isInProgress = true);
+          try {
+            final resp = await gFFI.userModel.login(LoginRequest(
+                username: username.text,
+                password: password.text,
+                id: await bind.mainGetMyId(),
+                uuid: await bind.mainGetUuid(),
+                autoLogin: true,
+                type: HttpType.kAuthReqTypeAccount));
+            await handleLoginResponse(resp, true, close);
+          } on RequestException catch (err) {
+            passwordMsg = translate(err.cause);
+          } catch (err) {
+            passwordMsg = "Unknown Error: $err";
+          }
+          curOP.value = '';
+          setState(() => isInProgress = false);
+        }
 
-                    if (resp != null) {
-                      handleLoginResponse(resp, false, null);
-                    }
-                  },
+        thirdAuthWidget() => Obx(() {
+              final error = loginOptionsError.value;
+              final inProgress = loginOptionsInProgress.value;
+              if (error != null) {
+                return Column(
+                  children: [
+                    const SizedBox(height: 8.0),
+                    // NOT use Offstage to wrap LinearProgressIndicator
+                    if (inProgress) const LinearProgressIndicator(),
+                    if (!inProgress && error is! RequestException)
+                      Text(
+                        translate('network_error_tip'),
+                        style: const TextStyle(fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.primary,
+                      ),
+                      onPressed: inProgress ? null : fetchLoginOptions,
+                      child: Text(translate('Retry')),
+                    ),
+                    if (!inProgress)
+                      SelectableText(
+                        error.toString(),
+                        style:
+                            TextStyle(fontSize: 11, color: context.nd.danger),
+                        textAlign: TextAlign.center,
+                      ),
+                  ],
+                );
+              }
+              return Offstage(
+                offstage: loginOptions.isEmpty,
+                child: Column(
+                  children: [
+                    const SizedBox(
+                      height: 8.0,
+                    ),
+                    Center(
+                        child: Text(
+                      translate('or'),
+                      style: context.ndText.small
+                          .copyWith(color: context.nd.textMuted),
+                    )),
+                    const SizedBox(
+                      height: 8.0,
+                    ),
+                    LoginWidgetOP(
+                      ops: loginOptions
+                          .map((e) => ConfigOP(op: e['name'], icon: e['icon']))
+                          .toList(),
+                      curOP: curOP,
+                      startAuth: oidcAuth.start,
+                      cancelAuth: oidcAuth.cancelCurrent,
+                      canStartAuth: oidcAuth.canStart,
+                      cbLogin: (Map<String, dynamic> authBody) async {
+                        LoginResponse? resp;
+                        try {
+                          // access_token is already stored in the rust side.
+                          resp = gFFI.userModel
+                              .getLoginResponseFromAuthBody(authBody);
+                        } catch (e) {
+                          debugPrint(
+                              'Failed to parse oidc login body: "$authBody"');
+                        }
+                        close(true);
+
+                        if (resp != null) {
+                          handleLoginResponse(resp, false, null);
+                        }
+                      },
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        });
+              );
+            });
 
-    final title = Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          translate('Login'),
-        ).marginOnly(top: MyTheme.dialogPadding),
-        MouseRegion(
-          onEnter: (_) => setState(() => isCloseHovered = true),
-          onExit: (_) => setState(() => isCloseHovered = false),
-          child: InkWell(
-            child: Icon(
-              NdIcons.close,
-              size: 25,
-              // No need to handle the branch of null.
-              // Because we can ensure the color is not null when debug.
-              color: isCloseHovered
-                  ? context.nd.onWindowCloseHover
-                  : Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.color
-                      ?.withOpacity(0.55),
-            ),
-            onTap: onDialogCancel,
-            hoverColor: context.nd.windowCloseHover,
-            borderRadius: BorderRadius.circular(5),
-          ),
-        ).marginOnly(top: 10, right: 15),
-      ],
-    );
-    final titlePadding = EdgeInsets.fromLTRB(MyTheme.dialogPadding, 0, 0, 0);
-
-    return CustomAlertDialog(
-      title: title,
-      titlePadding: titlePadding,
-      contentBoxConstraints: BoxConstraints(minWidth: 400),
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          const SizedBox(
-            height: 8.0,
-          ),
-          LoginWidgetUserPass(
-            username: username,
-            pass: password,
-            usernameMsg: usernameMsg,
-            passMsg: passwordMsg,
-            isInProgress: isInProgress,
-            curOP: curOP,
-            onLogin: onLogin,
-            userFocusNode: userFocusNode,
-          ),
-          thirdAuthWidget(),
-        ],
-      ),
-      onCancel: onDialogCancel,
-      onSubmit: onLogin,
-    );
-  }).whenComplete(oidcAuth.close);
+        // Padding keeps the dialog off the window edges on a narrow screen.
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Obx(() => NdLoginDialog(
+                username: username,
+                password: password,
+                usernameError: usernameMsg,
+                passwordError: passwordMsg,
+                busy: isInProgress || curOP.value.isNotEmpty,
+                userFocusNode: userFocusNode,
+                onSignIn: onLogin,
+                onCancel: onDialogCancel,
+                below: thirdAuthWidget(),
+              )),
+        );
+      })).whenComplete(oidcAuth.close);
 
   if (res != null) {
     await UserModel.updateOtherModels();

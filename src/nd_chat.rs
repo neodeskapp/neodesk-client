@@ -153,6 +153,32 @@ pub fn is_file_id(id: &str) -> bool {
     id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
+/// The id the window asks for the profile picture of the person who
+/// helps, in place of a file id.
+pub const HELPER_PICTURE: &str = "helper-picture";
+
+/// What the window may fetch: a file of the chat or the helper's picture.
+pub fn downloadable(id: &str) -> bool {
+    is_file_id(id) || id == HELPER_PICTURE
+}
+
+/// The address of a download: `{api}/api/chat/device/helper/picture` for
+/// [`HELPER_PICTURE`], else the file's address ([`files_url`]).
+pub fn download_url(api: &str, id: &str, inline: bool) -> Option<String> {
+    if id != HELPER_PICTURE {
+        return files_url(api, Some(id), inline);
+    }
+    let mut url = url::Url::parse(api).ok()?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return None;
+    }
+    url.path_segments_mut()
+        .ok()?
+        .pop_if_empty()
+        .extend(["api", "chat", "device", "helper", "picture"]);
+    Some(url.into())
+}
+
 /// The body of a multipart upload with one part, field "file".
 pub fn multipart_body(boundary: &str, name: &str, bytes: &[u8]) -> Vec<u8> {
     let name: String = name
@@ -676,13 +702,13 @@ async fn download(stream: &mut Connection, id: &str, inline: bool) {
 }
 
 async fn fetch(id: &str, inline: bool) -> (u16, Option<Bytes>) {
-    if !is_file_id(id) {
+    if !downloadable(id) {
         return (404, None);
     }
     let Some(access) = access() else {
         return (NO_TOKEN, None);
     };
-    let Some(url) = files_url(&access.api, Some(id), inline) else {
+    let Some(url) = download_url(&access.api, id, inline) else {
         return (0, None);
     };
     let client = crate::hbbs_http::create_http_client_async_with_url(&url).await;
@@ -1053,7 +1079,7 @@ pub mod window {
         let Some(path) = request["path"].as_str().filter(|p| !p.is_empty()) else {
             return answer(0);
         };
-        if !is_file_id(&id) {
+        if !downloadable(&id) {
             return answer(404);
         }
         let (status, bytes) = block_on(ask_download(postfix, id, inline))
@@ -1156,6 +1182,24 @@ mod tests {
             Some("http://10.0.0.5:21114/api/chat/device/files/4f0c2b8e9d1a4c6b8e2f7a9c0d1e3f5a?inline=1")
         );
         assert_eq!(files_url("ws://nd.example.com", Some(id), false), None);
+    }
+
+    #[test]
+    fn the_helpers_picture_has_its_own_address() {
+        assert_eq!(
+            download_url("https://nd.example.com/desk/", HELPER_PICTURE, true).as_deref(),
+            Some("https://nd.example.com/desk/api/chat/device/helper/picture")
+        );
+        let id = "4f0c2b8e9d1a4c6b8e2f7a9c0d1e3f5a";
+        assert_eq!(
+            download_url("http://10.0.0.5:21114", id, true).as_deref(),
+            Some("http://10.0.0.5:21114/api/chat/device/files/4f0c2b8e9d1a4c6b8e2f7a9c0d1e3f5a?inline=1")
+        );
+        assert_eq!(download_url("ws://nd.example.com", HELPER_PICTURE, true), None);
+        assert!(downloadable(HELPER_PICTURE));
+        assert!(downloadable(id));
+        assert!(!downloadable("helper"));
+        assert!(!downloadable("../helper/picture"));
     }
 
     #[test]

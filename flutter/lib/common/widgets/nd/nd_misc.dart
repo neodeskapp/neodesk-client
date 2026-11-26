@@ -401,9 +401,14 @@ class _RingPainter extends CustomPainter {
 
 /// Initials in a 4 px box in one of the avatar colours on a 16 % tint.
 class NdAvatar extends StatelessWidget {
-  const NdAvatar({super.key, required this.name, this.size = 40});
+  const NdAvatar({super.key, required this.name, this.size = 40, this.picture});
   final String name;
   final double size;
+
+  /// A profile picture (PNG, JPEG, WebP or GIF) shown in place of the
+  /// initials, cut to fill the box; the initials stay when it can't be
+  /// decoded.
+  final Uint8List? picture;
 
   static String initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
@@ -420,7 +425,7 @@ class NdAvatar extends StatelessWidget {
     final t = context.ndText;
     final color =
         c.avatars[name.codeUnits.fold<int>(0, (a, b) => a + b) % 3];
-    return Container(
+    final initialsBox = Container(
       width: size,
       height: size,
       alignment: Alignment.center,
@@ -432,6 +437,18 @@ class NdAvatar extends StatelessWidget {
               fontWeight: FontWeight.w600,
               height: 1,
               color: color)),
+    );
+    final bytes = picture;
+    if (bytes == null || bytes.isEmpty) return initialsBox;
+    return ClipRRect(
+      borderRadius: NdSize.r,
+      child: Image.memory(bytes,
+          key: const ValueKey('nd-avatar-picture'),
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => initialsBox),
     );
   }
 }

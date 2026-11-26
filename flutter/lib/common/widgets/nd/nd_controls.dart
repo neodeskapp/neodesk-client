@@ -259,7 +259,9 @@ class NdTab<T> {
 }
 
 /// Text tabs with a 2 px accent underline on the chosen one and a rule
-/// under the row. [trailing] sits at the end of the row (search field).
+/// under the row. [trailing] sits at the end of the row (search field);
+/// when the tabs and [trailing] don't fit side by side, [trailing] moves to
+/// a row of its own above the tabs, so no tab label gets cut off.
 class NdTabs<T> extends StatelessWidget {
   const NdTabs({
     super.key,
@@ -307,20 +309,27 @@ class NdTabs<T> extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: c.rule, width: 1)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
+      // Runs stack upwards, so the tabs stay on the rule and [trailing]
+      // wraps above them. Upwards also flips the cross axis: start is the
+      // bottom of a run.
+      child: SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          verticalDirection: VerticalDirection.up,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.start,
+          spacing: 16,
+          children: [
+            // Scrolls only when the tabs alone are wider than the row.
+            SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: Row(children: row),
+              child: Row(mainAxisSize: MainAxisSize.min, children: row),
             ),
-          ),
-          if (trailing != null) ...[
-            const SizedBox(width: 16),
-            Padding(padding: const EdgeInsets.only(bottom: 8), child: trailing!),
+            if (trailing != null)
+              Padding(
+                  padding: const EdgeInsets.only(bottom: 8), child: trailing!),
           ],
-        ],
+        ),
       ),
     );
   }
