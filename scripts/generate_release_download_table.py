@@ -158,22 +158,19 @@ def _size(n: int) -> str:
     return f"{n / (1024 * 1024):.1f} MB"
 
 
-# Widths of the button pieces in res/release-icons (make.py draws them)
-_PIECE_WIDTH = {"start": 122, "dot": 4, "mb": 34, "kb": 34, **{str(d): 9 for d in range(10)}}
-
-
 def _button(img, alt: str, size: int) -> str:
     """The download button with the file's size in it, put together from pieces.
 
-    No whitespace between the images, so they meet as one button."""
+    No whitespace between the images, so they meet as one button. make.py
+    draws the pieces at whole pixel widths."""
     text = _size(size)
     if not text:
-        return img("download", 116, alt, 32)
+        return img("download", 32, alt)
     number, unit = text.split(" ")
     pieces = [("start", alt + ",")]
     pieces += [("dot" if c == "." else c, c) for c in number]
     pieces.append((unit.lower(), " " + unit))
-    return "".join(img(f"btn-{name}", _PIECE_WIDTH[name], text, 32) for name, text in pieces)
+    return "".join(img(f"btn-{name}", 32, text) for name, text in pieces)
 
 
 def _extension(name: str) -> str:
@@ -196,11 +193,11 @@ def render_table(
     if not arches:
         return "No packages were built for this release.\n"
 
-    def img(icon: str, size: int, alt: str, height: int | None = None) -> str:
-        return (
-            f'<img src="{image_base}/{icon}.png" width="{size}" height="{height or size}" '
-            f'alt="{html.escape(alt, quote=True)}">'
-        )
+    def img(icon: str, height: int, alt: str) -> str:
+        # Only the height: the PNGs are drawn at twice the size, so the width
+        # follows. GitHub rounds the corners of an image that has both.
+        return f'<img src="{image_base}/{icon}.png" height="{height}" alt="{html.escape(alt, quote=True)}">'
+
 
     lines = [
         "<table>",

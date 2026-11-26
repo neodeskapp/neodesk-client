@@ -278,6 +278,8 @@ def check_prerelease_table(tmp: Path) -> None:
     expect(pieces == ["btn-start", "btn-2", "btn-5", "btn-dot", "btn-6", "btn-mb"],
            f"the MSI's button does not say 25.6 MB: {pieces}")
     expect("> <" not in msi_cell and ">\n<" not in msi_cell, "the button's pieces have gaps between them")
+    # GitHub rounds the corners of an image with a width and a height, which cuts the button apart
+    expect(not re.search(r"<img[^>]* width=", table), "an image of the download table has a width")
     for name in ["btn-start", "btn-dot", "btn-mb", "btn-kb"] + [f"btn-{d}" for d in range(10)]:
         expect((HERE.parent / "res" / "release-icons" / f"{name}.png").is_file(), f"{name}.png is not in the repo")
     # One row per package under the heading row, each system once with its icon
