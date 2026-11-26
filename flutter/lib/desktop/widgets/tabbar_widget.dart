@@ -1324,8 +1324,15 @@ class _ActionIconState extends State<ActionIcon> {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.message != null ? translate(widget.message!) : "",
+    // One node: a button named by its message (the tooltip is for the mouse).
+    final name = widget.message != null ? translate(widget.message!) : '';
+    return MergeSemantics(
+        child: Semantics(
+      button: true,
+      label: name.isEmpty ? null : name,
+      child: Tooltip(
+      message: name,
+      excludeFromSemantics: true,
       waitDuration: const Duration(seconds: 1),
       child: InkWell(
         hoverColor: widget.isClose
@@ -1354,7 +1361,7 @@ class _ActionIconState extends State<ActionIcon> {
                 ),
         ),
       ),
-    );
+    )));
   }
 }
 

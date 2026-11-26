@@ -42,16 +42,17 @@ class NdToolbarButtonState extends State<NdToolbarButton> {
             style: t.label.copyWith(fontSize: 13, height: 18 / 13, color: fg)),
       ],
     ]);
-    return Tooltip(
-      message: widget.showLabel ? (widget.tooltip ?? '') : widget.label,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onPressed,
-          child: Opacity(
+    // A button to the keyboard and to assistive tech, named by its label
+    // also when only the icon shows.
+    return NdPressable(
+      label: widget.label,
+      hint: widget.showLabel ? widget.tooltip : null,
+      onHover: (v) => setState(() => _hover = v),
+      onPressed: widget.onPressed,
+      child: Tooltip(
+        message: widget.showLabel ? (widget.tooltip ?? '') : widget.label,
+        excludeFromSemantics: true,
+        child: Opacity(
             opacity: enabled ? 1 : 0.45,
             child: Container(
               height: 36,
@@ -67,7 +68,6 @@ class NdToolbarButtonState extends State<NdToolbarButton> {
               child: content,
             ),
           ),
-        ),
       ),
     );
   }
