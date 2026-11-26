@@ -7,7 +7,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/cm/cm_widgets.dart';
 import 'package:flutter_hbb/desktop/pages/server_page.dart'
-    show cmControlPageBlock;
+    show cmControlPageBlock, cmRemoteMaySendKeys;
+import 'package:flutter_hbb/models/server_model.dart' show Client;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 
@@ -45,6 +46,27 @@ Widget _request({bool focusOnArrival = true}) => Column(
       ],
     );
 
+Widget _page(
+        {required bool block,
+        bool remoteMaySendKeys = false,
+        bool systemBlocksRemoteKeys = false}) =>
+    cmControlPageBlock(
+        child: _request(),
+        block: block.obs,
+        remoteMaySendKeys: remoteMaySendKeys,
+        systemBlocksRemoteKeys: systemBlocksRemoteKeys);
+
+Client _client(
+    {bool authorized = true,
+    bool keyboard = true,
+    bool fileTransfer = false,
+    bool disconnected = false}) {
+  final c = Client(1, authorized, fileTransfer, false, 'Mara Jensen',
+      '702118446', keyboard, true, true);
+  c.disconnected = disconnected;
+  return c;
+}
+
 void main() {
   setUp(() => useLanguage('en'));
 
@@ -52,7 +74,7 @@ void main() {
       (tester) async {
     final handle = tester.ensureSemantics();
     await pumpScreen(
-        tester, cmControlPageBlock(child: _request(), block: false.obs),
+        tester, _page(block: false),
         size: const Size(380, 600));
     final order = await tabOrder(tester);
     // ignore: avoid_print
@@ -72,7 +94,7 @@ void main() {
   testWidgets('nothing takes focus while the remote mouse is over the window',
       (tester) async {
     await pumpScreen(
-        tester, cmControlPageBlock(child: _request(), block: true.obs),
+        tester, _page(block: true),
         size: const Size(380, 600));
     final order = await tabOrder(tester);
     for (final no in [tr('nd-cm-perm-input'), 'Decline', 'Allow']) {
@@ -85,7 +107,7 @@ void main() {
     final handle = tester.ensureSemantics();
     final said = recordAnnouncements(tester);
     await pumpScreen(
-        tester, cmControlPageBlock(child: _request(), block: false.obs),
+        tester, _page(block: false),
         size: const Size(380, 600));
     await tester.pump();
     expect(said.map((a) => a.message),
@@ -104,9 +126,52 @@ void main() {
 
   testWidgets('the focused title shows a focus ring', (tester) async {
     await pumpScreen(
-        tester, cmControlPageBlock(child: _request(), block: false.obs),
+        tester, _page(block: false),
         size: const Size(380, 600));
     await tester.pump();
     expect(find.byType(NdFocusRing), findsOneWidget);
+  });
+
+  testWidgets(
+      'while a remote computer may send keys and nothing stops them, the '
+      'controls take no keyboard focus', (tester) async {
+    await pumpScreen(tester, _page(block: false, remoteMaySendKeys: true),
+        size: const Size(380, 600));
+    await tester.pump();
+    final order = await tabOrder(tester);
+    for (final no in [tr('nd-cm-perm-input'), 'Decline', 'Allow']) {
+      expect(order.where((s) => s.contains(no)), isEmpty,
+          reason: '$no must not take a key the remote computer typed');
+    }
+    expect(focusedName() ?? '', isNot(contains('wants to connect')));
+  });
+
+  testWidgets(
+      'when this computer keeps remote keys away, the local keyboard reaches '
+      'the controls during a session', (tester) async {
+    await pumpScreen(
+        tester,
+        _page(
+            block: false,
+            remoteMaySendKeys: true,
+            systemBlocksRemoteKeys: true),
+        size: const Size(380, 600));
+    final order = await tabOrder(tester);
+    for (final want in [tr('nd-cm-perm-input'), 'Decline', 'Allow']) {
+      expect(order.any((s) => s.contains(want)), isTrue,
+          reason: '$want is not reachable with Tab');
+    }
+  });
+
+  test('a remote computer may send keys only from an accepted session with '
+      'keyboard permission', () {
+    expect(cmRemoteMaySendKeys([_client()]), isTrue);
+    expect(cmRemoteMaySendKeys([]), isFalse);
+    expect(cmRemoteMaySendKeys([_client(authorized: false)]), isFalse);
+    expect(cmRemoteMaySendKeys([_client(keyboard: false)]), isFalse);
+    expect(cmRemoteMaySendKeys([_client(fileTransfer: true)]), isFalse);
+    expect(cmRemoteMaySendKeys([_client(disconnected: true)]), isFalse);
+    expect(
+        cmRemoteMaySendKeys([_client(keyboard: false), _client()]), isTrue);
   });
 }

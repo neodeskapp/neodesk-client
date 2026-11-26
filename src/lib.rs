@@ -1,6 +1,10 @@
 mod keyboard;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod keyboard_release;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod cm_remote_keys;
+#[cfg(windows)]
+mod cm_remote_keys_win;
 /// cbindgen:ignore
 pub mod platform;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]

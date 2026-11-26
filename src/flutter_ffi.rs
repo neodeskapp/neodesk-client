@@ -2769,6 +2769,13 @@ pub fn main_get_common(key: String) -> String {
         return crate::platform::is_win_10_or_greater().to_string();
         #[cfg(not(target_os = "windows"))]
         return false.to_string();
+    } else if key == "cm-remote-keys-blocked" {
+        // The connection manager's controls may take keyboard focus while a
+        // remote computer has the keyboard (server_page.dart).
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        return crate::cm_remote_keys::remote_keys_blocked().to_string();
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        return false.to_string();
     } else if key == "transfer-job-id" {
         return hbb_common::fs::get_next_job_id().to_string();
     } else if key == "is-remote-modify-enabled-by-control-permissions" {
