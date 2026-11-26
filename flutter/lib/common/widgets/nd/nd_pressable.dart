@@ -75,6 +75,8 @@ class NdPressable extends StatefulWidget {
 
 class NdPressableState extends State<NdPressable> {
   bool _focusShown = false;
+  // Real focus, for assistive tech; [_focusShown] is only the visible ring.
+  bool _hasFocus = false;
 
   /// True while the control shows keyboard focus.
   bool get focusShown => _focusShown;
@@ -112,18 +114,25 @@ class NdPressableState extends State<NdPressable> {
       label: widget.label,
       hint: widget.hint,
       value: widget.value,
+      // Said here because the child's own focus semantics are dropped with
+      // its text.
+      focusable: enabled,
+      focused: _hasFocus,
       excludeSemantics: widget.label != null && !widget.keepChildSemantics,
       onTap: widget.onPressed,
       child: FocusableActionDetector(
         enabled: enabled,
         focusNode: widget.focusNode,
         autofocus: widget.autofocus,
-        includeFocusSemantics: true,
+        includeFocusSemantics: false,
         mouseCursor:
             enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
         onShowHoverHighlight: widget.onHover,
         onShowFocusHighlight: (v) => setState(() => _focusShown = v),
-        onFocusChange: widget.onFocusChange,
+        onFocusChange: (f) {
+          setState(() => _hasFocus = f);
+          widget.onFocusChange?.call(f);
+        },
         shortcuts: bindings,
         actions: {
           ActivateIntent: CallbackAction<ActivateIntent>(

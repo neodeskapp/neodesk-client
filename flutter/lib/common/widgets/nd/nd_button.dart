@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/nd_theme.dart';
+import 'nd_pressable.dart';
 
 enum NdButtonKind { primary, plain, danger, dangerQuiet, ghost, link }
 
@@ -75,6 +76,7 @@ class _NdButtonState extends State<NdButton> {
   bool _hover = false;
   bool _focus = false;
   bool _pressed = false;
+  bool _hasFocus = false;
 
   bool get _enabled => widget.onPressed != null;
 
@@ -192,6 +194,8 @@ class _NdButtonState extends State<NdButton> {
           _enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onShowHoverHighlight: (v) => setState(() => _hover = v),
       onShowFocusHighlight: (v) => setState(() => _focus = v),
+      onFocusChange: (f) => setState(() => _hasFocus = f),
+      includeFocusSemantics: false,
       shortcuts: const {
         SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
         SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
@@ -210,10 +214,21 @@ class _NdButtonState extends State<NdButton> {
       ),
     );
     if (widget.tooltip != null && widget.tooltip!.isNotEmpty) {
-      result = Tooltip(message: widget.tooltip!, child: result);
+      result = Tooltip(
+          message: widget.tooltip!, excludeFromSemantics: true, child: result);
     }
+    // The label is the name; the Text inside would say it a second time.
     return Semantics(
-        button: true, enabled: _enabled, label: widget.label, child: result);
+        container: true,
+        button: true,
+        enabled: _enabled,
+        label: widget.label,
+        hint: widget.tooltip,
+        excludeSemantics: true,
+        focusable: _enabled,
+        focused: _hasFocus,
+        onTap: widget.onPressed,
+        child: result);
   }
 }
 
@@ -285,30 +300,25 @@ class _NdIconButtonState extends State<NdIconButton> {
   @override
   Widget build(BuildContext context) {
     final c = context.nd;
-    return Tooltip(
-      message: widget.tooltip,
-      child: FocusableActionDetector(
-        enabled: widget.onPressed != null,
-        mouseCursor: SystemMouseCursors.click,
-        onShowHoverHighlight: (v) => setState(() => _hover = v),
-        actions: {
-          ActivateIntent: CallbackAction<ActivateIntent>(
-              onInvoke: (_) => widget.onPressed?.call()),
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onPressed,
-          child: Container(
-            width: widget.size,
-            height: widget.size,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _hover ? c.hover : Colors.transparent,
-              borderRadius: NdSize.r,
-            ),
-            child: Icon(widget.icon,
-                size: widget.iconSize, color: widget.color ?? c.textMuted),
+    // The tooltip is for the mouse; the name comes from the label, which
+    // Windows reads reliably (a tooltip alone is not the name there).
+    return NdPressable(
+      label: widget.tooltip,
+      onHover: (v) => setState(() => _hover = v),
+      onPressed: widget.onPressed,
+      child: Tooltip(
+        message: widget.tooltip,
+        excludeFromSemantics: true,
+        child: Container(
+          width: widget.size,
+          height: widget.size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _hover ? c.hover : Colors.transparent,
+            borderRadius: NdSize.r,
           ),
+          child: Icon(widget.icon,
+              size: widget.iconSize, color: widget.color ?? c.textMuted),
         ),
       ),
     );
