@@ -7,6 +7,7 @@ import 'package:flutter_hbb/desktop/widgets/nd_toolbar_button.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
+import 'package:flutter_hbb/common/widgets/remote_keyboard.dart';
 import 'package:flutter_hbb/common/widgets/toolbar.dart';
 import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -2639,6 +2640,7 @@ class _KeyboardMenu extends StatelessWidget {
         icon: NdIcons.keyboard,
         label: tr('nd-tb-keyboard'),
         showLabel: showLabel,
+        tooltip: tr('nd-keyboard-release-tip', [releaseKeyboardChordLabel()]),
         ffi: ffi,
         menuChildrenGetter: (_) => [
               ...keyActions(),
@@ -3134,6 +3136,7 @@ class _NdToolbarSubmenu extends StatefulWidget {
     required this.menuChildrenGetter,
     required this.ffi,
     this.showLabel = true,
+    this.tooltip,
   });
 
   final IconData icon;
@@ -3142,6 +3145,9 @@ class _NdToolbarSubmenu extends StatefulWidget {
   final FFI ffi;
   final bool showLabel;
 
+  /// Shown on hover in addition to the label.
+  final String? tooltip;
+
   @override
   State<_NdToolbarSubmenu> createState() => _NdToolbarSubmenuState();
 }
@@ -3149,6 +3155,7 @@ class _NdToolbarSubmenu extends StatefulWidget {
 class _NdToolbarSubmenuState extends State<_NdToolbarSubmenu> {
   bool _hover = false;
   bool _open = false;
+  bool _focused = false;
 
   @override // discard @protected
   void setState(VoidCallback fn) {
@@ -3164,6 +3171,7 @@ class _NdToolbarSubmenuState extends State<_NdToolbarSubmenu> {
       style: _ToolbarTheme.defaultMenuButtonStyle,
       alignmentOffset: const Offset(0, 6),
       onHover: (v) => setState(() => _hover = v),
+      onFocusChange: (v) => setState(() => _focused = v),
       onOpen: () => setState(() => _open = true),
       onClose: () => setState(() => _open = false),
       menuChildren: widget
@@ -3171,14 +3179,25 @@ class _NdToolbarSubmenuState extends State<_NdToolbarSubmenu> {
           .map((e) => _buildPointerTrackWidget(e, widget.ffi))
           .toList(),
       child: Tooltip(
-        message: widget.showLabel ? '' : widget.label,
-        child: Container(
+        message: [
+          if (!widget.showLabel) widget.label,
+          if (widget.tooltip != null) widget.tooltip!,
+        ].join('. '),
+        excludeFromSemantics: true,
+        child: Semantics(
+          label: widget.label,
+          hint: widget.tooltip,
+          excludeSemantics: true,
+          child: Container(
           height: _ToolbarTheme.buttonSize,
           padding: EdgeInsets.only(
               left: widget.showLabel ? 10 : 8, right: widget.showLabel ? 6 : 8),
           decoration: BoxDecoration(
             color: _open ? c.accentTint : (_hover ? c.hover : Colors.transparent),
             borderRadius: NdSize.r,
+            // The keyboard focus, 2 px in the accent (3:1 and more).
+            border: Border.all(
+                color: _focused ? c.accent : Colors.transparent, width: 2),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(widget.icon, size: 20, color: c.text),
@@ -3190,6 +3209,7 @@ class _NdToolbarSubmenuState extends State<_NdToolbarSubmenu> {
               Icon(NdIcons.expandMore, size: 18, color: c.textMuted),
             ],
           ]),
+        ),
         ),
       ),
     );
@@ -3246,6 +3266,7 @@ class _IconMenuButton extends StatefulWidget {
 
 class _IconMenuButtonState extends State<_IconMenuButton> {
   bool hover = false;
+  bool focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -3261,26 +3282,34 @@ class _IconMenuButtonState extends State<_IconMenuButton> {
           onHover: (value) => setState(() {
                 hover = value;
               }),
+          onFocusChange: (value) => setState(() {
+                focused = value;
+              }),
           onPressed: widget.onPressed,
+          // One name, from the label; the tooltip is only for the mouse.
           child: Tooltip(
             message: translate(widget.tooltip),
-            child: Material(
+            excludeFromSemantics: true,
+            child: Semantics(
+              label: translate(widget.tooltip),
+              excludeSemantics: true,
+              child: Material(
                 type: MaterialType.transparency,
                 child: Ink(
                     decoration: BoxDecoration(
                       borderRadius:
                           BorderRadius.circular(_ToolbarTheme.iconRadius),
                       color: hover ? widget.hoverColor : widget.color,
+                      border: focused
+                          ? Border.all(color: context.nd.accent, width: 2)
+                          : null,
                     ),
                     child: icon)),
+            ),
           )),
     ).marginSymmetric(
         horizontal: widget.hMargin ?? _ToolbarTheme.buttonHMargin,
         vertical: widget.vMargin ?? _ToolbarTheme.buttonVMargin);
-    button = Tooltip(
-      message: translate(widget.tooltip),
-      child: button,
-    );
     if (widget.topLevel) {
       return MenuBar(children: [button]);
     } else {
@@ -3317,6 +3346,7 @@ class _IconSubmenuButton extends StatefulWidget {
 
 class _IconSubmenuButtonState extends State<_IconSubmenuButton> {
   bool hover = false;
+  bool focused = false;
 
   @override // discard @protected
   void setState(VoidCallback fn) {
@@ -3336,17 +3366,28 @@ class _IconSubmenuButtonState extends State<_IconSubmenuButton> {
             onHover: (value) => setState(() {
                   hover = value;
                 }),
+            onFocusChange: (value) => setState(() {
+                  focused = value;
+                }),
             child: Tooltip(
                 message: translate(widget.tooltip),
-                child: Material(
+                excludeFromSemantics: true,
+                child: Semantics(
+                  label: translate(widget.tooltip),
+                  excludeSemantics: true,
+                  child: Material(
                     type: MaterialType.transparency,
                     child: Ink(
                         decoration: BoxDecoration(
                           borderRadius:
                               BorderRadius.circular(_ToolbarTheme.iconRadius),
                           color: hover ? widget.hoverColor : widget.color,
+                          border: focused
+                              ? Border.all(color: context.nd.accent, width: 2)
+                              : null,
                         ),
-                        child: icon))),
+                        child: icon)),
+                )),
             menuChildren: widget
                 .menuChildrenGetter(this)
                 .map((e) => _buildPointerTrackWidget(e, widget.ffi))
@@ -3434,7 +3475,11 @@ class CkbMenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final on = value == true;
-    return MenuItemButton(
+    // The check is drawn; say it too.
+    return MergeSemantics(
+        child: Semantics(
+            checked: on,
+            child: MenuItemButton(
       key: key,
       style: ndMenuItemStyle(context),
       leadingIcon: SizedBox(
@@ -3452,7 +3497,7 @@ class CkbMenuButton extends StatelessWidget {
               onChanged?.call(!on);
             }
           : null,
-    );
+    )));
   }
 }
 
@@ -3478,7 +3523,12 @@ class RdoMenuButton<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.nd;
     final on = value == groupValue;
-    return MenuItemButton(
+    // The radio mark is drawn; say it too.
+    return MergeSemantics(
+        child: Semantics(
+            checked: on,
+            inMutuallyExclusiveGroup: true,
+            child: MenuItemButton(
       style: ndMenuItemStyle(context),
       closeOnActivate: closeOnActivate,
       leadingIcon: SizedBox(
@@ -3511,7 +3561,7 @@ class RdoMenuButton<T> extends StatelessWidget {
               onChanged?.call(value);
             }
           : null,
-    );
+    )));
   }
 }
 

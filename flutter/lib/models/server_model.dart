@@ -687,6 +687,9 @@ class ServerModel with ChangeNotifier {
     });
   }
 
+  /// A permission of a client changed in the connection manager.
+  void clientPermissionChanged() => notifyListeners();
+
   void sendLoginResponse(Client client, bool res) async {
     if (res) {
       bind.cmLoginRes(connId: client.id, res: res);

@@ -54,6 +54,8 @@ import 'package:flutter_hbb/utils/http_service.dart' as http;
 import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd_misc.dart'
     show NdOsMark, ndOsFromPlatform;
+import 'package:flutter_hbb/common/linux_field_semantics.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_announce.dart';
 
 final globalKey = GlobalKey<NavigatorState>();
 final navigationBarKey = GlobalKey();
@@ -320,9 +322,17 @@ class MyTheme {
   static ThemeData get lightTheme => _theme(Brightness.light);
   static ThemeData get darkTheme => _theme(Brightness.dark);
 
-  static ThemeData _theme(Brightness b) => NdTheme.theme(
+  /// Used by MaterialApp while the system asks for high contrast.
+  static ThemeData get highContrastLightTheme =>
+      _theme(Brightness.light, highContrast: true);
+  static ThemeData get highContrastDarkTheme =>
+      _theme(Brightness.dark, highContrast: true);
+
+  static ThemeData _theme(Brightness b, {bool highContrast = false}) =>
+      NdTheme.theme(
         b,
         desktop: isDesktop || isWebDesktop,
+        highContrast: highContrast,
         extra: (c) => [ColorThemeExtension.from(c), TabbarTheme.from(c)],
       );
 
@@ -597,6 +607,8 @@ class OverlayDialogManager {
 
     final dialog = Dialog<T>();
     _dialogs[dialogTag] = dialog;
+    // Focus goes back to what opened the dialog when it closes.
+    final opener = FocusManager.instance.primaryFocus;
 
     close([res]) {
       _dialogs.remove(dialogTag);
@@ -606,6 +618,15 @@ class OverlayDialogManager {
         debugPrint("Dialog complete catch error: $e");
       }
       BackButtonInterceptor.removeByName(dialogTag);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final now = FocusManager.instance.primaryFocus;
+        if (opener != null &&
+            opener.context != null &&
+            opener.canRequestFocus &&
+            (now == null || now is FocusScopeNode)) {
+          opener.requestFocus();
+        }
+      });
     }
 
     dialog.entry = OverlayEntry(builder: (context) {
@@ -617,14 +638,20 @@ class OverlayDialogManager {
             }
             innerClicked = false;
           },
-          child: Container(
+          // A modal dialog to assistive tech too: the page under the scrim
+          // drops out of the semantics tree while it shows.
+          child: BlockSemantics(
+              child: Semantics(
+                  scopesRoute: true,
+                  explicitChildNodes: true,
+                  child: Container(
               color: context.nd.scrim,
               child: StatefulBuilder(builder: (context, setState) {
                 return Listener(
                   onPointerUp: (_) => innerClicked = true,
                   child: builder(setState, close, overlayState.context),
                 );
-              })));
+              })))));
     });
     overlayState.insert(dialog.entry!);
     BackButtonInterceptor.add((stopDefaultButtonEvent, routeInfo) {
@@ -773,6 +800,8 @@ void showToast(String text,
     Alignment alignment = const Alignment(0.0, 0.8)}) {
   final overlayState = globalKey.currentState?.overlay;
   if (overlayState == null) return;
+  // The toast goes after a few seconds; a screen reader says it at once.
+  ndAnnounce(overlayState.context, text);
   final entry = OverlayEntry(builder: (context) {
     return IgnorePointer(
         child: Align(
@@ -816,9 +845,13 @@ class CustomAlertDialog extends StatelessWidget {
       this.contentPadding,
       this.contentBoxConstraints = const BoxConstraints(maxWidth: 500),
       this.onSubmit,
-      this.onCancel})
+      this.onCancel,
+      this.semanticLabel})
       : super(key: key);
 
+  /// The dialog's name when [title] is not set (message boxes draw their
+  /// title inside the content); without one Windows says "Alert".
+  final String? semanticLabel;
   final Widget? title;
   final EdgeInsetsGeometry? titlePadding;
   final Widget content;
@@ -835,8 +868,16 @@ class CustomAlertDialog extends StatelessWidget {
     Future.delayed(Duration.zero, () {
       if (!scopeNode.hasFocus) scopeNode.requestFocus();
     });
-    bool tabTapped = false;
     if (isAndroid) gFFI.invokeMethod("enable_soft_keyboard", true);
+    // Enter submits from a text field or when nothing inside has focus yet;
+    // on a button Enter presses that button.
+    bool enterSubmits() {
+      final f = FocusManager.instance.primaryFocus;
+      if (f == null || f == scopeNode) return true;
+      return f.context?.findAncestorWidgetOfExactType<EditableText>() !=
+              null ||
+          f.context?.widget is EditableText;
+    }
 
     return FocusScope(
       node: scopeNode,
@@ -847,23 +888,20 @@ class CustomAlertDialog extends StatelessWidget {
             onCancel?.call();
           }
           return KeyEventResult.handled; // avoid TextField exception on escape
-        } else if (!tabTapped &&
-            onSubmit != null &&
+        } else if (onSubmit != null &&
             (key.logicalKey == LogicalKeyboardKey.enter ||
-                key.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+                key.logicalKey == LogicalKeyboardKey.numpadEnter) &&
+            enterSubmits()) {
           if (key is RawKeyDownEvent) onSubmit?.call();
           return KeyEventResult.handled;
-        } else if (key.logicalKey == LogicalKeyboardKey.tab) {
-          if (key is RawKeyDownEvent) {
-            scopeNode.nextFocus();
-            tabTapped = true;
-          }
-          return KeyEventResult.handled;
         }
+        // Tab and Shift+Tab move within the dialog by the scope's own
+        // traversal, forwards and backwards.
         return KeyEventResult.ignored;
       },
       child: AlertDialog(
           scrollable: true,
+          semanticLabel: semanticLabel,
           title: title,
           content: ConstrainedBox(
             constraints: contentBoxConstraints,
@@ -956,6 +994,7 @@ void msgBox(SessionID sessionId, String type, String title, String text,
     dialogManager.show(
       (setState, close, context) => CustomAlertDialog(
         title: null,
+        semanticLabel: translate(title),
         content: SelectionArea(child: msgboxContent(type, title, text)),
         actions: [
           dialogButton(
@@ -1047,9 +1086,13 @@ void msgBox(SessionID sessionId, String type, String title, String text,
   if (link.isNotEmpty) {
     buttons.insert(0, dialogButton('JumpLink', onPressed: jumplink));
   }
+  // Connection errors and prompts arrive here: say them, as focus may not
+  // move to the dialog by itself.
+  ndAnnounce(null, '${translate(title)}. ${translate(text)}', assertive: true);
   dialogManager.show(
     (setState, close, context) => CustomAlertDialog(
       title: null,
+      semanticLabel: translate(title),
       content: SelectionArea(child: msgboxContent(type, title, text)),
       actions: buttons,
       onSubmit: hasOk ? submit : null,
@@ -3849,11 +3892,12 @@ void checkUpdate() {
 }
 
 // https://github.com/flutter/flutter/issues/153560#issuecomment-2497160535
-// For TextField, TextFormField
+// For TextField, TextFormField. Hiding the field also hides it from Orca, so
+// it happens only where the freeze is known and no screen reader runs
+// (common/linux_field_semantics.dart).
 extension WorkaroundFreezeLinuxMint on Widget {
   Widget workaroundFreezeLinuxMint() {
-    // No need to check if is Linux Mint, because this workaround is harmless on other platforms.
-    if (isLinux) {
+    if (isLinux && hideLinuxFieldSemantics) {
       return ExcludeSemantics(child: this);
     } else {
       return this;

@@ -217,6 +217,70 @@ class NdColors extends ThemeExtension<NdColors> {
         as NdColors;
   }
 
+  /// For a high contrast setting (Windows contrast themes, GNOME high
+  /// contrast): the same tokens, but muted text is full text, every control
+  /// border and rule is drawn in the text colour, and panels, the title bar
+  /// and hover take the page colour or the old border, so nothing relies
+  /// on a faint tone.
+  NdColors highContrast() => _with(
+        textMuted: text,
+        border: text,
+        rule: border,
+        bgSubtle: bg,
+        titlebar: bg,
+        hover: rule,
+      );
+
+  NdColors _with({
+    Color? textMuted,
+    Color? border,
+    Color? rule,
+    Color? bgSubtle,
+    Color? titlebar,
+    Color? hover,
+  }) {
+    final c = copyWith() as NdColors;
+    return NdColors(
+      brightness: c.brightness,
+      bg: c.bg,
+      bgSubtle: bgSubtle ?? c.bgSubtle,
+      hover: hover ?? c.hover,
+      bgFloat: c.bgFloat,
+      titlebar: titlebar ?? c.titlebar,
+      text: c.text,
+      textMuted: textMuted ?? c.textMuted,
+      border: border ?? c.border,
+      rule: rule ?? c.rule,
+      accent: c.accent,
+      accentHover: c.accentHover,
+      onAccent: c.onAccent,
+      success: c.success,
+      warning: c.warning,
+      danger: c.danger,
+      dangerHover: c.dangerHover,
+      onDanger: c.onDanger,
+      info: c.info,
+      canvas: c.canvas,
+      onCanvas: c.onCanvas,
+      scrim: c.scrim,
+      shadowFar: c.shadowFar,
+      shadowNear: c.shadowNear,
+      logoSquare: c.logoSquare,
+      logoCircle: c.logoCircle,
+      logoOverlap: c.logoOverlap,
+      osWindows: c.osWindows,
+      osLinux: c.osLinux,
+      osApple: c.osApple,
+      avatar1: c.avatar1,
+      avatar2: c.avatar2,
+      avatar3: c.avatar3,
+      windowCloseHover: c.windowCloseHover,
+      onWindowCloseHover: c.onWindowCloseHover,
+      white: c.white,
+      black: c.black,
+    );
+  }
+
   @override
   ThemeExtension<NdColors> copyWith({
     Color? accent,
@@ -503,17 +567,34 @@ class NdSize {
 // Material theme built from the tokens
 // ---------------------------------------------------------------------------
 
+/// Follows the system text size (Windows "Text size", GNOME text scaling,
+/// macOS) from 100 % up to 200 %; smaller settings stay at 100 %, so the
+/// layout never gets tighter than designed.
+Widget ndTextScaleBuilder(BuildContext context, Widget? child) {
+  final mq = MediaQuery.of(context);
+  return MediaQuery(
+    data: mq.copyWith(
+      textScaler:
+          mq.textScaler.clamp(minScaleFactor: 1.0, maxScaleFactor: 2.0),
+    ),
+    child: child ?? const SizedBox.shrink(),
+  );
+}
+
 class NdTheme {
   NdTheme._();
 
   static NdColors _light = NdColors.light;
   static NdColors _dark = NdColors.dark;
   static Brightness _brightness = Brightness.light;
+  static bool _highContrast = false;
   static String _accentHex = '';
 
   /// The palette of the current window, for code without a BuildContext.
-  static NdColors get current =>
-      _brightness == Brightness.dark ? _dark : _light;
+  static NdColors get current {
+    final c = _brightness == Brightness.dark ? _dark : _light;
+    return _highContrast ? c.highContrast() : c;
+  }
 
   static NdColors get lightColors => _light;
   static NdColors get darkColors => _dark;
@@ -533,6 +614,7 @@ class NdTheme {
   /// Called from the app's builder so [current] follows the shown theme.
   static void track(BuildContext context) {
     _brightness = Theme.of(context).brightness;
+    _highContrast = MediaQuery.maybeHighContrastOf(context) ?? false;
   }
 
   @visibleForTesting
@@ -544,10 +626,13 @@ class NdTheme {
   /// [extra] adds theme extensions built from the same tokens.
   static ThemeData theme(Brightness brightness,
       {required bool desktop,
+      bool highContrast = false,
       List<ThemeExtension<dynamic>> Function(NdColors c)? extra}) {
-    final key = '$brightness-$desktop-$_accentHex-${extra != null}';
+    final key =
+        '$brightness-$desktop-$_accentHex-${extra != null}-$highContrast';
+    final base = brightness == Brightness.dark ? _dark : _light;
     return _cache[key] ??= build(
-        brightness == Brightness.dark ? _dark : _light,
+        highContrast ? base.highContrast() : base,
         desktop: desktop,
         extra: extra);
   }
@@ -597,6 +682,15 @@ class NdTheme {
       labelSmall: m(t.caption),
     );
     final noSplash = desktop ? NoSplash.splashFactory : null;
+    // Keyboard focus on Material controls: a 2 px outline, as NdFocusRing
+    // draws on the NeoDesk controls. The fills alone (focusColor, hover) are
+    // under 3:1 against the surface. On an accent fill the outline is an
+    // inner ring in the ink colour, which stands out from the fill.
+    WidgetStateProperty<BorderSide?> focusSide(BorderSide? rest,
+            {Color? color}) =>
+        WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.focused)
+            ? BorderSide(color: color ?? c.accent, width: 2)
+            : rest);
     return ThemeData(
       useMaterial3: false,
       brightness: c.brightness,
@@ -672,6 +766,7 @@ class NdTheme {
                   ? c.hover
                   : Colors.transparent),
           shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
+          side: focusSide(null),
           splashFactory: NoSplash.splashFactory,
         ),
       ),
@@ -742,6 +837,7 @@ class NdTheme {
             return c.accent;
           }),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+          side: focusSide(null, color: c.onAccent),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -759,6 +855,7 @@ class NdTheme {
           backgroundColor: WidgetStateProperty.resolveWith((s) =>
               s.contains(WidgetState.hovered) ? c.hover : Colors.transparent),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+          side: focusSide(BorderSide(color: c.border)),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -774,6 +871,7 @@ class NdTheme {
           backgroundColor: WidgetStateProperty.resolveWith((s) =>
               s.contains(WidgetState.hovered) ? c.hover : Colors.transparent),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+          side: focusSide(null),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
@@ -782,13 +880,16 @@ class NdTheme {
           hoverColor: c.hover,
           shape: shape,
           splashFactory: noSplash,
-        ),
+        ).copyWith(side: focusSide(null)),
       ),
       checkboxTheme: CheckboxThemeData(
         splashRadius: desktop ? 0 : kRadialReactionRadius,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(NdSize.radiusSm)),
-        side: BorderSide(color: c.border),
+        side: WidgetStateBorderSide.resolveWith((s) =>
+            s.contains(WidgetState.focused)
+                ? BorderSide(color: c.text, width: 2)
+                : BorderSide(color: c.border)),
         fillColor: WidgetStateProperty.resolveWith((s) =>
             s.contains(WidgetState.selected) ? c.accent : Colors.transparent),
         checkColor: WidgetStatePropertyAll(c.onAccent),

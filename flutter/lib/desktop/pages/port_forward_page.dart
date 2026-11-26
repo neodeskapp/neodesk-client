@@ -271,14 +271,20 @@ class _PortForwardPageState extends State<PortForwardPage>
         text(pf.remotePort.toString()),
         SizedBox(
           width: _kColumn4Width,
-          child: IconButton(
-            icon: const Icon(NdIcons.close),
-            onPressed: () async {
-              await bind.sessionRemovePortForward(
-                  sessionId: _ffi.sessionId, localPort: pf.localPort);
-              refreshTunnelConfig();
-            },
-          ),
+          // Named by a label: Windows does not read a tooltip as the name.
+          child: MergeSemantics(
+              child: Semantics(
+            label: translate('Remove'),
+            child: IconButton(
+              icon: const Icon(NdIcons.close),
+              tooltip: translate('Remove'),
+              onPressed: () async {
+                await bind.sessionRemovePortForward(
+                    sessionId: _ffi.sessionId, localPort: pf.localPort);
+                refreshTunnelConfig();
+              },
+            ),
+          )),
         ),
       ]),
     );

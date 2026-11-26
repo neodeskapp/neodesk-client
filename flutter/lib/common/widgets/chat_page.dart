@@ -138,12 +138,18 @@ class ChatPage extends StatelessWidget implements PageShape {
                       ),
                       // dash_chat_2's defaultSendButton draws Material's
                       // send icon whatever icon it is given.
-                      sendButtonBuilder: (send) => InkWell(
-                        onTap: () => send(),
-                        child: Padding(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 6, vertical: 0),
-                          child: Icon(NdIcons.send, color: MyTheme.accent),
+                      sendButtonBuilder: (send) => MergeSemantics(
+                        child: Semantics(
+                          button: true,
+                          label: translate('Send'),
+                          child: InkWell(
+                            onTap: () => send(),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 0),
+                              child: Icon(NdIcons.send, color: MyTheme.accent),
+                            ),
+                          ),
                         ),
                       ),
                     ),

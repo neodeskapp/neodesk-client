@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/nd_theme.dart';
+import 'nd_pressable.dart';
 
 enum NdButtonKind { primary, plain, danger, dangerQuiet, ghost, link }
 
@@ -75,6 +76,7 @@ class _NdButtonState extends State<NdButton> {
   bool _hover = false;
   bool _focus = false;
   bool _pressed = false;
+  bool _hasFocus = false;
 
   bool get _enabled => widget.onPressed != null;
 
@@ -145,8 +147,12 @@ class _NdButtonState extends State<NdButton> {
       decorationThickness: 1,
     );
 
+    // Two lines at most when the text is scaled up; the box grows with it.
     Widget content = Text(widget.label,
-        style: style, maxLines: 1, overflow: TextOverflow.ellipsis);
+        style: style,
+        maxLines: isLink ? null : 2,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center);
     if (!isLink && (widget.icon != null || widget.trailingIcon != null)) {
       content = Row(
         mainAxisSize: MainAxisSize.min,
@@ -171,7 +177,7 @@ class _NdButtonState extends State<NdButton> {
                 ? Duration.zero
                 : NdSize.motion,
             curve: Curves.easeOut,
-            height: _height,
+            constraints: BoxConstraints(minHeight: _height),
             width: widget.block ? double.infinity : null,
             padding: EdgeInsets.symmetric(horizontal: _padX),
             decoration: BoxDecoration(
@@ -179,7 +185,7 @@ class _NdButtonState extends State<NdButton> {
               borderRadius: NdSize.r,
               border: Border.all(color: borderColor, width: 1),
             ),
-            child: Center(widthFactor: 1, child: content),
+            child: Center(widthFactor: 1, heightFactor: 1, child: content),
           );
 
     if (_focus) box = NdFocusRing(child: box);
@@ -192,6 +198,8 @@ class _NdButtonState extends State<NdButton> {
           _enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onShowHoverHighlight: (v) => setState(() => _hover = v),
       onShowFocusHighlight: (v) => setState(() => _focus = v),
+      onFocusChange: (f) => setState(() => _hasFocus = f),
+      includeFocusSemantics: false,
       shortcuts: const {
         SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
         SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
@@ -210,20 +218,36 @@ class _NdButtonState extends State<NdButton> {
       ),
     );
     if (widget.tooltip != null && widget.tooltip!.isNotEmpty) {
-      result = Tooltip(message: widget.tooltip!, child: result);
+      result = Tooltip(
+          message: widget.tooltip!, excludeFromSemantics: true, child: result);
     }
+    // The label is the name; the Text inside would say it a second time.
     return Semantics(
-        button: true, enabled: _enabled, label: widget.label, child: result);
+        container: true,
+        button: true,
+        enabled: _enabled,
+        label: widget.label,
+        hint: widget.tooltip,
+        excludeSemantics: true,
+        focusable: _enabled,
+        focused: _hasFocus,
+        onTap: widget.onPressed,
+        child: result);
   }
 }
 
 /// The 2 px accent ring, 2 px outside the control, drawn without changing
 /// the control's size.
 class NdFocusRing extends StatelessWidget {
-  const NdFocusRing({super.key, required this.child, this.color});
+  const NdFocusRing(
+      {super.key, required this.child, this.color, this.outset = 4});
 
   final Widget child;
   final Color? color;
+
+  /// How far outside the control the ring's outer edge sits; 0 draws it on
+  /// the control's own edge, for controls whose parent clips.
+  final double outset;
 
   @override
   Widget build(BuildContext context) {
@@ -232,14 +256,15 @@ class NdFocusRing extends StatelessWidget {
       children: [
         child,
         Positioned(
-          left: -4,
-          top: -4,
-          right: -4,
-          bottom: -4,
+          left: -outset,
+          top: -outset,
+          right: -outset,
+          bottom: -outset,
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(NdSize.radius + 3),
+                borderRadius:
+                    BorderRadius.circular(NdSize.radius + outset - 1),
                 border: Border.all(color: color ?? context.nd.accent, width: 2),
               ),
             ),
@@ -279,30 +304,25 @@ class _NdIconButtonState extends State<NdIconButton> {
   @override
   Widget build(BuildContext context) {
     final c = context.nd;
-    return Tooltip(
-      message: widget.tooltip,
-      child: FocusableActionDetector(
-        enabled: widget.onPressed != null,
-        mouseCursor: SystemMouseCursors.click,
-        onShowHoverHighlight: (v) => setState(() => _hover = v),
-        actions: {
-          ActivateIntent: CallbackAction<ActivateIntent>(
-              onInvoke: (_) => widget.onPressed?.call()),
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onPressed,
-          child: Container(
-            width: widget.size,
-            height: widget.size,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _hover ? c.hover : Colors.transparent,
-              borderRadius: NdSize.r,
-            ),
-            child: Icon(widget.icon,
-                size: widget.iconSize, color: widget.color ?? c.textMuted),
+    // The tooltip is for the mouse; the name comes from the label, which
+    // Windows reads reliably (a tooltip alone is not the name there).
+    return NdPressable(
+      label: widget.tooltip,
+      onHover: (v) => setState(() => _hover = v),
+      onPressed: widget.onPressed,
+      child: Tooltip(
+        message: widget.tooltip,
+        excludeFromSemantics: true,
+        child: Container(
+          width: widget.size,
+          height: widget.size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _hover ? c.hover : Colors.transparent,
+            borderRadius: NdSize.r,
           ),
+          child: Icon(widget.icon,
+              size: widget.iconSize, color: widget.color ?? c.textMuted),
         ),
       ),
     );

@@ -1603,6 +1603,10 @@ pub mod connection_manager {
 
     #[inline]
     pub fn cm_init() {
+        // Keys a remote computer sends never reach this window's controls
+        // (cm_remote_keys.rs).
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::cm_remote_keys::start();
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         start_listen_ipc();
     }

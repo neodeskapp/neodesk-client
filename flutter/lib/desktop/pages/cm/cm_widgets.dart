@@ -235,39 +235,81 @@ class CmPermissionList extends StatelessWidget {
 
 /// The body of a request: header, title, note, a warning about a caller
 /// nobody confirmed, and the switches.
-class CmRequestBody extends StatelessWidget {
+///
+/// When the request arrives, the screen reader says who wants to connect.
+/// With [focusOnArrival] the title also takes keyboard focus, so Tab goes on
+/// to the switches and the buttons. The title is not a button: Enter there
+/// does nothing, so typing that was meant for another window cannot allow a
+/// connection.
+class CmRequestBody extends StatefulWidget {
   const CmRequestBody({
     super.key,
     required this.header,
     required this.name,
     required this.permissions,
     this.warning,
+    this.focusOnArrival = false,
   });
 
   final Widget header;
   final String name;
   final List<CmPermission> permissions;
   final String? warning;
+  final bool focusOnArrival;
+
+  @override
+  State<CmRequestBody> createState() => _CmRequestBodyState();
+}
+
+class _CmRequestBodyState extends State<CmRequestBody> {
+  final _titleFocus = FocusNode(debugLabel: 'connection request');
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.focusOnArrival) _titleFocus.requestFocus();
+      ndAnnounce(context, tr('nd-cm-request-title', [widget.name]),
+          assertive: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _titleFocus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = context.ndText;
+    final name = widget.name;
+    final title = Text(tr('nd-cm-request-title', [name]), style: t.titleMd);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        header,
+        widget.header,
         const SizedBox(height: 16),
-        Text(tr('nd-cm-request-title', [name]), style: t.titleMd),
+        Focus(
+          focusNode: _titleFocus,
+          onFocusChange: (f) => setState(() => _focused = f),
+          child: Semantics(
+            header: true,
+            child: _focused ? NdFocusRing(child: title) : title,
+          ),
+        ),
         const SizedBox(height: 6),
         Text(tr('nd-cm-request-note'), style: t.small),
-        if ((warning ?? '').isNotEmpty) ...[
+        if ((widget.warning ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          NdNotice(text: warning!, tone: NdTone.warning),
+          NdNotice(text: widget.warning!, tone: NdTone.warning),
         ],
-        if (permissions.isNotEmpty) ...[
+        if (widget.permissions.isNotEmpty) ...[
           const SizedBox(height: 14),
           CmPermissionList(
-              heading: tr('nd-cm-may', [name]), items: permissions),
+              heading: tr('nd-cm-may', [name]), items: widget.permissions),
         ],
       ],
     );

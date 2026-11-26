@@ -245,10 +245,15 @@ class NdChatModel extends ChangeNotifier {
     required this.connect,
     this.files,
     this.notify,
+    this.announce,
     Random? random,
     DateTime Function()? now,
   })  : _random = random ?? Random(),
         _now = now ?? DateTime.now;
+
+  /// Says a new message from the helper to the screen reader, whether the
+  /// window is in front or not.
+  final void Function(String name, String text)? announce;
 
   final NdChatConnect connect;
   final NdChatFiles? files;
@@ -695,6 +700,10 @@ class NdChatModel extends ChangeNotifier {
     if (m.from.isStaff) {
       if (typingName == m.from.name) _setTyping(null);
       if (!known && !_front) _notifyOf(m);
+      if (!known) {
+        announce?.call(m.from.name,
+            m.text.isNotEmpty ? m.text : m.files.map((f) => f.name).join(', '));
+      }
     }
     _maybeRead();
   }

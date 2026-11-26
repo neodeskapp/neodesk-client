@@ -261,11 +261,16 @@ class ConnectionManagerState extends State<ConnectionManager>
                             width: realClosedWidth,
                             child: allowRemoteCMModification()
                                 ? pageView
-                                : buildRemoteBlock(
-                                    child: _buildKeyEventBlock(pageView),
-                                    block: _controlPageBlock,
-                                    mask: false,
-                                  ))),
+                                : Consumer<ServerModel>(
+                                    builder: (_, model, __) =>
+                                        cmControlPageBlock(
+                                            child: pageView,
+                                            block: _controlPageBlock,
+                                            remoteMaySendKeys:
+                                                cmRemoteMaySendKeys(
+                                                    model.clients),
+                                            systemBlocksRemoteKeys:
+                                                cmSystemBlocksRemoteKeys())))),
                   ]);
                   return Container(
                     color: context.nd.bg,
@@ -288,10 +293,6 @@ class ConnectionManagerState extends State<ConnectionManager>
     } else {
       return ChatPage(type: ChatPageType.desktopCM);
     }
-  }
-
-  Widget _buildKeyEventBlock(Widget child) {
-    return ExcludeFocus(child: child, excluding: true);
   }
 
   Widget buildTitleBar() {
@@ -438,9 +439,19 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
         value: value,
         onChanged: canModify
             ? (v) => checkClickTime(client.id, () {
+                  // Turning a permission on takes effect here first, so this
+                  // window's controls leave keyboard focus before the remote
+                  // computer can type (cmControlPageBlock); turning it off
+                  // goes to the server first.
+                  void here() {
+                    setState(() => apply(v));
+                    gFFI.serverModel.clientPermissionChanged();
+                  }
+
+                  if (v) here();
                   bind.cmSwitchPermission(
                       connId: client.id, name: name, enabled: v);
-                  setState(() => apply(v));
+                  if (!v) here();
                 })
             : null,
       );
@@ -519,6 +530,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
       body = SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
         child: CmRequestBody(
+          focusOnArrival: true,
           header: CmHeader(
               name: name,
               subtitle: caller.line,
@@ -811,6 +823,45 @@ void checkClickTime(int id, Function() callback) async {
     if (d > 120) callback();
   });
 }
+
+/// Whether a remote computer may type on this computer now: an accepted
+/// remote control session with keyboard permission. Only such a session has
+/// its keys typed here (the server's peer_keyboard_enabled).
+bool cmRemoteMaySendKeys(Iterable<Client> clients) => clients.any((c) =>
+    c.authorized &&
+    !c.disconnected &&
+    c.keyboard &&
+    c.type_() == ClientType.remote);
+
+/// True when this computer drops keys a remote computer types before they
+/// reach the connection manager (Windows: src/cm_remote_keys.rs).
+bool cmSystemBlocksRemoteKeys() =>
+    bind.mainGetCommonSync(key: 'cm-remote-keys-blocked') == 'true';
+
+/// The connection manager's control page when the remote side may not
+/// change it.
+///
+/// - While the remote computer's mouse is over the window ([block]), the
+///   page takes no clicks and no focus.
+/// - The local keyboard reaches Allow, Decline, the switches and Stop
+///   session only when no key from a remote computer can reach them: no
+///   remote computer may type ([remoteMaySendKeys] false), or this computer
+///   drops the keys remote computers type before they reach this window
+///   ([systemBlocksRemoteKeys], Windows). Otherwise the page takes no
+///   keyboard focus, as before.
+/// - Every action still checks that the click or key did not come from the
+///   remote computer (checkClickTime), as a second layer.
+Widget cmControlPageBlock(
+        {required Widget child,
+        required RxBool block,
+        required bool remoteMaySendKeys,
+        required bool systemBlocksRemoteKeys}) =>
+    buildRemoteBlock(
+        child: ExcludeFocus(
+            excluding: remoteMaySendKeys && !systemBlocksRemoteKeys,
+            child: child),
+        block: block,
+        mask: false);
 
 bool allowRemoteCMModification() {
   return option2bool(kOptionAllowRemoteCmModification,

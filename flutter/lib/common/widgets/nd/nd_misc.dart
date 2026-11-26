@@ -4,9 +4,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_hbb/common.dart' show translate;
 
 import '../../theme/nd_theme.dart';
 import 'nd_button.dart';
+import 'nd_pressable.dart';
 import 'nd_icons.dart';
 
 /// bgSubtle with 4 px corners; only for the ID and password, code boxes and
@@ -219,7 +221,12 @@ class NdNotice extends StatelessWidget {
           NdTone.danger => NdIcons.error,
           NdTone.good => NdIcons.checkCircle,
         };
-    return Container(
+    // A live region: a screen reader says the notice when it appears or
+    // its text changes.
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Container(
       decoration: BoxDecoration(
         color: tone == NdTone.info ? c.bgSubtle : c.noticeBg(color),
         borderRadius: NdSize.r,
@@ -268,7 +275,7 @@ class NdNotice extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -587,7 +594,13 @@ class NdDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.nd;
     final t = context.ndText;
-    return Container(
+    // A dialog to assistive tech, named by its title, as AlertDialog does.
+    return Semantics(
+      scopesRoute: true,
+      namesRoute: true,
+      explicitChildNodes: true,
+      label: title,
+      child: Container(
       width: width,
       decoration: BoxDecoration(
         color: c.bgFloat,
@@ -606,7 +619,10 @@ class NdDialog extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: Text(title, style: t.titleMd)),
+                  Expanded(
+                      child: Semantics(
+                          header: true,
+                          child: Text(title, style: t.titleMd))),
                   if (onClose != null)
                     NdIconButton(
                         icon: NdIcons.close,
@@ -647,7 +663,7 @@ class NdDialog extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -677,20 +693,18 @@ class NdDisclosure extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(open ? NdIcons.expandMore : NdIcons.chevronRight,
-                    size: 18, color: c.text),
-                const SizedBox(width: 10),
-                Text(label, style: t.label.copyWith(fontSize: 15)),
-              ]),
-            ),
+        NdPressable(
+          label: label,
+          expanded: open,
+          onPressed: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(open ? NdIcons.expandMore : NdIcons.chevronRight,
+                  size: 18, color: c.text),
+              const SizedBox(width: 10),
+              Text(label, style: t.label.copyWith(fontSize: 15)),
+            ]),
           ),
         ),
         if (open)
@@ -727,7 +741,17 @@ class NdStepRow extends StatelessWidget {
           ),
         ),
     };
-    return Padding(
+    // The state is drawn as a mark and a colour; say it with the step.
+    final said = translate(switch (state) {
+      NdStepState.done => 'nd-step-done',
+      NdStepState.running => 'nd-step-running',
+      NdStepState.todo => 'nd-step-todo',
+    }).replaceFirst('{}', text);
+    return Semantics(
+      container: true,
+      label: said,
+      excludeSemantics: true,
+      child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
@@ -742,6 +766,6 @@ class NdStepRow extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 }

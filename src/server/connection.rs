@@ -3410,7 +3410,12 @@ impl Connection {
                         return true;
                     }
                     if self.peer_keyboard_enabled() {
-                        if is_enter(&me) {
+                        // Every remote key press counts as a click for the
+                        // connection manager (checkClickTime), not only
+                        // Enter: its controls take keyboard focus, and Space
+                        // or any other key from the remote side must not
+                        // change them.
+                        if is_enter(&me) || me.down || me.press {
                             CLICK_TIME.store(get_time(), Ordering::SeqCst);
                         }
                         // https://github.com/rustdesk/rustdesk/issues/8633

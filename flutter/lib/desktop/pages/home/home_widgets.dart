@@ -457,23 +457,57 @@ class NdPeerRow extends StatefulWidget {
 
 class _NdPeerRowState extends State<NdPeerRow> {
   bool _hover = false;
+  // Focus on the row or on its Connect or menu button.
+  bool _focusWithin = false;
+  final _rowKey = GlobalKey();
+
+  void _openMenuAtRow() {
+    final box = _rowKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || widget.onMenu == null) return;
+    widget.onMenu!(box.localToGlobal(box.size.center(Offset.zero)));
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.nd;
     final t = context.ndText;
-    final hover = _hover || widget.forceHover;
+    final hover = _hover || widget.forceHover || _focusWithin;
     final os = ndOsFromPlatform(widget.platform);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
+    // One name for the row: what the eye reads across it.
+    final rowLabel = [
+      widget.name,
+      formatNdId(widget.id),
+      if ((widget.note ?? '').isNotEmpty) widget.note!,
+      if (widget.platform.isNotEmpty) widget.platform,
+      if (widget.showStatus) widget.online ? tr('nd-online') : tr('nd-offline'),
+      if (widget.lastSeen != null) widget.lastSeen!,
+    ].join(', ');
+    // Enter connects, Shift+F10 or the menu key opens the row menu.
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      includeSemantics: false,
+      onFocusChange: (f) => setState(() => _focusWithin = f),
+      child: NdPressable(
+        key: _rowKey,
+        label: rowLabel,
+        keepChildSemantics: true,
+        selected: widget.selected,
+        ringOutset: 0,
+        onHover: (v) => setState(() => _hover = v),
+        onPressed: widget.onConnect ?? widget.onTap,
         onDoubleTap: widget.onConnect,
         onSecondaryTapUp: widget.onMenu == null
             ? null
             : (d) => widget.onMenu!(d.globalPosition),
+        keys: widget.onMenu == null
+            ? const {}
+            : {
+                const SingleActivator(LogicalKeyboardKey.f10, shift: true):
+                    _openMenuAtRow,
+                const SingleActivator(LogicalKeyboardKey.contextMenu):
+                    _openMenuAtRow,
+              },
         child: Container(
           constraints: const BoxConstraints(minHeight: 54),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -487,7 +521,8 @@ class _NdPeerRowState extends State<NdPeerRow> {
               const SizedBox(width: 10),
             ],
             Expanded(
-              child: Column(
+              child: ExcludeSemantics(
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -515,8 +550,11 @@ class _NdPeerRowState extends State<NdPeerRow> {
                   ),
                 ],
               ),
+              ),
             ),
             const SizedBox(width: 8),
+            ExcludeSemantics(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
             SizedBox(
               width: 126,
               child: Row(children: [
@@ -549,6 +587,8 @@ class _NdPeerRowState extends State<NdPeerRow> {
                           ? tr('nd-online')
                           : tr('nd-offline'))
                   : const SizedBox.shrink(),
+            ),
+              ]),
             ),
             SizedBox(
               width: 76,

@@ -17,6 +17,7 @@ Future<T?> showNdDialog<T>(
   return showGeneralDialog<T>(
     context: ctx,
     barrierDismissible: false,
+    barrierLabel: MaterialLocalizations.of(ctx).modalBarrierDismissLabel,
     barrierColor: ctx.nd.scrim,
     transitionDuration: reduce ? Duration.zero : NdSize.dialogMotion,
     transitionBuilder: (_, anim, __, child) =>

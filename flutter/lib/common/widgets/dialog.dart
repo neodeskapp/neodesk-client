@@ -21,6 +21,7 @@ import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import 'address_book.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_field.dart' show ndNamedField;
 
 void clientClose(SessionID sessionId, FFI ffi) async {
   if (allowAskForNoteAtEndOfConnection(ffi, true)) {
@@ -534,7 +535,9 @@ class DialogTextField extends StatelessWidget {
         Expanded(
           child: Column(
             children: [
-              TextField(
+              ndNamedField(
+                description: errorText,
+                TextField(
                 decoration: InputDecoration(
                   labelText: title,
                   hintText: hintText,
@@ -551,17 +554,19 @@ class DialogTextField extends StatelessWidget {
                 inputFormatters: inputFormatters,
                 maxLength: maxLength,
               ),
+              ),
+              // Said with the field (ndNamedField).
               if (errorText != null)
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: SelectableText(
+                  child: ExcludeSemantics(child: SelectableText(
                     errorText!,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                       fontSize: 12,
                     ),
                     textAlign: TextAlign.left,
-                  ).paddingOnly(top: 8, left: 12),
+                  )).paddingOnly(top: 8, left: 12),
                 ),
             ],
           ).workaroundFreezeLinuxMint(),

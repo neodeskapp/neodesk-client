@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart' hide TabBarTheme;
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/common/widgets/branding_logo.dart';
@@ -1127,10 +1128,12 @@ class _TabState extends State<_Tab> with RestorationMixin {
           child: Tooltip(
             message:
                 widget.tabType == DesktopTabType.main ? '' : widget.label.value,
+            excludeFromSemantics: true,
             child: Text(
               widget.tabType == DesktopTabType.main
                   ? translate(widget.label.value)
                   : widget.label.value,
+              semanticsLabel: '',
               textAlign: TextAlign.center,
               style: context.ndText.label.copyWith(
                   fontSize: 13,
@@ -1185,18 +1188,31 @@ class _TabState extends State<_Tab> with RestorationMixin {
     final c = context.nd;
     bool isSelected = widget.index == widget.selected;
     RxBool hover = restoreHover.value.obs;
-    return MouseRegion(
-      onEnter: (_) {
-        hover.value = true;
-        restoreHover.value = true;
-      },
-      onExit: (_) {
-        hover.value = false;
-        restoreHover.value = false;
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => widget.onTap(),
+    void move(TraversalDirection d) =>
+        FocusManager.instance.primaryFocus?.focusInDirection(d);
+    // A session tab: Tab or Left / Right to reach it, Enter to show it,
+    // Ctrl+W to close it.
+    return Obx(() => NdPressable(
+        label: widget.tabType == DesktopTabType.main
+            ? translate(widget.label.value)
+            : widget.label.value,
+        keepChildSemantics: true,
+        selected: isSelected,
+        ringOutset: 0,
+        onHover: (v) {
+          hover.value = v;
+          restoreHover.value = v;
+        },
+        onPressed: () => widget.onTap(),
+        keys: {
+          const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+              move(TraversalDirection.right),
+          const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+              move(TraversalDirection.left),
+          if (widget.closable)
+            const SingleActivator(LogicalKeyboardKey.keyW, control: true): () =>
+                widget.onClose(),
+        },
         child: Obx(() => Container(
               constraints: const BoxConstraints(minWidth: 120),
               height: _kTabBarHeight,
@@ -1226,13 +1242,12 @@ class _TabState extends State<_Tab> with RestorationMixin {
                             isSelected ||
                             widget.tabType == DesktopTabType.main),
                     tabSelected: isSelected,
+                    label: widget.label.value,
                     onClose: () => widget.onClose(),
                   ),
                 ],
               ),
-            )),
-      ),
-    );
+            ))));
   }
 
   @override
@@ -1248,25 +1263,29 @@ class _CloseButton extends StatelessWidget {
   final bool visible;
   final bool tabSelected;
   final Function onClose;
+  final String label;
 
   const _CloseButton({
     Key? key,
     required this.visible,
     required this.tabSelected,
     required this.onClose,
+    this.label = '',
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 16 + 12,
+      width: 24 + 8,
       child: visible
           ? Align(
               alignment: Alignment.centerRight,
               child: NdIconButton(
                 icon: NdIcons.close,
-                tooltip: translate('Close'),
-                size: 20,
+                tooltip: label.isEmpty
+                    ? translate('Close')
+                    : '${translate('Close')} $label',
+                size: 24,
                 iconSize: 16,
                 onPressed: () => onClose(),
               ),
@@ -1305,8 +1324,15 @@ class _ActionIconState extends State<ActionIcon> {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.message != null ? translate(widget.message!) : "",
+    // One node: a button named by its message (the tooltip is for the mouse).
+    final name = widget.message != null ? translate(widget.message!) : '';
+    return MergeSemantics(
+        child: Semantics(
+      button: true,
+      label: name.isEmpty ? null : name,
+      child: Tooltip(
+      message: name,
+      excludeFromSemantics: true,
       waitDuration: const Duration(seconds: 1),
       child: InkWell(
         hoverColor: widget.isClose
@@ -1335,7 +1361,7 @@ class _ActionIconState extends State<ActionIcon> {
                 ),
         ),
       ),
-    );
+    )));
   }
 }
 
