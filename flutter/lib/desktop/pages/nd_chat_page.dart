@@ -17,6 +17,10 @@ import 'package:flutter_hbb/models/nd_chat_model.dart';
 /// The reactions the person can give.
 const kNdChatReactions = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
+/// The widest the header, the messages and the field get. The page itself
+/// fills the window, so its rules and background reach both edges.
+const kNdChatColumn = 760.0;
+
 class NdChatPageActions {
   const NdChatPageActions({
     required this.pickFiles,
@@ -254,45 +258,22 @@ class _NdChatPageState extends State<NdChatPage> {
     }
   }
 
-  Future<void> _options(NdChatMessage m, BuildContext anchor) async {
-    final box = anchor.findRenderObject() as RenderBox?;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (box == null || overlay == null) return;
-    final at = box.localToGlobal(Offset(0, box.size.height), ancestor: overlay);
-    final c = context.nd;
-    final t = context.ndText;
-    final chosen = await showMenu<String>(
-      context: context,
-      color: c.bgFloat,
-      position: RelativeRect.fromLTRB(
-          at.dx, at.dy, overlay.size.width - at.dx, overlay.size.height - at.dy),
-      items: [
-        const _ReactionsEntry(),
-        PopupMenuItem<String>(
-            value: 'reply',
-            child: Text(tr('nd-chat-reply'), style: t.body)),
+  /// The options of [m]: the reactions, then Reply, Edit and Delete.
+  List<Widget> _options(NdChatMessage m, MenuController menu) => [
+        _ReactionsRow(onReact: (e) {
+          menu.close();
+          _m.react(m.id, e);
+        }),
+        const NdMenuDivider(),
+        NdMenuItem(label: tr('nd-chat-reply'), onPressed: () => _reply(m)),
         if (_m.canEdit(m))
-          PopupMenuItem<String>(
-              value: 'edit', child: Text(tr('nd-chat-edit'), style: t.body)),
+          NdMenuItem(label: tr('nd-chat-edit'), onPressed: () => _edit(m)),
         if (_m.canDelete(m))
-          PopupMenuItem<String>(
-              value: 'delete',
-              child: Text(tr('nd-chat-delete'),
-                  style: t.body.copyWith(color: c.danger))),
-      ],
-    );
-    if (!mounted || chosen == null) return;
-    if (chosen.startsWith('react:')) {
-      _m.react(m.id, chosen.substring(6));
-    } else if (chosen == 'reply') {
-      _reply(m);
-    } else if (chosen == 'edit') {
-      _edit(m);
-    } else if (chosen == 'delete') {
-      _delete(m);
-    }
-  }
+          NdMenuItem(
+              label: tr('nd-chat-delete'),
+              danger: true,
+              onPressed: () => _delete(m)),
+      ];
 
   void _goTo(String id) {
     final ctx = _keys[id]?.currentContext;
@@ -314,32 +295,42 @@ class _NdChatPageState extends State<NdChatPage> {
       child: FocusScope(
         child: ColoredBox(
           color: c.bg,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _header(context),
-              Container(height: 1, color: c.rule),
-              Expanded(child: _list(context)),
-              if (_m.availability == NdChatAvailability.refused)
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: NdNotice(
-                      tone: NdTone.danger, text: tr('nd-chat-not-available')),
-                )
-              else
-                _composer(context),
-            ],
-          ),
+          child: LayoutBuilder(builder: (context, box) {
+            // What the column leaves free on each side of a wide window.
+            final side = box.maxWidth > kNdChatColumn
+                ? (box.maxWidth - kNdChatColumn) / 2
+                : 0.0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _header(context, side),
+                Container(height: 1, color: c.rule),
+                Expanded(child: _list(context, side)),
+                if (_m.availability == NdChatAvailability.refused)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(12 + side, 12, 12 + side, 12),
+                    child: NdNotice(
+                        tone: NdTone.danger,
+                        text: tr('nd-chat-not-available')),
+                  )
+                else
+                  _composer(context, side),
+              ],
+            );
+          }),
         ),
       ),
     );
   }
 
-  Widget _header(BuildContext context) {
+  Widget _header(BuildContext context, double side) {
     final c = context.nd;
     final t = context.ndText;
     String status;
-    if (_m.helperClosed) {
+    if (_m.typingName != null) {
+      // In the header, where it takes no room from the messages.
+      status = tr('nd-chat-typing', [_m.typingName]);
+    } else if (_m.helperClosed) {
       status = tr('nd-chat-closed');
     } else if (_m.helperName != null) {
       status = tr('nd-chat-helping', [_m.helperName]);
@@ -349,7 +340,7 @@ class _NdChatPageState extends State<NdChatPage> {
       status = '';
     }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 10, 16, 10),
+      padding: EdgeInsets.fromLTRB(8 + side, 10, 16 + side, 10),
       child: Row(children: [
         _IconAction(
           icon: NdIcons.arrowBack,
@@ -366,7 +357,11 @@ class _NdChatPageState extends State<NdChatPage> {
                   style: t.heading, overflow: TextOverflow.ellipsis),
               if (status.isNotEmpty)
                 Text(status,
-                    key: const ValueKey('nd-chat-helper'),
+                    key: ValueKey(_m.typingName != null
+                        ? 'nd-chat-typing'
+                        : 'nd-chat-helper'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: t.small.copyWith(color: c.textMuted)),
             ],
           ),
@@ -375,14 +370,14 @@ class _NdChatPageState extends State<NdChatPage> {
     );
   }
 
-  Widget _list(BuildContext context) {
+  Widget _list(BuildContext context, double side) {
     final c = context.nd;
     final t = context.ndText;
     final items = _items();
     final top = <Widget>[
       if (!_m.connected && _m.availability != NdChatAvailability.refused)
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+          padding: EdgeInsets.fromLTRB(12 + side, 10, 12 + side, 0),
           child: NdNotice(
               key: const ValueKey('nd-chat-offline'),
               tone: NdTone.warning,
@@ -390,7 +385,7 @@ class _NdChatPageState extends State<NdChatPage> {
         ),
       if (_notice != null)
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+          padding: EdgeInsets.fromLTRB(12 + side, 10, 12 + side, 0),
           child: NdNotice(tone: NdTone.info, text: _notice!),
         ),
     ];
@@ -409,7 +404,9 @@ class _NdChatPageState extends State<NdChatPage> {
         child: ListView.builder(
           controller: _scroll,
           reverse: true,
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          // As wide as the window, so the wheel scrolls it anywhere and the
+          // scroll bar sits at the window's edge.
+          padding: EdgeInsets.fromLTRB(12 + side, 8, 12 + side, 8),
           itemCount: items.length,
           itemBuilder: (context, i) => items[items.length - 1 - i],
         ),
@@ -453,7 +450,7 @@ class _NdChatPageState extends State<NdChatPage> {
           seen: seen == m.id,
           model: _m,
           actions: widget.actions,
-          onOptions: (anchor) => _options(m, anchor),
+          options: (menu) => _options(m, menu),
           onQuote: _goTo,
           onSave: _save,
         ),
@@ -481,30 +478,18 @@ class _NdChatPageState extends State<NdChatPage> {
   String _time(DateTime at) =>
       '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
 
-  Widget _composer(BuildContext context) {
+  Widget _composer(BuildContext context, double side) {
     final c = context.nd;
-    final t = context.ndText;
     final reply = _replyTo;
     final editing = _editing;
     return Container(
+      key: const ValueKey('nd-chat-composer'),
       decoration: BoxDecoration(border: Border(top: BorderSide(color: c.rule))),
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+      padding: EdgeInsets.fromLTRB(8 + side, 10, 8 + side, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            height: 18,
-            child: _m.typingName == null
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: Text(tr('nd-chat-typing', [_m.typingName]),
-                        key: const ValueKey('nd-chat-typing'),
-                        overflow: TextOverflow.ellipsis,
-                        style: t.small.copyWith(color: c.textMuted)),
-                  ),
-          ),
           if (reply != null || editing != null)
             _ComposeContext(
               icon: editing != null ? NdIcons.edit : NdIcons.reply,
@@ -706,38 +691,88 @@ class _IconAction extends StatelessWidget {
   }
 }
 
-/// The row of reactions at the top of a message's options.
-class _ReactionsEntry extends PopupMenuEntry<String> {
-  const _ReactionsEntry();
+/// The width of a message's options menu: the six reactions and their
+/// padding.
+const _kOptionsWidth = 216.0;
+const _kOptionsButton = 28.0;
+
+/// The ⋮ button of a message and its options menu, the app's menu with no
+/// opening animation, just below the button. With [alignEnd] (own messages,
+/// whose button is left of the bubble) the menu ends where the button ends,
+/// so it opens beside the message instead of over it.
+class _OptionsButton extends StatefulWidget {
+  const _OptionsButton({required this.options, required this.alignEnd});
+  final List<Widget> Function(MenuController menu) options;
+  final bool alignEnd;
 
   @override
-  double get height => 40;
-
-  @override
-  bool represents(String? value) => false;
-
-  @override
-  State<_ReactionsEntry> createState() => _ReactionsEntryState();
+  State<_OptionsButton> createState() => _OptionsButtonState();
 }
 
-class _ReactionsEntryState extends State<_ReactionsEntry> {
+class _OptionsButtonState extends State<_OptionsButton> {
+  // Kept across rebuilds: the page rebuilds whenever the chat changes, and
+  // an open menu has to stay attached to its controller.
+  final _menu = MenuController();
+
+  void _toggle() => _menu.isOpen ? _menu.close() : _menu.open();
+
   @override
   Widget build(BuildContext context) {
+    return MenuAnchor(
+      controller: _menu,
+      style: ndMenuStyle(context, minWidth: _kOptionsWidth).copyWith(
+          maximumSize: const WidgetStatePropertyAll(
+              Size(_kOptionsWidth, double.infinity))),
+      alignmentOffset: Offset(
+          widget.alignEnd ? _kOptionsButton - _kOptionsWidth : 0, 4),
+      menuChildren: widget.options(_menu),
+      builder: (context, _, __) => Semantics(
+        container: true,
+        button: true,
+        label: tr('nd-chat-options'),
+        onTap: _toggle,
+        excludeSemantics: true,
+        child: NdIconButton(
+          icon: NdIcons.moreVert,
+          tooltip: tr('nd-chat-options'),
+          size: _kOptionsButton,
+          iconSize: 18,
+          onPressed: _toggle,
+        ),
+      ),
+    );
+  }
+}
+
+/// The row of reactions at the top of a message's options.
+class _ReactionsRow extends StatelessWidget {
+  const _ReactionsRow({required this.onReact});
+  final void Function(String emoji) onReact;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.nd;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         for (final e in kNdChatReactions)
           Semantics(
             container: true,
             button: true,
             label: '${tr('nd-chat-react')} $e',
+            onTap: () => onReact(e),
             excludeSemantics: true,
             child: InkWell(
               borderRadius: NdSize.r,
-              onTap: () => Navigator.of(context).pop('react:$e'),
-              child: Padding(
-                padding: const EdgeInsets.all(5),
-                child: Text(e, style: const TextStyle(fontSize: 18)),
+              hoverColor: c.hover,
+              focusColor: c.hover,
+              splashFactory: NoSplash.splashFactory,
+              onTap: () => onReact(e),
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: Center(
+                    child: Text(e, style: const TextStyle(fontSize: 18))),
               ),
             ),
           ),
@@ -776,7 +811,7 @@ class _MessageRow extends StatelessWidget {
     required this.seen,
     required this.model,
     required this.actions,
-    required this.onOptions,
+    required this.options,
     required this.onQuote,
     required this.onSave,
   });
@@ -787,7 +822,7 @@ class _MessageRow extends StatelessWidget {
   final bool seen;
   final NdChatModel model;
   final NdChatPageActions actions;
-  final void Function(BuildContext anchor) onOptions;
+  final List<Widget> Function(MenuController menu) options;
   final void Function(String id) onQuote;
   final void Function(NdChatFile file) onSave;
 
@@ -855,24 +890,9 @@ class _MessageRow extends StatelessWidget {
         children: content,
       ),
     );
-    final options = m.deleted
+    final optionsButton = m.deleted
         ? const SizedBox(width: 30)
-        : Builder(
-            builder: (anchor) => Semantics(
-              container: true,
-              button: true,
-              label: tr('nd-chat-options'),
-              onTap: () => onOptions(anchor),
-              excludeSemantics: true,
-              child: NdIconButton(
-                icon: NdIcons.moreVert,
-                tooltip: tr('nd-chat-options'),
-                size: 28,
-                iconSize: 18,
-                onPressed: () => onOptions(anchor),
-              ),
-            ),
-          );
+        : _OptionsButton(options: options, alignEnd: own);
     final reactions = m.reactions.entries.where((e) => e.value.isNotEmpty);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -889,14 +909,14 @@ class _MessageRow extends StatelessWidget {
                 own ? MainAxisAlignment.end : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (own) options,
+              if (own) optionsButton,
               Flexible(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
                   child: bubble,
                 ),
               ),
-              if (!own) options,
+              if (!own) optionsButton,
             ],
           ),
           if (reactions.isNotEmpty && !m.deleted)

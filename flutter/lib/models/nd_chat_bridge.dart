@@ -254,12 +254,7 @@ class NdChatHome extends StatelessWidget {
     final service = NdChatService.instance;
     return Obx(() {
       if (!service.open.value) return home;
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: service.page(),
-        ),
-      );
+      return service.page();
     });
   }
 }
