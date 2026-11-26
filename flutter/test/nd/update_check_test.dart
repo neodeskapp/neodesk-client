@@ -35,6 +35,10 @@ Widget _about({
       onUpdateAction: onAction,
     );
 
+/// [child] on the page background, as the settings page and home show it.
+Widget _page(Widget child) =>
+    Builder(builder: (c) => ColoredBox(color: c.nd.bg, child: child));
+
 void main() {
   group('the answer of a check', () {
     setUp(() => useLanguage('en'));
@@ -176,17 +180,17 @@ void main() {
           '{"version":"1.5.0-rc.9","url":"$_url"}');
       await pumpScreen(
           tester,
-          _about(
+          _page(_about(
               result: r.message(),
               actionLabel: r.actionLabel(canInstall: true),
-              onAction: () {}),
+              onAction: () {})),
           size: const Size(720, 640),
           brightness: b,
           lang: 'de');
       await shot(tester, 'client-about-update', b);
       await pumpScreen(
           tester,
-          Padding(
+          _page(Padding(
             padding: const EdgeInsets.all(16),
             child: Align(
               alignment: Alignment.topLeft,
@@ -200,7 +204,7 @@ void main() {
                     onClose: () {}),
               ),
             ),
-          ),
+          )),
           size: const Size(552, 120),
           brightness: b,
           lang: 'de');
