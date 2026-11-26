@@ -335,7 +335,11 @@ class _ConnectionPageState extends State<ConnectionPage>
                   ) {
                     updateTextAndPreserveSelection(
                         fieldTextEditingController, _idController.text);
-                    return Obx(() => TextField(
+                    // The hint goes while the field has focus, so the
+                    // name comes from a label of its own.
+                    return Obx(() => ndNamedField(
+                        label: translate('Remote ID'),
+                        TextField(
                           autocorrect: false,
                           enableSuggestions: false,
                           keyboardType: TextInputType.visiblePassword,
@@ -372,7 +376,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                           onSubmitted: (_) {
                             onConnect();
                           },
-                        ).workaroundFreezeLinuxMint());
+                        )).workaroundFreezeLinuxMint());
                   },
                   onSelected: (option) {
                     setState(() {
