@@ -2,7 +2,9 @@
 // section 9): what the person sees, the keyboard, the screen reader labels,
 // German, and the client's small windows.
 
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +22,8 @@ class Actions {
   final picked = <List<NdChatLocalFile>>[];
   final saved = <String>[];
   final opened = <Uri>[];
+  final helperAsked = <String>[];
+  Uint8List? helperBytes;
   String? saveTo = '/home/me/Downloads/report.pdf';
 
   NdChatPageActions get it => NdChatPageActions(
@@ -30,6 +34,10 @@ class Actions {
         },
         picture: (f) async => null,
         openLink: opened.add,
+        helperPicture: (version) async {
+          helperAsked.add(version);
+          return helperBytes;
+        },
       );
 }
 
@@ -124,6 +132,40 @@ void main() {
       chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'closed'});
       await tester.pump();
       expect(find.text('This conversation was closed. Write to open it again.'), findsOneWidget);
+    });
+  });
+
+  testWidgets("shows the helper's picture beside who helps, or their initials", (tester) async {
+    await withChat(tester, (chat) async {
+      chat.actions.helperBytes = base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC');
+      chat.open(helper: null);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('nd-chat-helper-avatar')), findsNothing);
+
+      chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open'});
+      await tester.pump();
+      final avatar = find.byKey(const ValueKey('nd-chat-helper-avatar'));
+      expect(avatar, findsOneWidget);
+      expect(find.descendant(of: avatar, matching: find.text('AW')), findsOneWidget);
+      expect(chat.actions.helperAsked, isEmpty);
+
+      chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open', 'picture': 'v1'});
+      await tester.pump();
+      await tester.pump();
+      expect(chat.actions.helperAsked, ['v1']);
+      expect(find.descendant(of: avatar, matching: find.byKey(const ValueKey('nd-avatar-picture'))),
+          findsOneWidget);
+
+      // A new picture is fetched once; a closed conversation shows none
+      chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open', 'picture': 'v2'});
+      await tester.pump();
+      chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'open', 'picture': 'v2'});
+      await tester.pump();
+      expect(chat.actions.helperAsked, ['v1', 'v2']);
+      chat.serve({'type': 'helper', 'name': 'Anna Weber', 'state': 'closed', 'picture': 'v2'});
+      await tester.pump();
+      expect(find.byKey(const ValueKey('nd-chat-helper-avatar')), findsNothing);
     });
   });
 

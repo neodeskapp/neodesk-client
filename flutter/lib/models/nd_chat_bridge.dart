@@ -202,6 +202,7 @@ class NdChatService with WindowListener {
           pickFiles: _pickFiles,
           saveFile: _saveFile,
           picture: _picture,
+          helperPicture: _helperPicture,
           openLink: (uri) =>
               launchUrl(uri, mode: LaunchMode.externalApplication),
         ),
@@ -223,6 +224,26 @@ class NdChatService with WindowListener {
     if (path == null) return '';
     final status = await _files.download(file.id, inline: false, toPath: path);
     return status == 200 ? path : null;
+  }
+
+  /// The helper's picture of a version, kept like the pictures of
+  /// messages; a failed fetch is tried again with the next frame.
+  Future<Uint8List?> _helperPicture(String version) async {
+    final key = 'helper:$version';
+    if (_pictures[key] != null) return _pictures[key];
+    try {
+      final dir = await getTemporaryDirectory();
+      final safe = version.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+      final path = '${dir.path}${Platform.pathSeparator}nd-chat'
+          '${Platform.pathSeparator}helper-$safe';
+      final status =
+          await _files.download(kNdChatHelperPicture, inline: true, toPath: path);
+      final bytes = status == 200 ? await File(path).readAsBytes() : null;
+      _pictures[key] = bytes;
+      return bytes;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Uint8List?> _picture(NdChatFile file) async {

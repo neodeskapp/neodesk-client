@@ -27,6 +27,7 @@ class NdChatPageActions {
     required this.saveFile,
     required this.picture,
     required this.openLink,
+    this.helperPicture,
   });
 
   /// The files the person chose; empty when they cancelled.
@@ -38,6 +39,10 @@ class NdChatPageActions {
   /// A picture's bytes to show, null when it can't be loaded.
   final Future<Uint8List?> Function(NdChatFile file) picture;
   final void Function(Uri uri) openLink;
+
+  /// The helper's profile picture of a version, null when it can't be
+  /// loaded; without it the header shows the helper's initials.
+  final Future<Uint8List?> Function(String version)? helperPicture;
 }
 
 class NdChatPage extends StatefulWidget {
@@ -348,6 +353,14 @@ class _NdChatPageState extends State<NdChatPage> {
           onPressed: widget.onClose,
         ),
         const SizedBox(width: 8),
+        if (_m.helperName != null && !_m.helperClosed) ...[
+          _HelperAvatar(
+              key: const ValueKey('nd-chat-helper-avatar'),
+              name: _m.helperName!,
+              version: _m.helperPicture,
+              load: widget.actions.helperPicture),
+          const SizedBox(width: 10),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1387,4 +1400,58 @@ extension on NdButton {
       ),
     ]);
   }
+}
+
+/// The helper's picture in the header, or their initials while it loads,
+/// when they have none and when it can't be loaded. A new version loads
+/// anew. Hidden from screen readers: the line beside it names the helper.
+class _HelperAvatar extends StatefulWidget {
+  const _HelperAvatar(
+      {super.key, required this.name, required this.version, required this.load});
+  final String name;
+  final String? version;
+  final Future<Uint8List?> Function(String version)? load;
+
+  @override
+  State<_HelperAvatar> createState() => _HelperAvatarState();
+}
+
+class _HelperAvatarState extends State<_HelperAvatar> {
+  Uint8List? _bytes;
+  String? _loaded;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  @override
+  void didUpdateWidget(_HelperAvatar old) {
+    super.didUpdateWidget(old);
+    if (old.version != widget.version) _fetch();
+  }
+
+  void _fetch() {
+    final version = widget.version;
+    final load = widget.load;
+    if (version == null || load == null) {
+      _bytes = null;
+      _loaded = null;
+      return;
+    }
+    if (_loaded == version) return;
+    _loaded = version;
+    load(version).then((bytes) {
+      if (!mounted || _loaded != version) return;
+      setState(() => _bytes = bytes);
+    }, onError: (_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+      child: NdAvatar(
+          name: widget.name,
+          size: 32,
+          picture: widget.version == null ? null : _bytes));
 }
