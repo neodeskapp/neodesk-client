@@ -883,6 +883,13 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-pair-approved", "Paired. This device is approved."),
         ("nd-pair-waits", "Paired. This device waits for approval in the console."),
         ("nd-chat-server-starting", "Not sent: the server is starting. Try again in a moment."),
+        ("nd-key-release-chord", "Ctrl+Alt+Shift+G"),
+        ("nd-key-release-chord-mac", "Command+Option+Shift+G"),
+        ("nd-keyboard-released", "Keyboard released. Press {} to give it back to the remote computer."),
+        ("nd-keyboard-taken", "Keyboard goes to {}. Press {} to get it back."),
+        ("nd-remote-screen-label", "Screen of {}"),
+        ("nd-remote-screen-hint", "Keyboard and mouse go to {}. Press {} to get the keyboard back and reach the toolbar."),
+        ("nd-keyboard-release-tip", "{} moves the keyboard between this computer and the remote computer"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

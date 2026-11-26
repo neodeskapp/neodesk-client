@@ -1321,6 +1321,13 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-pair-approved", ""),
         ("nd-pair-waits", ""),
         ("nd-chat-server-starting", ""),
+        ("nd-key-release-chord", ""),
+        ("nd-key-release-chord-mac", ""),
+        ("nd-keyboard-released", ""),
+        ("nd-keyboard-taken", ""),
+        ("nd-remote-screen-label", ""),
+        ("nd-remote-screen-hint", ""),
+        ("nd-keyboard-release-tip", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

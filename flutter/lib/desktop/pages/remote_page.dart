@@ -11,6 +11,7 @@ import 'package:flutter_hbb/models/state_model.dart';
 import '../../consts.dart';
 import '../../common/widgets/overlay.dart';
 import '../../common/widgets/remote_input.dart';
+import '../../common/widgets/remote_keyboard.dart';
 import '../../common.dart';
 import '../../common/theme/nd_theme.dart';
 import '../../common/widgets/dialog.dart';
@@ -117,6 +118,11 @@ class _RemotePageState extends State<RemotePage>
   var _blockableOverlayState = BlockableOverlayState();
 
   final FocusNode _rawKeyFocusNode = FocusNode(debugLabel: "rawkeyFocusNode");
+  late final RemoteKeyboardController _keyboard =
+      RemoteKeyboardController(screenNode: _rawKeyFocusNode);
+  // macOS: the keyboard was given to the remote computer with the release
+  // combination, so it stays there while the pointer is outside the screen.
+  bool _macOSTakenByKey = false;
 
   // Debounce timer for pointer lock center updates during window events.
   // Uses kDefaultPointerLockCenterThrottleMs from consts.dart for the duration.
@@ -214,6 +220,8 @@ class _RemotePageState extends State<RemotePage>
     // Register callback to cancel debounce timer when relative mouse mode is disabled
     _ffi.inputModel.onRelativeMouseModeDisabled =
         _cancelPointerLockCenterDebounceTimer;
+    // The grab loop caught the release combination.
+    _ffi.inputModel.onReleaseKeyboard = _releaseKeyboard;
 
     _waylandKeyboardModeWorker = ever(_ffi.ffiModel.pi.isSet, (bool isSet) {
       if (isSet) {
@@ -223,6 +231,57 @@ class _RemotePageState extends State<RemotePage>
     if (_ffi.ffiModel.pi.isSet.value) {
       unawaited(_normalizeWaylandKeyboardModeIfNeeded());
     }
+  }
+
+  String get _peerName {
+    final h = _ffi.ffiModel.pi.hostname;
+    return h.isNotEmpty ? h : widget.id;
+  }
+
+  /// Takes the keyboard back from the remote computer and puts focus on the
+  /// session toolbar (remote_keyboard.dart).
+  void _releaseKeyboard() {
+    if (!mounted) return;
+    _keyboard.release(context, leaveRemote: () {
+      if (_ffi.inputModel.relativeMouseMode.value) {
+        _ffi.inputModel.exitRelativeMouseModeWithKeyRelease();
+      }
+      if (!isWeb) bind.hostStopSystemKeyPropagate(stopped: true);
+      if (isMacOS) {
+        _macOSTakenByKey = false;
+        _macOSLocalFocusLost = true;
+        _syncMacOSKeyboardGrab();
+      } else if (isWindows && _rawKeyFocusNode.hasFocus) {
+        // onFocusChange ends the grab.
+        _rawKeyFocusNode.unfocus();
+      } else {
+        _rawKeyFocusNode.unfocus();
+        _ffi.inputModel.enterOrLeave(false);
+      }
+    }, showToolbar: () {
+      widget.toolbarState.hide.value = false;
+      widget.toolbarState.collapse.value = false;
+    });
+  }
+
+  /// Gives the keyboard back to the remote computer.
+  void _takeKeyboard() {
+    if (!mounted) return;
+    _keyboard.take(enterRemote: () {
+      if (!isWeb) bind.hostStopSystemKeyPropagate(stopped: false);
+      if (isMacOS) {
+        _macOSTakenByKey = true;
+        _macOSLocalFocusLost = false;
+        _macOSExplicitFocusRequestPending = true;
+        _syncMacOSKeyboardGrab(reassert: true, allowInactiveLifecycle: true);
+      } else if (isWindows) {
+        // onFocusChange starts the grab.
+        if (_windowsCanFocusRemoteInput) _rawKeyFocusNode.requestFocus();
+      } else {
+        _rawKeyFocusNode.requestFocus();
+        _ffi.inputModel.enterOrLeave(true);
+      }
+    });
   }
 
   Future<void> _normalizeWaylandKeyboardModeIfNeeded() async {
@@ -350,7 +409,7 @@ class _RemotePageState extends State<RemotePage>
         _isMacOSKeyboardContextActive &&
         !_macOSInputSuppressed &&
         _blockableOverlayState.middleBlocked.isFalse &&
-        _cursorOverImage.value &&
+        (_cursorOverImage.value || _macOSTakenByKey) &&
         !_macOSLocalFocusLost;
     final hasFocus = _rawKeyFocusNode.hasPrimaryFocus;
     final shouldActivateInput = shouldFocus && hasFocus;
@@ -479,6 +538,7 @@ class _RemotePageState extends State<RemotePage>
       // A blur or Space switch may not emit PointerExit, so cursor state alone
       // cannot prevent the old remote surface from reclaiming the keyboard.
       _macOSLocalFocusLost = true;
+      _macOSTakenByKey = false;
     }
     if (isWindows) {
       // unfocus the primary-focus when the whole window is lost focus,
@@ -524,6 +584,7 @@ class _RemotePageState extends State<RemotePage>
     if (isWindows &&
         _cursorOverImage.value &&
         _windowsCanFocusRemoteInput &&
+        !_keyboard.releasedByKey &&
         !_rawKeyFocusNode.hasFocus) {
       _rawKeyFocusNode.requestFocus();
     }
@@ -671,6 +732,8 @@ class _RemotePageState extends State<RemotePage>
     _ffi.dialogManager.hideMobileActionsOverlay();
     _ffi.imageModel.disposeImage();
     _ffi.cursorModel.disposeImages();
+    _ffi.inputModel.onReleaseKeyboard = null;
+    _keyboard.dispose();
     _rawKeyFocusNode.dispose();
     if (closeSession) {
       clearWaylandKeyboardPromptSuppressedForConnection(sessionId.toString());
@@ -742,7 +805,12 @@ class _RemotePageState extends State<RemotePage>
                     } else if (isMacOS) {
                       _onMacOSFocusChange();
                     }
+                    if (_rawKeyFocusNode.hasPrimaryFocus) {
+                      _keyboard.releasedByKey = false;
+                    }
                   },
+                  peerName: _peerName,
+                  onReleaseKeyboard: _releaseKeyboard,
                   inputModel: _ffi.inputModel,
                   child: getBodyForDesktop(context))),
           Stack(
@@ -774,9 +842,14 @@ class _RemotePageState extends State<RemotePage>
                   ? const Offstage()
                   : _ffi.ffiModel.pi.isSet.isTrue
                       ? Overlay(initialEntries: [
-                          OverlayEntry(builder: remoteToolbar)
+                          OverlayEntry(
+                              builder: (c) => FocusScope(
+                                  node: _keyboard.toolbarScope,
+                                  child: remoteToolbar(c)))
                         ])
-                      : remoteToolbar(context)),
+                      : FocusScope(
+                          node: _keyboard.toolbarScope,
+                          child: remoteToolbar(context))),
               _ffi.ffiModel.pi.isSet.isFalse ? emptyOverlay() : Offstage(),
             ],
           ),
@@ -786,7 +859,9 @@ class _RemotePageState extends State<RemotePage>
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.background,
-      body: Obx(() {
+      body: RemoteKeyboardTakeBack(
+          onTake: _takeKeyboard,
+          child: Obx(() {
         final imageReady = _ffi.ffiModel.pi.isSet.isTrue &&
             _ffi.ffiModel.waitForFirstImage.isFalse;
         if (imageReady) {
@@ -811,7 +886,7 @@ class _RemotePageState extends State<RemotePage>
           // The toolbar's block state won't work properly when reconnecting, but that's okay.
           return bodyWidget();
         }
-      }),
+      })),
     );
   }
 
@@ -844,6 +919,10 @@ class _RemotePageState extends State<RemotePage>
         //
       }
     }
+
+    // After the release combination, only a click or the combination gives
+    // the keyboard back; the pointer passing over the screen does not.
+    if (_keyboard.releasedByKey) return;
 
     // See [onWindowBlur].
     if (isMacOS) {
@@ -917,6 +996,11 @@ class _RemotePageState extends State<RemotePage>
         // Sometimes the system does not send the necessary focus event to flutter. We should manually
         // handle this inconsistent status by setting `_isWindowBlur` to false. So we can
         // ensure the grab-key thread is running when our users are clicking the remote canvas.
+        // A click on the screen gives the keyboard back to the remote computer.
+        if (_keyboard.releasedByKey) {
+          _keyboard.releasedByKey = false;
+          if (!isWeb) bind.hostStopSystemKeyPropagate(stopped: false);
+        }
         if ((isWindows || isMacOS) && _isWindowBlur) {
           debugPrint(
               "Unexpected status: onPointerDown is triggered while the remote window is in blur status");
@@ -947,7 +1031,11 @@ class _RemotePageState extends State<RemotePage>
     var paints = <Widget>[
       MouseRegion(
         onEnter: (evt) {
-          if (!isWeb) bind.hostStopSystemKeyPropagate(stopped: false);
+          // Not after the release combination: Alt+Tab and the Windows key
+          // stay on this computer until the keyboard goes back.
+          if (!isWeb && !_keyboard.releasedByKey) {
+            bind.hostStopSystemKeyPropagate(stopped: false);
+          }
         },
         onExit: (evt) {
           if (!isWeb) bind.hostStopSystemKeyPropagate(stopped: true);

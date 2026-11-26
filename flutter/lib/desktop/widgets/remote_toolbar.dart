@@ -7,6 +7,7 @@ import 'package:flutter_hbb/desktop/widgets/nd_toolbar_button.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
+import 'package:flutter_hbb/common/widgets/remote_keyboard.dart';
 import 'package:flutter_hbb/common/widgets/toolbar.dart';
 import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -2639,6 +2640,7 @@ class _KeyboardMenu extends StatelessWidget {
         icon: NdIcons.keyboard,
         label: tr('nd-tb-keyboard'),
         showLabel: showLabel,
+        tooltip: tr('nd-keyboard-release-tip', [releaseKeyboardChordLabel()]),
         ffi: ffi,
         menuChildrenGetter: (_) => [
               ...keyActions(),
@@ -3134,6 +3136,7 @@ class _NdToolbarSubmenu extends StatefulWidget {
     required this.menuChildrenGetter,
     required this.ffi,
     this.showLabel = true,
+    this.tooltip,
   });
 
   final IconData icon;
@@ -3141,6 +3144,9 @@ class _NdToolbarSubmenu extends StatefulWidget {
   final List<Widget> Function(_NdToolbarSubmenuState state) menuChildrenGetter;
   final FFI ffi;
   final bool showLabel;
+
+  /// Shown on hover in addition to the label.
+  final String? tooltip;
 
   @override
   State<_NdToolbarSubmenu> createState() => _NdToolbarSubmenuState();
@@ -3171,7 +3177,10 @@ class _NdToolbarSubmenuState extends State<_NdToolbarSubmenu> {
           .map((e) => _buildPointerTrackWidget(e, widget.ffi))
           .toList(),
       child: Tooltip(
-        message: widget.showLabel ? '' : widget.label,
+        message: [
+          if (!widget.showLabel) widget.label,
+          if (widget.tooltip != null) widget.tooltip!,
+        ].join('. '),
         child: Container(
           height: _ToolbarTheme.buttonSize,
           padding: EdgeInsets.only(

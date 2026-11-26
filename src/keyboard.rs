@@ -59,6 +59,21 @@ pub fn set_relative_mouse_mode_state(active: bool) {
     }
 }
 
+// The chord that takes the keyboard back from the remote session
+// (keyboard_release.rs). PENDING is set when the grab loop caught it and
+// stays set until Flutter has released the grab; meanwhile no key press goes
+// to the remote computer. SWALLOWED says the chord's G press was kept from
+// the remote computer, so its repeats and its release must be kept too.
+#[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+static KEYBOARD_RELEASE_PENDING: AtomicBool = AtomicBool::new(false);
+#[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+static KEYBOARD_RELEASE_SWALLOWED: AtomicBool = AtomicBool::new(false);
+#[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+lazy_static::lazy_static! {
+    static ref RELEASE_CHORD: Mutex<crate::keyboard_release::ReleaseChord> =
+        Mutex::new(Default::default());
+}
+
 #[cfg(feature = "flutter")]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 static IS_RDEV_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -167,6 +182,10 @@ pub mod client {
         let mut run_grab_after_unlock = None;
         #[cfg(target_os = "linux")]
         let mut disable_after_unlock = false;
+        #[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        if matches!(state, GrabState::Run | GrabState::Wait) {
+            KEYBOARD_RELEASE_PENDING.store(false, Ordering::SeqCst);
+        }
         let mut gs = GRAB_STATE.lock().unwrap();
         match state {
             GrabState::Ready => {}
@@ -609,6 +628,52 @@ fn should_block_relative_mouse_shortcut(key: Key, is_press: bool) -> bool {
     false
 }
 
+/// Watches the grab loop's keys for the release chord (keyboard_release.rs).
+/// Returns true when the key must not go to the remote computer.
+#[cfg(feature = "flutter")]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+fn handle_release_chord(key: Key, is_press: bool) -> bool {
+    use crate::keyboard_release::{ChordKey, ChordOutcome};
+    let (chord_key, left) = match key {
+        Key::ControlLeft => (ChordKey::Ctrl, true),
+        Key::ControlRight => (ChordKey::Ctrl, false),
+        Key::Alt => (ChordKey::Alt, true),
+        Key::AltGr => (ChordKey::Alt, false),
+        Key::ShiftLeft => (ChordKey::Shift, true),
+        Key::ShiftRight => (ChordKey::Shift, false),
+        Key::MetaLeft => (ChordKey::Meta, true),
+        Key::MetaRight => (ChordKey::Meta, false),
+        Key::KeyG => (ChordKey::G, true),
+        _ => (ChordKey::Other, true),
+    };
+    let outcome = RELEASE_CHORD
+        .lock()
+        .unwrap()
+        .on_key(chord_key, is_press, cfg!(target_os = "macos"), left);
+    let hooked = KEYBOARD_HOOKED.load(Ordering::SeqCst);
+    match outcome {
+        ChordOutcome::Fire if hooked => {
+            KEYBOARD_RELEASE_PENDING.store(true, Ordering::SeqCst);
+            KEYBOARD_RELEASE_SWALLOWED.store(true, Ordering::SeqCst);
+            let session_id = flutter::get_cur_session_id();
+            flutter::push_session_event(&session_id, "release_keyboard", vec![]);
+            true
+        }
+        // Not hooked: the keys reach Flutter, which gives the keyboard back.
+        ChordOutcome::Fire => false,
+        ChordOutcome::Swallow if is_press => KEYBOARD_RELEASE_SWALLOWED.load(Ordering::SeqCst),
+        ChordOutcome::Swallow => KEYBOARD_RELEASE_SWALLOWED.swap(false, Ordering::SeqCst),
+        // Until Flutter has ended the grab, no other key press goes out.
+        // Modifiers still pass, so the platform's modifier state stays right.
+        ChordOutcome::Pass => {
+            hooked
+                && is_press
+                && matches!(chord_key, ChordKey::Other | ChordKey::G)
+                && KEYBOARD_RELEASE_PENDING.load(Ordering::SeqCst)
+        }
+    }
+}
+
 fn start_grab_loop() {
     std::env::set_var("KEYBOARD_ONLY", "y");
     #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -621,6 +686,11 @@ fn start_grab_loop() {
 
             let _scan_code = event.position_code;
             let _code = event.platform_code as KeyCode;
+
+            #[cfg(feature = "flutter")]
+            if handle_release_chord(key, is_press) {
+                return None;
+            }
 
             #[cfg(feature = "flutter")]
             if should_block_relative_mouse_shortcut(key, is_press) {
@@ -690,6 +760,10 @@ fn start_grab_loop() {
             if let Key::Unknown(keycode) = key {
                 log::error!("rdev get unknown key, keycode is {:?}", keycode);
             } else {
+                #[cfg(feature = "flutter")]
+                if handle_release_chord(key, is_press) {
+                    return None;
+                }
                 #[cfg(feature = "flutter")]
                 if should_block_relative_mouse_shortcut(key, is_press) {
                     return None;

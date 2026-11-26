@@ -475,6 +475,9 @@ class FfiModel with ChangeNotifier {
       } else if (name == 'exit_relative_mouse_mode') {
         // Handle exit shortcut from rdev grab loop (Ctrl+Alt on Win/Linux, Cmd+G on macOS)
         parent.target?.inputModel.exitRelativeMouseModeWithKeyRelease();
+      } else if (name == 'release_keyboard') {
+        // The grab loop caught the release combination (src/keyboard.rs).
+        parent.target?.inputModel.onReleaseKeyboard?.call();
       } else {
         debugPrint('Event is not handled in the fixed branch: $name');
       }
