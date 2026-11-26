@@ -166,4 +166,45 @@ void main() {
       expect((acted, notes, closed), (1, 1, 1));
     });
   }
+
+  // Pictures for the pull request (ND_SHOTS_DIR): About after a check found
+  // a release, and the home notice, in the reporter's German.
+  for (final b in Brightness.values) {
+    testWidgets('pictures of About and the notice (${b.name})', (tester) async {
+      useLanguage('de');
+      final r = UpdateCheckResult.parse(
+          '{"version":"1.5.0-rc.9","url":"$_url"}');
+      await pumpScreen(
+          tester,
+          _about(
+              result: r.message(),
+              actionLabel: r.actionLabel(canInstall: true),
+              onAction: () {}),
+          size: const Size(720, 640),
+          brightness: b,
+          lang: 'de');
+      await shot(tester, 'client-about-update', b);
+      await pumpScreen(
+          tester,
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 520,
+                child: UpdateNotice(
+                    version: '1.5.0-rc.9',
+                    canInstall: true,
+                    onAction: () {},
+                    onWhatsNew: () {},
+                    onClose: () {}),
+              ),
+            ),
+          ),
+          size: const Size(552, 120),
+          brightness: b,
+          lang: 'de');
+      await shot(tester, 'client-update-notice', b);
+    });
+  }
 }
