@@ -156,10 +156,11 @@ def check_full(tmp: Path) -> None:
     expect(table.returncode == 0, f"download table failed: {table.stderr}")
     notes = notes_path.read_text(encoding="utf-8")
     base = "https://github.com/neodeskapp/neodesk-client/releases/download/desktop/1.5.0/"
-    for name in sorted(expected) + ["SHA256SUMS"]:
-        expect(f"({base}{name})" in notes, f"download table does not link {name}")
-    expect("neodesk-template-" not in notes.split("### Other assets")[0],
-           "download table links an MSI template as an installer")
+    table = notes.split("</table>")[0]
+    for name in sorted(expected):
+        expect(f'href="{base}{name}"' in table, f"download table does not link {name}")
+    expect(f"({base}SHA256SUMS)" in notes, "the notes do not link SHA256SUMS")
+    expect("neodesk-template-" not in table, "download table links an MSI template as an installer")
 
 
 def check_partial(tmp: Path) -> None:
@@ -261,12 +262,36 @@ def check_prerelease_table(tmp: Path) -> None:
     assets = tmp / "assets"
     for name in PRERELEASE_PACKAGES + ["neodesk-template-x86_64.msi", "SHA256SUMS"]:
         write(assets / name)
+    # 25.6 MB, so the table shows the size the way GitHub's asset list does
+    write(assets / f"neodesk-{PRERELEASE}-windows-x86_64.msi", b"\0" * 26_843_546)
     notes = release_notes(assets, tmp / "notes.md")
-    table = notes.split("### Other assets")[0]
+    table = notes.split("</table>")[0]
     base = f"https://github.com/neodeskapp/neodesk-client/releases/download/desktop-v{PRERELEASE}/"
     for name in PRERELEASE_PACKAGES:
-        expect(f"({base}{name})" in table, f"the download table of a pre-release does not link {name}")
+        expect(table.count(f'href="{base}{name}"') == 1,
+               f"the download table of a pre-release does not link {name} once")
     expect("neodesk-template-" not in table, "download table links an MSI template as an installer")
+    msi_cell = table.split(f'href="{base}neodesk-{PRERELEASE}-windows-x86_64.msi"', 1)[1].split("</td>", 1)[0]
+    expect("<sub>25.6 MB</sub>" in msi_cell, f"the download table does not give the MSI's size: {msi_cell}")
+    # One row per package under the heading row, each system once with its icon
+    expect(table.count("<tr>") == 1 + 9, f"the download table has {table.count('<tr>')} rows, not one per package")
+    icons = f"https://raw.githubusercontent.com/neodeskapp/neodesk-client/desktop-v{PRERELEASE}/res/release-icons/"
+    for icon in ("os-windows", "os-macos", "os-linux", "pkg-debian", "pkg-fedora", "pkg-opensuse", "download"):
+        expect(f'src="{icons}{icon}.png"' in table, f"the download table does not show {icon}.png")
+        expect((HERE.parent / "res" / "release-icons" / f"{icon}.png").is_file(), f"{icon}.png is not in the repo")
+    expect('alt="Download Linux RPM for SUSE ARM64"' in table, "a download button does not say what it downloads")
+    # Checksums stay folded under the table
+    after = notes.split("</table>", 1)[1]
+    expect("<details>" in after and f"({base}SHA256SUMS)" in after.split("<details>", 1)[1],
+           "SHA256SUMS is not in the folded list under the table")
+
+    # A release without ARM64 builds has no ARM64 column
+    x64 = tmp / "x64"
+    for name in PRERELEASE_PACKAGES:
+        if "aarch64" not in name:
+            write(x64 / name)
+    x64_table = release_notes(x64, tmp / "x64.md").split("</table>")[0]
+    expect("ARM64" not in x64_table and "x64<br>" in x64_table, "a release without ARM64 builds has an ARM64 column")
     heading = f"## NeoDesk Client {PRERELEASE}\n"
     expect(notes.startswith(heading), "notes without a notes file lost their heading")
 
@@ -276,14 +301,18 @@ def check_prerelease_table(tmp: Path) -> None:
     extra = tmp / "extra.md"
     extra.write_text("### Development changes\n\n- feat: something (abc1234)\n", encoding="utf-8")
     notes = release_notes(assets, tmp / "with-intro.md", "--intro-md-file", str(intro), "--extra-md-file", str(extra))
-    expect(notes.startswith("Notes of this release.\n\n## What's new\n"), f"the notes file does not come first: {notes[:200]}")
+    expect(notes.startswith("Notes of this release.\n"), f"the notes file does not come first: {notes[:200]}")
     expect(heading not in notes and "Official **NeoDesk Client** build" not in notes,
            "the generated heading stays above the notes file")
-    after = notes.split("- Settings open in place.", 1)[-1]
-    expect(after.startswith("\n\n## Downloads\n"), f"the download table has no heading of its own: {after[:120]}")
+    # The table sits between the notes' first paragraph and their first heading
+    expect(notes.startswith("Notes of this release.\n\n## Downloads\n"),
+           f"the download table does not follow the notes' first paragraph: {notes[:200]}")
+    downloads, rest = notes.split("</table>", 1)
     for name in PRERELEASE_PACKAGES:
-        expect(f"({base}{name})" in after, f"the download table after the notes file does not link {name}")
-    expect("### Development changes" in after, "the change list is missing after the notes file")
+        expect(f'href="{base}{name}"' in downloads, f"the download table of the notes file does not link {name}")
+    expect("## What's new\n\n- Settings open in place." in rest, "the rest of the notes file is lost")
+    expect(rest.index("## What's new") < rest.index("### Development changes"),
+           "the change list comes before the notes")
     notes = release_notes(assets, tmp / "missing-intro.md", "--intro-md-file", str(tmp / "none.md"))
     expect(notes.startswith(heading), "a missing notes file changed the notes")
 

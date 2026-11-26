@@ -370,29 +370,32 @@ jobs:
             RANGE="${PREV}..${GITHUB_SHA}"
           fi
 
+          if git rev-parse --verify "${PREV}" >/dev/null 2>&1 || git cat-file -e "${PREV}^{commit}" 2>/dev/null; then
+            git log --pretty=tformat:'- %s (%h)' "${RANGE}" | head -n 80 > changes.md
+          else
+            git log --pretty=tformat:'- %s (%h)' -n 20 > changes.md
+          fi
+          COUNT=$(grep -c '^- ' changes.md || true)
+
+          # The commit list stays folded, so the notes and the downloads lead
           {
-            echo "### Development changes"
-            echo
-            if git rev-parse --verify "${PREV}" >/dev/null 2>&1 || git cat-file -e "${PREV}^{commit}" 2>/dev/null; then
-              git log --pretty=format:'- %s (%h)' "${RANGE}" | head -n 80
-              echo
-            else
-              git log --pretty=format:'- %s (%h)' -n 20
-              echo
-            fi
-            echo
-            echo "### Notes"
-            echo
-            echo "- Windows: portable **EXE** and installed **MSI** for x86_64 and ARM64."
-            echo "- Configure servers in Settings → Network, or import a deploy string from the NeoDesk panel."
-            echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             if [ "${IS_DEV}" = "true" ]; then
-              echo "- This is a **development prerelease**."
+              echo "This is a **development prerelease**."
+              echo
             fi
+            echo "<details>"
+            echo "<summary><b>Development changes</b> (${COUNT} commits)</summary>"
+            echo
+            cat changes.md
+            echo
+            echo "Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo "</details>"
           } > changelog-extra.md
 
           # release-notes/<tag>.md, when the tag has one, comes first in place
-          # of the generated heading; the download table follows it
+          # of the generated heading; the download table follows its first
+          # paragraphs
           python3 scripts/generate_release_download_table.py \
             --product desktop \
             --asset-dir dist/clean \

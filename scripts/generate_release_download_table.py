@@ -1,38 +1,82 @@
 #!/usr/bin/env python3
-"""Generate RustDesk-style download tables for NeoDesk GitHub Releases.
+"""Generate the download table of a NeoDesk GitHub Release.
 
-Scans a directory of release assets and emits Markdown with clear product
-labels (Full Client vs Incoming-only Support Agent) and per-arch download links.
+Scans a directory of release assets and writes the release notes: the
+release's own notes, the download table right after their first paragraphs,
+then the rest of the notes, and the checksums and change list folded away.
+
+The table is HTML, one row per package and one column per architecture, with
+the icons and the download button from res/release-icons, loaded from
+raw.githubusercontent.com at --image-ref (the release's commit by default).
 """
 
 from __future__ import annotations
 
 import argparse
+import html
 import re
 from pathlib import Path
 
 
-ARCH_ROWS = (
-    ("x86_64", "x86-64 (64-bit)"),
-    ("aarch64", "AArch64 (ARM64)"),
+# Columns of the table: (arch, heading, what it runs on)
+ARCHES = (
+    ("x86_64", "x64", "Intel, AMD"),
+    ("aarch64", "ARM64", "Snapdragon, Apple silicon"),
 )
 
-# Ordered platform columns for the main matrix.
-PLATFORM_COLS = (
-    ("windows", "Windows"),
-    ("linux", "Ubuntu / Linux"),
-    ("macos", "Mac"),
+# Systems, top to bottom: (platform, name, icon)
+SYSTEMS = (
+    ("windows", "Windows", "os-windows"),
+    ("macos", "macOS", "os-macos"),
+    ("linux", "Linux", "os-linux"),
+)
+
+# Rows of each system, top to bottom: (kind, icon, label, what it does)
+DESKTOP_ROWS = {
+    "windows": (
+        ("msi", "pkg-windows-msi", "Installer", "Installs NeoDesk for all users, with its service. Pick this one."),
+        ("exe", "pkg-windows-exe", "Program", "Starts NeoDesk right away, Install in it installs it."),
+        ("portable", "pkg-windows-portable", "Portable", "Runs without installing."),
+    ),
+    "macos": (
+        ("dmg", "pkg-macos-dmg", "Disk image", "Open it and drag NeoDesk Client to Applications."),
+        ("portable", "pkg-macos-portable", "Portable", "The app in a zip, without the disk image."),
+    ),
+    "linux": (
+        ("deb", "pkg-debian", "Debian package", "Debian, Ubuntu and Linux Mint."),
+        ("rpm", "pkg-fedora", "RPM package", "Fedora, RHEL, Rocky Linux and AlmaLinux."),
+        ("suse", "pkg-opensuse", "RPM for SUSE", "openSUSE and SLES."),
+        ("portable", "pkg-linux-portable", "Portable", "Runs without installing."),
+    ),
+}
+
+SUPPORT_ROWS = {
+    "windows": (
+        ("msi", "pkg-windows-msi", "Installer", "Installs the Support Agent with its service."),
+        ("exe", "pkg-windows-exe", "Program", "Unpacks itself and starts the Support Agent."),
+        ("portable", "pkg-windows-portable", "Portable", "Runs without installing."),
+    ),
+    "macos": (("portable", "pkg-macos-portable", "Portable", "Runs without installing."),),
+    "linux": (("portable", "pkg-linux-portable", "Portable", "Runs without installing."),),
+}
+
+# Under the table of each product
+DESKTOP_FOOTER = (
+    "On Linux, the package repository at [pkg.neode.sk]"
+    "(https://docs.neode.sk/getting-started/connect-a-client/#install-from-the-package-repository) "
+    "keeps NeoDesk up to date with the system's own updates. "
+    "Looking for the incoming-only Support Agent? It has its own "
+    "[`support-v*` releases](https://github.com/{repo}/releases)."
+)
+SUPPORT_FOOTER = (
+    "The Support Agent only accepts remote support and starts no sessions of its own. "
+    "On first start it asks for your NeoDesk server and pairs with a QR code. "
+    "The full client is in the [`desktop-v*` releases](https://github.com/{repo}/releases)."
 )
 
 
 def _url(repo: str, tag: str, name: str) -> str:
     return f"https://github.com/{repo}/releases/download/{tag}/{name}"
-
-
-def _link(label: str, repo: str, tag: str, name: str | None) -> str:
-    if not name:
-        return ""
-    return f"[{label}]({_url(repo, tag, name)})"
 
 
 # A package's version: 1.5.0, or a pre-release such as 1.5.0-rc.4 or 1.5.0-dev.42.
@@ -93,81 +137,115 @@ def _classify_support(name: str) -> tuple[str, str, str] | None:
     return platform, arch, kind
 
 
-def index_assets(asset_dir: Path, product: str) -> dict[tuple[str, str, str], str]:
+def index_assets(asset_dir: Path, product: str) -> dict[tuple[str, str, str], Path]:
     classify = _classify_desktop if product == "desktop" else _classify_support
-    out: dict[tuple[str, str, str], str] = {}
+    out: dict[tuple[str, str, str], Path] = {}
     for path in sorted(asset_dir.iterdir()):
         if not path.is_file():
             continue
         hit = classify(path.name)
-        if not hit:
-            continue
-        platform, arch, kind = hit
-        out[(platform, arch, kind)] = path.name
+        if hit:
+            out[hit] = path
     return out
 
 
-def _cell(assets: dict[tuple[str, str, str], str], platform: str, arch: str, repo: str, tag: str) -> str:
-    parts: list[str] = []
-    if platform == "windows":
-        for kind, label in (("exe", "EXE"), ("msi", "MSI"), ("portable", "Portable")):
-            name = assets.get((platform, arch, kind))
-            if not name:
-                continue
-            if kind == "portable":
-                label = "ZIP" if name.endswith(".zip") else "Portable"
-            parts.append(_link(label, repo, tag, name))
-    elif platform == "linux":
-        for kind, label in (("deb", "DEB"), ("rpm", "RPM"), ("suse", "SUSE"), ("portable", "Portable")):
-            name = assets.get((platform, arch, kind))
-            if name:
-                parts.append(_link(label, repo, tag, name))
-    elif platform == "macos":
-        for kind, label in (("dmg", "DMG"), ("portable", "Portable")):
-            name = assets.get((platform, arch, kind))
-            if name:
-                parts.append(_link(label, repo, tag, name))
-    return " &nbsp; ".join(parts)
+def _size(n: int) -> str:
+    """A file size the way GitHub's asset list writes it."""
+    if n <= 0:
+        return ""
+    if n < 1024 * 1024:
+        return f"{max(1, round(n / 1024))} KB"
+    return f"{n / (1024 * 1024):.1f} MB"
+
+
+def _extension(name: str) -> str:
+    for ext in (".tar.gz", ".zip", ".exe", ".msi", ".deb", ".rpm", ".dmg"):
+        if name.endswith(ext):
+            return ext
+    return Path(name).suffix
 
 
 def render_table(
     *,
     product: str,
-    assets: dict[tuple[str, str, str], str],
+    assets: dict[tuple[str, str, str], Path],
     repo: str,
     tag: str,
+    image_base: str,
 ) -> str:
-    if product == "desktop":
-        title = "### Full Client (NeoDesk Desktop)"
-        blurb = (
-            "**Type:** full remote-desktop client (`product_sku=neodesk-desktop`). "
-            "Can connect outbound and accept inbound. Configure the server in "
-            "**Settings → Network** (or via a deploy string from the NeoDesk panel)."
-        )
-    else:
-        title = "### Incoming-only Support Agent"
-        blurb = (
-            "**Type:** incoming-only Support Agent (`product_sku=neodesk-support`). "
-            "Accepts remote support only — does **not** start outbound sessions to other devices. "
-            "On first run enter your NeoDesk server URL and pair with a QR code. "
-            "Import into the panel via **NeoDesk Agents → Import latest release**."
+    rows_of = DESKTOP_ROWS if product == "desktop" else SUPPORT_ROWS
+    arches = [a for a in ARCHES if any(arch == a[0] for (_, arch, _) in assets)]
+    if not arches:
+        return "No packages were built for this release.\n"
+
+    def img(icon: str, size: int, alt: str, height: int | None = None) -> str:
+        return (
+            f'<img src="{image_base}/{icon}.png" width="{size}" height="{height or size}" '
+            f'alt="{html.escape(alt, quote=True)}">'
         )
 
     lines = [
-        title,
-        "",
-        blurb,
-        "",
-        "| Architecture | " + " | ".join(col[1] for col in PLATFORM_COLS) + " |",
-        "|--------------|" + "|".join(["---------"] * len(PLATFORM_COLS)) + "|",
+        "<table>",
+        "<tr>",
+        '<th align="left" colspan="3">Package</th>',
+        *(f'<th width="132">{label}<br><sub>{runs_on}</sub></th>' for _, label, runs_on in arches),
+        "</tr>",
     ]
-    for arch_key, arch_label in ARCH_ROWS:
-        cells = [_cell(assets, plat, arch_key, repo, tag) for plat, _ in PLATFORM_COLS]
-        if not any(cells):
+    for platform, system, os_icon in SYSTEMS:
+        rows = [r for r in rows_of[platform] if any((platform, a, r[0]) in assets for a, _, _ in arches)]
+        for i, (kind, icon, label, blurb) in enumerate(rows):
+            names = [assets.get((platform, a, kind)) for a, _, _ in arches]
+            ext = _extension(next(p for p in names if p).name)
+            lines.append("<tr>")
+            if i == 0:
+                lines.append(
+                    f'<td rowspan="{len(rows)}" align="center" width="84">'
+                    f"{img(os_icon, 40, system)}<br><b>{system}</b></td>"
+                )
+            lines.append(f'<td width="28">{img(icon, 28, "")}</td>')
+            lines.append(f"<td><b>{label}</b> <code>{ext}</code><br><sub>{blurb}</sub></td>")
+            for path, (_, arch_label, _) in zip(names, arches):
+                if not path:
+                    lines.append('<td align="center"><sub>not built</sub></td>')
+                    continue
+                button = img("download", 116, f"Download {system} {label} {arch_label}", 32)
+                size = _size(path.stat().st_size)
+                lines.append(
+                    f'<td align="center"><a href="{_url(repo, tag, path.name)}">{button}</a>'
+                    + (f"<br><sub>{size}</sub>" if size else "")
+                    + "</td>"
+                )
+            lines.append("</tr>")
+    lines.append("</table>")
+    footer = DESKTOP_FOOTER if product == "desktop" else SUPPORT_FOOTER
+    return "\n".join(lines) + "\n\n" + footer.format(repo=repo) + "\n"
+
+
+def _other_assets(product: str, asset_dir: Path, repo: str, tag: str) -> list[str]:
+    other = []
+    for path in sorted(asset_dir.iterdir()):
+        if not path.is_file():
             continue
-        lines.append("| " + arch_label + " | " + " | ".join(cells) + " |")
-    lines.append("")
-    return "\n".join(lines)
+        name = path.name
+        link = f"[{name}]({_url(repo, tag, name)})"
+        if product == "desktop":
+            if name.startswith("generator-templates") or name.endswith("generator-manifest.json"):
+                other.append(f"- {link}: clean Generator templates")
+            elif name == "neodesk-desktop-manifest.json":
+                other.append(f"- {link}: desktop release manifest")
+            elif name == "SHA256SUMS":
+                other.append(f"- {link}: checksums of every file in this release")
+        elif name in ("manifest.json", "manifest.sig", "SHA256SUMS"):
+            other.append(f"- {link}")
+    return other
+
+
+def _split_intro(intro: str) -> tuple[str, str]:
+    """The notes' first paragraphs, up to their first heading, and the rest."""
+    m = re.search(r"^#{1,6} ", intro, flags=re.M)
+    if not m or m.start() == 0:
+        return intro.strip(), ""
+    return intro[: m.start()].strip(), intro[m.start() :].strip()
 
 
 def render_notes(
@@ -180,84 +258,31 @@ def render_notes(
     commit: str = "",
     extra_md: str = "",
     intro_md: str = "",
+    image_ref: str = "",
 ) -> str:
     assets = index_assets(asset_dir, product)
-    if intro_md.strip():
-        # The release's own notes take the place of the heading and the line under it
-        parts = [intro_md.strip(), "", "## Downloads", ""]
+    image_base = f"https://raw.githubusercontent.com/{repo}/{image_ref or commit or tag}/res/release-icons"
+    table = render_table(product=product, assets=assets, repo=repo, tag=tag, image_base=image_base)
+
+    lead, rest = _split_intro(intro_md)
+    if lead:
+        parts = [lead, ""]
     else:
-        parts = [
-            f"## {release_name}",
-            "",
-        ]
-        if product == "desktop":
-            parts.extend(
-                [
-                    "Official **NeoDesk Client** build — full desktop remote client.",
-                    "",
-                ]
-            )
-        else:
-            parts.extend(
-                [
-                    "Official **NeoDesk Support Agent** build — generic incoming-only agents.",
-                    "",
-                ]
-            )
+        what = "NeoDesk Client" if product == "desktop" else "NeoDesk Support Agent"
+        parts = [f"## {release_name}", "", f"Official **{what}** build.", ""]
+    parts += ["## Downloads", "", table]
+    if rest:
+        parts += [rest, ""]
+
+    # Checksums, manifests and the build's commit stay folded under the notes
+    other = _other_assets(product, asset_dir, repo, tag)
     if commit:
-        parts.append(f"- Commit: `{commit}`")
-        parts.append(f"- Tag: `{tag}`")
-        parts.append("")
-
-    parts.append(render_table(product=product, assets=assets, repo=repo, tag=tag))
-
-    # Other useful assets (templates, manifests) as a short list
-    other = []
-    for path in sorted(asset_dir.iterdir()):
-        if not path.is_file():
-            continue
-        name = path.name
-        if product == "desktop":
-            if name.startswith("generator-templates") or name.endswith("generator-manifest.json"):
-                other.append(f"- [{name}]({_url(repo, tag, name)}) — clean Generator templates")
-            elif name == "neodesk-desktop-manifest.json":
-                other.append(f"- [{name}]({_url(repo, tag, name)}) — desktop release manifest")
-            elif name == "SHA256SUMS":
-                other.append(f"- [{name}]({_url(repo, tag, name)}) — checksums of every file in this release")
-        else:
-            if name in ("manifest.json", "manifest.sig", "SHA256SUMS"):
-                other.append(f"- [{name}]({_url(repo, tag, name)})")
+        other += [f"- Commit: `{commit}`", f"- Tag: `{tag}`"]
     if other:
-        parts.append("### Other assets")
-        parts.append("")
-        parts.extend(other)
-        parts.append("")
-
-    if product == "desktop":
-        parts.extend(
-            [
-                "### Also available: Support Agent",
-                "",
-                "Incoming-only Support Agent packages are published as separate "
-                "`support-v*` releases on this repository "
-                f"(see [Releases](https://github.com/{repo}/releases) tagged `support-v*`).",
-                "",
-            ]
-        )
-    else:
-        parts.extend(
-            [
-                "### Also available: Full Client",
-                "",
-                "Full NeoDesk desktop clients (EXE / MSI / DEB / DMG) are published as "
-                f"`desktop/*` releases — see [Releases](https://github.com/{repo}/releases).",
-                "",
-            ]
-        )
+        parts += ["<details>", "<summary><b>Checksums and other files</b></summary>", "", *other, "", "</details>", ""]
 
     if extra_md.strip():
-        parts.append(extra_md.strip())
-        parts.append("")
+        parts += [extra_md.strip(), ""]
 
     return "\n".join(parts).rstrip() + "\n"
 
@@ -270,6 +295,11 @@ def main() -> int:
     parser.add_argument("--tag", required=True)
     parser.add_argument("--release-name", required=True)
     parser.add_argument("--commit", default="")
+    parser.add_argument(
+        "--image-ref",
+        default="",
+        help="git ref whose res/release-icons the table shows (default: --commit, else --tag)",
+    )
     parser.add_argument("--extra-md", default="")
     parser.add_argument("--extra-md-file", type=Path, default=None)
     parser.add_argument(
@@ -298,6 +328,7 @@ def main() -> int:
         commit=args.commit,
         extra_md=extra,
         intro_md=intro,
+        image_ref=args.image_ref,
     )
     args.output.write_text(notes, encoding="utf-8")
     print(f"Wrote {args.output} ({len(notes)} bytes)")
