@@ -1122,6 +1122,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-update-whats-new", ""),
         ("nd-update-beta", ""),
         ("nd-desc:nd-update-beta", ""),
+        ("nd-managed-by-admin", ""),
         ("nd-about-copyright", ""),
         ("nd-about-powered", ""),
         ("nd-sec-language-and-look", ""),

@@ -2,6 +2,7 @@
 // the core's answer to a check is read.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_hbb/common.dart' show translate;
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/settings/settings_widgets.dart';
 import 'package:flutter_hbb/desktop/widgets/update_check.dart';
@@ -40,6 +41,27 @@ Widget _page(Widget child) =>
     Builder(builder: (c) => ColoredBox(color: c.nd.bg, child: child));
 
 void main() {
+  group('settings the server manages', () {
+    test('the managed list names the settings the strategy sets', () {
+      const list = 'allow-auto-update,update-channel';
+      expect(serverManagedIn(list, 'update-channel'), isTrue);
+      expect(serverManagedIn(list, 'allow-auto-update'), isTrue);
+      expect(serverManagedIn(list, 'enable-check-update'), isFalse);
+      expect(serverManagedIn('update-channel', 'allow-auto-update'), isFalse);
+      expect(serverManagedIn('', 'update-channel'), isFalse);
+      expect(serverManagedIn('', ''), isFalse);
+      // A key is matched whole, not as a part of another
+      expect(serverManagedIn('update-channel-x', 'update-channel'), isFalse);
+    });
+
+    test('a managed setting says who manages it', () {
+      useLanguage('en');
+      expect(translate('nd-managed-by-admin'), 'Managed by your administrator');
+      useLanguage('de');
+      expect(translate('nd-managed-by-admin'), 'Von deinem Administrator verwaltet');
+    });
+  });
+
   group('the answer of a check', () {
     setUp(() => useLanguage('en'));
 

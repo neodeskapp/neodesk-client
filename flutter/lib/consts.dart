@@ -181,6 +181,8 @@ const String kOptionEnableCheckUpdate = "enable-check-update";
 /// "beta" or "stable"; empty is stable, on every build (A267).
 const String kOptionUpdateChannel = "update-channel";
 const String kOptionAllowAutoUpdate = "allow-auto-update";
+/// The options the server's strategy manages, comma separated (A267).
+const String kOptionServerManaged = "nd-server-managed";
 const String kOptionAllowRemoveWallpaper = "allow-remove-wallpaper";
 const String kOptionStopService = "stop-service";
 const String kOptionDirectxCapture = "enable-directx-capture";

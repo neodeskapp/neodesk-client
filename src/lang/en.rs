@@ -609,6 +609,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-update-whats-new", "What's new"),
         ("nd-update-beta", "Beta versions"),
         ("nd-desc:nd-update-beta", "Also offers release candidates, before they become a stable release."),
+        ("nd-managed-by-admin", "Managed by your administrator"),
         ("nd-about-copyright", "Copyright 2026 NeoDesk contributors, UNITRONIX. Based on RustDesk, copyright Purslane Ltd. and the RustDesk contributors. Licensed under the AGPL-3.0."),
         ("nd-about-powered", "Powered by NeoDesk"),
         ("nd-sec-language-and-look", "Language and look"),

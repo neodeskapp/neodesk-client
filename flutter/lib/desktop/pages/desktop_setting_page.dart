@@ -2748,6 +2748,7 @@ Widget _OptionCheckBox(
           : mainGetLocalBoolOptionSync(key));
   bool value = getOpt();
   final isOptFixed = isOptionFixed(key);
+  final managed = isServerManaged(key);
   if (reverse) value = !value;
   var ref = value.obs;
   onChanged(option) async {
@@ -2771,13 +2772,15 @@ Widget _OptionCheckBox(
     enabled = false;
   }
 
-  final canChange = enabled && !isOptFixed;
+  final canChange = enabled && !isOptFixed && !managed;
   return Obx(() => SettingsRow(
         label: translate(label),
-        description: isOptFixed && BrandingModel.current.hasCompanyName
-            ? tr('nd-set-fixed-by',
-                [BrandingModel.current.companyName.value.trim()])
-            : translateOrNull('nd-desc:$label'),
+        description: managed
+            ? translate('nd-managed-by-admin')
+            : isOptFixed && BrandingModel.current.hasCompanyName
+                ? tr('nd-set-fixed-by',
+                    [BrandingModel.current.companyName.value.trim()])
+                : translateOrNull('nd-desc:$label'),
         enabled: canChange || !enabled,
         control: Row(mainAxisSize: MainAxisSize.min, children: [
           if (extra != null) ...[extra, const SizedBox(width: 12)],

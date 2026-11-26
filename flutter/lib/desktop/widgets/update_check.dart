@@ -4,7 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart'
     show isMacOS, isWeb, isWindows, translate;
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_hbb/consts.dart' show kOptionServerManaged;
 import 'package:flutter_hbb/models/platform_model.dart' show bind;
+
+/// Whether [key] is in [list], the server's comma-separated list of the
+/// options its strategy manages (Install updates automatically and the
+/// update channel, A267).
+bool serverManagedIn(String list, String key) =>
+    key.isNotEmpty && list.split(',').contains(key);
+
+/// Whether the server's strategy manages [key] on this computer: the
+/// setting shows "Managed by your administrator" and can't be changed.
+bool isServerManaged(String key) =>
+    serverManagedIn(bind.mainGetOptionSync(key: kOptionServerManaged), key);
 
 /// The answer of the core's update check (main_get_common "nd-update-check"):
 /// a newer release, none, or why the check failed.

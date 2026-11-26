@@ -28,8 +28,9 @@ pub(crate) const SUMS_SIGNATURE_FILE: &str = "SHA256SUMS.sig";
 pub(crate) const MANIFEST_FILE: &str = "neodesk-desktop-manifest.json";
 
 /// Config option with the update channel: "beta", "stable", or empty for the
-/// default (see [`UpdateChannel::from_option`]).
-pub(crate) const OPTION_UPDATE_CHANNEL: &str = "update-channel";
+/// default, Stable. A server may set it through its strategy
+/// (hbbs_http::sync::SERVER_MANAGED_OPTIONS).
+pub(crate) const OPTION_UPDATE_CHANNEL: &str = crate::hbbs_http::sync::OPTION_UPDATE_CHANNEL;
 
 /// Public half of the release key (base64 iwissiXvSjeFFsG8SdKEZq11uAtRLWCrD7Ky1vfY2n4=),
 /// as in scripts/collect_desktop_dist.sh and the console's clientrelease keys.

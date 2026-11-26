@@ -530,6 +530,11 @@ pub fn set_option(key: String, value: String) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         let mut options = OPTIONS.lock().unwrap();
+        // The server's strategy manages it: the service keeps its value (A267)
+        if crate::hbbs_http::sync::is_server_managed(&options, &key) {
+            log::info!("{key} is managed by the server, not changed");
+            return;
+        }
         if value.is_empty() {
             options.remove(&key);
         } else {

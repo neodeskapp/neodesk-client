@@ -460,7 +460,69 @@ fn heartbeat_url() -> String {
     format!("{}/api/heartbeat", url)
 }
 
+/// The config option of the update channel ("stable" or "beta").
+pub const OPTION_UPDATE_CHANNEL: &str = "update-channel";
+
+/// Settings a NeoDesk server may set on a managed computer through its
+/// strategy options (A267): Install updates automatically and the update
+/// channel. While the last strategy sets one, its value is the server's,
+/// the window shows it as managed by the administrator, and neither the
+/// window nor another process changes it through the service.
+pub const SERVER_MANAGED_OPTIONS: [&str; 2] =
+    [keys::OPTION_ALLOW_AUTO_UPDATE, OPTION_UPDATE_CHANNEL];
+
+/// Config option with the keys of [`SERVER_MANAGED_OPTIONS`] the last
+/// strategy set, comma separated. Only the strategy writes it.
+pub const OPTION_SERVER_MANAGED: &str = "nd-server-managed";
+
+/// Whether `value` is one a server may give a managed option: Y or N for
+/// Install updates automatically, stable or beta for the channel.
+fn managed_value_valid(key: &str, value: &str) -> bool {
+    match key {
+        keys::OPTION_ALLOW_AUTO_UPDATE => matches!(value, "Y" | "N"),
+        OPTION_UPDATE_CHANNEL => matches!(value, "stable" | "beta"),
+        _ => false,
+    }
+}
+
+/// Whether the last strategy set `key`, by the managed list in `options`
+/// (the service's config options, or the window's copy of them).
+pub fn is_server_managed(options: &HashMap<String, String>, key: &str) -> bool {
+    SERVER_MANAGED_OPTIONS.contains(&key)
+        && options
+            .get(OPTION_SERVER_MANAGED)
+            .map_or(false, |list| list.split(',').any(|k| k == key))
+}
+
+/// Keeps the server's values in options another process hands the service
+/// (the window's settings): a managed option and the managed list stay as
+/// the strategy left them in `current`.
+pub fn keep_server_managed(
+    incoming: &mut HashMap<String, String>,
+    current: &HashMap<String, String>,
+) {
+    let managed = SERVER_MANAGED_OPTIONS
+        .iter()
+        .copied()
+        .filter(|key| is_server_managed(current, key))
+        .chain(std::iter::once(OPTION_SERVER_MANAGED));
+    for key in managed {
+        match current.get(key) {
+            Some(value) => {
+                incoming.insert(key.to_owned(), value.clone());
+            }
+            None => {
+                incoming.remove(key);
+            }
+        }
+    }
+}
+
 fn strategy_option_locked(key: &str) -> bool {
+    // The managed list is the client's own record of the strategy
+    if key == OPTION_SERVER_MANAGED {
+        return true;
+    }
     // Bake-in override-* / overwrite maps must win over heartbeat strategy.
     if crate::ui_interface::is_option_fixed(key) {
         return true;
@@ -488,10 +550,40 @@ fn strategy_option_locked(key: &str) -> bool {
 fn handle_config_options(config_options: HashMap<String, String>) {
     let mut options = Config::get_options();
     let default_settings = config::DEFAULT_SETTINGS.read().unwrap().clone();
+    apply_strategy_options(
+        &mut options,
+        &config_options,
+        &default_settings,
+        strategy_option_locked,
+    );
+    Config::set_options(options);
+}
+
+/// Puts a strategy's `config_options` into `options`, all but the `locked`
+/// ones, and records in [`OPTION_SERVER_MANAGED`] which of
+/// [`SERVER_MANAGED_OPTIONS`] it sets. A managed option with a value it
+/// can't take is left out; one the strategy leaves out or empties is no
+/// longer managed.
+fn apply_strategy_options(
+    options: &mut HashMap<String, String>,
+    config_options: &HashMap<String, String>,
+    default_settings: &HashMap<String, String>,
+    locked: impl Fn(&str) -> bool,
+) {
+    let mut managed = Vec::new();
     for (k, v) in config_options.iter() {
-        if strategy_option_locked(k) {
+        if locked(k) {
             log::debug!("strategy skipped locked option {k}");
             continue;
+        }
+        if let Some(key) = SERVER_MANAGED_OPTIONS.iter().find(|key| **key == k.as_str()) {
+            if !v.is_empty() {
+                if !managed_value_valid(k, v) {
+                    log::warn!("strategy skipped {k}: it takes no {v:?}");
+                    continue;
+                }
+                managed.push(*key);
+            }
         }
         // Priority: user config > default advanced options.
         // Only when default advanced options are also empty, remove user option (fallback to built-in default);
@@ -502,7 +594,12 @@ fn handle_config_options(config_options: HashMap<String, String>) {
             options.insert(k.to_string(), v.to_string());
         }
     }
-    Config::set_options(options);
+    if managed.is_empty() {
+        options.remove(OPTION_SERVER_MANAGED);
+    } else {
+        managed.sort_unstable();
+        options.insert(OPTION_SERVER_MANAGED.to_owned(), managed.join(","));
+    }
 }
 
 #[allow(unused)]
@@ -619,9 +716,111 @@ mod tests {
     use serde_json::{json, Value};
 
     use super::{
-        read_heartbeat_answer, switch_code_verifier, switch_grant_signed_msg, telemetry_interval,
-        HeartbeatAnswer, TIME_TELEMETRY,
+        apply_strategy_options, is_server_managed, keep_server_managed, read_heartbeat_answer,
+        switch_code_verifier, switch_grant_signed_msg, telemetry_interval, HeartbeatAnswer,
+        OPTION_SERVER_MANAGED, TIME_TELEMETRY,
     };
+    use std::collections::HashMap;
+
+    fn map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn a_strategy_manages_the_update_settings_it_sets() {
+        let mut options = map(&[("update-channel", "beta"), ("allow-auto-update", "Y")]);
+        let strategy = map(&[
+            ("update-channel", "stable"),
+            ("allow-auto-update", "N"),
+            ("enable-audio", "N"),
+        ]);
+        apply_strategy_options(&mut options, &strategy, &HashMap::new(), |_| false);
+        assert_eq!(options["update-channel"], "stable");
+        assert_eq!(options["allow-auto-update"], "N");
+        assert_eq!(options["enable-audio"], "N");
+        assert_eq!(options[OPTION_SERVER_MANAGED], "allow-auto-update,update-channel");
+        assert!(is_server_managed(&options, "update-channel"));
+        assert!(is_server_managed(&options, "allow-auto-update"));
+        // Only the update settings count as managed
+        assert!(!is_server_managed(&options, "enable-audio"));
+
+        // The next strategy sets the channel only: Install updates
+        // automatically is the user's again, with the value it had
+        let strategy = map(&[("update-channel", "beta")]);
+        apply_strategy_options(&mut options, &strategy, &HashMap::new(), |_| false);
+        assert_eq!(options[OPTION_SERVER_MANAGED], "update-channel");
+        assert!(!is_server_managed(&options, "allow-auto-update"));
+        assert_eq!(options["allow-auto-update"], "N");
+
+        // A strategy without them manages nothing
+        let strategy = map(&[("enable-audio", "Y")]);
+        apply_strategy_options(&mut options, &strategy, &HashMap::new(), |_| false);
+        assert!(!options.contains_key(OPTION_SERVER_MANAGED));
+        assert!(!is_server_managed(&options, "update-channel"));
+    }
+
+    #[test]
+    fn a_strategy_value_the_setting_cannot_take_is_left_out() {
+        let mut options = map(&[("update-channel", "stable")]);
+        let strategy = map(&[("update-channel", "nightly"), ("allow-auto-update", "yes")]);
+        apply_strategy_options(&mut options, &strategy, &HashMap::new(), |_| false);
+        assert_eq!(options["update-channel"], "stable");
+        assert!(!options.contains_key("allow-auto-update"));
+        assert!(!options.contains_key(OPTION_SERVER_MANAGED));
+        // An empty value hands the setting back
+        let mut options = map(&[
+            ("update-channel", "beta"),
+            (OPTION_SERVER_MANAGED, "update-channel"),
+        ]);
+        let strategy = map(&[("update-channel", "")]);
+        apply_strategy_options(&mut options, &strategy, &HashMap::new(), |_| false);
+        assert!(!options.contains_key("update-channel"));
+        assert!(!is_server_managed(&options, "update-channel"));
+    }
+
+    #[test]
+    fn a_strategy_cannot_write_the_managed_list_or_a_locked_option() {
+        let mut options = HashMap::new();
+        let strategy = map(&[
+            (OPTION_SERVER_MANAGED, "enable-audio"),
+            ("update-channel", "beta"),
+        ]);
+        apply_strategy_options(&mut options, &strategy, &HashMap::new(), |k| {
+            k == OPTION_SERVER_MANAGED || k == "update-channel"
+        });
+        assert!(options.is_empty(), "{options:?}");
+    }
+
+    #[test]
+    fn the_window_cannot_change_a_managed_setting_through_the_service() {
+        let current = map(&[
+            ("update-channel", "stable"),
+            ("allow-auto-update", "N"),
+            (OPTION_SERVER_MANAGED, "update-channel"),
+        ]);
+        let mut sent = map(&[
+            ("update-channel", "beta"),
+            ("allow-auto-update", "Y"),
+            (OPTION_SERVER_MANAGED, "allow-auto-update"),
+        ]);
+        keep_server_managed(&mut sent, &current);
+        assert_eq!(sent["update-channel"], "stable");
+        assert_eq!(sent[OPTION_SERVER_MANAGED], "update-channel");
+        // Not managed: the window's choice goes through
+        assert_eq!(sent["allow-auto-update"], "Y");
+
+        // Nothing managed: a managed list the window sends is dropped
+        let mut sent = map(&[
+            ("update-channel", "beta"),
+            (OPTION_SERVER_MANAGED, "update-channel"),
+        ]);
+        keep_server_managed(&mut sent, &map(&[("update-channel", "stable")]));
+        assert_eq!(sent["update-channel"], "beta");
+        assert!(!sent.contains_key(OPTION_SERVER_MANAGED));
+    }
 
     #[test]
     fn telemetry_interval_is_spread_across_devices() {
