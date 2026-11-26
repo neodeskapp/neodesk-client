@@ -50,27 +50,40 @@ List<CmPermission> _perms({bool all = false, ValueChanged<bool>? onFirst}) => [
       ],
     ];
 
+/// A quick support caller as the window names it (A271).
+CmCaller _qsCaller({required bool vouched}) => cmCaller(
+    name: 'Olga Operator',
+    peerId: 'neodesk-web-mwwuezpy',
+    vouched: vouched,
+    quickSupport: true,
+    offersAllow: cmOffersAllow('password', vouched: vouched));
+
 /// A request as the window shows it, with every switch: the list scrolls,
 /// the buttons stay at the foot.
-Widget _request() => NdWindowFrame(
-      titleBar: NdTitleBar(
-        brand: NdTitleBrand(
-            title: cmWindowTitle('NeoDesk Quick Support', quickSupport: true)),
-        controls: NdWindowControls(onMinimize: () {}),
-      ),
-      child: CmScreen(
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          child: CmRequestBody(
-            header: CmHeader(
-                name: 'admin', subtitle: cmPeerLine('neodesk-web-mwwuezpy')),
-            name: 'admin',
-            permissions: _perms(all: true),
-          ),
+Widget _request({bool vouched = true}) {
+  final caller = _qsCaller(vouched: vouched);
+  return NdWindowFrame(
+    titleBar: NdTitleBar(
+      brand: NdTitleBrand(
+          title: cmWindowTitle('NeoDesk Quick Support', quickSupport: true)),
+      controls: NdWindowControls(onMinimize: () {}),
+    ),
+    child: CmScreen(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+        child: CmRequestBody(
+          header: CmHeader(name: caller.name, subtitle: caller.line),
+          warning: caller.warning,
+          name: caller.name,
+          permissions: _perms(all: true),
         ),
-        foot: CmRequestActions(onDecline: () {}, onAllow: () {}),
       ),
-    );
+      foot: CmRequestActions(
+          onDecline: () {},
+          onAllow: cmOffersAllow('password', vouched: vouched) ? () {} : null),
+    ),
+  );
+}
 
 void main() {
   // The consent window of the quick support incident (26 Nov): only Decline
@@ -125,20 +138,115 @@ void main() {
     expect(declined, 0);
   });
 
-  test('the person sees who asks, never the console viewer\'s own id (L554)',
-      () {
+  // A271: the window names the caller only when the server vouched for it.
+  // The console viewer's own peer ID and name are claims any caller can
+  // make, so they never say "From the NeoDesk web console"
+  test('a vouched helper is named, with where they come from', () {
     useLanguage('en');
-    expect(cmPeerLine('neodesk-web-mwwuezpy'), 'From the NeoDesk web console');
-    expect(cmPeerLine('828416401'), '828 416 401');
-    expect(cmPeerIsDevice('828 416 401'), isTrue);
+    final helper = _qsCaller(vouched: true);
+    expect(helper.name, 'Olga Operator');
+    expect(helper.line, 'From the NeoDesk web console');
+    expect(helper.warning, isNull);
+    expect(helper.unknown, isFalse);
+    expect(cmOffersAllow('password', vouched: true), isTrue);
     useLanguage('de');
-    expect(cmPeerLine('neodesk-web-mwwuezpy'), 'Über die NeoDesk-Webkonsole');
+    expect(_qsCaller(vouched: true).line, 'Über die NeoDesk-Webkonsole');
     // One name for quick support in each language, the quick support
     // window's (L554)
     expect(cmWindowTitle('NeoDesk Quick Support', quickSupport: true),
         'NeoDesk Schnellhilfe');
     expect(cmWindowTitle('NeoDesk', quickSupport: false), 'NeoDesk');
     useLanguage('en');
+  });
+
+  test('a caller nobody vouched for is unknown and gets no Allow in quick support',
+      () {
+    useLanguage('en');
+    // Claims to be the web console (its peer ID and name): unknown
+    final forged = _qsCaller(vouched: false);
+    expect(forged.name, 'Someone unknown');
+    expect(forged.line, 'The server did not confirm who this is');
+    expect(forged.unknown, isTrue);
+    expect(cmOffersAllow('password', vouched: false), isFalse);
+    expect(forged.warning,
+        "Only someone with the one-time password can connect. Decline if you don't expect this.");
+    // A NeoDesk ID in quick support is a claim too
+    final desktop = cmCaller(
+        name: 'Olga Operator',
+        peerId: '828416401',
+        vouched: false,
+        quickSupport: true,
+        offersAllow: false);
+    expect(desktop.name, 'Someone unknown');
+    expect(desktop.line, isNot('828 416 401'));
+    // Vouched without a name names nobody
+    expect(
+        cmCaller(
+                name: ' ',
+                peerId: 'neodesk-web-x',
+                vouched: true,
+                quickSupport: true,
+                offersAllow: true)
+            .name,
+        'Someone unknown');
+    useLanguage('de');
+    expect(_qsCaller(vouched: false).name, 'Jemand Unbekanntes');
+    expect(_qsCaller(vouched: false).line,
+        'Der Server hat nicht bestätigt, wer das ist');
+    useLanguage('en');
+  });
+
+  test('outside quick support a caller nobody vouched for gets a warning before Allow',
+      () {
+    useLanguage('en');
+    expect(cmOffersAllow('click', vouched: false), isTrue);
+    CmCaller desktop() => cmCaller(
+        name: 'Mara',
+        peerId: '828416401',
+        vouched: false,
+        quickSupport: false,
+        offersAllow: true);
+    expect(desktop().name, 'Mara');
+    expect(desktop().line, '828 416 401');
+    expect(desktop().lineIsId, isTrue);
+    expect(desktop().warning,
+        "NeoDesk can't confirm who is asking. Allow only if you expect this connection.");
+    final web = cmCaller(
+        name: 'admin',
+        peerId: 'neodesk-web-mwwuezpy',
+        vouched: false,
+        quickSupport: false,
+        offersAllow: true);
+    expect(web.name, 'Someone unknown');
+    expect(web.line, isNot('From the NeoDesk web console'));
+    expect(web.warning, isNotNull);
+    useLanguage('de');
+    expect(desktop().warning,
+        'NeoDesk kann nicht bestätigen, wer fragt. Erlaube es nur, wenn du diese Verbindung erwartest.');
+    useLanguage('en');
+  });
+
+  testWidgets('an unknown caller in quick support sees Decline only and the warning',
+      (tester) async {
+    useLanguage('en');
+    await pumpScreen(tester, _request(vouched: false), size: _cmSize);
+    expect(find.text('Someone unknown'), findsOneWidget);
+    expect(find.text('From the NeoDesk web console'), findsNothing);
+    expect(find.textContaining('Olga'), findsNothing);
+    expect(find.widgetWithText(NdButton, translate('Decline')), findsOneWidget);
+    expect(find.widgetWithText(NdButton, tr('nd-allow')), findsNothing);
+    expect(find.widgetWithText(NdNotice, tr('nd-cm-password-only')),
+        findsOneWidget);
+  });
+
+  testWidgets('a vouched helper in quick support gets Allow and no warning',
+      (tester) async {
+    useLanguage('en');
+    await pumpScreen(tester, _request(), size: _cmSize);
+    expect(find.text('Olga Operator'), findsOneWidget);
+    expect(find.text('From the NeoDesk web console'), findsOneWidget);
+    expect(find.widgetWithText(NdButton, tr('nd-allow')), findsOneWidget);
+    expect(find.byType(NdNotice), findsNothing);
   });
 
   forBothThemes('connection manager request', (tester, b) async {

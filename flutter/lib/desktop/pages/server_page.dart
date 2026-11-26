@@ -483,8 +483,20 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
     ];
   }
 
-  Widget _avatar() {
-    final name = client.name.isNotEmpty ? client.name : client.peerId;
+  /// Who asks, as the window names them: the helper the server vouched
+  /// for, or a caller nobody confirmed (A271).
+  CmCaller _caller(BuildContext context) => cmCaller(
+      name: client.name,
+      peerId: client.peerId,
+      vouched: client.vouched,
+      quickSupport: bind.mainOnboardIsQuickSupport(),
+      offersAllow: cmOffersAllow(Provider.of<ServerModel>(context).approveMode,
+          vouched: client.vouched));
+
+  Widget _avatar(String name, {bool own = true}) {
+    // The picture a caller sends is its own claim: only for a caller shown
+    // by its name
+    if (!own) return NdAvatar(name: name, size: 48);
     return buildAvatarWidget(
           avatar: client.avatar,
           size: 48,
@@ -497,19 +509,23 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final name = client.name.isNotEmpty ? client.name : client.peerId;
+    var name = client.name.isNotEmpty ? client.name : client.peerId;
     final permissions = _permissions();
     Widget body;
     if (!client.authorized) {
+      final caller = _caller(context);
+      final own = !caller.unknown;
+      name = caller.name;
       body = SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
         child: CmRequestBody(
           header: CmHeader(
               name: name,
-              subtitle: cmPeerLine(client.peerId),
-              mono: cmPeerIsDevice(client.peerId),
+              subtitle: caller.line,
+              mono: caller.lineIsId,
               kind: _kind,
-              avatar: _avatar()),
+              avatar: _avatar(name, own: own)),
+          warning: caller.warning,
           name: name,
           permissions: permissions,
         ),
@@ -526,7 +542,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
                     ? translate('Disconnected')
                     : cmConnectedFor(Duration(seconds: _seconds.value)),
                 kind: _kind,
-                avatar: _avatar())),
+                avatar: _avatar(name))),
             const SizedBox(height: 16),
             if (!client.disconnected &&
                 (client.type_() == ClientType.remote ||
@@ -727,7 +743,9 @@ class _CmControlPanel extends StatelessWidget {
     final showElevation = canElevate &&
         model.showElevation &&
         client.type_() == ClientType.remote;
-    final showAccept = model.approveMode != 'password';
+    // In quick support only a caller the server vouched for (A271)
+    final showAccept =
+        cmOffersAllow(model.approveMode, vouched: client.vouched);
     return CmRequestActions(
       onDecline: () => checkClickTime(client.id, handleDisconnect),
       onAllow: showAccept

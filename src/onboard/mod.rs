@@ -17,6 +17,7 @@
 // Only the Flutter FFI calls the UI part of this module.
 #![cfg_attr(not(feature = "flutter"), allow(dead_code))]
 
+mod caller;
 #[cfg_attr(not(windows), allow(dead_code))]
 mod cli_output;
 mod device_key;
@@ -837,16 +838,33 @@ fn send_to_sessions(text: &str) -> bool {
 }
 
 /// The options quick support sets: the one-time password, which the app
-/// hands to the supporter through the console, and accept by click, so the
-/// connection manager always has Allow for the person (L552). A
-/// connection without the password (the console lost it, or a second
-/// Connect) waits for the person's click.
+/// hands to the supporter through the console, and nothing else opens a
+/// session. A connection without the password (the console lost it, or a
+/// second Connect) waits for the person's click only when the server
+/// vouches that it is a signed-in helper of the web console (A271, see
+/// [`caller`]); the connection decides that, not the approve mode.
 pub(crate) fn quick_support_options() -> [(&'static str, &'static str); 3] {
     [
         ("verification-method", "use-temporary-password"),
-        ("approve-mode", "both"),
+        ("approve-mode", "password"),
         ("temporary-password-length", "10"),
     ]
+}
+
+/// The helper behind a connection that came through the relay session
+/// `relay_session` without a password, when the server vouches for it
+/// (A271); None for every other caller, and outside quick support.
+pub async fn vouched_caller(device_id: &str, relay_session: &str) -> Option<String> {
+    if !is_quick_support() {
+        return None;
+    }
+    caller::vouched_caller(device_id, relay_session).await
+}
+
+/// Whether the connection manager's Allow may let a connection in: in
+/// quick support only one the server vouched for.
+pub fn click_may_let_in(vouched: bool) -> bool {
+    caller::click_may_let_in(is_quick_support(), vouched)
 }
 
 /// The connections of this process that wait for the person to accept in
@@ -905,7 +923,7 @@ impl support::SupportHost for AppHost {
 
     fn apply_server(&self, server: &ServerSettings) {
         // The one-time password goes to the supporter; without it the
-        // person accepts by click in the connection manager.
+        // person accepts by click only a caller the server vouches for.
         for (key, value) in quick_support_options() {
             Config::set_option(key.to_owned(), value.to_owned());
         }
@@ -934,7 +952,16 @@ impl support::SupportHost for AppHost {
         REQUESTS.newest()
     }
 
+    fn caller_channel(&self, channel: Option<caller::Channel>) {
+        match channel {
+            Some(channel) => caller::open(channel),
+            None => caller::close(),
+        }
+    }
+
     fn shut_down(&self) {
+        // Nobody is vouched for once the session ends here
+        caller::close();
         Config::set_option("stop-service".to_owned(), "Y".to_owned());
         crate::hbbs_http::sync::disconnect(crate::Connection::alive_conns());
         password_security::update_temporary_password();

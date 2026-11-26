@@ -831,6 +831,9 @@ class Client {
   bool fromSwitch = false;
   bool inVoiceCall = false;
   bool incomingVoiceCall = false;
+  // The server vouched that the caller is a signed-in helper of the web
+  // console, and name is the helper's name as the server gave it (A271)
+  bool vouched = false;
 
   RxInt unreadChatMessageCount = 0.obs;
 
@@ -860,6 +863,7 @@ class Client {
     fromSwitch = json['from_switch'];
     inVoiceCall = json['in_voice_call'];
     incomingVoiceCall = json['incoming_voice_call'];
+    vouched = json['vouched'] == true;
   }
 
   Map<String, dynamic> toJson() {
@@ -885,6 +889,7 @@ class Client {
     data['from_switch'] = fromSwitch;
     data['in_voice_call'] = inVoiceCall;
     data['incoming_voice_call'] = incomingVoiceCall;
+    data['vouched'] = vouched;
     return data;
   }
 

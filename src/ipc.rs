@@ -377,6 +377,11 @@ pub enum Data {
         block_input: bool,
         privacy_mode: bool,
         from_switch: bool,
+        /// Quick support (A271): the server vouched that the caller is a
+        /// signed-in helper of the web console, and `name` is the helper's
+        /// name as the server gave it.
+        #[serde(default)]
+        vouched: bool,
     },
     ChatMessage {
         text: String,

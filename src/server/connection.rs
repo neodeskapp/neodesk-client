@@ -467,6 +467,12 @@ pub struct Connection {
     nd_logon_state: Option<super::nd_signin::LogonState>,
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     nd_signin_gate: super::nd_signin::ConnGate,
+    // Quick support (A271): the helper the server vouched for as this
+    // connection's caller, and whether the server was asked
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    nd_caller: Option<String>,
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    nd_caller_asked: bool,
 }
 
 impl ConnInner {
@@ -671,6 +677,10 @@ impl Connection {
             nd_logon_state: None,
             #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
             nd_signin_gate: Default::default(),
+            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+            nd_caller: None,
+            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+            nd_caller_asked: false,
         };
         let addr = hbb_common::try_into_v4(addr);
         if !conn.on_open(addr).await {
@@ -766,6 +776,13 @@ impl Connection {
                 Some(data) = rx_from_cm.recv() => {
                     match data {
                         ipc::Data::Authorize => {
+                            // In quick support a click lets in only a caller
+                            // the server vouched for (A271)
+                            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+                            if !crate::onboard::click_may_let_in(conn.nd_caller.is_some()) {
+                                log::warn!("Quick support: a click can't let in a caller the server did not vouch for");
+                                continue;
+                            }
                             conn.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
                             conn.require_2fa.take();
                             if !conn.send_logon_response_and_keep_alive().await {
@@ -2372,10 +2389,38 @@ impl Connection {
             && crate::get_builtin_option(keys::OPTION_ONE_WAY_FILE_TRANSFER) != "Y"
     }
 
+    /// Quick support (A271): asks the server once per connection whether it
+    /// vouches for the caller of this connection's relay session, and
+    /// reports whether it did. A connection that did not come through the
+    /// relay has nothing the server could vouch for.
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    async fn nd_ask_for_caller(&mut self) -> bool {
+        if !self.nd_caller_asked {
+            self.nd_caller_asked = true;
+            if let Some(relay_session) = self.nd_relay_uuid.clone() {
+                self.nd_caller =
+                    crate::onboard::vouched_caller(&Config::get_id(), &relay_session).await;
+            }
+        }
+        self.nd_caller.is_some()
+    }
+
     fn try_start_cm(&mut self, peer_id: String, name: String, authorized: bool) {
-        // The quick support window says a request waits for the person (L553)
+        // The connection manager names the caller only when the server
+        // vouched for it, with the server's name for the helper (A271)
+        #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+        let (name, vouched) = match &self.nd_caller {
+            Some(helper) => (helper.clone(), true),
+            None => (name, false),
+        };
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        let vouched = false;
+        // The quick support window says a request waits for the person
+        // (L553), by name only for a caller the server vouched for
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
-        crate::onboard::note_request(self.inner.id(), &name, authorized);
+        if vouched || authorized {
+            crate::onboard::note_request(self.inner.id(), &name, authorized);
+        }
         self.send_to_cm(ipc::Data::Login {
             id: self.inner.id(),
             is_file_transfer: self.file_transfer.is_some(),
@@ -2396,6 +2441,7 @@ impl Connection {
             block_input: self.block_input,
             privacy_mode: self.privacy_mode,
             from_switch: self.from_switch,
+            vouched,
         });
     }
 
@@ -3083,6 +3129,20 @@ impl Connection {
                     {
                         return keep_alive;
                     }
+                }
+                // Quick support: the person may accept by click only a
+                // caller the server vouches for (A271); the caller's own ID
+                // and name prove nothing
+                #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+                if self.nd_ask_for_caller().await {
+                    self.try_start_cm(lr.my_id, lr.my_name, false);
+                    if hbb_common::get_version_number(&lr.version)
+                        >= hbb_common::get_version_number("1.2.0")
+                    {
+                        self.send_login_error(crate::client::LOGIN_MSG_NO_PASSWORD_ACCESS)
+                            .await;
+                    }
+                    return true;
                 }
                 self.try_start_cm(lr.my_id, lr.my_name, false);
             } else {
