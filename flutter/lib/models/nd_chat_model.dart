@@ -30,6 +30,10 @@ const kNdChatMaxText = 4096;
 const kNdChatMaxFiles = 10;
 const kNdChatMaxFileBytes = 50 * 1024 * 1024;
 
+/// The id NdChatFiles.download takes for the helper's profile picture
+/// (GET /api/chat/device/helper/picture) in place of a file id.
+const kNdChatHelperPicture = 'helper-picture';
+
 /// One chat socket of the computer. [frames] carries the server's text
 /// frames and ends when the socket is gone; then [closeStatus] says why:
 /// 0 when it dropped or nobody answered, the HTTP status of a refused
@@ -311,6 +315,11 @@ class NdChatModel extends ChangeNotifier {
   final _reads = <String, String>{};
 
   String? helperName;
+
+  /// The version of the helper's profile picture, null when they have none
+  /// (or the server is older); the picture comes from
+  /// /api/chat/device/helper/picture.
+  String? helperPicture;
   bool helperClosed = false;
   bool helperKnown = false;
 
@@ -556,6 +565,10 @@ class NdChatModel extends ChangeNotifier {
         helperKnown = true;
         final name = v['name'];
         helperName = name is String && name.trim().isNotEmpty ? name : null;
+        final picture = v['picture'];
+        helperPicture = helperName != null && picture is String && picture.isNotEmpty
+            ? picture
+            : null;
         helperClosed = v['state'] == 'closed';
         break;
       case 'error':
