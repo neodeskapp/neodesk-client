@@ -6,7 +6,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/cm/cm_widgets.dart';
-import 'package:flutter_hbb/onboarding/joining_view.dart' show formatNdId;
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
@@ -311,7 +310,9 @@ class ConnectionManagerState extends State<ConnectionManager>
                 padding: const EdgeInsets.only(left: 14),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: NdTitleBrand(title: bind.mainGetAppNameSync()),
+                  child: NdTitleBrand(
+                      title: cmWindowTitle(bind.mainGetAppNameSync(),
+                          quickSupport: bind.mainOnboardIsQuickSupport())),
                 ),
               ),
             ),
@@ -496,7 +497,6 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final c = context.nd;
     final name = client.name.isNotEmpty ? client.name : client.peerId;
     final permissions = _permissions();
     Widget body;
@@ -506,8 +506,8 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
         child: CmRequestBody(
           header: CmHeader(
               name: name,
-              subtitle: formatNdId(client.peerId),
-              mono: true,
+              subtitle: cmPeerLine(client.peerId),
+              mono: cmPeerIsDevice(client.peerId),
               kind: _kind,
               avatar: _avatar()),
           name: name,
@@ -555,18 +555,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
         ),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(child: body),
-        Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-          decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: c.rule))),
-          child: _CmControlPanel(client: client),
-        ),
-      ],
-    );
+    return CmScreen(body: body, foot: _CmControlPanel(client: client));
   }
 }
 
@@ -609,7 +598,7 @@ class _CmControlPanel extends StatelessWidget {
           _row([
             Builder(
               builder: (bctx) => NdButton(
-                label: translate('Audio input'),
+                label: translate('Audio Input'),
                 icon: NdIcons.mic,
                 block: true,
                 onPressed: () => checkClickTime(client.id, () async {

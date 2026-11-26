@@ -86,6 +86,16 @@ void main() {
     expect(state.declined, isFalse);
   });
 
+  test('a connection that waits for the person comes with its name (L553)',
+      () {
+    final waiting = parseOnboardingState(
+        jsonEncode({'phase': 'supportWaiting', 'asking': 'Mara Jensen'}));
+    expect(waiting.asking, 'Mara Jensen');
+    expect(
+        parseOnboardingState(jsonEncode({'phase': 'supportWaiting'})).asking,
+        isNull);
+  });
+
   test('a finished join shows the facts of the invite', () {
     final state = parseOnboardingState(jsonEncode({
       'phase': 'joined',

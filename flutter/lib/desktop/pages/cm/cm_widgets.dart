@@ -4,6 +4,47 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart' show translate;
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_hbb/onboarding/joining_view.dart' show formatNdId;
+
+/// The connection manager's title: in quick support the name the quick
+/// support window has, in the language of the app (L554).
+String cmWindowTitle(String appName, {required bool quickSupport}) =>
+    quickSupport ? tr('nd-qs-window-title') : appName;
+
+/// Whether [peerId] is a NeoDesk ID (digits). The console's web viewer
+/// names itself with an id of its own, which means nothing to the person.
+bool cmPeerIsDevice(String peerId) =>
+    RegExp(r'^\d+$').hasMatch(peerId.replaceAll(' ', ''));
+
+/// The line under the name of someone asking to connect: their ID, or where
+/// they come from when they connect from the web console.
+String cmPeerLine(String peerId) =>
+    cmPeerIsDevice(peerId) ? formatNdId(peerId) : tr('nd-cm-from-console');
+
+/// The window of a request or a session: the body takes the room left, the
+/// buttons stay at the foot whatever the body holds.
+class CmScreen extends StatelessWidget {
+  const CmScreen({super.key, required this.body, required this.foot});
+
+  final Widget body;
+  final Widget foot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: body),
+        Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: context.nd.rule))),
+          child: foot,
+        ),
+      ],
+    );
+  }
+}
 
 class CmPermission {
   const CmPermission({

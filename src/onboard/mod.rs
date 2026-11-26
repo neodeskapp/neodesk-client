@@ -113,6 +113,10 @@ pub struct State {
     pub file_name: Option<String>,
     /// The chat with the supporter in a quick support session, oldest first.
     pub messages: Vec<ChatLine>,
+    /// While the supporter's connection waits for the person to accept in
+    /// the connection manager: the name it gave. The quick support window
+    /// then says so instead of "has not connected yet".
+    pub asking: Option<String>,
     /// What the supporter sent to this computer or took from it in a quick
     /// support session, oldest first.
     pub files: Vec<FileLine>,
@@ -832,6 +836,64 @@ fn send_to_sessions(text: &str) -> bool {
     sent
 }
 
+/// The options quick support sets: the one-time password, which the app
+/// hands to the supporter through the console, and accept by click, so the
+/// connection manager always has Allow for the person (L552). A
+/// connection without the password (the console lost it, or a second
+/// Connect) waits for the person's click.
+pub(crate) fn quick_support_options() -> [(&'static str, &'static str); 3] {
+    [
+        ("verification-method", "use-temporary-password"),
+        ("approve-mode", "both"),
+        ("temporary-password-length", "10"),
+    ]
+}
+
+/// The connections of this process that wait for the person to accept in
+/// the connection manager, oldest first, with the name each gave.
+#[derive(Default)]
+pub(crate) struct Requests(Mutex<Vec<(i32, String)>>);
+
+impl Requests {
+    const fn new() -> Self {
+        Self(Mutex::new(Vec::new()))
+    }
+
+    /// A connection asks (authorized false) or was let in (true).
+    pub(crate) fn note(&self, conn_id: i32, name: &str, authorized: bool) {
+        let mut list = self.0.lock().unwrap();
+        list.retain(|(id, _)| *id != conn_id);
+        if !authorized {
+            list.push((conn_id, name.to_owned()));
+        }
+    }
+
+    /// The connection closed.
+    pub(crate) fn gone(&self, conn_id: i32) {
+        self.0.lock().unwrap().retain(|(id, _)| *id != conn_id);
+    }
+
+    /// The name of the newest connection that still waits.
+    pub(crate) fn newest(&self) -> Option<String> {
+        self.0.lock().unwrap().last().map(|(_, name)| name.clone())
+    }
+}
+
+static REQUESTS: Requests = Requests::new();
+
+/// The connection `conn_id` asks the person (authorized false) or was let
+/// in; the quick support window follows it.
+pub fn note_request(conn_id: i32, name: &str, authorized: bool) {
+    if is_quick_support() {
+        REQUESTS.note(conn_id, name, authorized);
+    }
+}
+
+/// The connection `conn_id` was let in or closed.
+pub fn request_gone(conn_id: i32) {
+    REQUESTS.gone(conn_id);
+}
+
 /// The running app as quick support sees it. The server runs in this
 /// process.
 struct AppHost;
@@ -842,11 +904,11 @@ impl support::SupportHost for AppHost {
     }
 
     fn apply_server(&self, server: &ServerSettings) {
-        // Only the one-time password opens a session, and nobody can ask to
-        // be let in by a click: the person allowed one supporter already.
-        Config::set_option("verification-method".to_owned(), "use-temporary-password".to_owned());
-        Config::set_option("approve-mode".to_owned(), "password".to_owned());
-        Config::set_option("temporary-password-length".to_owned(), "10".to_owned());
+        // The one-time password goes to the supporter; without it the
+        // person accepts by click in the connection manager.
+        for (key, value) in quick_support_options() {
+            Config::set_option(key.to_owned(), value.to_owned());
+        }
         // An earlier session in this config folder stopped the service.
         Config::set_option("stop-service".to_owned(), "".to_owned());
         password_security::update_temporary_password();
@@ -866,6 +928,10 @@ impl support::SupportHost for AppHost {
 
     fn in_session(&self) -> bool {
         !crate::server::AUTHED_CONNS.lock().unwrap().is_empty()
+    }
+
+    fn asking(&self) -> Option<String> {
+        REQUESTS.newest()
     }
 
     fn shut_down(&self) {

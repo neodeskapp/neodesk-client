@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 
 use super::{
     grants::Grants,
-    http::{Http, OnboardError},
+    http::{self, Http, OnboardError},
     join::{redeem_join, DeviceIdentity, ServerSettings},
     link::Console,
     support::{self, Command, SupportHost, Timing},
@@ -441,6 +441,7 @@ struct FakeHost {
     password: Mutex<String>,
     in_session: AtomicBool,
     shut_down: AtomicBool,
+    asking: Mutex<Option<String>>,
 }
 
 impl SupportHost for FakeHost {
@@ -465,6 +466,10 @@ impl SupportHost for FakeHost {
 
     fn in_session(&self) -> bool {
         self.in_session.load(Ordering::SeqCst)
+    }
+
+    fn asking(&self) -> Option<String> {
+        self.asking.lock().unwrap().clone()
     }
 
     fn shut_down(&self) {
@@ -634,6 +639,91 @@ fn quick_support_reports_the_device_waits_for_consent_and_hands_over_the_passwor
     assert_eq!(run.state.get().error, None);
     assert!(run.host.shut_down.load(Ordering::SeqCst));
     assert!(console.fake.requests_to("/api/support/session/end").is_empty());
+}
+
+/// While a connection waits for the person's answer in the connection
+/// manager, the quick support window says so instead of "has not connected
+/// yet" (L553).
+#[test]
+fn quick_support_says_when_a_request_waits_in_the_other_window() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ABCDEF23");
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    run.commands.send(Command::Consent(true, Grants::default())).unwrap();
+    wait_for("waiting", || run.state.get().phase == Phase::SupportWaiting);
+    assert_eq!(run.state.get().asking, None);
+
+    *run.host.asking.lock().unwrap() = Some("Mara Jensen".to_owned());
+    wait_for("asking", || run.state.get().asking.as_deref() == Some("Mara Jensen"));
+    assert_eq!(run.state.get().phase, Phase::SupportWaiting);
+
+    *run.host.asking.lock().unwrap() = None;
+    run.host.in_session.store(true, Ordering::SeqCst);
+    wait_for("in session", || run.state.get().phase == Phase::SupportInSession);
+    assert_eq!(run.state.get().asking, None);
+    run.commands.send(Command::End).unwrap();
+    run.thread.join().unwrap();
+}
+
+/// Quick support lets the person accept a connection by click, so the
+/// consent window always has Accept, and keeps the one-time password for
+/// the supporter the console hands it to (L552).
+#[test]
+fn quick_support_lets_the_person_accept_by_click() {
+    let options = super::quick_support_options();
+    let get = |key: &str| options.iter().find(|(k, _)| *k == key).map(|(_, v)| *v);
+    assert_eq!(get("approve-mode"), Some("both"));
+    assert_eq!(get("verification-method"), Some("use-temporary-password"));
+}
+
+/// The connections that wait for the person to accept: one goes once it is
+/// accepted or closed, and the window names the newest that still waits.
+#[test]
+fn waiting_requests_follow_the_connections() {
+    let requests = super::Requests::default();
+    assert_eq!(requests.newest(), None);
+    requests.note(1, "admin", false);
+    requests.note(2, "Mara Jensen", false);
+    assert_eq!(requests.newest().as_deref(), Some("Mara Jensen"));
+    requests.note(2, "Mara Jensen", true);
+    assert_eq!(requests.newest().as_deref(), Some("admin"));
+    requests.gone(1);
+    assert_eq!(requests.newest(), None);
+}
+
+/// A computer the console refuses for a reason it names (a revoked or
+/// blocked ID, L550) gets the client's own words for it, in the app's
+/// language, and what to do; the server's English words are only the
+/// fallback for a reason the client does not know.
+#[test]
+fn a_refusal_with_a_reason_is_said_in_the_clients_own_words() {
+    let answer = |reason: &str| http::Answer {
+        status: 403,
+        body: json!({"success": false, "error": "device_refused", "reason": reason,
+                     "message": "This computer's ID was revoked on this server."}),
+    };
+    match answer("device_revoked").common_error() {
+        Some(OnboardError::Refused(words)) => {
+            assert!(words.contains("revoked"), "{words}");
+            assert!(words.contains("unblock"), "{words}");
+            assert_ne!(words, "This computer's ID was revoked on this server.");
+        }
+        other => panic!("{other:?}"),
+    }
+    match answer("something_new").common_error() {
+        Some(OnboardError::Refused(words)) => {
+            assert_eq!(words, "This computer's ID was revoked on this server.")
+        }
+        other => panic!("{other:?}"),
+    }
+    for reason in [
+        "device_revoked", "device_blocked", "device_banned", "device_removed",
+        "device_rejected", "other_machine", "key_changed", "join_proof",
+    ] {
+        let de = http::refusal_words_in(reason, "x", "de");
+        assert!(de != "x" && !de.starts_with("nd-"), "{reason}: {de}");
+        assert_ne!(de, http::refusal_words_in(reason, "x", "en"), "{reason}");
+    }
 }
 
 #[test]

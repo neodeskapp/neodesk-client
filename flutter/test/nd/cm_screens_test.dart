@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_hbb/common.dart' show translate;
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/cm/cm_widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,7 +50,97 @@ List<CmPermission> _perms({bool all = false, ValueChanged<bool>? onFirst}) => [
       ],
     ];
 
+/// A request as the window shows it, with every switch: the list scrolls,
+/// the buttons stay at the foot.
+Widget _request() => NdWindowFrame(
+      titleBar: NdTitleBar(
+        brand: NdTitleBrand(
+            title: cmWindowTitle('NeoDesk Quick Support', quickSupport: true)),
+        controls: NdWindowControls(onMinimize: () {}),
+      ),
+      child: CmScreen(
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          child: CmRequestBody(
+            header: CmHeader(
+                name: 'admin', subtitle: cmPeerLine('neodesk-web-mwwuezpy')),
+            name: 'admin',
+            permissions: _perms(all: true),
+          ),
+        ),
+        foot: CmRequestActions(onDecline: () {}, onAllow: () {}),
+      ),
+    );
+
 void main() {
+  // The consent window of the quick support incident (26 Nov): only Decline
+  // was there. Allow and Decline are both in the window at its size, at
+  // 100 to 200 % scaling, with every switch listed (L552)
+  for (final scale in [1.0, 1.25, 1.5, 2.0]) {
+    testWidgets('Allow and Decline stay in view at ${(scale * 100).round()} %',
+        (tester) async {
+      // The window's texts are made before pumpScreen: the language first
+      useLanguage('de');
+      await pumpScreen(tester, _request(), size: _cmSize, lang: 'de');
+      tester.view.devicePixelRatio = scale;
+      tester.view.physicalSize = _cmSize * scale;
+      await tester.pumpAndSettle();
+      for (final label in [tr('nd-allow'), translate('Decline')]) {
+        final button = find.widgetWithText(NdButton, label);
+        expect(button, findsOneWidget, reason: label);
+        final rect = tester.getRect(button);
+        expect(rect.bottom, lessThanOrEqualTo(_cmSize.height), reason: label);
+        expect(rect.right, lessThanOrEqualTo(_cmSize.width), reason: label);
+      }
+    });
+  }
+
+  testWidgets('Enter alone accepts nothing; Tab reaches Decline and Allow',
+      (tester) async {
+    var allowed = 0;
+    var declined = 0;
+    await pumpScreen(
+        tester,
+        CmScreen(
+          body: const SizedBox(),
+          foot: CmRequestActions(
+              onDecline: () => declined++, onAllow: () => allowed++),
+        ),
+        size: _cmSize);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(allowed, 0);
+    final reached = <String>{};
+    for (var i = 0; i < 6; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final focus = FocusManager.instance.primaryFocus?.context;
+      if (focus == null) continue;
+      final button = focus.findAncestorWidgetOfExactType<NdButton>() ??
+          (focus.widget is NdButton ? focus.widget as NdButton : null);
+      if (button != null) reached.add(button.label);
+    }
+    expect(reached, containsAll([translate('Decline'), tr('nd-allow')]));
+    expect(allowed, 0);
+    expect(declined, 0);
+  });
+
+  test('the person sees who asks, never the console viewer\'s own id (L554)',
+      () {
+    useLanguage('en');
+    expect(cmPeerLine('neodesk-web-mwwuezpy'), 'From the NeoDesk web console');
+    expect(cmPeerLine('828416401'), '828 416 401');
+    expect(cmPeerIsDevice('828 416 401'), isTrue);
+    useLanguage('de');
+    expect(cmPeerLine('neodesk-web-mwwuezpy'), 'Über die NeoDesk-Webkonsole');
+    // One name for quick support in each language, the quick support
+    // window's (L554)
+    expect(cmWindowTitle('NeoDesk Quick Support', quickSupport: true),
+        'NeoDesk Schnellhilfe');
+    expect(cmWindowTitle('NeoDesk', quickSupport: false), 'NeoDesk');
+    useLanguage('en');
+  });
+
   forBothThemes('connection manager request', (tester, b) async {
     await pumpScreen(
       tester,

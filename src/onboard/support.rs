@@ -48,6 +48,9 @@ pub trait SupportHost {
     fn password(&self) -> String;
     /// True while a supporter is connected.
     fn in_session(&self) -> bool;
+    /// The name of a connection that waits for the person to accept in the
+    /// connection manager.
+    fn asking(&self) -> Option<String>;
     /// Ends local access: disconnects the supporter, changes the password and
     /// stops taking connections.
     fn shut_down(&self);
@@ -363,12 +366,15 @@ pub fn run(
                 }
             }
         }
-        let phase = if host.in_session() {
-            Phase::SupportInSession
+        let (phase, asking) = if host.in_session() {
+            (Phase::SupportInSession, None)
         } else {
-            Phase::SupportWaiting
+            (Phase::SupportWaiting, host.asking())
         };
-        state.update(|s| s.phase = phase);
+        state.update(|s| {
+            s.phase = phase;
+            s.asking = asking;
+        });
         match commands.recv_timeout(timing.tick) {
             Ok(Command::End) | Err(RecvTimeoutError::Disconnected) => {
                 stop(host, state);

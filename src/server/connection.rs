@@ -2373,6 +2373,9 @@ impl Connection {
     }
 
     fn try_start_cm(&mut self, peer_id: String, name: String, authorized: bool) {
+        // The quick support window says a request waits for the person (L553)
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::onboard::note_request(self.inner.id(), &name, authorized);
         self.send_to_cm(ipc::Data::Login {
             id: self.inner.id(),
             is_file_transfer: self.file_transfer.is_some(),
@@ -6695,6 +6698,8 @@ impl Default for PortableState {
 impl Drop for Connection {
     fn drop(&mut self) {
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::onboard::request_gone(self.inner.id());
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         self.release_pressed_modifiers();
 
         if let Some(s) = self.terminal_generic_service.as_ref() {
@@ -6856,6 +6861,8 @@ mod raii {
             let printer = conn_type == crate::server::AuthConnType::Remote
                 && crate::is_support_remote_print(&lr.version)
                 && lr.my_platform == hbb_common::whoami::Platform::Windows.to_string();
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            crate::onboard::request_gone(conn_id);
             AUTHED_CONNS.lock().unwrap().push(AuthedConn {
                 conn_id,
                 conn_type,

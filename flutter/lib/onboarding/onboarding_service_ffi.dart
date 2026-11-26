@@ -159,6 +159,7 @@ OnboardingState parseOnboardingState(String json) {
     messages: _messagesOf(map['messages']),
     files: _filesOf(map['files']),
     filesOpen: map['filesOpen'] == true,
+    asking: _text(map['asking']),
   );
 }
 
@@ -178,6 +179,7 @@ bool _sameState(OnboardingState a, OnboardingState b) =>
     a.fileName == b.fileName &&
     a.declined == b.declined &&
     a.filesOpen == b.filesOpen &&
+    a.asking == b.asking &&
     listEquals(a.files, b.files) &&
     _sameMessages(a.messages, b.messages);
 

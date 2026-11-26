@@ -155,6 +155,7 @@ class OnboardingState {
     this.messages = const [],
     this.files = const [],
     this.filesOpen = false,
+    this.asking,
   });
 
   final OnboardingPhase phase;
@@ -211,6 +212,10 @@ class OnboardingState {
   /// True while the supporter has this computer's files open.
   final bool filesOpen;
 
+  /// While a connection waits for the person to accept in the connection
+  /// manager: the name it gave (supportWaiting).
+  final String? asking;
+
   OnboardingState copyWith({
     OnboardingPhase? phase,
     String? server,
@@ -233,6 +238,7 @@ class OnboardingState {
     List<OnboardingChatMessage>? messages,
     List<OnboardingFileLine>? files,
     bool? filesOpen,
+    String? asking,
   }) =>
       OnboardingState(
         phase: phase ?? this.phase,
@@ -255,6 +261,7 @@ class OnboardingState {
         messages: messages ?? this.messages,
         files: files ?? this.files,
         filesOpen: filesOpen ?? this.filesOpen,
+        asking: asking ?? this.asking,
       );
 
   /// The supporter's first name for the short lines; the full name when the
