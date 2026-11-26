@@ -1,1 +1,3 @@
 * text=auto
+# Published release files, checked byte for byte by the updater tests.
+src/updater/release_tests/* -text

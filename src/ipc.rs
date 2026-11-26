@@ -1173,12 +1173,14 @@ async fn handle(data: Data, stream: &mut Connection) {
                 let v = Config::get_options_for_other_process();
                 allow_err!(stream.send(&Data::Options(Some(v))).await);
             }
-            Some(value) => {
+            Some(mut value) => {
                 let _chk = CheckIfRestart::new();
                 let _nat = CheckTestNatType::new();
                 if let Some(v) = value.get("privacy-mode-impl-key") {
                     crate::privacy_mode::switch(v);
                 }
+                // What the server's strategy manages stays the server's (A267)
+                crate::hbbs_http::sync::keep_server_managed(&mut value, &Config::get_options());
                 Config::set_options_from_other_process(value);
                 allow_err!(stream.send(&Data::Options(None)).await);
             }
