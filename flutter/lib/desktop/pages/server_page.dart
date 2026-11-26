@@ -6,7 +6,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/cm/cm_widgets.dart';
-import 'package:flutter_hbb/onboarding/joining_view.dart' show formatNdId;
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
@@ -312,7 +311,9 @@ class ConnectionManagerState extends State<ConnectionManager>
                 padding: const EdgeInsets.only(left: 14),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: NdTitleBrand(title: bind.mainGetAppNameSync()),
+                  child: NdTitleBrand(
+                      title: cmWindowTitle(bind.mainGetAppNameSync(),
+                          quickSupport: bind.mainOnboardIsQuickSupport())),
                 ),
               ),
             ),
@@ -493,8 +494,20 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
     ];
   }
 
-  Widget _avatar() {
-    final name = client.name.isNotEmpty ? client.name : client.peerId;
+  /// Who asks, as the window names them: the helper the server vouched
+  /// for, or a caller nobody confirmed (A271).
+  CmCaller _caller(BuildContext context) => cmCaller(
+      name: client.name,
+      peerId: client.peerId,
+      vouched: client.vouched,
+      quickSupport: bind.mainOnboardIsQuickSupport(),
+      offersAllow: cmOffersAllow(Provider.of<ServerModel>(context).approveMode,
+          vouched: client.vouched));
+
+  Widget _avatar(String name, {bool own = true}) {
+    // The picture a caller sends is its own claim: only for a caller shown
+    // by its name
+    if (!own) return NdAvatar(name: name, size: 48);
     return buildAvatarWidget(
           avatar: client.avatar,
           size: 48,
@@ -507,21 +520,24 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final c = context.nd;
-    final name = client.name.isNotEmpty ? client.name : client.peerId;
+    var name = client.name.isNotEmpty ? client.name : client.peerId;
     final permissions = _permissions();
     Widget body;
     if (!client.authorized) {
+      final caller = _caller(context);
+      final own = !caller.unknown;
+      name = caller.name;
       body = SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
         child: CmRequestBody(
           focusOnArrival: true,
           header: CmHeader(
               name: name,
-              subtitle: formatNdId(client.peerId),
-              mono: true,
+              subtitle: caller.line,
+              mono: caller.lineIsId,
               kind: _kind,
-              avatar: _avatar()),
+              avatar: _avatar(name, own: own)),
+          warning: caller.warning,
           name: name,
           permissions: permissions,
         ),
@@ -538,7 +554,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
                     ? translate('Disconnected')
                     : cmConnectedFor(Duration(seconds: _seconds.value)),
                 kind: _kind,
-                avatar: _avatar())),
+                avatar: _avatar(name))),
             const SizedBox(height: 16),
             if (!client.disconnected &&
                 (client.type_() == ClientType.remote ||
@@ -567,18 +583,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
         ),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(child: body),
-        Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-          decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: c.rule))),
-          child: _CmControlPanel(client: client),
-        ),
-      ],
-    );
+    return CmScreen(body: body, foot: _CmControlPanel(client: client));
   }
 }
 
@@ -621,7 +626,7 @@ class _CmControlPanel extends StatelessWidget {
           _row([
             Builder(
               builder: (bctx) => NdButton(
-                label: translate('Audio input'),
+                label: translate('Audio Input'),
                 icon: NdIcons.mic,
                 block: true,
                 onPressed: () => checkClickTime(client.id, () async {
@@ -750,7 +755,9 @@ class _CmControlPanel extends StatelessWidget {
     final showElevation = canElevate &&
         model.showElevation &&
         client.type_() == ClientType.remote;
-    final showAccept = model.approveMode != 'password';
+    // In quick support only a caller the server vouched for (A271)
+    final showAccept =
+        cmOffersAllow(model.approveMode, vouched: client.vouched);
     return CmRequestActions(
       onDecline: () => checkClickTime(client.id, handleDisconnect),
       onAllow: showAccept

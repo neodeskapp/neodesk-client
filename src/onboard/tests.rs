@@ -14,8 +14,9 @@ use std::{
 use serde_json::{json, Value};
 
 use super::{
+    caller,
     grants::Grants,
-    http::{Http, OnboardError},
+    http::{self, Http, OnboardError},
     join::{redeem_join, DeviceIdentity, ServerSettings},
     link::Console,
     support::{self, Command, SupportHost, Timing},
@@ -441,6 +442,10 @@ struct FakeHost {
     password: Mutex<String>,
     in_session: AtomicBool,
     shut_down: AtomicBool,
+    asking: Mutex<Option<String>>,
+    /// The caller channel as the run set it last, and every change
+    channel: Mutex<Option<caller::Channel>>,
+    channel_changes: Mutex<Vec<bool>>,
 }
 
 impl SupportHost for FakeHost {
@@ -465,6 +470,15 @@ impl SupportHost for FakeHost {
 
     fn in_session(&self) -> bool {
         self.in_session.load(Ordering::SeqCst)
+    }
+
+    fn asking(&self) -> Option<String> {
+        self.asking.lock().unwrap().clone()
+    }
+
+    fn caller_channel(&self, channel: Option<caller::Channel>) {
+        self.channel_changes.lock().unwrap().push(channel.is_some());
+        *self.channel.lock().unwrap() = channel;
     }
 
     fn shut_down(&self) {
@@ -634,6 +648,261 @@ fn quick_support_reports_the_device_waits_for_consent_and_hands_over_the_passwor
     assert_eq!(run.state.get().error, None);
     assert!(run.host.shut_down.load(Ordering::SeqCst));
     assert!(console.fake.requests_to("/api/support/session/end").is_empty());
+}
+
+/// While a connection waits for the person's answer in the connection
+/// manager, the quick support window says so instead of "has not connected
+/// yet" (L553).
+#[test]
+fn quick_support_says_when_a_request_waits_in_the_other_window() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ABCDEF23");
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    run.commands.send(Command::Consent(true, Grants::default())).unwrap();
+    wait_for("waiting", || run.state.get().phase == Phase::SupportWaiting);
+    assert_eq!(run.state.get().asking, None);
+
+    *run.host.asking.lock().unwrap() = Some("Mara Jensen".to_owned());
+    wait_for("asking", || run.state.get().asking.as_deref() == Some("Mara Jensen"));
+    assert_eq!(run.state.get().phase, Phase::SupportWaiting);
+
+    *run.host.asking.lock().unwrap() = None;
+    run.host.in_session.store(true, Ordering::SeqCst);
+    wait_for("in session", || run.state.get().phase == Phase::SupportInSession);
+    assert_eq!(run.state.get().asking, None);
+    run.commands.send(Command::End).unwrap();
+    run.thread.join().unwrap();
+}
+
+/// Quick support opens a session with the one-time password only; the
+/// approve mode never lets a caller in by click. Only a connection the
+/// server vouches for gets Allow (A271), which the connection decides.
+#[test]
+fn quick_support_takes_only_the_password_unless_the_server_vouches() {
+    let options = super::quick_support_options();
+    let get = |key: &str| options.iter().find(|(k, _)| *k == key).map(|(_, v)| *v);
+    assert_eq!(get("approve-mode"), Some("password"));
+    assert_eq!(get("verification-method"), Some("use-temporary-password"));
+    // In quick support Allow lets in only a vouched connection; elsewhere
+    // the approve mode decides as before
+    assert!(!caller::click_may_let_in(true, false));
+    assert!(caller::click_may_let_in(true, true));
+    assert!(caller::click_may_let_in(false, false));
+}
+
+/// An answer of the caller check, as the console sends it.
+fn caller_answer(status: u16, body: Value) -> http::Answer {
+    http::Answer { status, body }
+}
+
+fn vouched(device_id: &str, session: &str, helper: &str) -> Value {
+    json!({"success": true, "vouched": true, "device_id": device_id, "session": session, "helper": helper})
+}
+
+/// The server's answer vouches for a caller only when it names this device,
+/// the relay session the connection came through and a helper (A271). A
+/// forged answer, one for another device or another connection, a refusal
+/// (a replayed or a too old relay session) and an old server's 404 vouch
+/// for nobody.
+#[test]
+fn the_caller_check_believes_only_an_answer_for_this_connection() {
+    let (me, relay) = ("123456789", "6f1c2a9e-relay");
+    // The good case: the helper's name comes from the server
+    assert_eq!(
+        caller::vouched_helper(&caller_answer(200, vouched(me, relay, "Olga Operator")), me, relay).as_deref(),
+        Some("Olga Operator")
+    );
+    for (why, answer) in [
+        ("another device", caller_answer(200, vouched("987654321", relay, "Olga Operator"))),
+        ("another relay session", caller_answer(200, vouched(me, "other-relay", "Olga Operator"))),
+        ("no helper", caller_answer(200, vouched(me, relay, "  "))),
+        (
+            "not vouched",
+            caller_answer(200, json!({"success": true, "vouched": false, "device_id": me, "session": relay, "helper": "x"})),
+        ),
+        ("vouched as text", caller_answer(200, json!({"success": true, "vouched": "true", "device_id": me, "session": relay, "helper": "x"}))),
+        ("a replayed relay session", caller_answer(409, json!({"success": false, "error": "not_vouched", "reason": "already_used"}))),
+        ("a relay session over a minute old", caller_answer(409, json!({"success": false, "error": "not_vouched", "reason": "too_late"}))),
+        ("a server without the route", caller_answer(404, Value::Null)),
+        ("a 200 that is no JSON", caller_answer(200, Value::Null)),
+        ("a 201 with a good body", caller_answer(201, vouched(me, relay, "Olga Operator"))),
+    ] {
+        assert_eq!(caller::vouched_helper(&answer, me, relay), None, "{why}");
+    }
+    // A connection that names no relay session or a device without an ID
+    assert_eq!(caller::vouched_helper(&caller_answer(200, vouched(me, "", "x")), me, ""), None);
+    assert_eq!(caller::vouched_helper(&caller_answer(200, vouched("", relay, "x")), "", relay), None);
+    // The name is shown as text: no control characters, at most 128 of them
+    let long = format!("Olga\u{7}\nOperator{}", "x".repeat(300));
+    let shown = caller::vouched_helper(&caller_answer(200, vouched(me, relay, &long)), me, relay).unwrap();
+    assert!(shown.starts_with("OlgaOperator"), "{shown}");
+    assert_eq!(shown.chars().count(), 128);
+}
+
+/// The check goes to the console's route with the session token and the
+/// relay session, and takes the helper from the answer. A console that does
+/// not know the route, or does not answer in time, vouches for nobody.
+#[test]
+fn the_caller_check_asks_the_console_with_the_session_token() {
+    let (me, relay) = ("123456789", "6f1c2a9e-relay");
+    let good = FakeConsole::start(move |request| {
+        if request.path == caller::PATH && request.bearer() == Some("tok") && request.body["session"] == relay {
+            (200, vouched(me, relay, "Olga Operator"))
+        } else {
+            (409, json!({"success": false, "error": "not_vouched", "reason": "session_not_open"}))
+        }
+    });
+    let channel = |console: &FakeConsole, token: &str| caller::Channel {
+        console: console.console(),
+        token: token.to_owned(),
+    };
+    let wait = Duration::from_secs(5);
+    assert_eq!(
+        block_on(caller::ask(&channel(&good, "tok"), me, relay, wait)).as_deref(),
+        Some("Olga Operator")
+    );
+    let sent = good.requests_to(caller::PATH);
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].method, "POST");
+    assert_eq!(sent[0].body, json!({"session": relay}));
+    // Another token or another relay session: not vouched
+    assert_eq!(block_on(caller::ask(&channel(&good, "other"), me, relay, wait)), None);
+    assert_eq!(block_on(caller::ask(&channel(&good, "tok"), me, "forged", wait)), None);
+
+    let old = FakeConsole::start(|_| (404, Value::Null));
+    assert_eq!(block_on(caller::ask(&channel(&old, "tok"), me, relay, wait)), None);
+
+    let slow = FakeConsole::start(move |_| {
+        std::thread::sleep(Duration::from_millis(1500));
+        (200, vouched(me, relay, "Olga Operator"))
+    });
+    let start = Instant::now();
+    assert_eq!(block_on(caller::ask(&channel(&slow, "tok"), me, relay, Duration::from_millis(300))), None);
+    assert!(start.elapsed() < Duration::from_millis(1200), "{:?}", start.elapsed());
+}
+
+/// A console on plain HTTP is never asked about a caller (A273): the
+/// connection needs the password, and the console hears nothing.
+#[test]
+fn the_caller_check_never_asks_a_console_on_plain_http() {
+    let (me, relay) = ("123456789", "6f1c2a9e-relay");
+    let console = FakeConsole::start(move |_| (200, vouched(me, relay, "Olga Operator")));
+    let plain = caller::Channel {
+        console: console.console(),
+        token: "tok".to_owned(),
+    };
+    assert!(!caller::may_ask(&plain));
+    assert!(caller::may_ask(&caller::Channel {
+        console: Console {
+            https: true,
+            ..console.console()
+        },
+        token: "tok".to_owned(),
+    }));
+    caller::open(plain);
+    assert_eq!(block_on(caller::vouched_caller(me, relay)), None);
+    caller::close();
+    assert!(console.requests_to(caller::PATH).is_empty());
+}
+
+/// The run lets connections ask about their caller only after the person
+/// allowed quick support, with the session's console and token, and takes
+/// that away once the session is over here.
+#[test]
+fn quick_support_opens_the_caller_check_only_after_allow() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ABCDEF23");
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(*run.host.channel.lock().unwrap(), None);
+    assert!(run.host.channel_changes.lock().unwrap().is_empty());
+
+    run.commands.send(Command::Consent(true, Grants::default())).unwrap();
+    wait_for("waiting", || run.state.get().phase == Phase::SupportWaiting);
+    wait_for("channel", || run.host.channel.lock().unwrap().is_some());
+    let channel = run.host.channel.lock().unwrap().clone().unwrap();
+    assert_eq!(channel.token, "tok");
+    assert_eq!(channel.console, console.fake.console());
+
+    run.commands.send(Command::End).unwrap();
+    run.thread.join().unwrap();
+    assert_eq!(*run.host.channel.lock().unwrap(), None);
+    assert_eq!(*run.host.channel_changes.lock().unwrap(), vec![true, false]);
+}
+
+/// A declined session never lets a connection ask.
+#[test]
+fn a_declined_quick_support_never_opens_the_caller_check() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ABCDEF23");
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    run.commands.send(Command::Consent(false, Grants::default())).unwrap();
+    run.thread.join().unwrap();
+    assert!(run.host.channel_changes.lock().unwrap().is_empty());
+}
+
+/// The connections that wait for the person to accept: one goes once it is
+/// accepted or closed, and the window names the newest that still waits.
+#[test]
+fn waiting_requests_follow_the_connections() {
+    let requests = super::Requests::default();
+    assert_eq!(requests.newest(), None);
+    requests.note(1, "admin", false);
+    requests.note(2, "Mara Jensen", false);
+    assert_eq!(requests.newest().as_deref(), Some("Mara Jensen"));
+    requests.note(2, "Mara Jensen", true);
+    assert_eq!(requests.newest().as_deref(), Some("admin"));
+    requests.gone(1);
+    assert_eq!(requests.newest(), None);
+}
+
+/// A computer the console refuses for a reason it names (a revoked or
+/// blocked ID, L550) gets the client's own words for it, in the app's
+/// language, and what to do; the server's English words are only the
+/// fallback for a reason the client does not know.
+#[test]
+fn a_refusal_with_a_reason_is_said_in_the_clients_own_words() {
+    let answer = |reason: &str| http::Answer {
+        status: 403,
+        body: json!({"success": false, "error": "device_refused", "reason": reason,
+                     "message": "This computer's ID was revoked on this server."}),
+    };
+    match answer("device_revoked").common_error() {
+        Some(OnboardError::Refused(words)) => {
+            assert!(words.contains("revoked"), "{words}");
+            assert!(words.contains("unblock"), "{words}");
+            assert_ne!(words, "This computer's ID was revoked on this server.");
+        }
+        other => panic!("{other:?}"),
+    }
+    match answer("something_new").common_error() {
+        Some(OnboardError::Refused(words)) => {
+            assert_eq!(words, "This computer's ID was revoked on this server.")
+        }
+        other => panic!("{other:?}"),
+    }
+    for reason in [
+        "device_revoked", "device_blocked", "device_banned", "device_removed",
+        "device_rejected", "other_machine", "key_changed", "join_proof",
+    ] {
+        let de = http::refusal_words_in(reason, "x", "de");
+        assert!(de != "x" && !de.starts_with("nd-"), "{reason}: {de}");
+        assert_ne!(de, http::refusal_words_in(reason, "x", "en"), "{reason}");
+    }
+}
+
+/// A computer refused for its join proof gets both ways out the server's
+/// own text names: update NeoDesk, or have the old device deleted. The
+/// join screen's next line ("When your administrator has done that, try
+/// the same invite again") needs the second.
+#[test]
+fn a_refused_join_proof_names_the_administrator_too() {
+    let en = http::refusal_words_in("join_proof", "x", "en");
+    assert!(en.contains("Update NeoDesk"), "{en}");
+    assert!(en.contains("delete the old device"), "{en}");
+    let de = http::refusal_words_in("join_proof", "x", "de");
+    assert!(de.contains("Aktualisiere NeoDesk"), "{de}");
+    assert!(de.contains("das alte Gerät zu löschen"), "{de}");
 }
 
 #[test]

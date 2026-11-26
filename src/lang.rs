@@ -384,6 +384,40 @@ mod test {
         );
     }
 
+    /// Every text the quick support app and the connection manager show has
+    /// a German entry: a missing one falls back to English in a German
+    /// window (L554).
+    #[test]
+    fn test_quick_support_and_consent_window_are_german() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("flutter/lib");
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(root.join("onboarding"))
+            .unwrap()
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map_or(false, |n| n.starts_with("quick_support") && n.ends_with(".dart"))
+            })
+            .collect();
+        files.push(root.join("desktop/pages/cm/cm_widgets.dart"));
+        files.push(root.join("desktop/pages/server_page.dart"));
+        let call = super::Regex::new(r"\b(?:tr|translate)\(\s*'((?:[^'\\]|\\.)*)'").unwrap();
+        let german: std::collections::HashSet<&str> = super::de::T.iter().map(|(k, _)| *k).collect();
+        let mut missing: Vec<String> = Vec::new();
+        for file in &files {
+            let text = std::fs::read_to_string(file).unwrap();
+            for c in call.captures_iter(&text) {
+                let key = c[1].to_owned();
+                if !german.contains(key.as_str()) && !missing.contains(&key) {
+                    missing.push(key);
+                }
+            }
+        }
+        assert!(files.len() >= 4, "{files:?}");
+        missing.sort();
+        assert!(missing.is_empty(), "no German text for: {missing:?}");
+    }
+
     /// The labels for the other side's things ("their cursor", "lock their
     /// computer", "let them control this computer") name the other computer
     /// or the person at it in German, instead of a "their" that reads as

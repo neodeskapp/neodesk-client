@@ -192,6 +192,22 @@ class _QuickSupportViewState extends State<QuickSupportView> {
           break;
         case OnboardingPhase.supportWaiting:
         case OnboardingPhase.supportInSession:
+          if (s.phase == OnboardingPhase.supportWaiting &&
+              (s.asking ?? '').isNotEmpty) {
+            // The supporter's connection waits for the person in the other
+            // window (the connection manager): send them there (L553)
+            body.addAll([
+              Text(tr('nd-qs-asking-title', [s.asking]), style: title),
+              const SizedBox(height: 16),
+              Text(tr('nd-qs-asking-line'), style: lead),
+            ]);
+            secondary = NdButton(
+                label: translate('Cancel'),
+                size: NdButtonSize.lg,
+                block: true,
+                onPressed: widget.onCancel);
+            break;
+          }
           body.addAll([
             Text(tr('nd-qs-waiting-title', [short]), style: title),
             const SizedBox(height: 16),
@@ -218,7 +234,16 @@ class _QuickSupportViewState extends State<QuickSupportView> {
               onPressed: widget.onCancel);
           break;
         case OnboardingPhase.supportEnded:
-          if (s.declined) {
+          if (s.errorKind == OnboardingError.refused &&
+              (s.reason ?? '').trim().isNotEmpty) {
+            // The server refused this computer: its reason in the app's
+            // words, with what to do (L550)
+            body.addAll([
+              Text(tr('nd-qs-refused-title'), style: title),
+              const SizedBox(height: 16),
+              Text(s.reason!.trim(), style: lead),
+            ]);
+          } else if (s.declined) {
             body.addAll([
               Text(tr('nd-qs-ended-title'), style: title),
               const SizedBox(height: 16),

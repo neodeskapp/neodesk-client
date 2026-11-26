@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_hbb/common.dart' show translate;
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/cm/cm_widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,7 +50,205 @@ List<CmPermission> _perms({bool all = false, ValueChanged<bool>? onFirst}) => [
       ],
     ];
 
+/// A quick support caller as the window names it (A271).
+CmCaller _qsCaller({required bool vouched}) => cmCaller(
+    name: 'Olga Operator',
+    peerId: 'neodesk-web-mwwuezpy',
+    vouched: vouched,
+    quickSupport: true,
+    offersAllow: cmOffersAllow('password', vouched: vouched));
+
+/// A request as the window shows it, with every switch: the list scrolls,
+/// the buttons stay at the foot.
+Widget _request({bool vouched = true}) {
+  final caller = _qsCaller(vouched: vouched);
+  return NdWindowFrame(
+    titleBar: NdTitleBar(
+      brand: NdTitleBrand(
+          title: cmWindowTitle('NeoDesk Quick Support', quickSupport: true)),
+      controls: NdWindowControls(onMinimize: () {}),
+    ),
+    child: CmScreen(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+        child: CmRequestBody(
+          header: CmHeader(name: caller.name, subtitle: caller.line),
+          warning: caller.warning,
+          name: caller.name,
+          permissions: _perms(all: true),
+        ),
+      ),
+      foot: CmRequestActions(
+          onDecline: () {},
+          onAllow: cmOffersAllow('password', vouched: vouched) ? () {} : null),
+    ),
+  );
+}
+
 void main() {
+  // The consent window of the quick support incident (26 Nov): only Decline
+  // was there. Allow and Decline are both in the window at its size, at
+  // 100 to 200 % scaling, with every switch listed (L552)
+  for (final scale in [1.0, 1.25, 1.5, 2.0]) {
+    testWidgets('Allow and Decline stay in view at ${(scale * 100).round()} %',
+        (tester) async {
+      // The window's texts are made before pumpScreen: the language first
+      useLanguage('de');
+      await pumpScreen(tester, _request(), size: _cmSize, lang: 'de');
+      tester.view.devicePixelRatio = scale;
+      tester.view.physicalSize = _cmSize * scale;
+      await tester.pumpAndSettle();
+      for (final label in [tr('nd-allow'), translate('Decline')]) {
+        final button = find.widgetWithText(NdButton, label);
+        expect(button, findsOneWidget, reason: label);
+        final rect = tester.getRect(button);
+        expect(rect.bottom, lessThanOrEqualTo(_cmSize.height), reason: label);
+        expect(rect.right, lessThanOrEqualTo(_cmSize.width), reason: label);
+      }
+    });
+  }
+
+  testWidgets('Enter alone accepts nothing; Tab reaches Decline and Allow',
+      (tester) async {
+    var allowed = 0;
+    var declined = 0;
+    await pumpScreen(
+        tester,
+        CmScreen(
+          body: const SizedBox(),
+          foot: CmRequestActions(
+              onDecline: () => declined++, onAllow: () => allowed++),
+        ),
+        size: _cmSize);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(allowed, 0);
+    final reached = <String>{};
+    for (var i = 0; i < 6; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final focus = FocusManager.instance.primaryFocus?.context;
+      if (focus == null) continue;
+      final button = focus.findAncestorWidgetOfExactType<NdButton>() ??
+          (focus.widget is NdButton ? focus.widget as NdButton : null);
+      if (button != null) reached.add(button.label);
+    }
+    expect(reached, containsAll([translate('Decline'), tr('nd-allow')]));
+    expect(allowed, 0);
+    expect(declined, 0);
+  });
+
+  // A271: the window names the caller only when the server vouched for it.
+  // The console viewer's own peer ID and name are claims any caller can
+  // make, so they never say "From the NeoDesk web console"
+  test('a vouched helper is named, with where they come from', () {
+    useLanguage('en');
+    final helper = _qsCaller(vouched: true);
+    expect(helper.name, 'Olga Operator');
+    expect(helper.line, 'From the NeoDesk web console');
+    expect(helper.warning, isNull);
+    expect(helper.unknown, isFalse);
+    expect(cmOffersAllow('password', vouched: true), isTrue);
+    useLanguage('de');
+    expect(_qsCaller(vouched: true).line, 'Über die NeoDesk-Webkonsole');
+    // One name for quick support in each language, the quick support
+    // window's (L554)
+    expect(cmWindowTitle('NeoDesk Quick Support', quickSupport: true),
+        'NeoDesk Schnellhilfe');
+    expect(cmWindowTitle('NeoDesk', quickSupport: false), 'NeoDesk');
+    useLanguage('en');
+  });
+
+  test('a caller nobody vouched for is unknown and gets no Allow in quick support',
+      () {
+    useLanguage('en');
+    // Claims to be the web console (its peer ID and name): unknown
+    final forged = _qsCaller(vouched: false);
+    expect(forged.name, 'Someone unknown');
+    expect(forged.line, 'The server did not confirm who this is');
+    expect(forged.unknown, isTrue);
+    expect(cmOffersAllow('password', vouched: false), isFalse);
+    expect(forged.warning,
+        "Only someone with the one-time password can connect. Decline if you don't expect this.");
+    // A NeoDesk ID in quick support is a claim too
+    final desktop = cmCaller(
+        name: 'Olga Operator',
+        peerId: '828416401',
+        vouched: false,
+        quickSupport: true,
+        offersAllow: false);
+    expect(desktop.name, 'Someone unknown');
+    expect(desktop.line, isNot('828 416 401'));
+    // Vouched without a name names nobody
+    expect(
+        cmCaller(
+                name: ' ',
+                peerId: 'neodesk-web-x',
+                vouched: true,
+                quickSupport: true,
+                offersAllow: true)
+            .name,
+        'Someone unknown');
+    useLanguage('de');
+    expect(_qsCaller(vouched: false).name, 'Jemand Unbekanntes');
+    expect(_qsCaller(vouched: false).line,
+        'Der Server hat nicht bestätigt, wer das ist');
+    useLanguage('en');
+  });
+
+  test('outside quick support a caller nobody vouched for gets a warning before Allow',
+      () {
+    useLanguage('en');
+    expect(cmOffersAllow('click', vouched: false), isTrue);
+    CmCaller desktop() => cmCaller(
+        name: 'Mara',
+        peerId: '828416401',
+        vouched: false,
+        quickSupport: false,
+        offersAllow: true);
+    expect(desktop().name, 'Mara');
+    expect(desktop().line, '828 416 401');
+    expect(desktop().lineIsId, isTrue);
+    expect(desktop().warning,
+        "NeoDesk can't confirm who is asking. Allow only if you expect this connection.");
+    final web = cmCaller(
+        name: 'admin',
+        peerId: 'neodesk-web-mwwuezpy',
+        vouched: false,
+        quickSupport: false,
+        offersAllow: true);
+    expect(web.name, 'Someone unknown');
+    expect(web.line, isNot('From the NeoDesk web console'));
+    expect(web.warning, isNotNull);
+    useLanguage('de');
+    expect(desktop().warning,
+        'NeoDesk kann nicht bestätigen, wer fragt. Erlaube es nur, wenn du diese Verbindung erwartest.');
+    useLanguage('en');
+  });
+
+  testWidgets('an unknown caller in quick support sees Decline only and the warning',
+      (tester) async {
+    useLanguage('en');
+    await pumpScreen(tester, _request(vouched: false), size: _cmSize);
+    expect(find.text('Someone unknown'), findsOneWidget);
+    expect(find.text('From the NeoDesk web console'), findsNothing);
+    expect(find.textContaining('Olga'), findsNothing);
+    expect(find.widgetWithText(NdButton, translate('Decline')), findsOneWidget);
+    expect(find.widgetWithText(NdButton, tr('nd-allow')), findsNothing);
+    expect(find.widgetWithText(NdNotice, tr('nd-cm-password-only')),
+        findsOneWidget);
+  });
+
+  testWidgets('a vouched helper in quick support gets Allow and no warning',
+      (tester) async {
+    useLanguage('en');
+    await pumpScreen(tester, _request(), size: _cmSize);
+    expect(find.text('Olga Operator'), findsOneWidget);
+    expect(find.text('From the NeoDesk web console'), findsOneWidget);
+    expect(find.widgetWithText(NdButton, tr('nd-allow')), findsOneWidget);
+    expect(find.byType(NdNotice), findsNothing);
+  });
+
   forBothThemes('connection manager request', (tester, b) async {
     await pumpScreen(
       tester,

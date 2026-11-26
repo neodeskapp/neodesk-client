@@ -2819,7 +2819,10 @@ int versionCmp(String v1, String v2) {
 }
 
 String getWindowName({WindowType? overrideType}) {
-  final name = bind.mainGetAppNameSync();
+  // A quick support process has its own name, in the language of the app
+  final name = bind.mainOnboardIsQuickSupport()
+      ? translate('nd-qs-window-title')
+      : bind.mainGetAppNameSync();
   switch (overrideType ?? kWindowType) {
     case WindowType.Main:
       return name;

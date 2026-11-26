@@ -20,6 +20,7 @@ use hbb_common::{log, tokio};
 use serde_json::{json, Value};
 
 use super::{
+    caller,
     grants::Grants,
     http::{Answer, Http, OnboardError},
     join::{DeviceIdentity, ServerSettings},
@@ -48,6 +49,13 @@ pub trait SupportHost {
     fn password(&self) -> String;
     /// True while a supporter is connected.
     fn in_session(&self) -> bool;
+    /// The name of a connection that waits for the person to accept in the
+    /// connection manager.
+    fn asking(&self) -> Option<String>;
+    /// Where connections ask whether the server vouches for their caller
+    /// (A271): set after the person allowed quick support, None once the
+    /// session is over here.
+    fn caller_channel(&self, channel: Option<caller::Channel>);
     /// Ends local access: disconnects the supporter, changes the password and
     /// stops taking connections.
     fn shut_down(&self);
@@ -224,6 +232,15 @@ impl<'a> Session<'a> {
     }
 }
 
+/// Closes the caller channel when the session's run ends, however it ends.
+struct ClosesChannel<'a>(&'a dyn SupportHost);
+
+impl Drop for ClosesChannel<'_> {
+    fn drop(&mut self) {
+        self.0.caller_channel(None);
+    }
+}
+
 /// Runs one quick support session from the code to its end. Blocks; call it
 /// on a thread of its own, outside any async runtime.
 pub fn run(
@@ -254,7 +271,7 @@ pub fn run(
         log::warn!("Quick support stopped: {}", err.code());
         state.update(|s| s.fail(err));
     };
-    let http = match runtime.block_on(Http::new(console)) {
+    let http = match runtime.block_on(Http::new(console.clone())) {
         Ok(http) => http,
         Err(err) => return fail(&err),
     };
@@ -337,6 +354,13 @@ pub fn run(
     }
     log::info!("Quick support allowed");
     state.update(|s| s.phase = Phase::SupportWaiting);
+    // From now on a connection without the password may ask the console
+    // whether it is the helper; until this run returns
+    host.caller_channel(Some(caller::Channel {
+        console,
+        token: session.token.clone(),
+    }));
+    let _closes = ClosesChannel(host);
 
     let mut handed_over = String::new();
     let mut next_try = Instant::now();
@@ -363,12 +387,15 @@ pub fn run(
                 }
             }
         }
-        let phase = if host.in_session() {
-            Phase::SupportInSession
+        let (phase, asking) = if host.in_session() {
+            (Phase::SupportInSession, None)
         } else {
-            Phase::SupportWaiting
+            (Phase::SupportWaiting, host.asking())
         };
-        state.update(|s| s.phase = phase);
+        state.update(|s| {
+            s.phase = phase;
+            s.asking = asking;
+        });
         match commands.recv_timeout(timing.tick) {
             Ok(Command::End) | Err(RecvTimeoutError::Disconnected) => {
                 stop(host, state);

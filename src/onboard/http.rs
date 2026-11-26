@@ -111,6 +111,37 @@ impl OnboardError {
     }
 }
 
+/// The reasons a console gives for a computer it refuses ("reason" of a
+/// device_refused answer), with the language key of the client's own words.
+const REFUSAL_KEYS: &[(&str, &str)] = &[
+    ("device_revoked", "nd-refused-revoked"),
+    ("device_blocked", "nd-refused-blocked"),
+    ("device_banned", "nd-refused-banned"),
+    ("device_removed", "nd-refused-removed"),
+    ("device_rejected", "nd-refused-rejected"),
+    ("other_machine", "nd-refused-other-machine"),
+    ("key_changed", "nd-refused-key-changed"),
+    ("join_proof", "nd-refused-join-proof"),
+];
+
+/// The words for a refusal in the app's language: the client's own for a
+/// reason it knows, the server's message for any other.
+pub fn refusal_words(reason: &str, message: &str) -> String {
+    match REFUSAL_KEYS.iter().find(|(r, _)| *r == reason) {
+        Some((_, key)) => crate::lang::translate((*key).to_owned()),
+        None => message.to_owned(),
+    }
+}
+
+/// refusal_words in a given language.
+#[cfg(test)]
+pub fn refusal_words_in(reason: &str, message: &str, locale: &str) -> String {
+    match REFUSAL_KEYS.iter().find(|(r, _)| *r == reason) {
+        Some((_, key)) => crate::lang::translate_locale((*key).to_owned(), locale),
+        None => message.to_owned(),
+    }
+}
+
 /// True when the error or one of its causes is about the certificate, as
 /// rustls, OpenSSL, Schannel and the macOS security framework word it.
 pub fn is_certificate_error(err: &(dyn std::error::Error + 'static)) -> bool {
@@ -161,7 +192,10 @@ impl Answer {
             200..=299 => None,
             404 => Some(OnboardError::InvalidOrExpired),
             429 => Some(OnboardError::RateLimited),
-            403 => Some(OnboardError::Refused(self.text("message"))),
+            403 => Some(OnboardError::Refused(refusal_words(
+                &self.text("reason"),
+                &self.text("message"),
+            ))),
             400 if self.text("error") == "invalid_device" => {
                 Some(OnboardError::InvalidDevice(self.text("message")))
             }

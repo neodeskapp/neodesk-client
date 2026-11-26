@@ -69,6 +69,46 @@ void main() {
     });
   }
 
+  // While the supporter's connection waits in the connection manager, this
+  // window sends the person there instead of saying the supporter has not
+  // connected (L553)
+  for (final lang in ['en', 'de']) {
+    testWidgets('a waiting request sends the person to the other window ($lang)',
+        (tester) async {
+      await pumpScreen(
+          tester,
+          _qs(_base.copyWith(
+              phase: OnboardingPhase.supportWaiting, asking: 'Mara Jensen')),
+          size: _qsSize,
+          lang: lang);
+      expect(find.text(tr('nd-qs-asking-title', ['Mara Jensen'])), findsOneWidget);
+      expect(find.text(tr('nd-qs-asking-line')), findsOneWidget);
+      expect(find.text(tr('nd-qs-waiting-title', ['Mara'])), findsNothing);
+      if (lang == 'de') {
+        expect(find.text('Mara Jensen möchte sich verbinden'), findsOneWidget);
+      }
+    });
+  }
+
+  // The server refused this computer (a revoked ID, L550): the window says
+  // why and what to do, in the app's words, not only "the session ended"
+  testWidgets('a refused computer says why the session ended', (tester) async {
+    useLanguage('de');
+    const words =
+        'Dieser Computer wurde auf diesem Server widerrufen. Bitte die Person, die dir den Link geschickt hat, ihn in der Konsole zu entsperren, und öffne den Link dann noch einmal.';
+    await pumpScreen(
+        tester,
+        _qs(_base.copyWith(
+            phase: OnboardingPhase.supportEnded,
+            errorKind: OnboardingError.refused,
+            reason: words)),
+        size: _qsSize,
+        lang: 'de');
+    expect(find.text(tr('nd-qs-refused-title')), findsOneWidget);
+    expect(find.text(words), findsOneWidget);
+    expect(find.text(tr('nd-qs-ended-title')), findsNothing);
+  });
+
   forBothThemes('session bar', (tester, b) async {
     await pumpScreen(
         tester,
