@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../theme/nd_theme.dart';
 import 'nd_button.dart';
+import 'nd_pressable.dart';
 import 'nd_icons.dart';
 
 /// bgSubtle with 4 px corners; only for the ID and password, code boxes and
@@ -677,20 +678,18 @@ class NdDisclosure extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(open ? NdIcons.expandMore : NdIcons.chevronRight,
-                    size: 18, color: c.text),
-                const SizedBox(width: 10),
-                Text(label, style: t.label.copyWith(fontSize: 15)),
-              ]),
-            ),
+        NdPressable(
+          label: label,
+          expanded: open,
+          onPressed: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(open ? NdIcons.expandMore : NdIcons.chevronRight,
+                  size: 18, color: c.text),
+              const SizedBox(width: 10),
+              Text(label, style: t.label.copyWith(fontSize: 15)),
+            ]),
           ),
         ),
         if (open)

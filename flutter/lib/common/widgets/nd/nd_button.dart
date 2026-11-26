@@ -220,10 +220,15 @@ class _NdButtonState extends State<NdButton> {
 /// The 2 px accent ring, 2 px outside the control, drawn without changing
 /// the control's size.
 class NdFocusRing extends StatelessWidget {
-  const NdFocusRing({super.key, required this.child, this.color});
+  const NdFocusRing(
+      {super.key, required this.child, this.color, this.outset = 4});
 
   final Widget child;
   final Color? color;
+
+  /// How far outside the control the ring's outer edge sits; 0 draws it on
+  /// the control's own edge, for controls whose parent clips.
+  final double outset;
 
   @override
   Widget build(BuildContext context) {
@@ -232,14 +237,15 @@ class NdFocusRing extends StatelessWidget {
       children: [
         child,
         Positioned(
-          left: -4,
-          top: -4,
-          right: -4,
-          bottom: -4,
+          left: -outset,
+          top: -outset,
+          right: -outset,
+          bottom: -outset,
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(NdSize.radius + 3),
+                borderRadius:
+                    BorderRadius.circular(NdSize.radius + outset - 1),
                 border: Border.all(color: color ?? context.nd.accent, width: 2),
               ),
             ),

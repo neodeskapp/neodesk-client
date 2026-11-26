@@ -9,4 +9,5 @@ export 'nd_icons.dart';
 export 'nd_lang_flag.dart';
 export 'nd_menu.dart';
 export 'nd_misc.dart';
+export 'nd_pressable.dart';
 export 'nd_window.dart';
