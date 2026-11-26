@@ -2,6 +2,7 @@
 // state, shared by the app and the screenshot tests.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart' show translate;
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
@@ -83,16 +84,24 @@ class _NavItemState extends State<_NavItem> {
   @override
   Widget build(BuildContext context) {
     final c = context.nd;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
+    void move(TraversalDirection d) =>
+        FocusManager.instance.primaryFocus?.focusInDirection(d);
+    // A page of Settings: Tab or Up / Down to reach it, Enter to open it.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: NdPressable(
+        label: widget.label,
+        selected: widget.selected,
+        onHover: (v) => setState(() => _hover = v),
+        onPressed: widget.onTap,
+        keys: {
+          const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+              move(TraversalDirection.down),
+          const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+              move(TraversalDirection.up),
+        },
         child: Container(
-          height: 36,
-          margin: const EdgeInsets.only(bottom: 2),
+          constraints: const BoxConstraints(minHeight: 36),
           decoration: BoxDecoration(
             color: widget.selected || _hover ? c.hover : Colors.transparent,
             borderRadius: NdSize.r,
@@ -538,20 +547,21 @@ class SettingsSearchResults extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final h in hits)
-                      MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: GestureDetector(
-                          onTap: h.onTap,
-                          behavior: HitTestBehavior.opaque,
-                          child: SettingsRow(
-                            label: h.label,
-                            description: [
-                              h.path,
-                              if ((h.description ?? '').isNotEmpty) h.description!,
-                            ].join('\n'),
-                            control: Icon(NdIcons.chevronRight,
-                                size: 18, color: c.textMuted),
-                          ),
+                      NdPressable(
+                        onPressed: h.onTap,
+                        label: h.label,
+                        hint: [
+                          h.path,
+                          if ((h.description ?? '').isNotEmpty) h.description!,
+                        ].join('. '),
+                        child: SettingsRow(
+                          label: h.label,
+                          description: [
+                            h.path,
+                            if ((h.description ?? '').isNotEmpty) h.description!,
+                          ].join('\n'),
+                          control: Icon(NdIcons.chevronRight,
+                              size: 18, color: c.textMuted),
                         ),
                       ),
                   ],

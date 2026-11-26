@@ -37,6 +37,7 @@ class NdPressable extends StatefulWidget {
     this.ringOutset = 4,
     this.onSecondaryTapUp,
     this.onDoubleTap,
+    this.keepChildSemantics = false,
   });
 
   final Widget child;
@@ -62,6 +63,11 @@ class NdPressable extends StatefulWidget {
   final double ringOutset;
   final GestureTapUpCallback? onSecondaryTapUp;
   final VoidCallback? onDoubleTap;
+
+  /// With a [label], the child's semantics are dropped so the name is not
+  /// read twice. True keeps them, for a row that holds its own buttons; the
+  /// row then hides its texts itself.
+  final bool keepChildSemantics;
 
   @override
   State<NdPressable> createState() => NdPressableState();
@@ -106,7 +112,7 @@ class NdPressableState extends State<NdPressable> {
       label: widget.label,
       hint: widget.hint,
       value: widget.value,
-      excludeSemantics: widget.label != null,
+      excludeSemantics: widget.label != null && !widget.keepChildSemantics,
       onTap: widget.onPressed,
       child: FocusableActionDetector(
         enabled: enabled,
