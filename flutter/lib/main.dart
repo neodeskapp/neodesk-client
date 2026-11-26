@@ -439,6 +439,8 @@ void _runApp(
       title: title,
       theme: MyTheme.lightTheme,
       darkTheme: MyTheme.darkTheme,
+      highContrastTheme: MyTheme.highContrastLightTheme,
+      highContrastDarkTheme: MyTheme.highContrastDarkTheme,
       themeMode: themeMode,
       home: home,
       localizationsDelegates: const [
@@ -585,6 +587,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
               : bind.mainGetAppNameSync(),
           theme: MyTheme.lightTheme,
           darkTheme: MyTheme.darkTheme,
+          highContrastTheme: MyTheme.highContrastLightTheme,
+          highContrastDarkTheme: MyTheme.highContrastDarkTheme,
           themeMode: MyTheme.currentThemeMode(),
           home: isDesktop
               ? const DesktopTabPage()

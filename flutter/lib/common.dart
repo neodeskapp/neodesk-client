@@ -322,9 +322,17 @@ class MyTheme {
   static ThemeData get lightTheme => _theme(Brightness.light);
   static ThemeData get darkTheme => _theme(Brightness.dark);
 
-  static ThemeData _theme(Brightness b) => NdTheme.theme(
+  /// Used by MaterialApp while the system asks for high contrast.
+  static ThemeData get highContrastLightTheme =>
+      _theme(Brightness.light, highContrast: true);
+  static ThemeData get highContrastDarkTheme =>
+      _theme(Brightness.dark, highContrast: true);
+
+  static ThemeData _theme(Brightness b, {bool highContrast = false}) =>
+      NdTheme.theme(
         b,
         desktop: isDesktop || isWebDesktop,
+        highContrast: highContrast,
         extra: (c) => [ColorThemeExtension.from(c), TabbarTheme.from(c)],
       );
 
