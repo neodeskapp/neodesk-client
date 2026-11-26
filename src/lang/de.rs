@@ -1318,6 +1318,12 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-remote-screen-label", "Bildschirm von {}"),
         ("nd-remote-screen-hint", "Tastatur und Maus gehen an {}. Drück {}, um die Tastatur zurückzuholen und zur Werkzeugleiste zu kommen."),
         ("nd-keyboard-release-tip", "{} gibt die Tastatur zwischen diesem und dem entfernten Computer hin und her"),
+        ("nd-step-done", "Erledigt: {}"),
+        ("nd-step-running", "Läuft gerade: {}"),
+        ("nd-step-todo", "Noch offen: {}"),
+        ("nd-file-kind-folder", "Ordner"),
+        ("nd-file-kind-file", "Datei"),
+        ("nd-file-kind-drive", "Laufwerk"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

@@ -3443,7 +3443,11 @@ class CkbMenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final on = value == true;
-    return MenuItemButton(
+    // The check is drawn; say it too.
+    return MergeSemantics(
+        child: Semantics(
+            checked: on,
+            child: MenuItemButton(
       key: key,
       style: ndMenuItemStyle(context),
       leadingIcon: SizedBox(
@@ -3461,7 +3465,7 @@ class CkbMenuButton extends StatelessWidget {
               onChanged?.call(!on);
             }
           : null,
-    );
+    )));
   }
 }
 
@@ -3487,7 +3491,12 @@ class RdoMenuButton<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.nd;
     final on = value == groupValue;
-    return MenuItemButton(
+    // The radio mark is drawn; say it too.
+    return MergeSemantics(
+        child: Semantics(
+            checked: on,
+            inMutuallyExclusiveGroup: true,
+            child: MenuItemButton(
       style: ndMenuItemStyle(context),
       closeOnActivate: closeOnActivate,
       leadingIcon: SizedBox(
@@ -3520,7 +3529,7 @@ class RdoMenuButton<T> extends StatelessWidget {
               onChanged?.call(value);
             }
           : null,
-    );
+    )));
   }
 }
 

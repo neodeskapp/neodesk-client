@@ -1328,6 +1328,12 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-remote-screen-label", ""),
         ("nd-remote-screen-hint", ""),
         ("nd-keyboard-release-tip", ""),
+        ("nd-step-done", ""),
+        ("nd-step-running", ""),
+        ("nd-step-todo", ""),
+        ("nd-file-kind-folder", ""),
+        ("nd-file-kind-file", ""),
+        ("nd-file-kind-drive", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

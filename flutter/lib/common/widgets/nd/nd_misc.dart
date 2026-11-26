@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_hbb/common.dart' show translate;
 
 import '../../theme/nd_theme.dart';
 import 'nd_button.dart';
@@ -726,7 +727,17 @@ class NdStepRow extends StatelessWidget {
           ),
         ),
     };
-    return Padding(
+    // The state is drawn as a mark and a colour; say it with the step.
+    final said = translate(switch (state) {
+      NdStepState.done => 'nd-step-done',
+      NdStepState.running => 'nd-step-running',
+      NdStepState.todo => 'nd-step-todo',
+    }).replaceFirst('{}', text);
+    return Semantics(
+      container: true,
+      label: said,
+      excludeSemantics: true,
+      child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
@@ -741,6 +752,6 @@ class NdStepRow extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 }
