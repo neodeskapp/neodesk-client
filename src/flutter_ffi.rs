@@ -2803,6 +2803,28 @@ pub fn main_get_common(key: String) -> String {
         return crate::platform::windows::installed_standing_json();
         #[cfg(not(target_os = "windows"))]
         return String::new();
+    } else if key == "nd-update-build" {
+        return crate::common::is_neodesk_client_build().to_string();
+    } else if key == "nd-update-channel" {
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        return crate::updater::update_channel().as_str().to_owned();
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        return String::new();
+    } else if key == "nd-update-check" {
+        // About's Check for updates: {"version", "url"} of a newer release,
+        // "" when there is none, "error:<reason>" when the check failed.
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        return match crate::updater::check_for_new_release() {
+            Ok(Some(release)) => serde_json::json!({
+                "version": release.version,
+                "url": release.page_url(),
+            })
+            .to_string(),
+            Ok(None) => String::new(),
+            Err(err) => format!("error:{err}"),
+        };
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        return "error:unsupported".to_owned();
     } else if key == "permanent-password-set" {
         return ui_interface::is_permanent_password_set().to_string();
     } else if key == "local-permanent-password-set" {
@@ -2837,7 +2859,7 @@ pub fn main_get_common(key: String) -> String {
 pub fn main_get_common_sync(key: String) -> SyncReturn<String> {
     // Metadata verification performs blocking network requests. Keep this key on
     // the asynchronous FFI path to avoid blocking the calling Flutter isolate.
-    if key.starts_with("verified-download-url-") {
+    if key.starts_with("verified-download-url-") || key == "nd-update-check" {
         return SyncReturn("error:unsupported".to_owned());
     }
     SyncReturn(main_get_common(key))
@@ -2857,7 +2879,8 @@ fn verified_update_artifact_for_release_page_url(
     release_page_url: &str,
 ) -> ResultType<crate::update_metadata::VerifiedUpdateArtifact> {
     #[cfg(target_os = "windows")]
-    let update_msi = crate::platform::windows::is_msi_installed()? && !crate::is_custom_client();
+    let update_msi = crate::platform::windows::is_msi_installed()?
+        && crate::common::is_neodesk_client_build();
     #[cfg(target_os = "macos")]
     let update_msi = false;
     let query = crate::updater::current_update_artifact_query(update_msi);
