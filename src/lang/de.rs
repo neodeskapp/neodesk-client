@@ -928,7 +928,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-refused-rejected", "Ein Administrator hat diesen Computer abgewiesen. Bitte den Administrator, ihn zuzulassen."),
         ("nd-refused-other-machine", "Ein anderer Computer nutzt die ID dieses Computers auf diesem Server schon. Bitte den Administrator, das alte Gerät zu löschen."),
         ("nd-refused-key-changed", "Der Schlüssel dieses Computers hat sich seit dem letzten Beitritt geändert. Bitte den Administrator, den neuen Schlüssel freizugeben."),
-        ("nd-refused-join-proof", "Die ID dieses Computers ist schon angemeldet, und diese NeoDesk-Version kann nicht beweisen, dass es derselbe Computer ist. Aktualisiere NeoDesk und öffne den Link noch einmal."),
+        ("nd-refused-join-proof", "Die ID dieses Computers ist schon angemeldet, und diese NeoDesk-Version kann nicht beweisen, dass es derselbe Computer ist. Aktualisiere NeoDesk und öffne den Link noch einmal, oder bitte den Administrator, das alte Gerät zu löschen."),
         ("nd-qs-asking-line", "Antworte im anderen Fenster: Erlauben lässt die Person herein, Ablehnen nicht."),
         ("nd-cm-from-console", "Über die NeoDesk-Webkonsole"),
         ("nd-qs-waiting-line", "{} weiß, dass du es erlaubt hast. Das dauert meist nur ein paar Sekunden. Lass dieses Fenster offen."),

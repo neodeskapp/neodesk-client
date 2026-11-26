@@ -726,6 +726,20 @@ fn a_refusal_with_a_reason_is_said_in_the_clients_own_words() {
     }
 }
 
+/// A computer refused for its join proof gets both ways out the server's
+/// own text names: update NeoDesk, or have the old device deleted. The
+/// join screen's next line ("When your administrator has done that, try
+/// the same invite again") needs the second.
+#[test]
+fn a_refused_join_proof_names_the_administrator_too() {
+    let en = http::refusal_words_in("join_proof", "x", "en");
+    assert!(en.contains("Update NeoDesk"), "{en}");
+    assert!(en.contains("delete the old device"), "{en}");
+    let de = http::refusal_words_in("join_proof", "x", "de");
+    assert!(de.contains("Aktualisiere NeoDesk"), "{de}");
+    assert!(de.contains("das alte Gerät zu löschen"), "{de}");
+}
+
 #[test]
 fn quick_support_declined_tells_the_console_and_hands_over_nothing() {
     let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
