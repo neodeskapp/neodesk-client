@@ -54,17 +54,13 @@ impl UpdateChannel {
         }
     }
 
-    /// The channel the option `value` names. Without a choice a pre-release
-    /// build stays on beta, so a release candidate is offered the next one,
-    /// and any other build is on stable.
-    pub fn from_option(value: &str, running_version: &str) -> Self {
+    /// The channel the option `value` names. Without a choice every build
+    /// is on Stable, a release candidate too: only the Beta versions switch
+    /// (or the server's strategy) puts a computer on Beta.
+    pub fn from_option(value: &str) -> Self {
         match value.trim() {
             "beta" => UpdateChannel::Beta,
-            "stable" => UpdateChannel::Stable,
-            _ => match Version::parse(running_version) {
-                Some(version) if version.is_prerelease() => UpdateChannel::Beta,
-                _ => UpdateChannel::Stable,
-            },
+            _ => UpdateChannel::Stable,
         }
     }
 }
@@ -78,7 +74,7 @@ pub fn update_channel() -> UpdateChannel {
     } else {
         hbb_common::config::Config::get_option(OPTION_UPDATE_CHANNEL)
     };
-    UpdateChannel::from_option(&value, crate::VERSION)
+    UpdateChannel::from_option(&value)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -431,12 +427,13 @@ mod tests {
     }
 
     #[test]
-    fn channel_defaults_to_beta_on_a_prerelease_build_only() {
-        assert_eq!(UpdateChannel::from_option("", "1.5.0-rc.8"), UpdateChannel::Beta);
-        assert_eq!(UpdateChannel::from_option("", "1.5.0"), UpdateChannel::Stable);
-        assert_eq!(UpdateChannel::from_option("stable", "1.5.0-rc.8"), UpdateChannel::Stable);
-        assert_eq!(UpdateChannel::from_option("beta", "1.5.0"), UpdateChannel::Beta);
-        assert_eq!(UpdateChannel::from_option("other", "1.5.0"), UpdateChannel::Stable);
+    fn channel_is_stable_unless_beta_is_chosen() {
+        // No build picks Beta by itself, a release candidate neither (A267)
+        assert_eq!(UpdateChannel::from_option(""), UpdateChannel::Stable);
+        assert_eq!(UpdateChannel::from_option("stable"), UpdateChannel::Stable);
+        assert_eq!(UpdateChannel::from_option("other"), UpdateChannel::Stable);
+        assert_eq!(UpdateChannel::from_option("beta"), UpdateChannel::Beta);
+        assert_eq!(UpdateChannel::from_option(" beta "), UpdateChannel::Beta);
     }
 
     fn release(tag: &str, prerelease: bool, draft: bool) -> String {
