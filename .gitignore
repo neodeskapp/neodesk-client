@@ -22,6 +22,8 @@ cert.pfx
 !flutter/assets/nd-*.svg
 !docs/assets/**/*.png
 !docs/assets/**/*.svg
+!res/release-icons/**/*.png
+!res/release-icons/**/*.svg
 *jpg
 sciter.dll
 **pdb

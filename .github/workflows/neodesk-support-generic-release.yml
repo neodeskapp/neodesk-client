@@ -250,8 +250,7 @@ jobs:
           {
             echo "### Notes"
             echo
-            echo "- Windows: portable **ZIP**, self-extracting **EXE**, and installed **MSI** when the build produced them."
-            echo "- Server URL is entered on first run (QR pairing) — nothing is baked into these artifacts."
+            echo "- Nothing is baked into these packages: the server is entered on first start."
             echo "- Panel path: **NeoDesk Agents → Import latest release** (requires a signed \`support-v*\` release)."
             echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } > support-extra.md
