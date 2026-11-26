@@ -597,6 +597,15 @@ class NdTheme {
       labelSmall: m(t.caption),
     );
     final noSplash = desktop ? NoSplash.splashFactory : null;
+    // Keyboard focus on Material controls: a 2 px outline, as NdFocusRing
+    // draws on the NeoDesk controls. The fills alone (focusColor, hover) are
+    // under 3:1 against the surface. On an accent fill the outline is an
+    // inner ring in the ink colour, which stands out from the fill.
+    WidgetStateProperty<BorderSide?> focusSide(BorderSide? rest,
+            {Color? color}) =>
+        WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.focused)
+            ? BorderSide(color: color ?? c.accent, width: 2)
+            : rest);
     return ThemeData(
       useMaterial3: false,
       brightness: c.brightness,
@@ -672,6 +681,7 @@ class NdTheme {
                   ? c.hover
                   : Colors.transparent),
           shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
+          side: focusSide(null),
           splashFactory: NoSplash.splashFactory,
         ),
       ),
@@ -742,6 +752,7 @@ class NdTheme {
             return c.accent;
           }),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+          side: focusSide(null, color: c.onAccent),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -759,6 +770,7 @@ class NdTheme {
           backgroundColor: WidgetStateProperty.resolveWith((s) =>
               s.contains(WidgetState.hovered) ? c.hover : Colors.transparent),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+          side: focusSide(BorderSide(color: c.border)),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -774,6 +786,7 @@ class NdTheme {
           backgroundColor: WidgetStateProperty.resolveWith((s) =>
               s.contains(WidgetState.hovered) ? c.hover : Colors.transparent),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+          side: focusSide(null),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
@@ -782,13 +795,16 @@ class NdTheme {
           hoverColor: c.hover,
           shape: shape,
           splashFactory: noSplash,
-        ),
+        ).copyWith(side: focusSide(null)),
       ),
       checkboxTheme: CheckboxThemeData(
         splashRadius: desktop ? 0 : kRadialReactionRadius,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(NdSize.radiusSm)),
-        side: BorderSide(color: c.border),
+        side: WidgetStateBorderSide.resolveWith((s) =>
+            s.contains(WidgetState.focused)
+                ? BorderSide(color: c.text, width: 2)
+                : BorderSide(color: c.border)),
         fillColor: WidgetStateProperty.resolveWith((s) =>
             s.contains(WidgetState.selected) ? c.accent : Colors.transparent),
         checkColor: WidgetStatePropertyAll(c.onAccent),

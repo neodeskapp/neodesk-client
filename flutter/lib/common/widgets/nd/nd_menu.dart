@@ -43,6 +43,11 @@ ButtonStyle ndMenuItemStyle(BuildContext context, {bool danger = false}) {
             : Colors.transparent),
     overlayColor: const WidgetStatePropertyAll(Colors.transparent),
     shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
+    // Keyboard focus: a 2 px accent outline; the hover fill alone is under
+    // 3:1 against the menu.
+    side: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.focused)
+        ? BorderSide(color: c.accent, width: 2)
+        : null),
     splashFactory: NoSplash.splashFactory,
   );
 }
