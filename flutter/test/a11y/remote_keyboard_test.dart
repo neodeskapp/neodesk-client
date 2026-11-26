@@ -70,12 +70,16 @@ class _Session {
 }
 
 Future<void> _chord(WidgetTester tester,
-    {bool command = false, bool shift = true, String platform = 'windows'}) async {
-  final first =
-      command ? LogicalKeyboardKey.metaLeft : LogicalKeyboardKey.controlLeft;
+    {bool command = false,
+    bool shift = true,
+    String platform = 'windows',
+    LogicalKeyboardKey? ctrl,
+    LogicalKeyboardKey alt = LogicalKeyboardKey.altLeft}) async {
+  final first = ctrl ??
+      (command ? LogicalKeyboardKey.metaLeft : LogicalKeyboardKey.controlLeft);
   final mods = [
     first,
-    LogicalKeyboardKey.altLeft,
+    alt,
     if (shift) LogicalKeyboardKey.shiftLeft,
   ];
   for (final m in mods) {
@@ -160,6 +164,25 @@ void main() {
     expect(s.toRemote, contains('G'));
     expect(s.leftRemote, 0);
     expect(s.screen.hasPrimaryFocus, isTrue);
+  });
+
+  testWidgets('AltGr+Shift+G still goes to the remote computer',
+      (tester) async {
+    // Windows reports AltGr as a left Ctrl with a right Alt.
+    releaseChordUsesCommandForTest = false;
+    final s = _Session();
+    addTearDown(s.dispose);
+    await pumpScreen(tester, s.build(), size: const Size(600, 400));
+    await _chord(tester,
+        ctrl: LogicalKeyboardKey.controlLeft,
+        alt: LogicalKeyboardKey.altRight);
+    expect(s.toRemote, contains('G'));
+    expect(s.leftRemote, 0);
+    // The right Ctrl with the right Alt is no AltGr: that is the combination.
+    await _chord(tester,
+        ctrl: LogicalKeyboardKey.controlRight,
+        alt: LogicalKeyboardKey.altRight);
+    expect(s.leftRemote, 1);
   });
 
   testWidgets('macOS uses Command+Option+Shift+G', (tester) async {

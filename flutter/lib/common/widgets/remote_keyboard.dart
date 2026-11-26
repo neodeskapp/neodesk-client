@@ -33,10 +33,19 @@ bool _isG(LogicalKeyboardKey l, PhysicalKeyboardKey p) =>
 bool isReleaseKeyboardChord(KeyEvent e) {
   if (e is! KeyDownEvent || !_isG(e.logicalKey, e.physicalKey)) return false;
   final k = HardwareKeyboard.instance;
+  if (!_useCommand && _isAltGr(k.logicalKeysPressed)) return false;
   return k.isShiftPressed &&
       k.isAltPressed &&
       (_useCommand ? k.isMetaPressed : k.isControlPressed);
 }
+
+/// Windows reports AltGr as a left Ctrl with a right Alt. With only those
+/// two held, the user pressed AltGr, not Ctrl and Alt.
+bool _isAltGr(Set<LogicalKeyboardKey> held) =>
+    held.contains(LogicalKeyboardKey.controlLeft) &&
+    !held.contains(LogicalKeyboardKey.controlRight) &&
+    held.contains(LogicalKeyboardKey.altRight) &&
+    !held.contains(LogicalKeyboardKey.altLeft);
 
 /// The same for the raw key events Linux still uses.
 // ignore: deprecated_member_use
