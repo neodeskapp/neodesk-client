@@ -28,6 +28,24 @@ void main() {
     expect(find.text('Home page'), findsOneWidget);
   });
 
+  testWidgets('in a wide window the chat fills it and keeps its content in a centred column', (tester) async {
+    final service = NdChatService.instance;
+    await pumpScreen(tester, const NdChatHome(home: Text('Home page')), size: const Size(1280, 720));
+    service.open.value = true;
+    await tester.pump();
+    expect(tester.getRect(find.byType(NdChatPage)), const Rect.fromLTWH(0, 0, 1280, 720));
+    final composer = tester.getRect(find.byKey(const ValueKey('nd-chat-composer')));
+    expect(composer.width, 1280, reason: 'the rule above the field reaches both edges');
+    final field = tester.getRect(find.byType(TextField));
+    final title = tester.getRect(find.text('Chat with support'));
+    expect(field.left, greaterThan((1280 - kNdChatColumn) / 2));
+    expect(field.right, lessThan((1280 + kNdChatColumn) / 2));
+    expect(field.width, greaterThan(kNdChatColumn - 120));
+    expect(title.left, greaterThan((1280 - kNdChatColumn) / 2));
+    service.open.value = false;
+    await tester.pump();
+  });
+
   testWidgets('Home has the chat entry below the hint', (tester) async {
     final server = Server();
     final model = NdChatModel(connect: server.connect, now: () => t0);
