@@ -135,8 +135,9 @@ class _NdFieldState extends State<NdField> {
         color: widget.enabled ? c.text : c.textMuted);
     final borderColor = invalid ? c.danger : (_focused ? c.accent : c.border);
 
+    // At least [h] high; it grows when the text is scaled up.
     Widget box = Container(
-      height: h,
+      constraints: BoxConstraints(minHeight: h),
       width: widget.width,
       padding: EdgeInsets.only(
           left: widget.large ? 12 : 10,

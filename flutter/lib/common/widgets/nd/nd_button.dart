@@ -147,8 +147,12 @@ class _NdButtonState extends State<NdButton> {
       decorationThickness: 1,
     );
 
+    // Two lines at most when the text is scaled up; the box grows with it.
     Widget content = Text(widget.label,
-        style: style, maxLines: 1, overflow: TextOverflow.ellipsis);
+        style: style,
+        maxLines: isLink ? null : 2,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center);
     if (!isLink && (widget.icon != null || widget.trailingIcon != null)) {
       content = Row(
         mainAxisSize: MainAxisSize.min,
@@ -173,7 +177,7 @@ class _NdButtonState extends State<NdButton> {
                 ? Duration.zero
                 : NdSize.motion,
             curve: Curves.easeOut,
-            height: _height,
+            constraints: BoxConstraints(minHeight: _height),
             width: widget.block ? double.infinity : null,
             padding: EdgeInsets.symmetric(horizontal: _padX),
             decoration: BoxDecoration(
@@ -181,7 +185,7 @@ class _NdButtonState extends State<NdButton> {
               borderRadius: NdSize.r,
               border: Border.all(color: borderColor, width: 1),
             ),
-            child: Center(widthFactor: 1, child: content),
+            child: Center(widthFactor: 1, heightFactor: 1, child: content),
           );
 
     if (_focus) box = NdFocusRing(child: box);

@@ -328,7 +328,11 @@ class _Can extends StatelessWidget {
       child: Row(children: [
         Icon(icon, size: 20, color: context.nd.success),
         const SizedBox(width: 12),
-        Text(text, style: t.body.copyWith(fontSize: 15, height: 22 / 15)),
+        // Wraps when the text is scaled up instead of running off the edge.
+        Flexible(
+          child: Text(text,
+              style: t.body.copyWith(fontSize: 15, height: 22 / 15)),
+        ),
       ]),
     );
   }

@@ -503,6 +503,20 @@ class NdSize {
 // Material theme built from the tokens
 // ---------------------------------------------------------------------------
 
+/// Follows the system text size (Windows "Text size", GNOME text scaling,
+/// macOS) from 100 % up to 200 %; smaller settings stay at 100 %, so the
+/// layout never gets tighter than designed.
+Widget ndTextScaleBuilder(BuildContext context, Widget? child) {
+  final mq = MediaQuery.of(context);
+  return MediaQuery(
+    data: mq.copyWith(
+      textScaler:
+          mq.textScaler.clamp(minScaleFactor: 1.0, maxScaleFactor: 2.0),
+    ),
+    child: child ?? const SizedBox.shrink(),
+  );
+}
+
 class NdTheme {
   NdTheme._();
 
