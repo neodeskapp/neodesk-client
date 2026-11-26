@@ -178,6 +178,8 @@ const String kOptionCurrentAbName = "current-ab-name";
 const String kOptionEnableConfirmClosingTabs = "enable-confirm-closing-tabs";
 const String kOptionAllowAlwaysSoftwareRender = "allow-always-software-render";
 const String kOptionEnableCheckUpdate = "enable-check-update";
+/// "beta" or "stable"; empty follows the running build (beta on a pre-release).
+const String kOptionUpdateChannel = "update-channel";
 const String kOptionAllowAutoUpdate = "allow-auto-update";
 const String kOptionAllowRemoveWallpaper = "allow-remove-wallpaper";
 const String kOptionStopService = "stop-service";

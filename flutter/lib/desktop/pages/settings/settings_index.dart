@@ -65,6 +65,7 @@ const kSettingsIndex = <SettingsIndexEntry>[
   SettingsIndexEntry('general', 'nd-sec-language-and-look', 'Theme', 'nd-desc:Theme', 'seg', false, '2', ['Light', 'Dark', 'System'], ''),
   SettingsIndexEntry('general', 'nd-sec-account', 'nd-set-row-not-signed-in', 'nd-desc:nd-set-row-not-signed-in', 'button', false, 'Sign in', [], ''),
   SettingsIndexEntry('general', 'nd-sec-updates', 'Check for software update on startup', 'nd-desc:Check for software update on startup', 'switch', true, '', [], ''),
+  SettingsIndexEntry('general', 'nd-sec-updates', 'nd-update-beta', 'nd-desc:nd-update-beta', 'switch', false, '', [], ''),
   SettingsIndexEntry('general', 'nd-sec-updates', 'Auto update', 'nd-desc:Auto update', 'switch', true, '', [], 'Windows and macOS, installed'),
   SettingsIndexEntry('general', 'nd-sec-sessions-you-start', 'Open connection in new tab', 'nd-desc:Open connection in new tab', 'switch', true, '', [], ''),
   SettingsIndexEntry('general', 'nd-sec-sessions-you-start', 'Confirm before closing multiple tabs', 'nd-desc:Confirm before closing multiple tabs', 'switch', true, '', [], ''),

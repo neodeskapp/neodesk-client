@@ -1,7 +1,9 @@
 ﻿mod artifact;
 mod download;
+pub(crate) mod release;
 
 use crate::common::do_check_software_update;
+pub use release::{update_channel, NewRelease};
 use artifact::verified_update_artifact_from_release_page_url;
 pub(crate) use artifact::{current_update_arch, current_update_format, current_update_platform};
 pub use artifact::{
@@ -109,6 +111,19 @@ pub fn manually_check_update() -> ResultType<()> {
     Ok(())
 }
 
+/// Asks GitHub for the newest desktop release on this computer's channel
+/// that is newer than the running build. Remembers it as the update URL
+/// (its release page), or clears it when there is none or the check failed.
+pub fn check_for_new_release() -> ResultType<Option<NewRelease>> {
+    let result = artifact::fetch_newest_release(update_channel());
+    let url = match &result {
+        Ok(Some(release)) => release.page_url(),
+        _ => String::new(),
+    };
+    *crate::common::SOFTWARE_UPDATE_URL.lock().unwrap() = url;
+    result
+}
+
 #[allow(dead_code)]
 pub fn stop_auto_update() {
     let sender = TX_MSG.lock().unwrap();
@@ -194,10 +209,14 @@ fn check_update(manually: bool) -> ResultType<()> {
         return Ok(());
     }
     #[cfg(target_os = "windows")]
-    let update_msi = crate::platform::is_msi_installed()? && !crate::is_custom_client();
+    let update_msi =
+        crate::platform::is_msi_installed()? && crate::common::is_neodesk_client_build();
     #[cfg(not(target_os = "windows"))]
     let update_msi = false;
     if !(manually || config::Config::get_bool_option(keys::OPTION_ALLOW_AUTO_UPDATE)) {
+        return Ok(());
+    }
+    if !crate::common::is_neodesk_client_build() {
         return Ok(());
     }
     do_check_software_update()?;
@@ -519,8 +538,8 @@ pub fn check_update_as_root() -> ResultType<bool> {
         log::info!("[root-update] Auto update is disabled, skipping.");
         return Ok(false);
     }
-    if crate::is_custom_client() {
-        log::info!("[root-update] Custom client detected, skipping stock update.");
+    if !crate::common::is_neodesk_client_build() {
+        log::info!("[root-update] Not the NeoDesk Client build, skipping its updates.");
         return Ok(false);
     }
     // Clean up only old temp dirs from previous failed updates. The detached

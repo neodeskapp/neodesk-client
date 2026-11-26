@@ -81,6 +81,9 @@ pub(crate) struct UpdateArtifactQuery<'a> {
     pub format: &'a str,
 }
 
+// Desktop releases are checked against their signed SHA256SUMS
+// (updater::release); this metadata format is left for offline updates.
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub(crate) struct UpdateMetadataRequirements<'a> {
     pub expected_version: &'a str,
@@ -145,6 +148,7 @@ fn verify_update_metadata_with_options(
     })
 }
 
+#[allow(dead_code)]
 pub(crate) fn verify_update_metadata(
     metadata_bytes: &[u8],
     signature_bytes: &[u8],

@@ -20,6 +20,8 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
+import 'package:flutter_hbb/desktop/widgets/update_check.dart';
+import 'package:flutter_hbb/desktop/widgets/update_progress.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/printer_model.dart';
@@ -438,16 +440,23 @@ class _GeneralState extends State<_General> {
           ),
           theme(),
         ]));
+        final updatable = isUpdatableBuild();
         final updates = <Widget>[
-          if (!isWeb && !bind.isCustomClient())
+          if (updatable)
             _OptionCheckBox(context, 'Check for software update on startup',
                 kOptionEnableCheckUpdate,
                 isServer: false),
-          if ((isWindows && bind.mainIsInstalled()) ||
-              (isMacOS &&
-                  bind.mainIsInstalled() &&
-                  bind.mainIsInstalledDaemon(prompt: false) &&
-                  !bind.isCustomClient()))
+          if (updatable)
+            _OptionCheckBox(context, 'nd-update-beta', kOptionUpdateChannel,
+                optGetter: () =>
+                    bind.mainGetCommonSync(key: 'nd-update-channel') == 'beta',
+                optSetter: (key, beta) => bind.mainSetOption(
+                    key: key, value: beta ? 'beta' : 'stable')),
+          if (updatable &&
+              ((isWindows && bind.mainIsInstalled()) ||
+                  (isMacOS &&
+                      bind.mainIsInstalled() &&
+                      bind.mainIsInstalledDaemon(prompt: false))))
             _OptionCheckBox(context, 'Auto update', kOptionAllowAutoUpdate,
                 isServer: true),
         ];
@@ -2630,6 +2639,39 @@ class _About extends StatefulWidget {
 
 class _AboutState extends State<_About> {
   String? _result;
+  bool _checking = false;
+  UpdateCheckResult? _found;
+
+  Future<void> _checkForUpdates() async {
+    // Builds the desktop releases don't update (Support Agents, branded
+    // builds) keep the releases page.
+    if (!isUpdatableBuild()) {
+      launchUrlString('$kNeoDeskClientRepoUrl/releases');
+      return;
+    }
+    setState(() {
+      _checking = true;
+      _found = null;
+      _result = tr('nd-about-checking');
+    });
+    final result =
+        UpdateCheckResult.parse(await bind.mainGetCommon(key: 'nd-update-check'));
+    if (!mounted) return;
+    if (result.hasUpdate) stateGlobal.updateUrl.value = result.url!;
+    setState(() {
+      _checking = false;
+      _found = result.hasUpdate ? result : null;
+      _result = result.message();
+    });
+  }
+
+  void _takeUpdate(UpdateCheckResult found) {
+    if (canInstallUpdates()) {
+      handleUpdate(found.url!);
+    } else {
+      launchUrlString(found.url!);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2660,13 +2702,12 @@ class _AboutState extends State<_About> {
                 launch: launchUrlString,
                 copy: (url) => Clipboard.setData(ClipboardData(text: url)),
                 say: (message) => showToast(message))),
-        // Update checks are off in this build; the releases page shows
-        // the newest version.
-        onCheckUpdates: () {
-          launchUrlString('$kNeoDeskClientRepoUrl/releases');
-          setState(() => _result = null);
-        },
+        onCheckUpdates: _checkForUpdates,
+        checking: _checking,
         updateResult: _result,
+        updateActionLabel:
+            _found?.actionLabel(canInstall: canInstallUpdates()),
+        onUpdateAction: _found == null ? null : () => _takeUpdate(_found!),
         sourceLabel: kNeoDeskClientRepoUrl.replaceFirst('https://', ''),
       ));
     });
