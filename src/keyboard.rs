@@ -60,19 +60,31 @@ pub fn set_relative_mouse_mode_state(active: bool) {
 }
 
 // The chord that takes the keyboard back from the remote session
-// (keyboard_release.rs). PENDING is set when the grab loop caught it and
-// stays set until Flutter has released the grab; meanwhile no key press goes
-// to the remote computer. SWALLOWED says the chord's G press was kept from
-// the remote computer, so its repeats and its release must be kept too.
-#[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-static KEYBOARD_RELEASE_PENDING: AtomicBool = AtomicBool::new(false);
-#[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-static KEYBOARD_RELEASE_SWALLOWED: AtomicBool = AtomicBool::new(false);
+// (keyboard_release.rs). After it fired, no key press goes to the remote
+// computer until Flutter has released the grab, at most
+// RELEASE_PENDING_MAX. Every start and end of the grab forgets held
+// modifiers, whose releases the grab loop may not have seen.
 #[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 lazy_static::lazy_static! {
-    static ref RELEASE_CHORD: Mutex<crate::keyboard_release::ReleaseChord> =
+    static ref RELEASE_GUARD: Mutex<crate::keyboard_release::ReleaseGuard> =
         Mutex::new(Default::default());
 }
+
+/// Any grab state change from Flutter: a fired chord is no longer pending.
+#[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+fn release_guard_end_pending() {
+    RELEASE_GUARD.lock().unwrap().end_pending();
+}
+#[cfg(not(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux"))))]
+fn release_guard_end_pending() {}
+
+/// The grab really started or ended: also forget held modifiers.
+#[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+fn release_guard_grab_changed() {
+    RELEASE_GUARD.lock().unwrap().on_grab_change();
+}
+#[cfg(not(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux"))))]
+fn release_guard_grab_changed() {}
 
 #[cfg(feature = "flutter")]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -182,9 +194,8 @@ pub mod client {
         let mut run_grab_after_unlock = None;
         #[cfg(target_os = "linux")]
         let mut disable_after_unlock = false;
-        #[cfg(all(feature = "flutter", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
         if matches!(state, GrabState::Run | GrabState::Wait) {
-            KEYBOARD_RELEASE_PENDING.store(false, Ordering::SeqCst);
+            release_guard_end_pending();
         }
         let mut gs = GRAB_STATE.lock().unwrap();
         match state {
@@ -223,6 +234,7 @@ pub mod client {
                 let had_owner = gs.owner.is_some();
                 gs.owner = Some(session_id);
                 gs.last_grab = Some(std::time::Instant::now());
+                release_guard_grab_changed();
                 // Invalidate any in-flight deferred release from the previous
                 // owner so it cannot suppress a fresh timer for the new owner.
                 gs.deferred_pending = false;
@@ -277,6 +289,7 @@ pub mod client {
                                             session_id
                                         );
                                         KEYBOARD_HOOKED.store(false, Ordering::SeqCst);
+                                        release_guard_grab_changed();
                                         gs.owner = None;
                                         gs.last_grab = None;
                                         Some(to_release)
@@ -311,6 +324,7 @@ pub mod client {
                 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
                 KEYBOARD_HOOKED.store(false, Ordering::SeqCst);
 
+                release_guard_grab_changed();
                 gs.owner = None;
                 gs.last_grab = None;
                 gs.deferred_pending = false;
@@ -632,10 +646,11 @@ fn should_block_relative_mouse_shortcut(key: Key, is_press: bool) -> bool {
 /// Returns true when the key must not go to the remote computer.
 #[cfg(feature = "flutter")]
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-fn handle_release_chord(key: Key, is_press: bool) -> bool {
-    use crate::keyboard_release::{ChordKey, ChordOutcome};
+fn handle_release_chord(key: Key, is_press: bool, scan_code: u32) -> bool {
+    use crate::keyboard_release::{ctrl_chord_key, ChordKey, GuardAction};
     let (chord_key, left) = match key {
-        Key::ControlLeft => (ChordKey::Ctrl, true),
+        // On Windows AltGr comes with a left Ctrl nobody pressed.
+        Key::ControlLeft => (ctrl_chord_key(scan_code, cfg!(target_os = "windows")), true),
         Key::ControlRight => (ChordKey::Ctrl, false),
         Key::Alt => (ChordKey::Alt, true),
         Key::AltGr => (ChordKey::Alt, false),
@@ -646,31 +661,23 @@ fn handle_release_chord(key: Key, is_press: bool) -> bool {
         Key::KeyG => (ChordKey::G, true),
         _ => (ChordKey::Other, true),
     };
-    let outcome = RELEASE_CHORD
-        .lock()
-        .unwrap()
-        .on_key(chord_key, is_press, cfg!(target_os = "macos"), left);
     let hooked = KEYBOARD_HOOKED.load(Ordering::SeqCst);
-    match outcome {
-        ChordOutcome::Fire if hooked => {
-            KEYBOARD_RELEASE_PENDING.store(true, Ordering::SeqCst);
-            KEYBOARD_RELEASE_SWALLOWED.store(true, Ordering::SeqCst);
+    let action = RELEASE_GUARD.lock().unwrap().on_key(
+        chord_key,
+        is_press,
+        cfg!(target_os = "macos"),
+        left,
+        hooked,
+        std::time::Instant::now(),
+    );
+    match action {
+        GuardAction::FireAndDrop => {
             let session_id = flutter::get_cur_session_id();
             flutter::push_session_event(&session_id, "release_keyboard", vec![]);
             true
         }
-        // Not hooked: the keys reach Flutter, which gives the keyboard back.
-        ChordOutcome::Fire => false,
-        ChordOutcome::Swallow if is_press => KEYBOARD_RELEASE_SWALLOWED.load(Ordering::SeqCst),
-        ChordOutcome::Swallow => KEYBOARD_RELEASE_SWALLOWED.swap(false, Ordering::SeqCst),
-        // Until Flutter has ended the grab, no other key press goes out.
-        // Modifiers still pass, so the platform's modifier state stays right.
-        ChordOutcome::Pass => {
-            hooked
-                && is_press
-                && matches!(chord_key, ChordKey::Other | ChordKey::G)
-                && KEYBOARD_RELEASE_PENDING.load(Ordering::SeqCst)
-        }
+        GuardAction::Drop => true,
+        GuardAction::Forward => false,
     }
 }
 
@@ -688,7 +695,7 @@ fn start_grab_loop() {
             let _code = event.platform_code as KeyCode;
 
             #[cfg(feature = "flutter")]
-            if handle_release_chord(key, is_press) {
+            if handle_release_chord(key, is_press, event.position_code as u32) {
                 return None;
             }
 
@@ -761,7 +768,7 @@ fn start_grab_loop() {
                 log::error!("rdev get unknown key, keycode is {:?}", keycode);
             } else {
                 #[cfg(feature = "flutter")]
-                if handle_release_chord(key, is_press) {
+                if handle_release_chord(key, is_press, event.position_code as u32) {
                     return None;
                 }
                 #[cfg(feature = "flutter")]

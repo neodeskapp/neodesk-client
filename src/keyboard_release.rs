@@ -91,6 +91,139 @@ impl ReleaseChord {
     pub fn reset(&mut self) {
         *self = Self::default();
     }
+
+    /// Forget the held modifiers but remember a fired G, so its release is
+    /// still kept from the remote computer.
+    pub fn reset_modifiers(&mut self) {
+        *self = Self {
+            fired: self.fired,
+            ..Self::default()
+        };
+    }
+}
+
+/// The scan code Windows gives the left Ctrl it sends ahead of AltGr on
+/// layouts with AltGr. Nobody pressed that Ctrl.
+pub const WINDOWS_ALTGR_CTRL_SCAN_CODE: u32 = 0x021D;
+
+/// The chord key of a left or right Ctrl with this scan code.
+pub fn ctrl_chord_key(scan_code: u32, windows: bool) -> ChordKey {
+    if windows && scan_code == WINDOWS_ALTGR_CTRL_SCAN_CODE {
+        ChordKey::Other
+    } else {
+        ChordKey::Ctrl
+    }
+}
+
+/// How long the grab loop keeps key presses from the remote computer after
+/// the chord fired, waiting for the session window to end the grab. If the
+/// window never does (it hangs, or the event went to another window), keys
+/// flow again after this.
+pub const RELEASE_PENDING_MAX: std::time::Duration = std::time::Duration::from_millis(1000);
+
+/// What the grab loop does with a key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GuardAction {
+    /// Handle the key as usual.
+    Forward,
+    /// Keep the key from the remote computer.
+    Drop,
+    /// The chord fired: keep the key and tell the session window.
+    FireAndDrop,
+}
+
+/// The chord and the state around it in the grab loop.
+#[derive(Default, Debug)]
+pub struct ReleaseGuard {
+    chord: ReleaseChord,
+    /// When the chord fired while the grab ran; until the session window ends
+    /// the grab, no key press goes to the remote computer.
+    pending_since: Option<std::time::Instant>,
+    /// The chord's G press was kept from the remote computer, so its repeats
+    /// and its release are kept too.
+    swallowed: bool,
+}
+
+impl ReleaseGuard {
+    /// `hooked`: the grab runs and keys go to the remote computer.
+    pub fn on_key(
+        &mut self,
+        key: ChordKey,
+        is_press: bool,
+        use_command: bool,
+        left: bool,
+        hooked: bool,
+        now: std::time::Instant,
+    ) -> GuardAction {
+        match self.chord.on_key(key, is_press, use_command, left) {
+            ChordOutcome::Fire if hooked => {
+                self.pending_since = Some(now);
+                self.swallowed = true;
+                GuardAction::FireAndDrop
+            }
+            // Not hooked: the keys reach Flutter, which gives the keyboard back.
+            ChordOutcome::Fire => GuardAction::Forward,
+            ChordOutcome::Swallow if is_press => {
+                if self.swallowed {
+                    GuardAction::Drop
+                } else {
+                    GuardAction::Forward
+                }
+            }
+            ChordOutcome::Swallow => {
+                if std::mem::take(&mut self.swallowed) {
+                    GuardAction::Drop
+                } else {
+                    GuardAction::Forward
+                }
+            }
+            // Until the session window has ended the grab, no other key press
+            // goes out. Modifiers still pass, so the platform's modifier state
+            // stays right.
+            ChordOutcome::Pass => {
+                self.expire(now);
+                let pending = self.pending_since.is_some();
+                if hooked
+                    && is_press
+                    && matches!(key, ChordKey::Other | ChordKey::G)
+                    && pending
+                {
+                    GuardAction::Drop
+                } else {
+                    GuardAction::Forward
+                }
+            }
+        }
+    }
+
+    /// The grab started or ended (the session window got or lost the
+    /// keyboard): the pending release is over, and modifiers held until now
+    /// are forgotten, since their releases may go where the grab loop does
+    /// not see them.
+    pub fn on_grab_change(&mut self) {
+        self.pending_since = None;
+        self.chord.reset_modifiers();
+    }
+
+    /// The session window answered (it changed the grab), so a fired chord
+    /// no longer keeps keys back. Held modifiers stay counted.
+    pub fn end_pending(&mut self) {
+        self.pending_since = None;
+    }
+
+    /// True while key presses are kept back for a fired chord.
+    pub fn is_pending(&self) -> bool {
+        self.pending_since.is_some()
+    }
+
+    /// Ends a pending release that waited longer than [RELEASE_PENDING_MAX].
+    pub fn expire(&mut self, now: std::time::Instant) {
+        if matches!(self.pending_since,
+            Some(t) if now.saturating_duration_since(t) > RELEASE_PENDING_MAX)
+        {
+            self.pending_since = None;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -175,5 +308,84 @@ mod tests {
         press(&mut c, Shift, false);
         c.reset();
         assert_eq!(press(&mut c, G, false), Pass);
+    }
+
+    use std::time::{Duration, Instant};
+
+    fn key(g: &mut ReleaseGuard, k: ChordKey, down: bool, left: bool, at: Instant) -> GuardAction {
+        g.on_key(k, down, false, left, true, at)
+    }
+
+    fn hold_chord_modifiers(g: &mut ReleaseGuard, at: Instant) {
+        key(g, Ctrl, true, true, at);
+        key(g, Alt, true, true, at);
+        key(g, Shift, true, true, at);
+    }
+
+    #[test]
+    fn guard_fires_and_keeps_keys_back_until_the_grab_changes() {
+        let t = Instant::now();
+        let mut g = ReleaseGuard::default();
+        hold_chord_modifiers(&mut g, t);
+        assert_eq!(key(&mut g, G, true, true, t), GuardAction::FireAndDrop);
+        assert_eq!(key(&mut g, Other, true, true, t), GuardAction::Drop);
+        assert_eq!(key(&mut g, Shift, false, true, t), GuardAction::Forward, "modifiers pass");
+        g.on_grab_change();
+        assert_eq!(key(&mut g, Other, true, true, t), GuardAction::Forward);
+    }
+
+    #[test]
+    fn grab_change_forgets_held_modifiers() {
+        // Ctrl, Alt and Shift were down when the grab ended; their releases
+        // went elsewhere (another window, the secure desktop).
+        let t = Instant::now();
+        let mut g = ReleaseGuard::default();
+        hold_chord_modifiers(&mut g, t);
+        g.on_grab_change();
+        assert_eq!(
+            key(&mut g, G, true, true, t),
+            GuardAction::Forward,
+            "a G after the grab came back must go to the remote computer"
+        );
+    }
+
+    #[test]
+    fn the_fired_g_release_is_kept_back_after_the_grab_ends() {
+        let t = Instant::now();
+        let mut g = ReleaseGuard::default();
+        hold_chord_modifiers(&mut g, t);
+        key(&mut g, G, true, true, t);
+        g.on_grab_change();
+        assert_eq!(key(&mut g, G, false, true, t), GuardAction::Drop);
+    }
+
+    #[test]
+    fn keys_flow_again_when_the_session_window_never_ends_the_grab() {
+        let t = Instant::now();
+        let mut g = ReleaseGuard::default();
+        hold_chord_modifiers(&mut g, t);
+        key(&mut g, G, true, true, t);
+        let soon = t + Duration::from_millis(100);
+        assert_eq!(key(&mut g, Other, true, true, soon), GuardAction::Drop);
+        let late = t + RELEASE_PENDING_MAX + Duration::from_millis(1);
+        assert_eq!(key(&mut g, Other, true, true, late), GuardAction::Forward);
+        assert!(!g.is_pending());
+    }
+
+    #[test]
+    fn altgr_shift_g_is_not_the_chord_on_windows() {
+        // Windows sends AltGr as a left Ctrl with scan code 0x21D and a
+        // right Alt.
+        let t = Instant::now();
+        let mut g = ReleaseGuard::default();
+        let fake_ctrl = ctrl_chord_key(WINDOWS_ALTGR_CTRL_SCAN_CODE, true);
+        key(&mut g, fake_ctrl, true, true, t);
+        key(&mut g, Alt, true, false, t);
+        key(&mut g, Shift, true, true, t);
+        assert_eq!(key(&mut g, G, true, true, t), GuardAction::Forward);
+        key(&mut g, G, false, true, t);
+        // A real left Ctrl with the right Alt still is.
+        key(&mut g, ctrl_chord_key(0x1D, true), true, true, t);
+        assert_eq!(key(&mut g, G, true, true, t), GuardAction::FireAndDrop);
     }
 }
