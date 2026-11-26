@@ -413,6 +413,9 @@ class AboutView extends StatelessWidget {
     required this.onCheckUpdates,
     this.onCommunity,
     this.updateResult,
+    this.updateActionLabel,
+    this.onUpdateAction,
+    this.checking = false,
     this.sourceLabel = 'github.com/neodeskapp/neodesk-client',
   });
 
@@ -424,6 +427,12 @@ class AboutView extends StatelessWidget {
   /// Opens the NeoDesk Discord; no Help row without it.
   final VoidCallback? onCommunity;
   final String? updateResult;
+  /// The button a found release gets next to the result: Update to <version>
+  /// where the app updates itself, Download <version> elsewhere.
+  final String? updateActionLabel;
+  final VoidCallback? onUpdateAction;
+  /// A check is running: the button waits.
+  final bool checking;
   final String sourceLabel;
 
   @override
@@ -475,15 +484,22 @@ class AboutView extends StatelessWidget {
                       ])),
               ]),
               const SizedBox(height: 20),
-              Row(children: [
-                NdButton(label: tr('nd-about-check'), onPressed: onCheckUpdates),
-                if (updateResult != null) ...[
-                  const SizedBox(width: 12),
-                  Flexible(
-                      child: Text(updateResult!,
-                          style: t.body.copyWith(color: c.textMuted))),
-                ],
-              ]),
+              Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (updateActionLabel != null && onUpdateAction != null)
+                      NdButton.primary(
+                          label: updateActionLabel!,
+                          onPressed: onUpdateAction),
+                    NdButton(
+                        label: tr('nd-about-check'),
+                        onPressed: checking ? null : onCheckUpdates),
+                    if (updateResult != null)
+                      Text(updateResult!,
+                          style: t.body.copyWith(color: c.textMuted)),
+                  ]),
               const SizedBox(height: 24),
               Text(tr('nd-about-copyright'),
                   style: t.body.copyWith(color: c.textMuted)),

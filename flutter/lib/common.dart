@@ -3829,8 +3829,20 @@ void earlyAssert() {
   assert('\1' == '1');
 }
 
+/// Looks for a newer NeoDesk Client release a second after start, when
+/// updates are checked at start; the home screen shows it.
 void checkUpdate() {
-  // NeoDesk: temporarily disable rustdesk.com / client software update checks.
+  if (!isDesktop) return;
+  platformFFI.registerEventHandler(
+      kCheckSoftwareUpdateFinish, kCheckSoftwareUpdateFinish,
+      (Map<String, dynamic> evt) async {
+    if (evt['url'] is String) {
+      stateGlobal.updateUrl.value = evt['url'];
+    }
+  });
+  Timer(const Duration(seconds: 1), () async {
+    bind.mainGetSoftwareUpdateUrl();
+  });
 }
 
 // https://github.com/flutter/flutter/issues/153560#issuecomment-2497160535

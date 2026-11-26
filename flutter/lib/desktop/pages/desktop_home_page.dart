@@ -11,6 +11,8 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/connection_page.dart';
 import 'package:flutter_hbb/desktop/pages/home/home_widgets.dart';
 import 'package:flutter_hbb/desktop/pages/nd_chat_page.dart';
+import 'package:flutter_hbb/desktop/widgets/update_check.dart';
+import 'package:flutter_hbb/desktop/widgets/update_progress.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
 import 'package:flutter_hbb/models/nd_chat_bridge.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
@@ -27,6 +29,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:window_size/window_size.dart' as window_size;
+
+/// The version whose update notice was closed on the home screen.
+const _kUpdateNoticeClosed = 'nd-update-notice-closed';
 
 /// Home: this computer on the left, connect to another computer on the
 /// right (DESIGN.md, Home). Without a server, first start and joining take
@@ -107,10 +112,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     return Consumer<ServerModel>(builder: (context, model, _) {
       return Obx(() {
         // Rebuild when help cards change (update url, branding).
-        stateGlobal.updateUrl.value;
+        final updateUrl = stateGlobal.updateUrl.value;
         final branding = BrandingModel.current;
         final company = branding.companyName.value.trim();
         final notices = <Widget>[
+          buildUpdateNotice(updateUrl),
           buildPresetPasswordWarning(),
           ...buildHelpNotices(),
           if (isGenericSupport) buildGenericSupportSetup(context),
@@ -184,6 +190,29 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         return column;
       });
     });
+  }
+
+  /// The notice that a newer release is out, until it is closed for that
+  /// version.
+  Widget buildUpdateNotice(String updateUrl) {
+    if (updateUrl.isEmpty) return const SizedBox.shrink();
+    final version = versionOfReleaseUrl(updateUrl);
+    if (bind.mainGetLocalOption(key: _kUpdateNoticeClosed) == version) {
+      return const SizedBox.shrink();
+    }
+    final canInstall = canInstallUpdates();
+    return UpdateNotice(
+      version: version,
+      canInstall: canInstall,
+      onWhatsNew: () => launchUrl(Uri.parse(updateUrl)),
+      onAction: () => canInstall
+          ? handleUpdate(updateUrl)
+          : launchUrl(Uri.parse(updateUrl)),
+      onClose: () async {
+        await bind.mainSetLocalOption(key: _kUpdateNoticeClosed, value: version);
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   /// The old help cards as notices above the ID panel: not installed,

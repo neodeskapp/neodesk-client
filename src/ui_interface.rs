@@ -530,6 +530,11 @@ pub fn set_option(key: String, value: String) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         let mut options = OPTIONS.lock().unwrap();
+        // The server's strategy manages it: the service keeps its value (A267)
+        if crate::hbbs_http::sync::is_server_managed(&options, &key) {
+            log::info!("{key} is managed by the server, not changed");
+            return;
+        }
         if value.is_empty() {
             options.remove(&key);
         } else {
@@ -829,16 +834,13 @@ pub fn current_is_wayland() -> bool {
     return false;
 }
 
+/// The version of the release in the update URL
+/// (.../releases/tag/desktop-v1.5.0-rc.9 is 1.5.0-rc.9).
 #[inline]
 pub fn get_new_version() -> String {
-    SOFTWARE_UPDATE_URL
-        .lock()
-        .unwrap()
-        .trim_end_matches('/')
-        .rsplit('/')
-        .next()
-        .unwrap_or("")
-        .to_owned()
+    let url = SOFTWARE_UPDATE_URL.lock().unwrap().clone();
+    let tag = url.trim_end_matches('/').rsplit('/').next().unwrap_or("");
+    tag.strip_prefix("desktop-v").unwrap_or(tag).to_owned()
 }
 
 #[inline]

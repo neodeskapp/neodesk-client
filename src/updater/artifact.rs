@@ -1,7 +1,11 @@
+use super::release::{
+    newest_release, release_download_url, verified_package, version_of_tag, NewRelease,
+    UpdateChannel, MANIFEST_FILE, RELEASES_API_URL, RELEASE_PUBLIC_KEY, RELEASE_REPO,
+    SUMS_FILE, SUMS_SIGNATURE_FILE,
+};
 use crate::{
-    common::{display_version_from_release_id, release_id_from_update_url},
     hbbs_http::create_http_client_with_url as create_http_client_with_url_strict,
-    update_metadata::{UpdateArtifactQuery, UpdateMetadataRequirements, VerifiedUpdateArtifact},
+    update_metadata::{UpdateArtifactQuery, VerifiedUpdateArtifact},
 };
 use hbb_common::{bail, ResultType};
 use std::{
@@ -13,6 +17,7 @@ use std::{
 
 const UPDATE_SIDECAR_HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const UPDATE_METADATA_SIDECAR_MAX_BYTES: u64 = 1024 * 1024;
+const RELEASE_LIST_MAX_BYTES: u64 = 4 * 1024 * 1024;
 
 lazy_static::lazy_static! {
     static ref VERIFIED_UPDATE_ARTIFACT: Mutex<Option<VerifiedUpdateArtifact>> = Mutex::new(None);
@@ -104,21 +109,56 @@ pub(super) fn verified_update_artifact_from_release_page_url(
     update_url: &str,
     query: &UpdateArtifactQuery<'_>,
 ) -> ResultType<VerifiedUpdateArtifact> {
-    let release_id = release_id_from_update_url(update_url)?;
-    let display_version = display_version_from_release_id(&release_id)?;
-    let expected_artifact_url_prefix =
-        format!("https://github.com/neodeskapp/neodesk-client/releases/download/{release_id}/");
-    let metadata_url = format!("{expected_artifact_url_prefix}rustdesk-update.json");
-    let signature_url = format!("{metadata_url}.sig");
-    let metadata_bytes = fetch_update_sidecar_bytes(&metadata_url)?;
-    let signature_bytes = fetch_update_sidecar_bytes(&signature_url)?;
-    let requirements = UpdateMetadataRequirements {
-        expected_version: display_version.as_str(),
-        expected_release_id: release_id.as_str(),
-        expected_artifact_url_prefix: expected_artifact_url_prefix.as_str(),
-        artifact: *query,
+    let tag = release_tag_from_page_url(update_url)?;
+    let sums = fetch_update_sidecar_bytes(&release_download_url(&tag, SUMS_FILE))?;
+    let signature = fetch_update_sidecar_bytes(&release_download_url(&tag, SUMS_SIGNATURE_FILE))?;
+    let manifest = fetch_update_sidecar_bytes(&release_download_url(&tag, MANIFEST_FILE))?;
+    verified_package(
+        &tag,
+        &sums,
+        &signature,
+        &manifest,
+        query,
+        &RELEASE_PUBLIC_KEY,
+        crate::VERSION,
+    )
+}
+
+/// The desktop release tag of a release page URL
+/// (https://github.com/neodeskapp/neodesk-client/releases/tag/desktop-v1.5.0-rc.9).
+pub(super) fn release_tag_from_page_url(update_url: &str) -> ResultType<String> {
+    let prefix = format!("https://github.com/{RELEASE_REPO}/releases/tag/");
+    let Some(tag) = update_url
+        .strip_prefix(&prefix)
+        .map(|tag| tag.trim_end_matches('/'))
+    else {
+        bail!("Update URL is not a NeoDesk Client release page: {}", update_url);
     };
-    crate::update_metadata::verify_update_metadata(&metadata_bytes, &signature_bytes, requirements)
+    if version_of_tag(tag).is_none() {
+        bail!("Update URL is not a desktop release: {}", update_url);
+    }
+    Ok(tag.to_owned())
+}
+
+/// The newest release on `channel` newer than the running build, from the
+/// GitHub release list.
+pub(super) fn fetch_newest_release(channel: UpdateChannel) -> ResultType<Option<NewRelease>> {
+    let client = create_http_client_with_url_strict(RELEASES_API_URL);
+    let mut response = client
+        .get(RELEASES_API_URL)
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "NeoDesk-Client-Updater")
+        .timeout(UPDATE_SIDECAR_HTTP_REQUEST_TIMEOUT)
+        .send()?;
+    if !response.status().is_success() {
+        bail!("Failed to read the release list: {}", response.status());
+    }
+    let bytes = read_limited_response_bytes(
+        &mut response,
+        RELEASE_LIST_MAX_BYTES,
+        "Release list",
+    )?;
+    newest_release(&bytes, crate::VERSION, channel)
 }
 
 fn fetch_update_sidecar_bytes(url: &str) -> ResultType<Vec<u8>> {
@@ -242,6 +282,32 @@ mod tests {
             "not a url",
         ] {
             assert!(get_update_download_file_from_url(url).is_none(), "{url}");
+        }
+    }
+
+    #[test]
+    fn release_page_urls_name_a_desktop_tag() {
+        assert_eq!(
+            release_tag_from_page_url(
+                "https://github.com/neodeskapp/neodesk-client/releases/tag/desktop-v1.5.0-rc.9"
+            )
+            .unwrap(),
+            "desktop-v1.5.0-rc.9"
+        );
+        for url in [
+            "https://github.com/neodeskapp/neodesk-client/releases/tag/support-v1.5.0",
+            "https://github.com/neodeskapp/neodesk-client/releases/tag/desktop-v1.5.0/../x",
+            "https://github.com/rustdesk/rustdesk/releases/tag/1.4.6",
+            "https://github.com/neodeskapp/neodesk/releases/tag/desktop-v1.5.0",
+            "http://github.com/neodeskapp/neodesk-client/releases/tag/desktop-v1.5.0",
+            "https://github.com:443/neodeskapp/neodesk-client/releases/tag/desktop-v1.5.0",
+            "https://user@github.com/neodeskapp/neodesk-client/releases/tag/desktop-v1.5.0",
+            "https://github.com/neodeskapp/neodesk-client/releases/tag/desktop-v1.5.0?x=1",
+            "https://github.com/neodeskapp/neodesk-client/releases/tag/desktop-v1.5.0#a",
+            "https://github.com/neodeskapp/neodesk-client/releases/tag/desktop-v1.5.0%2F..",
+            "https://github.com/neodeskapp/neodesk-client/releases/download/desktop-v1.5.0/x.exe",
+        ] {
+            assert!(release_tag_from_page_url(url).is_err(), "{url}");
         }
     }
 

@@ -152,7 +152,7 @@ void main() {
 
   test('every setting of the design has a label and a description', () {
     useLanguage('en');
-    expect(kSettingsIndex.length, 101);
+    expect(kSettingsIndex.length, 102);
     for (final e in kSettingsIndex) {
       expect(translate(e.label), isNot(e.label.startsWith('nd-') ? e.label : ''),
           reason: e.label);
