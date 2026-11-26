@@ -262,11 +262,9 @@ class ConnectionManagerState extends State<ConnectionManager>
                             width: realClosedWidth,
                             child: allowRemoteCMModification()
                                 ? pageView
-                                : buildRemoteBlock(
-                                    child: _buildKeyEventBlock(pageView),
-                                    block: _controlPageBlock,
-                                    mask: false,
-                                  ))),
+                                : cmControlPageBlock(
+                                    child: pageView,
+                                    block: _controlPageBlock))),
                   ]);
                   return Container(
                     color: context.nd.bg,
@@ -289,10 +287,6 @@ class ConnectionManagerState extends State<ConnectionManager>
     } else {
       return ChatPage(type: ChatPageType.desktopCM);
     }
-  }
-
-  Widget _buildKeyEventBlock(Widget child) {
-    return ExcludeFocus(child: child, excluding: true);
   }
 
   Widget buildTitleBar() {
@@ -504,6 +498,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
       body = SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
         child: CmRequestBody(
+          focusOnArrival: true,
           header: CmHeader(
               name: name,
               subtitle: formatNdId(client.peerId),
@@ -804,6 +799,15 @@ void checkClickTime(int id, Function() callback) async {
     if (d > 120) callback();
   });
 }
+
+/// The connection manager's control page when the remote side may not
+/// change it. While the remote computer's mouse is over the window ([block]),
+/// the page takes no clicks and no focus. Otherwise the local keyboard
+/// reaches Allow, Decline, the switches and Stop session. Every action still
+/// checks that the click or key did not come from the remote computer
+/// (checkClickTime; the server records each remote key press for it).
+Widget cmControlPageBlock({required Widget child, required RxBool block}) =>
+    buildRemoteBlock(child: child, block: block, mask: false);
 
 bool allowRemoteCMModification() {
   return option2bool(kOptionAllowRemoteCmModification,
