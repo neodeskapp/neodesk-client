@@ -1319,6 +1319,20 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-pair-approved", "Gekoppelt. Dieses Gerät ist freigegeben."),
         ("nd-pair-waits", "Gekoppelt. Dieses Gerät wartet in der Konsole auf Freigabe."),
         ("nd-chat-server-starting", "Nicht gesendet: Der Server startet gerade. Versuch es gleich noch einmal."),
+        ("nd-key-release-chord", "Strg+Alt+Umschalt+G"),
+        ("nd-key-release-chord-mac", "Befehl+Wahl+Umschalt+G"),
+        ("nd-keyboard-released", "Tastatur freigegeben. Drück {}, um sie dem entfernten Computer zurückzugeben."),
+        ("nd-keyboard-taken", "Die Tastatur geht an {}. Drück {}, um sie zurückzuholen."),
+        ("nd-remote-screen-label", "Bildschirm von {}"),
+        ("nd-remote-screen-hint", "Tastatur und Maus gehen an {}. Drück {}, um die Tastatur zurückzuholen und zur Werkzeugleiste zu kommen."),
+        ("nd-keyboard-release-tip", "{} gibt die Tastatur zwischen diesem und dem entfernten Computer hin und her"),
+        ("nd-step-done", "Erledigt: {}"),
+        ("nd-step-running", "Läuft gerade: {}"),
+        ("nd-step-todo", "Noch offen: {}"),
+        ("nd-file-kind-folder", "Ordner"),
+        ("nd-file-kind-file", "Datei"),
+        ("nd-file-kind-drive", "Laufwerk"),
+        ("nd-chat-message-from", "Nachricht von {}: {}"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

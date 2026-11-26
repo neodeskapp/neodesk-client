@@ -465,6 +465,9 @@ class InputModel {
   late final RelativeMouseModel _relativeMouse;
   // Callback to cancel external throttle timer when relative mouse mode is disabled.
   VoidCallback? onRelativeMouseModeDisabled;
+  // Called when the grab loop caught the key combination that takes the
+  // keyboard back from the remote computer (remote_keyboard.dart).
+  VoidCallback? onReleaseKeyboard;
   // Disposer for the relativeMouseMode observer (to prevent memory leaks).
   Worker? _relativeMouseModeDisposer;
 

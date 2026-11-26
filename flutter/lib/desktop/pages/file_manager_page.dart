@@ -27,6 +27,7 @@ import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import '../widgets/popup_menu.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd_pressable.dart';
 
 /// status of location bar
 enum LocationStatus {
@@ -1136,9 +1137,53 @@ class _FileManagerViewState extends State<FileManagerView> {
                 details.globalPosition.dy);
           }
 
+          // The row to the keyboard and to assistive tech: Tab or Up / Down
+          // to reach it, Space to select it (with Ctrl or Shift as with the
+          // mouse), Enter to open a folder or drive.
+          void select() =>
+              _onSelectedChanged(selectedItems, filteredEntries, entry, isLocal);
+          void open() {
+            if (entry.isFile) {
+              select();
+            } else {
+              controller.openDirectory(entry.path);
+              selectedItems.clear();
+            }
+          }
+
+          void move(TraversalDirection d) =>
+              FocusManager.instance.primaryFocus?.focusInDirection(d);
+          final kind = translate(entry.isDrive
+              ? 'nd-file-kind-drive'
+              : (entry.isFile ? 'nd-file-kind-file' : 'nd-file-kind-folder'));
+          final rowLabel = [
+            entry.name,
+            kind,
+            if (sizeStr.isNotEmpty) sizeStr,
+            if (lastModifiedStr.trim().isNotEmpty)
+              '${translate('Modified')} ${lastModifiedStr.trim()}',
+          ].join(', ');
+
           return Padding(
             padding: EdgeInsets.symmetric(vertical: 1),
-            child: Obx(() => Container(
+            child: Obx(() => NdPressable(
+                label: rowLabel,
+                selected: selectedItems.items.contains(entry),
+                ringOutset: 0,
+                onPressed: select,
+                keys: {
+                  const SingleActivator(LogicalKeyboardKey.enter): open,
+                  const SingleActivator(LogicalKeyboardKey.numpadEnter): open,
+                  const SingleActivator(LogicalKeyboardKey.space, control: true):
+                      select,
+                  const SingleActivator(LogicalKeyboardKey.space, shift: true):
+                      select,
+                  const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+                      move(TraversalDirection.down),
+                  const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+                      move(TraversalDirection.up),
+                },
+                child: Container(
                 decoration: BoxDecoration(
                   color: selectedItems.items.contains(entry)
                       ? MyTheme.button
@@ -1260,7 +1305,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                       ),
                     ),
                   ],
-                ))),
+                )))),
           );
         });
 

@@ -2,8 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/nd_theme.dart';
+import 'nd_announce.dart';
 import 'nd_icons.dart';
 import 'nd_menu.dart';
+import 'nd_pressable.dart';
+
+/// Gives a text field one name and one description for assistive tech: the
+/// label drawn above it and the hint or error drawn below it are not tied to
+/// the field otherwise, and a placeholder is no name (it goes away).
+Widget ndNamedField(Widget field, {String? label, String? description}) {
+  if ((label ?? '').isEmpty && (description ?? '').isEmpty) return field;
+  return MergeSemantics(
+    child: Semantics(
+      label: (label ?? '').isEmpty ? null : label,
+      hint: (description ?? '').isEmpty ? null : description,
+      child: field,
+    ),
+  );
+}
 
 /// A text field with the label above, a hint or an error below.
 /// Large fields (44 high) are for onboarding, the connect field and quick
@@ -32,9 +48,13 @@ class NdField extends StatefulWidget {
     this.width,
     this.height,
     this.textAlignVertical,
+    this.semanticLabel,
   });
 
   final String? label;
+
+  /// The field's name when no [label] is drawn (the connect field).
+  final String? semanticLabel;
   final String? hint;
   final String? error;
   final TextEditingController? controller;
@@ -80,6 +100,11 @@ class _NdFieldState extends State<NdField> {
       (old.focusNode ?? _own)?.removeListener(_onFocus);
       _node.addListener(_onFocus);
     }
+    // A new error is said at once, also when focus is elsewhere.
+    final e = widget.error ?? '';
+    if (e.isNotEmpty && e != (old.error ?? '')) {
+      ndAnnounce(context, e, assertive: true);
+    }
   }
 
   void _onFocus() {
@@ -110,8 +135,9 @@ class _NdFieldState extends State<NdField> {
         color: widget.enabled ? c.text : c.textMuted);
     final borderColor = invalid ? c.danger : (_focused ? c.accent : c.border);
 
+    // At least [h] high; it grows when the text is scaled up.
     Widget box = Container(
-      height: h,
+      constraints: BoxConstraints(minHeight: h),
       width: widget.width,
       padding: EdgeInsets.only(
           left: widget.large ? 12 : 10,
@@ -128,7 +154,10 @@ class _NdFieldState extends State<NdField> {
             const SizedBox(width: 8),
           ],
           Expanded(
-            child: TextField(
+            child: ndNamedField(
+              label: widget.label ?? widget.semanticLabel,
+              description: invalid ? widget.error : widget.hint,
+              TextField(
               controller: widget.controller,
               focusNode: _node,
               autofocus: widget.autofocus,
@@ -154,6 +183,7 @@ class _NdFieldState extends State<NdField> {
                 hintText: widget.placeholder,
                 hintStyle: style.copyWith(color: c.textMuted),
               ),
+            ),
             ),
           ),
           if (widget.trailing != null) ...[
@@ -209,12 +239,16 @@ class _NdFieldState extends State<NdField> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Said with the field (ndNamedField), not as texts of their own.
         if (widget.label != null) ...[
-          Text(widget.label!, style: t.label),
+          ExcludeSemantics(child: Text(widget.label!, style: t.label)),
           const SizedBox(height: 6),
         ],
         box,
-        if (below != null) ...[const SizedBox(height: 6), below],
+        if (below != null) ...[
+          const SizedBox(height: 6),
+          ExcludeSemantics(child: below),
+        ],
       ],
     );
   }
@@ -270,6 +304,7 @@ class NdSelect<T> extends StatefulWidget {
     required this.onChanged,
     this.width = 220,
     this.placeholder,
+    this.semanticLabel,
   });
 
   final List<NdOption<T>> options;
@@ -278,6 +313,21 @@ class NdSelect<T> extends StatefulWidget {
   final double width;
   final String? placeholder;
 
+  /// What is chosen here, usually the settings row's label. The screen
+  /// reader says it with the current choice.
+  final String? semanticLabel;
+
+  /// This select, named [name].
+  NdSelect<T> withSemanticLabel(String name) => NdSelect<T>(
+        key: key,
+        options: options,
+        value: value,
+        onChanged: onChanged,
+        width: width,
+        placeholder: placeholder,
+        semanticLabel: name,
+      );
+
   @override
   State<NdSelect<T>> createState() => _NdSelectState<T>();
 }
@@ -285,6 +335,35 @@ class NdSelect<T> extends StatefulWidget {
 class _NdSelectState<T> extends State<NdSelect<T>> {
   final _controller = MenuController();
   bool _hover = false;
+  final _optionNodes = <FocusNode>[];
+
+  List<FocusNode> _nodes() {
+    while (_optionNodes.length < widget.options.length) {
+      _optionNodes.add(FocusNode(debugLabel: 'option ${_optionNodes.length}'));
+    }
+    return _optionNodes;
+  }
+
+  /// Opens the menu and puts focus on the chosen option, so the arrow keys
+  /// move from there and Enter picks one.
+  void _openFromKeyboard() {
+    if (widget.onChanged == null) return;
+    _controller.open();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.isOpen) return;
+      final i = widget.options.indexWhere((o) => o.value == widget.value);
+      final nodes = _nodes();
+      if (nodes.isNotEmpty) nodes[i < 0 ? 0 : i].requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final n in _optionNodes) {
+      n.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -299,31 +378,40 @@ class _NdSelectState<T> extends State<NdSelect<T>> {
         prefix = o.prefix;
       }
     }
+    final nodes = _nodes();
     return MenuAnchor(
       controller: _controller,
       style: ndMenuStyle(context, minWidth: widget.width),
       alignmentOffset: const Offset(0, 4),
+      onOpen: () => setState(() {}),
+      onClose: () => setState(() {}),
       menuChildren: [
-        for (final o in widget.options)
+        for (var i = 0; i < widget.options.length; i++)
           NdMenuItem(
-            label: o.label,
-            prefix: o.prefix,
-            leading: o.value == widget.value
+            focusNode: nodes[i],
+            label: widget.options[i].label,
+            prefix: widget.options[i].prefix,
+            leading: widget.options[i].value == widget.value
                 ? NdMenuLead.check
                 : NdMenuLead.none,
-            onPressed: () => widget.onChanged?.call(o.value),
+            onPressed: () => widget.onChanged?.call(widget.options[i].value),
           ),
       ],
-      builder: (context, controller, _) => MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: enabled
-              ? () => controller.isOpen ? controller.close() : controller.open()
-              : null,
-          child: Opacity(
+      builder: (context, controller, _) => NdPressable(
+        label: widget.semanticLabel ?? label,
+        value: widget.semanticLabel == null ? null : label,
+        expanded: controller.isOpen,
+        onHover: (v) => setState(() => _hover = v),
+        onPressed: enabled
+            ? () => controller.isOpen ? controller.close() : _openFromKeyboard()
+            : null,
+        keys: {
+          const SingleActivator(LogicalKeyboardKey.arrowDown, alt: true):
+              _openFromKeyboard,
+          const SingleActivator(LogicalKeyboardKey.arrowDown):
+              _openFromKeyboard,
+        },
+        child: Opacity(
             opacity: enabled ? 1 : 0.45,
             child: Container(
               width: widget.width,
@@ -349,7 +437,6 @@ class _NdSelectState<T> extends State<NdSelect<T>> {
               ),
             ),
           ),
-        ),
       ),
     );
   }

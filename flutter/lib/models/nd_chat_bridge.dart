@@ -11,6 +11,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/common/widgets/nd/nd.dart' show ndAnnounce, tr;
 import 'package:flutter_hbb/desktop/pages/nd_chat_page.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/models/nd_chat_model.dart';
@@ -130,6 +131,8 @@ class NdChatService with WindowListener {
     notify: (title, body) => bind.mainSetCommon(
         key: 'nd-chat-notify',
         value: jsonEncode({'title': title, 'body': body})),
+    announce: (name, text) =>
+        ndAnnounce(null, tr('nd-chat-message-from', [name, text])),
   );
 
   /// Connects the chat of this computer, once per process.

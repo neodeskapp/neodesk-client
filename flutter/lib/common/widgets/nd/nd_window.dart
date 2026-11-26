@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart' show translate;
 
 import '../../theme/nd_theme.dart';
+import 'nd_button.dart';
+import 'nd_pressable.dart';
 import 'nd_icons.dart';
 import 'nd_misc.dart';
 
@@ -155,24 +158,23 @@ class _WinButtonState extends State<NdWinButton> {
     final fg = widget.onTap == null
         ? c.textMuted
         : (_hover && widget.isClose ? c.onWindowCloseHover : c.text);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Tooltip(
-          message: widget.tooltip,
-          waitDuration: const Duration(seconds: 1),
-          child: Container(
-            width: 46,
-            height: widget.height,
-            color: bg,
-            alignment: Alignment.center,
-            child: CustomPaint(
-              size: const Size.square(NdWinGlyphPainter.size),
-              painter: NdWinGlyphPainter(widget.glyph, fg),
-            ),
+    return NdPressable(
+      label: widget.tooltip,
+      ringOutset: 0,
+      onHover: (v) => setState(() => _hover = v),
+      onPressed: widget.onTap,
+      child: Tooltip(
+        message: widget.tooltip,
+        excludeFromSemantics: true,
+        waitDuration: const Duration(seconds: 1),
+        child: Container(
+          width: 46,
+          height: widget.height,
+          color: bg,
+          alignment: Alignment.center,
+          child: CustomPaint(
+            size: const Size.square(NdWinGlyphPainter.size),
+            painter: NdWinGlyphPainter(widget.glyph, fg),
           ),
         ),
       ),
@@ -278,13 +280,27 @@ class _TitleTabState extends State<_TitleTab> {
     final t = context.ndText;
     final tab = widget.tab;
     final sel = tab.selected;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: tab.onTap,
-        child: Transform.translate(
+    void move(TraversalDirection d) =>
+        FocusManager.instance.primaryFocus?.focusInDirection(d);
+    // A page tab: Tab or Left / Right to reach it, Enter to open it,
+    // Ctrl+W to close it.
+    return NdPressable(
+      label: tab.label,
+      keepChildSemantics: true,
+      selected: sel,
+      ringOutset: 0,
+      onHover: (v) => setState(() => _hover = v),
+      onPressed: tab.onTap,
+      keys: {
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+            move(TraversalDirection.right),
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+            move(TraversalDirection.left),
+        if (tab.onClose != null)
+          const SingleActivator(LogicalKeyboardKey.keyW, control: true):
+              tab.onClose!,
+      },
+      child: Transform.translate(
           offset: Offset(0, sel ? 1 : 0),
           child: Container(
             constraints: const BoxConstraints(minWidth: 120),
@@ -307,19 +323,21 @@ class _TitleTabState extends State<_TitleTab> {
                   Icon(tab.icon, size: 16, color: c.textMuted),
                 if (tab.leading != null || tab.icon != null)
                   const SizedBox(width: 8),
-                Text(tab.label,
-                    style: t.label.copyWith(
-                        fontSize: 13,
-                        height: 18 / 13,
-                        color: sel ? c.text : c.textMuted)),
+                ExcludeSemantics(
+                  child: Text(tab.label,
+                      style: t.label.copyWith(
+                          fontSize: 13,
+                          height: 18 / 13,
+                          color: sel ? c.text : c.textMuted)),
+                ),
                 if (tab.onClose != null) ...[
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: tab.onClose,
-                    child: Tooltip(
-                      message: translate('Close'),
-                      child: Icon(NdIcons.close, size: 16, color: c.textMuted),
-                    ),
+                  const SizedBox(width: 6),
+                  NdIconButton(
+                    icon: NdIcons.close,
+                    tooltip: '${translate('Close')} ${tab.label}',
+                    size: 24,
+                    iconSize: 16,
+                    onPressed: tab.onClose,
                   ),
                 ] else
                   const SizedBox(width: 4),
@@ -327,7 +345,6 @@ class _TitleTabState extends State<_TitleTab> {
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -352,13 +369,12 @@ class _NdTitleBarTextState extends State<NdTitleBarText> {
     final c = context.nd;
     final t = context.ndText;
     return Center(
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            height: 30,
+      child: NdPressable(
+        label: widget.label,
+        onHover: (v) => setState(() => _hover = v),
+        onPressed: widget.onTap,
+        child: Container(
+            constraints: const BoxConstraints(minHeight: 30),
             padding: const EdgeInsets.symmetric(horizontal: 10),
             alignment: Alignment.center,
             decoration: BoxDecoration(
@@ -374,7 +390,6 @@ class _NdTitleBarTextState extends State<NdTitleBarText> {
                   style: t.label.copyWith(fontSize: 13, height: 18 / 13)),
             ]),
           ),
-        ),
       ),
     );
   }

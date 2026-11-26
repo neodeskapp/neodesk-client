@@ -12,6 +12,7 @@ import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 
 import './gestures.dart';
+import './remote_keyboard.dart';
 
 class RawKeyFocusScope extends StatelessWidget {
   final FocusNode? focusNode;
@@ -19,11 +20,20 @@ class RawKeyFocusScope extends StatelessWidget {
   final InputModel inputModel;
   final Widget child;
 
+  /// The remote computer's name: names the screen for assistive tech.
+  final String? peerName;
+
+  /// Called for the release combination (remote_keyboard.dart), which then
+  /// never reaches the remote computer.
+  final VoidCallback? onReleaseKeyboard;
+
   RawKeyFocusScope({
     this.focusNode,
     this.onFocusChange,
     required this.inputModel,
     required this.child,
+    this.peerName,
+    this.onReleaseKeyboard,
   });
 
   @override
@@ -32,22 +42,15 @@ class RawKeyFocusScope extends StatelessWidget {
     final useRawKeyEvents = isLinux && !isWeb;
     // FIXME: On Windows, `AltGr` will generate `Alt` and `Control` key events,
     // while `Alt` and `Control` are separated key events for en-US input method.
-    return FocusScope(
-        autofocus: true,
-        child: Focus(
-            autofocus: true,
-            canRequestFocus: true,
-            focusNode: focusNode,
-            onFocusChange: onFocusChange,
-            onKey: useRawKeyEvents
-                ? (FocusNode data, RawKeyEvent event) =>
-                    inputModel.handleRawKeyEvent(event)
-                : null,
-            onKeyEvent: useRawKeyEvents
-                ? null
-                : (FocusNode node, KeyEvent event) =>
-                    inputModel.handleKeyEvent(event),
-            child: child));
+    return RemoteKeyboardScope(
+        focusNode: focusNode,
+        onFocusChange: onFocusChange,
+        useRawKeyEvents: useRawKeyEvents,
+        onKeyEvent: inputModel.handleKeyEvent,
+        onRawKeyEvent: inputModel.handleRawKeyEvent,
+        peerName: peerName,
+        onReleaseKeyboard: onReleaseKeyboard,
+        child: child);
   }
 }
 

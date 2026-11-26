@@ -43,6 +43,11 @@ ButtonStyle ndMenuItemStyle(BuildContext context, {bool danger = false}) {
             : Colors.transparent),
     overlayColor: const WidgetStatePropertyAll(Colors.transparent),
     shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
+    // Keyboard focus: a 2 px accent outline; the hover fill alone is under
+    // 3:1 against the menu.
+    side: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.focused)
+        ? BorderSide(color: c.accent, width: 2)
+        : null),
     splashFactory: NoSplash.splashFactory,
   );
 }
@@ -103,6 +108,7 @@ class NdMenuItem extends StatelessWidget {
     this.reason,
     this.closeOnActivate = true,
     this.prefix,
+    this.focusNode,
   });
 
   final String label;
@@ -116,11 +122,13 @@ class NdMenuItem extends StatelessWidget {
 
   /// Shown between the lead column and the label, such as a language's flag.
   final Widget? prefix;
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
     final t = context.ndText;
     Widget item = MenuItemButton(
+      focusNode: focusNode,
       onPressed: onPressed,
       closeOnActivate: closeOnActivate,
       style: ndMenuItemStyle(context, danger: danger),
@@ -141,6 +149,19 @@ class NdMenuItem extends StatelessWidget {
     );
     if (onPressed == null && reason != null && reason!.isNotEmpty) {
       item = Tooltip(message: reason!, child: item);
+    }
+    // The check and the radio mark are drawn; say them too.
+    final radio =
+        leading == NdMenuLead.radioOn || leading == NdMenuLead.radioOff;
+    if (leading != NdMenuLead.none) {
+      item = MergeSemantics(
+        child: Semantics(
+          checked:
+              leading == NdMenuLead.check || leading == NdMenuLead.radioOn,
+          inMutuallyExclusiveGroup: radio ? true : null,
+          child: item,
+        ),
+      );
     }
     return item;
   }
