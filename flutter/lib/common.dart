@@ -54,6 +54,7 @@ import 'package:flutter_hbb/utils/http_service.dart' as http;
 import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd_misc.dart'
     show NdOsMark, ndOsFromPlatform;
+import 'package:flutter_hbb/common/linux_field_semantics.dart';
 
 final globalKey = GlobalKey<NavigatorState>();
 final navigationBarKey = GlobalKey();
@@ -3834,11 +3835,12 @@ void checkUpdate() {
 }
 
 // https://github.com/flutter/flutter/issues/153560#issuecomment-2497160535
-// For TextField, TextFormField
+// For TextField, TextFormField. Hiding the field also hides it from Orca, so
+// it happens only where the freeze is known and no screen reader runs
+// (common/linux_field_semantics.dart).
 extension WorkaroundFreezeLinuxMint on Widget {
   Widget workaroundFreezeLinuxMint() {
-    // No need to check if is Linux Mint, because this workaround is harmless on other platforms.
-    if (isLinux) {
+    if (isLinux && hideLinuxFieldSemantics) {
       return ExcludeSemantics(child: this);
     } else {
       return this;
