@@ -504,24 +504,35 @@ class _NdChatPageState extends State<NdChatPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (reply != null || editing != null)
-            _ComposeContext(
-              icon: editing != null ? NdIcons.edit : NdIcons.reply,
-              title: editing != null
-                  ? tr('nd-chat-editing')
-                  : tr('nd-chat-replying-to', [reply!.from.name]),
-              text: editing != null
-                  ? ''
-                  : reply!.deleted
-                      ? tr('nd-chat-deleted')
-                      : reply.text.isNotEmpty
-                          ? reply.text
-                          : reply.files.isNotEmpty
-                              ? reply.files.first.name
-                              : '',
-              stopLabel: editing != null
-                  ? tr('nd-chat-stop-edit')
-                  : tr('nd-chat-stop-reply'),
-              onStop: _escape,
+            Padding(
+              // Lined up with the field, between the clip and send buttons.
+              padding:
+                  const EdgeInsets.symmetric(horizontal: NdSize.control + 4),
+              child: _ComposeContext(
+                key: const ValueKey('nd-chat-compose-context'),
+                icon: editing != null ? NdIcons.edit : NdIcons.reply,
+                title: editing != null
+                    ? tr('nd-chat-editing')
+                    : tr('nd-chat-replying-to', [reply!.from.name]),
+                text: editing != null
+                    ? editing.text
+                    : reply!.deleted
+                        ? tr('nd-chat-deleted')
+                        : reply.text.isNotEmpty
+                            ? reply.text
+                            : reply.files.isNotEmpty
+                                ? reply.files.first.name
+                                : '',
+                italic: editing == null && reply!.deleted,
+                file: editing == null && !reply!.deleted
+                    ? (reply.files.isEmpty ? null : reply.files.first)
+                    : null,
+                actions: widget.actions,
+                stopLabel: editing != null
+                    ? tr('nd-chat-stop-edit')
+                    : tr('nd-chat-stop-reply'),
+                onStop: _escape,
+              ),
             ),
           if (_files.isNotEmpty)
             Padding(
@@ -1251,18 +1262,28 @@ class _PendingRow extends StatelessWidget {
   }
 }
 
+/// Above the field: the message being answered or edited, with an
+/// accent bar on its start edge, a picture's thumbnail or a file's icon
+/// when the message has one, and a way out.
 class _ComposeContext extends StatelessWidget {
   const _ComposeContext({
+    super.key,
     required this.icon,
     required this.title,
     required this.text,
     required this.stopLabel,
     required this.onStop,
+    required this.actions,
+    this.italic = false,
+    this.file,
   });
 
   final IconData icon;
   final String title;
   final String text;
+  final bool italic;
+  final NdChatFile? file;
+  final NdChatPageActions actions;
   final String stopLabel;
   final VoidCallback onStop;
 
@@ -1270,36 +1291,126 @@ class _ComposeContext extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.nd;
     final t = context.ndText;
+    final f = file;
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.fromLTRB(10, 4, 2, 4),
+      margin: const EdgeInsets.only(bottom: 8),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: c.bgSubtle,
         borderRadius: NdSize.r,
-        border: Border(left: BorderSide(color: c.accent, width: 3)),
+        border: Border.all(color: c.rule),
       ),
-      child: Row(children: [
-        Icon(icon, size: 16, color: c.textMuted),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(title,
-                  overflow: TextOverflow.ellipsis,
-                  style: t.small
-                      .copyWith(color: c.text, fontWeight: FontWeight.w600)),
-              if (text.isNotEmpty)
-                Text(text,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: t.small.copyWith(color: c.textMuted)),
-            ],
+      child: IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(width: 3, color: c.accent),
+          const SizedBox(width: 10),
+          Center(child: Icon(icon, size: 16, color: c.accent)),
+          const SizedBox(width: 8),
+          if (f != null && f.isPicture)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 6, right: 8),
+              child: _Thumb(file: f, actions: actions),
+            ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.small.copyWith(
+                          color: c.accent, fontWeight: FontWeight.w600)),
+                  if (text.isNotEmpty)
+                    Row(children: [
+                      if (f != null && !f.isPicture && text == f.name)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Icon(NdIcons.description,
+                              size: 14, color: c.textMuted),
+                        ),
+                      Flexible(
+                        child: Text(text.replaceAll('\n', ' '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: t.small.copyWith(
+                                color: c.textMuted,
+                                fontStyle: italic
+                                    ? FontStyle.italic
+                                    : FontStyle.normal)),
+                      ),
+                    ]),
+                ],
+              ),
+            ),
           ),
+          Align(
+            alignment: Alignment.center,
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Semantics(
+                container: true,
+                button: true,
+                label: stopLabel,
+                onTap: onStop,
+                excludeSemantics: true,
+                child: NdIconButton(
+                  icon: NdIcons.close,
+                  tooltip: stopLabel,
+                  size: NdSize.controlSm,
+                  iconSize: 16,
+                  color: c.textMuted,
+                  onPressed: onStop,
+                ),
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// A picture's small square preview in the reply banner.
+class _Thumb extends StatefulWidget {
+  const _Thumb({required this.file, required this.actions});
+  final NdChatFile file;
+  final NdChatPageActions actions;
+
+  @override
+  State<_Thumb> createState() => _ThumbState();
+}
+
+class _ThumbState extends State<_Thumb> {
+  late Future<Uint8List?> _bytes = widget.actions.picture(widget.file);
+
+  @override
+  void didUpdateWidget(_Thumb old) {
+    super.didUpdateWidget(old);
+    if (old.file.id != widget.file.id) {
+      _bytes = widget.actions.picture(widget.file);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.nd;
+    return ClipRRect(
+      borderRadius: NdSize.r,
+      child: Container(
+        width: 32,
+        height: 32,
+        color: c.bg,
+        child: FutureBuilder<Uint8List?>(
+          future: _bytes,
+          builder: (context, snap) => snap.data == null
+              ? Icon(NdIcons.imageSearch, size: 16, color: c.textMuted)
+              : Image.memory(snap.data!, fit: BoxFit.cover),
         ),
-        _IconAction(icon: NdIcons.close, label: stopLabel, onPressed: onStop),
-      ]),
+      ),
     );
   }
 }

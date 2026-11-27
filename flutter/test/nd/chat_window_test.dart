@@ -4,13 +4,13 @@
 
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
+
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_hbb/common/widgets/nd/nd.dart' show NdMenuItem;
+import 'package:flutter_hbb/common/widgets/nd/nd.dart' show NdIcons, NdMenuItem;
 import 'package:flutter_hbb/desktop/pages/nd_chat_page.dart';
 import 'package:flutter_hbb/models/nd_chat_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +24,8 @@ class Actions {
   final opened = <Uri>[];
   final helperAsked = <String>[];
   Uint8List? helperBytes;
+  final picturesAsked = <String>[];
+  Uint8List? pictureBytes;
   String? saveTo = '/home/me/Downloads/report.pdf';
 
   NdChatPageActions get it => NdChatPageActions(
@@ -32,7 +34,10 @@ class Actions {
           saved.add(f.id);
           return saveTo;
         },
-        picture: (f) async => null,
+        picture: (f) async {
+          picturesAsked.add(f.name);
+          return pictureBytes;
+        },
         openLink: opened.add,
         helperPicture: (version) async {
           helperAsked.add(version);
@@ -257,6 +262,92 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Replying to Anna Weber'), findsOneWidget);
       expect(find.text('error.png'), findsOneWidget);
+    });
+  });
+
+  testWidgets('replying to a picture shows its thumbnail beside the name', (tester) async {
+    await withChat(tester, (chat) async {
+      chat.open(messages: [
+        {...msg(1, text: ''), 'attachments': [file('error.png', 48213, picture: true)]},
+      ]);
+      await tester.pump();
+      await tester.tap(find.bySemanticsLabel('Message options'));
+      await tester.pumpAndSettle();
+      chat.actions.picturesAsked.clear();
+      await tester.tap(find.text('Reply'));
+      await tester.pumpAndSettle();
+      final banner = find.byKey(const ValueKey('nd-chat-compose-context'));
+      expect(chat.actions.picturesAsked, ['error.png']);
+      expect(find.descendant(of: banner, matching: find.byIcon(NdIcons.imageSearch)), findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.byIcon(NdIcons.description)), findsNothing);
+    });
+  });
+
+  testWidgets('replying to a file shows a file icon before its name', (tester) async {
+    await withChat(tester, (chat) async {
+      chat.open(messages: [
+        {...msg(1, text: ''), 'attachments': [file('report.pdf', 48213)]},
+      ]);
+      await tester.pump();
+      await tester.tap(find.bySemanticsLabel('Message options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reply'));
+      await tester.pumpAndSettle();
+      final banner = find.byKey(const ValueKey('nd-chat-compose-context'));
+      expect(find.descendant(of: banner, matching: find.text('report.pdf')), findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.byIcon(NdIcons.description)), findsOneWidget);
+    });
+  });
+
+  testWidgets('the edit banner quotes the message as it was and sits over the field only', (tester) async {
+    await withChat(tester, (chat) async {
+      chat.open(messages: [msg(1, text: 'The printer blinks orang', from: me)]);
+      await tester.pump();
+      await tester.tap(find.bySemanticsLabel('Message options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      final banner = find.byKey(const ValueKey('nd-chat-compose-context'));
+      expect(find.descendant(of: banner, matching: find.text('Editing your message')), findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.text('The printer blinks orang')), findsOneWidget);
+      final b = tester.getRect(banner);
+      final f = tester.getRect(find.byType(TextField));
+      final field = tester.getRect(find.ancestor(of: find.byType(TextField), matching: find.byType(Container)).first);
+      expect(b.left, field.left);
+      expect(b.right, field.right);
+      expect(f.left, greaterThan(b.left));
+    });
+  });
+
+  forBothThemes('the reply banner', (tester, b) async {
+    await withChat(tester, size: const Size(520, 460), brightness: b, (chat) async {
+      chat.actions.pictureBytes = base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAf0lEQVR4nA3JIQFFMQhA0R/nhSAEGj1DAxpg0OiZNaDBzI31d+z5fYYYaiwjjDK2Mcbvc8RRZznhlLOd8ReBBBqsIIIKdjDxIpFEk5VEUslOJl800mizmmiq2c30i4Mc9LAOcajDPsx5McigwxpiqGEPMy8uctHLusSlLvsylz/iP3Ehai1tRwAAAABJRU5ErkJggg==');
+      chat.open(helper: 'Anna Weber', messages: [
+        {...msg(1, text: ''), 'attachments': [file('screenshot-2026-11-26-01-37-36.png', 48213, picture: true)]},
+      ]);
+      await tester.pump();
+      await tester.tap(find.bySemanticsLabel('Message options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reply'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await shot(tester, 'chat-reply-banner', b);
+    });
+  });
+
+  forBothThemes('the edit banner', (tester, b) async {
+    await withChat(tester, size: const Size(520, 460), brightness: b, (chat) async {
+      chat.open(helper: 'Anna Weber', messages: [msg(1, from: me, text: 'The printer blinks orang')]);
+      await tester.pump();
+      await tester.tap(find.bySemanticsLabel('Message options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await shot(tester, 'chat-edit-banner', b);
     });
   });
 
