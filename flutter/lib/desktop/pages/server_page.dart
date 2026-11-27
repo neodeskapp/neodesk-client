@@ -20,6 +20,7 @@ import '../../common/widgets/chat_page.dart';
 import '../../models/file_model.dart';
 import '../../models/platform_model.dart';
 import '../../models/server_model.dart';
+import '../../native/window_frame.dart';
 
 /// Set only by this window's own close control, and only once the user has confirmed. Any other
 /// way the window can go - a session logout closing every window, the window manager, a native
@@ -91,27 +92,117 @@ class _DesktopServerPageState extends State<DesktopServerPage>
         ChangeNotifierProvider.value(value: gFFI.chatModel),
       ],
       child: Consumer<ServerModel>(
-        builder: (context, serverModel, child) {
-          final body = Scaffold(
-            backgroundColor: context.nd.bg,
-            body: ConnectionManager(),
-          );
-          return isLinux
-              ? buildVirtualWindowFrame(context, body)
-              : workaroundWindowBorder(
-                  context,
-                  Container(
-                    decoration: BoxDecoration(
-                        border: Border.all(color: context.nd.rule)),
-                    child: body,
-                  ));
-        },
+        builder: (context, serverModel, child) => ConnectionManager(),
       ),
     );
   }
 
   @override
   bool get wantKeepAlive => true;
+}
+
+/// The card's window: background, border and on Linux the drawn frame. The
+/// bar has none of them.
+Widget _cardFrame(BuildContext context, Widget child) {
+  final body = Scaffold(backgroundColor: context.nd.bg, body: child);
+  return isLinux
+      ? buildVirtualWindowFrame(context, body)
+      : workaroundWindowBorder(
+          context,
+          Container(
+            decoration:
+                BoxDecoration(border: Border.all(color: context.nd.rule)),
+            child: body,
+          ));
+}
+
+/// The shape the connection window has now; null when something else set
+/// its size (showCmWindow), so the next build sets it again.
+CmShape? cmWindowShape;
+
+/// Whether the window has the bar's frame (none) now.
+bool _cmFramelessBar = false;
+
+/// Gives the connection window [shape]: the bar is frameless, always on
+/// top, at the top centre of the screen and not in the taskbar; the card
+/// gets its frame back at the top right. Between the bar and the bar with a
+/// panel only the height changes, so a bar the person moved stays there.
+Future<void> applyCmShape(CmShape shape) async {
+  final before = cmWindowShape;
+  if (before == shape) return;
+  cmWindowShape = shape;
+  final bar = shape != CmShape.card;
+  final barBefore = before != null && before != CmShape.card;
+  try {
+    if (bar != _cmFramelessBar && isWindows) {
+      if (bar) {
+        await windowManager.setAsFrameless();
+        await windowManager.setHasShadow(false);
+      } else {
+        await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+      }
+      setMainWindowPlain(bar);
+    }
+    _cmFramelessBar = bar;
+    await windowManager.setResizable(true);
+    await windowManager.setSize(switch (shape) {
+      CmShape.card => kConnectionManagerWindowSizeClosedChat,
+      CmShape.bar => kCmBarWindow,
+      CmShape.barPanel => kCmBarWindowPanel,
+    });
+    if (bar != barBefore || before == null) {
+      await windowManager.setAlwaysOnTop(true);
+      await windowManager.setSkipTaskbar(bar);
+      await windowManager
+          .setAlignment(bar ? Alignment.topCenter : Alignment.topRight);
+    }
+    await windowManager.setResizable(false);
+  } catch (e) {
+    debugPrint('connection window shape: $e');
+  }
+}
+
+/// A connection someone was let in on and that still runs.
+bool cmActive(Client c) => c.authorized && !c.disconnected;
+
+/// Whether the window may be the bar: someone was let in, and nobody waits
+/// for Allow or Decline (a request always shows the card).
+bool cmBarAllowed(Iterable<Client> clients) =>
+    clients.any(cmActive) && !clients.any((c) => !c.authorized && !c.disconnected);
+
+/// The connection the bar's Chat and Files belong to: the selected one when
+/// it runs, else the first remote session, else the first that runs.
+Client? cmBarClient(List<Client> clients, int selected) {
+  if (selected >= 0 &&
+      selected < clients.length &&
+      cmActive(clients[selected]) &&
+      clients[selected].type_() == ClientType.remote) {
+    return clients[selected];
+  }
+  return clients.firstWhereOrNull(
+          (c) => cmActive(c) && c.type_() == ClientType.remote) ??
+      clients.firstWhereOrNull(cmActive);
+}
+
+/// The people on this computer now, each named as the window names a
+/// caller (cmCaller, A271): a name the server confirmed, otherwise the
+/// caller's own only where the rules allow it. Several connections of one
+/// caller (the screen and the files) count once.
+List<String> cmBarPeople(Iterable<Client> clients,
+    {required bool quickSupport}) {
+  final seen = <String>{};
+  final names = <String>[];
+  for (final c in clients.where(cmActive)) {
+    if (!seen.add(c.peerId)) continue;
+    names.add(cmCaller(
+            name: c.name,
+            peerId: c.peerId,
+            vouched: c.vouched,
+            quickSupport: quickSupport,
+            offersAllow: false)
+        .name);
+  }
+  return names;
 }
 
 class ConnectionManager extends StatefulWidget {
@@ -168,17 +259,118 @@ class ConnectionManagerState extends State<ConnectionManager>
     super.dispose();
   }
 
+  /// Files moves the bar has seen, to open the files when a new one comes.
+  int _seenJobs = 0;
+
   @override
   Widget build(BuildContext context) {
     final serverModel = Provider.of<ServerModel>(context);
-    pointerHandler(PointerEvent e) {
-      if (serverModel.cmHiddenTimer != null) {
-        serverModel.cmHiddenTimer!.cancel();
-        serverModel.cmHiddenTimer = null;
-        debugPrint("CM hidden timer has been canceled");
-      }
-    }
+    final chat = Provider.of<ChatModel>(context);
+    final clients = serverModel.clients;
+    final primary =
+        cmBarClient(clients, serverModel.tabController.state.value.selected);
+    final barAllowed = primary != null && cmBarAllowed(clients);
+    final tab = primary == null ? CmTab.access : chat.cmTabOf(primary.id);
+    return CmBarOrCard(
+      barAllowed: barAllowed,
+      panelOpen: barAllowed && tab != CmTab.access,
+      onShape: applyCmShape,
+      bar: (expand) => _bar(context, serverModel, primary!, tab, expand),
+      card: (collapse) => _cardFrame(context, _card(serverModel, collapse)),
+    );
+  }
 
+  /// The bar of the session, with the chat or the files of [primary] open
+  /// under it when its tab is Chat or Files.
+  Widget _bar(BuildContext context, ServerModel model, Client primary,
+      CmTab tab, VoidCallback expand) {
+    final clients = model.clients;
+    void setTab(CmTab t) =>
+        checkClickTime(primary.id, () => gFFI.chatModel.setCMTab(primary.id, t));
+    // The files of every connection of this caller (the screen and the
+    // files are two connections)
+    final ids = clients
+        .where((c) => cmActive(c) && c.peerId == primary.peerId)
+        .map((c) => c.id)
+        .toList();
+    final hasFileSession =
+        clients.any((c) => ids.contains(c.id) && c.type_() == ClientType.file);
+    final canChat = primary.type_() == ClientType.remote ||
+        primary.type_() == ClientType.file ||
+        primary.type_() == ClientType.camera;
+    final people = cmBarPeople(clients,
+        quickSupport: bind.mainOnboardIsQuickSupport());
+    final using = clients.any((c) => cmActive(c) && c.inputActive);
+    final chatOpen = tab == CmTab.chat;
+    // With the chat open only its message field takes keyboard focus while
+    // keys a remote computer types can reach this window (A269)
+    final guard = chatOpen && cmRemoteKeysReachHere(clients);
+    return Obx(() {
+      final jobs = gFFI.cmFileModel.jobsOf(ids);
+      if (jobs.length > _seenJobs) {
+        // A new file opens the files, as a new message opens the chat
+        WidgetsBinding.instance.addPostFrameCallback(
+            (_) => gFFI.chatModel.setCMTab(primary.id, CmTab.files));
+      }
+      _seenJobs = jobs.length;
+      final showFiles = hasFileSession || jobs.isNotEmpty;
+      final name = people.length == 1 ? people.first : '';
+      final content = CmBarWindow(
+        bar: ExcludeFocus(
+          excluding: guard,
+          child: CmSessionBar(
+            text: cmBarText(people, using: using),
+            onDrag: () => windowManager.startDragging(),
+            onFiles: showFiles
+                ? () => setTab(tab == CmTab.files ? CmTab.access : CmTab.files)
+                : null,
+            filesOpen: tab == CmTab.files,
+            filesLabel: jobs.isEmpty
+                ? tr('nd-qs-files')
+                : tr('nd-qs-files-count', [jobs.length]),
+            onChat: canChat
+                ? () => setTab(chatOpen ? CmTab.access : CmTab.chat)
+                : null,
+            onStop: () => checkClickTime(primary.id, () {
+              // Every session ends: the bar speaks for everyone on it
+              for (final c in clients.where((c) => !c.disconnected)) {
+                bind.cmCloseConnection(connId: c.id);
+              }
+            }),
+            onExpand: () => checkClickTime(primary.id, () {
+              gFFI.chatModel.setCMTab(primary.id, CmTab.access);
+              expand();
+            }),
+          ),
+        ),
+        panel: switch (tab) {
+          CmTab.chat => CmBarPanel(
+              title: name.isEmpty ? translate('Chat') : tr('nd-qs-chat-with', [name]),
+              closeFocusable: !guard,
+              onClose: () => setTab(CmTab.access),
+              child: ChatPage(type: ChatPageType.desktopCM),
+            ),
+          CmTab.files => CmBarPanel(
+              title: tr('nd-qs-files'),
+              onClose: () => setTab(CmTab.access),
+              child: CmFileList(jobs: jobs),
+            ),
+          CmTab.access => null,
+        },
+      );
+      if (allowRemoteCMModification()) return content;
+      return cmControlPageBlock(
+          child: content,
+          block: _controlPageBlock,
+          remoteMaySendKeys: cmRemoteMaySendKeys(clients),
+          systemBlocksRemoteKeys: cmSystemBlocksRemoteKeys(),
+          chatOpen: chatOpen);
+    });
+  }
+
+  /// The card: Waiting, or one tab per person with the request or the
+  /// session. [collapse] turns it back into the bar.
+  Widget _card(ServerModel serverModel, VoidCallback? collapse) {
     return serverModel.clients.isEmpty
         ? Column(
             children: [
@@ -190,10 +382,7 @@ class ConnectionManagerState extends State<ConnectionManager>
               ),
             ],
           )
-        : Listener(
-            onPointerDown: pointerHandler,
-            onPointerMove: pointerHandler,
-            child: DesktopTab(
+        : DesktopTab(
               showTitle: false,
               showMaximize: false,
               showMinimize: true,
@@ -203,7 +392,23 @@ class ConnectionManagerState extends State<ConnectionManager>
               controller: serverModel.tabController,
               selectedBorderColor: null,
               maxLabelWidth: 100,
-              tail: null, //buildScrollJumper(),
+              tail: collapse == null
+                  ? null
+                  : NdIconButton(
+                      icon: NdIcons.expandLess,
+                      tooltip: tr('nd-cm-bar-collapse'),
+                      color: context.nd.text,
+                      iconSize: 20,
+                      onPressed: () {
+                        final client = cmBarClient(serverModel.clients,
+                            serverModel.tabController.state.value.selected);
+                        checkClickTime(client?.id ?? 0, () {
+                          if (client != null) {
+                            gFFI.chatModel.setCMTab(client.id, CmTab.access);
+                          }
+                          collapse();
+                        });
+                      }),
               tabBuilder: (key, icon, label, themeConf) {
                 final client = serverModel.clients
                     .firstWhereOrNull((client) => client.id.toString() == key);
@@ -236,8 +441,7 @@ class ConnectionManagerState extends State<ConnectionManager>
                                     cmSystemBlocksRemoteKeys(),
                                 chatOpen: _chatOpen(model, chat)))),
               ),
-            ),
-          );
+            );
   }
 
   /// Whether the selected card shows its chat.
@@ -496,14 +700,14 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
   Widget build(BuildContext context) {
     super.build(context);
     _closeWhenEnded();
-    var name = client.name.isNotEmpty ? client.name : client.peerId;
+    // The card names the caller as the bar does (A271)
+    final caller = _caller(context);
+    final own = !caller.unknown;
+    final name = caller.name;
     final permissions = _permissions();
     Widget body;
     Widget foot = _CmControlPanel(client: client);
     if (!client.authorized) {
-      final caller = _caller(context);
-      final own = !caller.unknown;
-      name = caller.name;
       body = SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
         child: CmRequestBody(
@@ -546,7 +750,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
                         ? translate('Disconnected')
                         : cmConnectedFor(Duration(seconds: _seconds.value)),
                     kind: _kind,
-                    avatar: _avatar(name))),
+                    avatar: _avatar(name, own: own))),
                 const SizedBox(height: 16),
                 if (hasTabs)
                   Obx(() => ExcludeFocus(
@@ -750,17 +954,14 @@ class _CmControlPanel extends StatelessWidget {
         cmOffersAllow(model.approveMode, vouched: client.vouched);
     return CmRequestActions(
       onDecline: () => checkClickTime(client.id, handleDisconnect),
+      // Once allowed, the window turns into the bar at the top of the screen
       onAllow: showAccept
-          ? () => checkClickTime(client.id, () {
-                handleAccept(context);
-                windowManager.minimize();
-              })
+          ? () => checkClickTime(client.id, () => handleAccept(context))
           : null,
       onAllowElevated: showElevation && showAccept
           ? () => checkClickTime(client.id, () {
                 handleAccept(context);
                 handleElevate(context);
-                windowManager.minimize();
               })
           : null,
     );
@@ -869,14 +1070,23 @@ bool allowRemoteCMModification() {
       bind.mainGetLocalOption(key: kOptionAllowRemoteCmModification));
 }
 
-class _FileTransferLogPage extends StatefulWidget {
-  _FileTransferLogPage({Key? key}) : super(key: key);
-
+/// The Files tab of the selected card.
+class _FileTransferLogPage extends StatelessWidget {
   @override
-  State<_FileTransferLogPage> createState() => __FileTransferLogPageState();
+  Widget build(BuildContext context) =>
+      Obx(() => CmFileList(jobs: gFFI.cmFileModel.currentJobTable.toList()));
 }
 
-class __FileTransferLogPageState extends State<_FileTransferLogPage> {
+/// The files a caller sent or took, newest first.
+class CmFileList extends StatefulWidget {
+  const CmFileList({Key? key, required this.jobs}) : super(key: key);
+  final List<CmFileLog> jobs;
+
+  @override
+  State<CmFileList> createState() => _CmFileListState();
+}
+
+class _CmFileListState extends State<CmFileList> {
   final _scroll = ScrollController();
 
   @override
@@ -887,17 +1097,15 @@ class __FileTransferLogPageState extends State<_FileTransferLogPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final jobs = gFFI.cmFileModel.currentJobTable;
-      if (jobs.isEmpty) return _empty(context);
-      return ListView.separated(
-        controller: _scroll,
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-        itemCount: jobs.length,
-        separatorBuilder: (_, __) => const NdRule(),
-        itemBuilder: (context, i) => _row(context, jobs[jobs.length - 1 - i]),
-      );
-    });
+    final jobs = widget.jobs;
+    if (jobs.isEmpty) return _empty(context);
+    return ListView.separated(
+      controller: _scroll,
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+      itemCount: jobs.length,
+      separatorBuilder: (_, __) => const NdRule(),
+      itemBuilder: (context, i) => _row(context, jobs[jobs.length - 1 - i]),
+    );
   }
 
   Widget _empty(BuildContext context) {

@@ -444,6 +444,8 @@ class FfiModel with ChangeNotifier {
                 .changePersonalHashPassword(id.toString(), hash.toString());
           }
         }
+      } else if (name == 'cm_peer_input') {
+        parent.target?.serverModel.onPeerInput(evt);
       } else if (name == "cm_file_transfer_log") {
         if (isDesktop) {
           gFFI.cmFileModel.onFileTransferLog(evt);

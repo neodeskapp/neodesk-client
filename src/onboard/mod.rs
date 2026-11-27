@@ -862,6 +862,34 @@ pub fn note_chat(text: &str) {
     }
 }
 
+/// Keeps a chat line the person sent from the connection window, for the
+/// quick support end screen. Called by the connection for each line the
+/// connection manager sends to its peer.
+pub fn note_chat_from_here(text: &str) {
+    if is_quick_support() && !text.trim().is_empty() {
+        STATE.update(|s| s.add_chat(false, text.to_owned()));
+    }
+}
+
+/// The supporter's name as the console gave it when the code was redeemed,
+/// for a connection the one-time password let in (`by_password`). The app
+/// hands that password only to the console of this session, so such a
+/// connection is the supporter. None outside quick support and for any
+/// other connection.
+pub fn supporter_for_password(by_password: bool) -> Option<String> {
+    if !by_password || !is_quick_support() {
+        return None;
+    }
+    let state = STATE.get();
+    if !matches!(state.phase, Phase::SupportWaiting | Phase::SupportInSession) {
+        return None;
+    }
+    state
+        .supporter_name
+        .map(|name| name.trim().to_owned())
+        .filter(|name| !name.is_empty())
+}
+
 /// Sends a chat line from the quick support screen to the supporter.
 pub fn send_chat(text: String) {
     if is_quick_support() {

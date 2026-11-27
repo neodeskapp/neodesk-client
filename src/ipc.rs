@@ -456,6 +456,9 @@ pub enum Data {
     UrlLink(String),
     VoiceCallIncoming,
     StartVoiceCall,
+    /// Connection -> connection manager: input of the peer arrived (sent at
+    /// most twice a second while it arrives).
+    PeerInput,
     VoiceCallResponse(bool),
     CloseVoiceCall(String),
     #[cfg(windows)]
