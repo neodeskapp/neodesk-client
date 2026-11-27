@@ -42,6 +42,8 @@ static mut UNMODIFIED: bool = true;
 struct ActiveUserLookupCache {
     uid: String,
     username: String,
+    /// seat0 shows a Wayland login screen (`Desktop::is_login_wayland`).
+    login_wayland: bool,
 }
 
 const INVALID_TERM_VALUES: [&str; 3] = ["", "unknown", "dumb"];
@@ -279,9 +281,21 @@ fn update_active_user_lookup_cache(desktop: &Desktop) {
             *cache = Some(ActiveUserLookupCache {
                 uid: desktop.uid.clone(),
                 username: desktop.username.clone(),
+                login_wayland: desktop.is_login_wayland(),
             });
         }
     }
+}
+
+/// Whether the service loop last saw a Wayland login screen on seat0. Cache only, never `loginctl`,
+/// so the `_drm` producer can ask on every frame; `false` while the cache is empty.
+#[inline]
+pub fn active_session_is_wayland_login_cached() -> bool {
+    ACTIVE_USER_LOOKUP_CACHE
+        .lock()
+        .ok()
+        .and_then(|cache| cache.as_ref().map(|entry| entry.login_wayland))
+        .unwrap_or(false)
 }
 
 #[inline]
@@ -493,21 +507,136 @@ mod tty_greeter_tests {
 #[cfg(feature = "drm")]
 pub(crate) const ENV_DRM_CAPTURE: &str = "RUSTDESK_DRM_CAPTURE";
 
-/// DRM capture is compiled in and `allow-drm-capture` is on. While it is off, the drm paths in
-/// this crate run as a build without it. The Wayland enumeration in `base` and `scrap` does not
-/// read it: with no compositor named in the environment it probes the seat's socket and backs
-/// off after a failure, and it logs an enumeration failure once until the next success.
-pub fn drm_capture_enabled() -> bool {
+/// Set to `N` to keep NeoDesk off a Wayland login screen; DRM capture is used nowhere else.
+/// Read by the root service from its own config.
+#[cfg(feature = "drm")]
+pub(crate) const OPTION_ALLOW_DRM_LOGIN_SCREEN: &str = "allow-drm-login-screen";
+
+/// Whether this machine lets the root service read a Wayland login screen through DRM/KMS.
+/// On unless an admin turned it off (`neodesk --option allow-drm-login-screen N` as root, or a
+/// server strategy).
+pub fn drm_login_screen_allowed() -> bool {
     #[cfg(feature = "drm")]
     {
-        use base::config::keys::OPTION_ALLOW_DRM_CAPTURE;
-        std::env::var(ENV_DRM_CAPTURE).as_deref() == Ok("Y")
-            || Config::get_bool_option(OPTION_ALLOW_DRM_CAPTURE)
+        Config::get_option(OPTION_ALLOW_DRM_LOGIN_SCREEN) != "N"
     }
     #[cfg(not(feature = "drm"))]
     {
         false
     }
+}
+
+/// Whether this process takes the drm paths. NeoDesk uses DRM capture at a Wayland login screen
+/// only: nobody is there to answer the desktop portal's consent prompt. Inside a signed-in session
+/// the portal stays the only way to read the screen, so its `--server` runs as a build without drm.
+///
+/// - The root `--service`: on while `drm_login_screen_allowed()`; it starts the `_drm` producer
+///   at the first Wayland login screen it sees and gives the login screen's `--server` the flag.
+/// - A login-screen `--server`: on through `ENV_DRM_CAPTURE`, set by the service only for that
+///   process (`try_start_server_`).
+/// - Every other process: off.
+///
+/// The variable is not what keeps a session's screen private: the producer refuses every peer
+/// while seat0 is not at a Wayland login screen (`handle_drm_conn`), so a process that sets it
+/// by hand gets nothing.
+///
+/// The Wayland enumeration in `hbb_common` and `scrap` does not read this: with no compositor
+/// named in the environment it probes the seat's socket and backs off after a failure.
+pub fn drm_capture_enabled() -> bool {
+    #[cfg(feature = "drm")]
+    {
+        drm_capture_policy(
+            std::env::var(ENV_DRM_CAPTURE).as_deref() == Ok("Y"),
+            *IS_ROOT_SERVICE,
+            drm_login_screen_allowed(),
+        )
+    }
+    #[cfg(not(feature = "drm"))]
+    {
+        false
+    }
+}
+
+/// `drm_capture_enabled` without the process state.
+#[cfg(any(feature = "drm", test))]
+fn drm_capture_policy(login_screen_server: bool, root_service: bool, allowed: bool) -> bool {
+    login_screen_server || (root_service && allowed)
+}
+
+/// The home page's notice about reaching this computer's login screen: a translation key, or
+/// empty for none. Only a Wayland login screen needs one; with DRM capture there is nothing to say.
+pub fn login_screen_notice() -> &'static str {
+    #[cfg(feature = "drm")]
+    let (built, loads) = (true, scrap::drmtap_dl::get().is_some());
+    #[cfg(not(feature = "drm"))]
+    let (built, loads) = (false, false);
+    login_screen_notice_for(
+        is_login_wayland(),
+        is_installed(),
+        built && loads,
+        drm_login_screen_allowed(),
+    )
+}
+
+fn login_screen_notice_for(
+    login_wayland: bool,
+    installed: bool,
+    drm_works: bool,
+    allowed: bool,
+) -> &'static str {
+    if !login_wayland {
+        ""
+    } else if !installed {
+        // The root service, which reads the login screen, comes with the installed package only.
+        "nd-login-screen-portable"
+    } else if !drm_works {
+        // Built without drm, or the bundled libdrmtap does not load here (a glibc older than its
+        // build): the login screen falls back to the portal, which cannot serve it.
+        "nd-login-screen-no-drm"
+    } else if !allowed {
+        "nd-login-screen-off"
+    } else {
+        ""
+    }
+}
+
+#[cfg(test)]
+mod login_screen_policy_tests {
+    use super::*;
+
+    #[test]
+    fn only_the_service_and_the_login_screen_server_take_the_drm_paths() {
+        // The service, unless an admin turned it off.
+        assert!(drm_capture_policy(false, true, true));
+        assert!(!drm_capture_policy(false, true, false));
+        // The login screen's --server, which the service starts with the flag.
+        assert!(drm_capture_policy(true, false, true));
+        // A signed-in session's --server, the UI, the CLI: the portal path, whatever the option.
+        assert!(!drm_capture_policy(false, false, true));
+        assert!(!drm_capture_policy(false, false, false));
+    }
+
+    #[test]
+    fn the_home_page_says_what_to_do_only_where_the_login_screen_is_out_of_reach() {
+        // X11 login screens, or no login screen config: nothing to say.
+        assert_eq!(login_screen_notice_for(false, false, false, false), "");
+        assert_eq!(login_screen_notice_for(false, true, true, true), "");
+        // The installed package with DRM capture that loads: no warning.
+        assert_eq!(login_screen_notice_for(true, true, true, true), "");
+        // A portable build has no root service.
+        assert_eq!(login_screen_notice_for(true, false, true, true), "nd-login-screen-portable");
+        assert_eq!(login_screen_notice_for(true, false, false, true), "nd-login-screen-portable");
+        // Installed, but without DRM capture or with a libdrmtap that does not load.
+        assert_eq!(login_screen_notice_for(true, true, false, true), "nd-login-screen-no-drm");
+        // Installed with DRM capture, turned off by an admin.
+        assert_eq!(login_screen_notice_for(true, true, true, false), "nd-login-screen-off");
+    }
+}
+
+#[cfg(feature = "drm")]
+lazy_static::lazy_static! {
+    static ref IS_ROOT_SERVICE: bool =
+        std::env::args().nth(1).as_deref() == Some("--service") && is_root();
 }
 
 /// An explicit `RUSTDESK_FORCED_DISPLAY_SERVER` is an operator override, and the root service
@@ -1240,6 +1369,8 @@ pub fn start_os_service() {
         }
         desktop.refresh();
         update_active_user_lookup_cache(&desktop);
+        #[cfg(feature = "drm")]
+        drm_capture.start_producer_at(&desktop);
 
         // Duplicate logic here with should_start_server.
         if desktop.username == "root" || desktop.is_login_wayland() {
@@ -1285,7 +1416,7 @@ pub fn start_os_service() {
                         log::warn!(
                             "greeter --server did not stay up; falling back to a root --server"
                         );
-                        start_server(None, &mut server);
+                        start_root_login_screen_server(&mut server);
                     }
                 } else {
                     start_server(None, &mut server);
@@ -1337,8 +1468,22 @@ pub fn start_os_service() {
     log::info!("Exit");
 }
 
-/// Follows `allow-drm-capture` from the service loop. The `_drm` producer starts the first time it
-/// is on and then stays up; while the option is off `handle_drm_conn` refuses every peer.
+/// The root `--server` the service falls back to at a Wayland login screen whose greeter account
+/// cannot run one. It is the login screen's server all the same, so it gets the flag the greeter's
+/// would have had.
+#[cfg(feature = "drm")]
+fn start_root_login_screen_server(server: &mut Option<Child>) {
+    match std::env::current_exe()
+        .and_then(|exe| Command::new(exe).arg("--server").env(ENV_DRM_CAPTURE, "Y").spawn())
+    {
+        Ok(ps) => *server = Some(ps),
+        Err(err) => log::error!("Failed to start the login screen's root --server: {err}"),
+    }
+}
+
+/// Follows `allow-drm-login-screen` from the service loop. The `_drm` producer starts the first
+/// time the service sees a Wayland login screen with the option on, and then stays up;
+/// `handle_drm_conn` refuses every peer while the option is off or seat0 shows anything else.
 #[cfg(feature = "drm")]
 struct DrmCaptureSwitch {
     on: bool,
@@ -1359,7 +1504,13 @@ impl DrmCaptureSwitch {
         let on = drm_capture_enabled();
         let changed = on != self.on;
         self.on = on;
-        if self.on && !self.producer_started {
+        changed
+    }
+
+    /// A machine that never shows a Wayland login screen (X11, or a console) never loads libdrmtap
+    /// or opens a DRM device in the root service.
+    fn start_producer_at(&mut self, desktop: &Desktop) {
+        if self.on && !self.producer_started && desktop.is_login_wayland() {
             self.producer_started = true;
             // DRM/KMS capture producer (opt-in `drm` feature): a dedicated thread + runtime that
             // streams scanout frames to the user `--server` over the `_drm` service-scoped channel.
@@ -1388,34 +1539,30 @@ impl DrmCaptureSwitch {
     }
 }
 
-/// The service acts on `allow-drm-capture` from its own copy of the config, which only a non-root
-/// `--server` syncs. A root `--server` that applied a change to the option hands its config over
-/// itself, and so does the CLI, or the change never takes effect. The UI does not: `SyncConfig`
-/// carries the whole config, and a long-lived process may hold an older copy of the rest.
+/// The service acts on `allow-drm-login-screen` from its own copy of the config, which only a
+/// non-root `--server` syncs. A root `--server` that applied a change to the option hands its
+/// config over itself, and so does the CLI, or the change never takes effect. The UI does not:
+/// `SyncConfig` carries the whole config, and a long-lived process may hold an older copy of it.
 #[cfg(feature = "drm")]
-pub async fn sync_drm_capture_to_service(was_on: bool) {
-    use crate::ipc::{connect_trusted_device_service, Data};
+pub async fn sync_drm_capture_to_service(was_allowed: bool) {
+    use crate::ipc::{connect_service, Data};
     use hbb_common::config::Config2;
-    if !is_root() || drm_capture_enabled() == was_on {
+    if !is_root() || drm_login_screen_allowed() == was_allowed {
         return;
     }
     let result = async {
-        let mut conn = connect_trusted_device_service(1000).await?;
-        let config2 = crate::trusted_devices::config::update(Config2::get_for_sync).await?;
-        let configs = Box::new((Config::get(), config2));
+        let mut conn = connect_service(1000).await?;
+        let configs = Box::new((Config::get(), Config2::get()));
         conn.send(&Data::SyncConfig(Some(configs))).await?;
         conn.next_timeout(1000).await
     }
     .await;
     match result {
         Ok(Some(Data::SyncConfig(None))) => {
-            log::info!("allow-drm-capture changed as root, config synced to the service")
+            log::info!("allow-drm-login-screen changed as root, config synced to the service")
         }
-        Ok(Some(Data::SecurityConfigError(err))) => {
-            log::warn!("the service rejected the allow-drm-capture sync: {err}")
-        }
-        Ok(_) => log::warn!("the service did not confirm the allow-drm-capture sync"),
-        Err(err) => log::warn!("failed to sync allow-drm-capture to the service: {err}"),
+        Ok(_) => log::warn!("the service did not confirm the allow-drm-login-screen sync"),
+        Err(err) => log::warn!("failed to sync allow-drm-login-screen to the service: {err}"),
     }
 }
 

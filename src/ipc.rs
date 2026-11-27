@@ -1214,7 +1214,7 @@ async fn handle(data: Data, stream: &mut Connection) {
                     crate::privacy_mode::switch(v);
                 }
                 #[cfg(all(target_os = "linux", feature = "drm"))]
-                let drm_capture_was_on = crate::platform::linux::drm_capture_enabled();
+                let drm_capture_was_on = crate::platform::linux::drm_login_screen_allowed();
                 // What the server's strategy manages stays the server's (A267)
                 crate::hbbs_http::sync::keep_server_managed(&mut value, &Config::get_options());
                 Config::set_options_from_other_process(value);

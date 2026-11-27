@@ -42,13 +42,11 @@ fn finish_macos_update(result: hbb_common::ResultType<()>) -> Option<CoreMainAct
 /// If it returns [`Some`], the action determines whether to start the UI or report failure.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn core_main() -> Option<CoreMainAction> {
-    // Before global_init: with drm its is_x11() can read Config (allow-drm-capture), and Config
-    // loads from a path named after the custom client's app name. global_init's first two steps
-    // run first, for the custom client: its signature check uses libsodium, and the probe child
-    // must not get past its dispatch. global_init repeats both.
+    // Before global_init: with drm its is_x11() can read Config (allow-drm-login-screen), and
+    // Config loads from a path named after the custom client's app name. The probe dispatch runs
+    // first, because the probe child must not get past it; global_init repeats it.
     #[cfg(all(target_os = "linux", feature = "drm"))]
     {
-        crate::common::init_sodium();
         crate::platform::linux::dispatch_wayland_display_probe();
         crate::load_custom_client();
     }
@@ -581,7 +579,7 @@ pub fn core_main() -> Option<CoreMainAction> {
                     println!("{}", options.get(&args[1]).unwrap_or(&"".to_owned()));
                 } else if args.len() == 3 {
                     #[cfg(all(target_os = "linux", feature = "drm"))]
-                    let drm_capture_was_on = crate::platform::linux::drm_capture_enabled();
+                    let drm_capture_was_on = crate::platform::linux::drm_login_screen_allowed();
                     crate::ipc::set_option(&args[1], &args[2]);
                     #[cfg(all(target_os = "linux", feature = "drm"))]
                     crate::ipc::sync_drm_capture_to_service_blocking(drm_capture_was_on);

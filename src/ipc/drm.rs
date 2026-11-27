@@ -509,7 +509,7 @@ fn drm_wake_displays(reason: &str) -> bool {
     let mut keys = evdev::AttributeSet::<evdev::Key>::new();
     keys.insert(evdev::Key::BTN_LEFT);
     let built = evdev::uinput::VirtualDeviceBuilder::new()
-        .and_then(|b| b.name("RustDesk DRM display wake").with_relative_axes(&axes))
+        .and_then(|b| b.name("NeoDesk DRM display wake").with_relative_axes(&axes))
         .and_then(|b| b.with_keys(&keys))
         .and_then(|b| b.build());
     let mut dev = match built {
@@ -890,10 +890,18 @@ fn drm_auth_admitted(prev_in_flight: usize) -> bool {
     prev_in_flight < MAX_DRM_AUTH_IN_FLIGHT
 }
 
-fn drm_peer_authorized(peer_uid: Option<u32>, active_uid: Option<u32>) -> bool {
+/// NeoDesk serves `_drm` to a login screen only. A non-root peer must be the process of the session
+/// that owns seat0 AND that session must be a Wayland login screen: inside a signed-in session the
+/// desktop portal's consent prompt stays the only way to read the screen, so the session's own
+/// processes are refused even though their uid matches. Root can read the scanout anyway.
+fn drm_peer_authorized(
+    peer_uid: Option<u32>,
+    active_uid: Option<u32>,
+    at_wayland_login_screen: bool,
+) -> bool {
     match peer_uid {
         Some(0) => true,
-        Some(uid) => active_uid == Some(uid),
+        Some(uid) => at_wayland_login_screen && active_uid == Some(uid),
         None => false,
     }
 }
@@ -903,10 +911,11 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    // The producer stays up once started, so with allow-drm-capture off it takes no new consumer. A
-    // stream already running ends when the service loop restarts every --server on the change.
+    // The producer stays up once started, so with allow-drm-login-screen off it takes no new
+    // consumer. A stream already running ends when the service loop restarts every --server on the
+    // change.
     if !crate::platform::linux::drm_capture_enabled() {
-        log::trace!("drm: allow-drm-capture is off; dropping this connection");
+        log::trace!("drm: allow-drm-login-screen is off; dropping this connection");
         return Ok(());
     }
     // World-connectable socket, so the peer MUST be authorized here (this listener bypasses the
@@ -937,6 +946,18 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
         // `log_rejected_service_connection`, throttled to one line per 5 s, and the executable
         // mismatch as a plain warn. A second, unthrottled warn here would be the same unbounded
         // log-write primitive.
+        return Ok(());
+    }
+    if !drm_peer_authorized(
+        stream.peer_uid(),
+        active_uid_cached(),
+        crate::platform::linux::active_session_is_wayland_login_cached(),
+    ) {
+        hbb_common::throttled_log!(
+            std::time::Duration::from_secs(5),
+            info,
+            "drm: seat0 is not at a Wayland login screen; refusing a non-root _drm peer"
+        );
         return Ok(());
     }
 
@@ -1085,9 +1106,16 @@ async fn handle_drm_conn(stream: Connection) -> ResultType<()> {
         // Re-authorize per frame with the CACHE-ONLY active uid: a fresh lookup forks `loginctl` and
         // would stall every stream on this single-threaded runtime. A miss is fail-closed for a non-root peer
             // (root stays authorized; see `drm_peer_authorized`).
-        let peer_ok = drm_peer_authorized(peer_uid, active_uid_cached());
+        let peer_ok = drm_peer_authorized(
+            peer_uid,
+            active_uid_cached(),
+            crate::platform::linux::active_session_is_wayland_login_cached(),
+        );
         if !peer_ok {
-            log::warn!("drm: _drm peer no longer matches the active session (or it is unknown); closing");
+            log::warn!(
+                "drm: _drm peer no longer matches the active session, or seat0 left the login \
+                 screen; closing"
+            );
             break;
         }
         let gen = DRM_DISPLAY_GENERATION.load(Ordering::Acquire);
@@ -2170,13 +2198,25 @@ mod drm_conn_tests {
 
     #[test]
     fn drm_peer_authorized_matrix() {
-        assert!(drm_peer_authorized(Some(0), Some(1000)));
-        assert!(drm_peer_authorized(Some(0), None));
-        assert!(drm_peer_authorized(Some(1000), Some(1000)));
-        assert!(!drm_peer_authorized(Some(1000), Some(1001)));
-        assert!(!drm_peer_authorized(Some(1000), None));
-        assert!(!drm_peer_authorized(None, Some(1000)));
-        assert!(!drm_peer_authorized(None, None));
+        // At a Wayland login screen: root, and the greeter account that owns seat0.
+        assert!(drm_peer_authorized(Some(0), Some(120), true));
+        assert!(drm_peer_authorized(Some(0), None, true));
+        assert!(drm_peer_authorized(Some(120), Some(120), true));
+        assert!(!drm_peer_authorized(Some(120), Some(121), true));
+        assert!(!drm_peer_authorized(Some(120), None, true));
+        assert!(!drm_peer_authorized(None, Some(120), true));
+        assert!(!drm_peer_authorized(None, None, true));
+    }
+
+    #[test]
+    fn a_signed_in_session_gets_no_drm_stream_even_as_its_own_user() {
+        // The session's --server (or any process of that user) would skip the portal's consent
+        // prompt. Refused although the uid matches the session that owns seat0.
+        assert!(!drm_peer_authorized(Some(1000), Some(1000), false));
+        assert!(!drm_peer_authorized(Some(1000), Some(1001), false));
+        assert!(!drm_peer_authorized(Some(1000), None, false));
+        // Root reads the scanout anyway.
+        assert!(drm_peer_authorized(Some(0), Some(1000), false));
     }
 
     #[test]
