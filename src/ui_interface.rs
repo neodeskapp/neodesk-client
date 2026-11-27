@@ -1557,6 +1557,16 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
                         allow_err!(c.send(&data).await);
                     }
                     _ = timer.tick() => {
+                        // The service keeps the branding it syncs in its own
+                        // account's options, so the window fetches it too,
+                        // from the API server the service reports.
+                        #[cfg(feature = "flutter")]
+                        if !is_cm && *OPTION_SYNCED.lock().unwrap() {
+                            let api = get_api_server();
+                            tokio::spawn(async move {
+                                crate::hbbs_http::neodesk::sync_client_branding_from(&api).await;
+                            });
+                        }
                         c.send(&ipc::Data::OnlineStatus(None)).await.ok();
                         c.send(&ipc::Data::Options(None)).await.ok();
                         c.send(&ipc::Data::Config(("id".to_owned(), None))).await.ok();
