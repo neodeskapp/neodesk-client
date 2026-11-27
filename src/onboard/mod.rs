@@ -608,16 +608,34 @@ fn listen_for_handoffs() {
                             return;
                         }
                     };
-                while let Some(Ok(conn)) = incoming.next().await {
-                    let mut conn = crate::ipc::Connection::new(conn);
-                    if let Ok(Some(crate::ipc::Data::UrlLink(text))) = conn.next_timeout(2_000).await
-                    {
-                        match keep::Handoff::decode(&text) {
-                            Some(handoff) => take_handoff(handoff),
-                            None => log::warn!("Quick support ignored a handoff"),
+                // A failed accept (a sender that wrote and quit while the last
+                // one was read) leaves the listener on; each sender is read on
+                // its own task, so a slow one holds up no other.
+                while let Some(conn) = incoming.next().await {
+                    let conn = match conn {
+                        Ok(conn) => conn,
+                        Err(err) => {
+                            log::warn!("Quick support missed a handoff: {err}");
+                            continue;
                         }
-                    }
+                    };
+                    hbb_common::tokio::spawn(async move {
+                        let mut conn = crate::ipc::Connection::new(conn);
+                        if let Ok(Some(crate::ipc::Data::UrlLink(text))) =
+                            conn.next_timeout(2_000).await
+                        {
+                            match keep::Handoff::decode(&text) {
+                                Some(handoff) => {
+                                    hbb_common::tokio::task::spawn_blocking(move || {
+                                        take_handoff(handoff)
+                                    });
+                                }
+                                None => log::warn!("Quick support ignored a handoff"),
+                            }
+                        }
+                    });
                 }
+                log::error!("Quick support takes no more handoffs");
             });
         });
     });
