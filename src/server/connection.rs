@@ -2089,9 +2089,14 @@ impl Connection {
                 super::drm_capturer::settle_unknown_availability().await;
             }
             // Refuse only while nothing can capture a Wayland greeter: the DRM path can.
-            if crate::platform::linux::is_login_screen_wayland() && !drm_can_serve_login_screen() {
+            let login_screen_wayland = crate::platform::linux::is_login_screen_wayland();
+            if login_screen_wayland && !drm_can_serve_login_screen() {
                 msg = crate::client::LOGIN_SCREEN_WAYLAND.to_owned()
-            } else {
+            } else if !login_screen_wayland {
+                // Not at a Wayland login screen that DRM serves: there the display server is
+                // Wayland by definition, and `get_display_server()` cannot say so for SDDM. It
+                // skips the greeter's own session (its account is on the gdm/sddm list) and reads
+                // the session `sudo -u sddm` opened for this --server, which is "unspecified".
                 let dtype = crate::platform::linux::get_display_server();
                 if dtype != crate::platform::linux::DISPLAY_SERVER_X11
                     && dtype != crate::platform::linux::DISPLAY_SERVER_WAYLAND
