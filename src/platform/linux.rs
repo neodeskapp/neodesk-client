@@ -395,8 +395,12 @@ pub struct xcb_xfixes_get_cursor_image {
 pub fn is_login_screen_wayland() -> bool {
     let values = get_values_of_seat0_with_gdm_wayland(&[0, 2, 1]);
     #[cfg(feature = "drm")]
-    if drm_capture_enabled() && is_wayland_tty_greeter(&values[0], &values[2]) {
-        return true;
+    if drm_capture_enabled() {
+        let props = session_props(&values[0]).unwrap_or_default();
+        let socket = std::env::var("RUSTDESK_FORCED_DISPLAY_SERVER").as_deref()
+            != Ok(DISPLAY_SERVER_X11)
+            && has_wayland_socket(&values[2]);
+        return is_wayland_login_screen_props(&values[1], &props, socket);
     }
     is_gdm_user(&values[1]) && get_display_server_of_session(&values[0]) == DISPLAY_SERVER_WAYLAND
 }
@@ -406,25 +410,21 @@ pub fn is_login_screen_wayland() -> bool {
 /// whose user has a compositor socket is a Wayland login screen all the same (cosmic-greeter,
 /// gtkgreet, ReGreet, ...); a console greeter (tuigreet, agreety) has none and is left as it was.
 /// A display server forced to x11 keeps the greeter on the x11 path, as `adopt_wayland_tty_greeter`
-/// does, so the login gate does not refuse a greeter the service serves over X11.
+/// does, so the login gate does not refuse a greeter the service serves over X11. See
+/// `is_wayland_login_screen_props`.
+///
+/// `loginctl show-session -p Class -p Type <sid>`.
 #[cfg(feature = "drm")]
-fn is_wayland_tty_greeter(sid: &str, uid: &str) -> bool {
-    std::env::var("RUSTDESK_FORCED_DISPLAY_SERVER").as_deref() != Ok(DISPLAY_SERVER_X11)
-        && has_wayland_socket(uid)
-        && is_tty_greeter_session(sid)
-}
-
-#[cfg(feature = "drm")]
-fn is_tty_greeter_session(sid: &str) -> bool {
+fn session_props(sid: &str) -> Option<String> {
     if sid.is_empty() {
-        return false;
+        return None;
     }
     let failure = match Command::new(CMD_LOGINCTL.as_str())
         .args(["show-session", "-p", "Class", "-p", "Type", sid])
         .output()
     {
         Ok(output) if output.status.success() => {
-            return is_tty_greeter_props(&String::from_utf8_lossy(&output.stdout));
+            return Some(String::from_utf8_lossy(&output.stdout).into_owned());
         }
         Ok(output) => output.status.to_string(),
         Err(err) => err.to_string(),
@@ -432,9 +432,22 @@ fn is_tty_greeter_session(sid: &str) -> bool {
     hbb_common::throttled_log!(
         Duration::from_secs(60),
         info,
-        "loginctl show-session {sid} failed ({failure}); not taken for a greetd greeter"
+        "loginctl show-session {sid} failed ({failure}); not taken for a login screen"
     );
-    false
+    None
+}
+
+/// Whether seat0's active session is a Wayland login screen, from the account that owns it and
+/// what `loginctl show-session -p Class -p Type` prints for it. logind's `Class=greeter` is what
+/// says login screen: the account name differs between display managers and releases (`gdm`,
+/// `sddm`, and `gdm-greeter` since GDM 49), so the names are only kept for a logind that does not
+/// report the class. A greetd greeter is `Type=tty`; `wayland_socket` says whether it runs a
+/// compositor (and that the display server is not forced to X11).
+#[cfg(any(feature = "drm", test))]
+fn is_wayland_login_screen_props(user: &str, props: &str, wayland_socket: bool) -> bool {
+    let has = |prop: &str| props.lines().any(|line| line.trim() == prop);
+    let greeter = has("Class=greeter") || is_gdm_user(user);
+    (greeter && has("Type=wayland")) || (is_tty_greeter_props(props) && wayland_socket)
 }
 
 #[cfg(any(feature = "drm", test))]
@@ -487,6 +500,31 @@ mod tty_greeter_tests {
         assert!(is_tty_greeter_props("Type=tty\nClass=greeter\n"));
         assert!(!is_tty_greeter_props("Type=tty\nClass=user\n"));
         assert!(!is_tty_greeter_props("Type=wayland\nClass=greeter\n"));
+    }
+
+    /// What `loginctl show-session -p Class -p Type` prints for seat0's session, per display
+    /// manager, as read on the lab machines (GDM 46 and 51, SDDM 0.21), and for greetd.
+    #[test]
+    fn a_wayland_login_screen_is_told_apart_by_logind_not_by_the_account_name() {
+        let wayland_greeter = "Type=wayland\nClass=greeter\n";
+        // GDM 46 (Ubuntu 24.04): account gdm.
+        assert!(is_wayland_login_screen_props("gdm", wayland_greeter, false));
+        // GDM 51 (Fedora 45): the dynamic account gdm-greeter (and -2, -3 for more seats).
+        assert!(is_wayland_login_screen_props("gdm-greeter", wayland_greeter, false));
+        assert!(is_wayland_login_screen_props("gdm-greeter-2", wayland_greeter, false));
+        // SDDM with its Wayland greeter (Fedora 45 KDE).
+        assert!(is_wayland_login_screen_props("sddm", wayland_greeter, false));
+        // greetd: Type=tty; a Wayland login screen only with a compositor socket.
+        assert!(is_wayland_login_screen_props("greeter", "Type=tty\nClass=greeter\n", true));
+        assert!(!is_wayland_login_screen_props("greeter", "Type=tty\nClass=greeter\n", false));
+        // X11 login screens: LightDM, and GDM with WaylandEnable=false.
+        assert!(!is_wayland_login_screen_props("lightdm", "Type=x11\nClass=greeter\n", false));
+        assert!(!is_wayland_login_screen_props("gdm", "Type=x11\nClass=greeter\n", false));
+        // A signed-in Wayland session is no login screen, even with a compositor socket.
+        assert!(!is_wayland_login_screen_props("tester", "Type=wayland\nClass=user\n", true));
+        // A logind that answers nothing: the account name still says gdm or sddm.
+        assert!(is_wayland_login_screen_props("gdm", "Type=wayland\n", false));
+        assert!(!is_wayland_login_screen_props("tester", "", true));
 
         let dir = std::env::temp_dir().join(format!("rustdesk-tty-greeter-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -2390,6 +2428,9 @@ mod desktop {
         pub home: String,
         pub dbus: String,
         pub wl_display: String,
+        /// logind's `Class=greeter`, whatever the account is called (`gdm-greeter` on GDM 49+).
+        #[cfg(feature = "drm")]
+        greeter: bool,
         /// `Class=greeter` with `Type=tty`, see `is_wayland_tty_greeter`.
         #[cfg(feature = "drm")]
         tty_greeter: bool,
@@ -2404,7 +2445,7 @@ mod desktop {
         #[inline]
         pub fn is_login_wayland(&self) -> bool {
             #[cfg(feature = "drm")]
-            if self.tty_greeter && self.is_wayland() {
+            if (self.tty_greeter || self.greeter) && self.is_wayland() {
                 return true;
             }
             super::is_gdm_user(&self.username) && self.protocol == DISPLAY_SERVER_WAYLAND
@@ -2804,7 +2845,9 @@ mod desktop {
             self.protocol = get_display_server_of_session(&self.sid).into();
             #[cfg(feature = "drm")]
             if super::drm_capture_enabled() {
-                self.tty_greeter = super::is_tty_greeter_session(&self.sid);
+                let props = super::session_props(&self.sid).unwrap_or_default();
+                self.greeter = props.lines().any(|line| line.trim() == "Class=greeter");
+                self.tty_greeter = super::is_tty_greeter_props(&props);
                 if self.tty_greeter {
                     // `Type=tty` names no display server, and the fallback above read this
                     // service's own environment: only a compositor socket makes it Wayland.
