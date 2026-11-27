@@ -575,7 +575,9 @@ class _NdChatPageState extends State<NdChatPage> {
     final t = context.ndText;
     return Container(
       constraints: const BoxConstraints(minHeight: NdSize.control),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      // One line of text (20) and the border (2) make it exactly as tall as
+      // the buttons beside it.
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: c.bg,
         borderRadius: NdSize.r,
@@ -719,6 +721,10 @@ class _IconAction extends StatelessWidget {
 /// padding.
 const _kOptionsWidth = 216.0;
 const _kOptionsButton = 28.0;
+
+/// A bubble's padding above and below its text and the text's line height.
+const _kBubblePad = 8.0;
+const _kBubbleLine = 20.0;
 
 /// The ⋮ button of a message and its options menu, the app's menu with no
 /// opening animation, just below the button. With [alignEnd] (own messages,
@@ -902,7 +908,8 @@ class _MessageRow extends StatelessWidget {
       ));
     }
     final bubble = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: _kBubblePad),
       decoration: BoxDecoration(
         color: own ? c.accentTint : c.bgSubtle,
         borderRadius: BorderRadius.circular(8),
@@ -914,9 +921,18 @@ class _MessageRow extends StatelessWidget {
         children: content,
       ),
     );
-    final optionsButton = m.deleted
-        ? const SizedBox(width: 30)
-        : _OptionsButton(options: options, alignEnd: own);
+    // Centred on the bubble's first line, so it sits in the middle of a
+    // one-line message; staff bubbles have a 1 px border.
+    final border = own ? 0.0 : 1.0;
+    final optionsButton = Padding(
+      padding: EdgeInsets.only(
+          top: border + _kBubblePad + (_kBubbleLine - _kOptionsButton) / 2,
+          left: own ? 0 : 4,
+          right: own ? 4 : 0),
+      child: m.deleted
+          ? const SizedBox(width: _kOptionsButton)
+          : _OptionsButton(options: options, alignEnd: own),
+    );
     final reactions = m.reactions.entries.where((e) => e.value.isNotEmpty);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
