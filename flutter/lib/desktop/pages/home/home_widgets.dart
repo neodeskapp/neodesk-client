@@ -351,6 +351,7 @@ class ConnectHeader extends StatelessWidget {
     required this.field,
     required this.onConnect,
     required this.moreWays,
+    this.error,
   });
 
   /// The ID field (an autocomplete field in the app).
@@ -360,8 +361,13 @@ class ConnectHeader extends StatelessWidget {
   /// (label, action) of More ways to connect.
   final List<(String, VoidCallback)> moreWays;
 
+  /// Shown in place of the hint, such as when Connect is pressed without an
+  /// ID.
+  final String? error;
+
   @override
   Widget build(BuildContext context) {
+    final c = context.nd;
     final t = context.ndText;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,7 +389,15 @@ class ConnectHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
-              child: Text(tr('nd-home-connect-hint'), style: t.small),
+              child: error == null
+                  ? Text(tr('nd-home-connect-hint'), style: t.small)
+                  : Row(children: [
+                      Icon(NdIcons.error, size: 16, color: c.danger),
+                      const SizedBox(width: 6),
+                      Flexible(
+                          child: Text(error!,
+                              style: t.small.copyWith(color: c.danger))),
+                    ]),
             ),
             MenuAnchor(
               style: ndMenuStyle(context),

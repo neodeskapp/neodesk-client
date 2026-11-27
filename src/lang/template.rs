@@ -881,6 +881,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-home-connect-title", ""),
         ("nd-home-connect-field", ""),
         ("nd-home-connect-hint", ""),
+        ("nd-home-connect-need-id", ""),
         ("nd-home-more-ways", ""),
         ("nd-home-files-only", ""),
         ("nd-home-camera", ""),

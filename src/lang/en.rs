@@ -368,6 +368,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-home-connect-title", "Connect to another computer"),
         ("nd-home-connect-field", "ID of the other computer"),
         ("nd-home-connect-hint", "Ask the other person for the ID on their NeoDesk start screen."),
+        ("nd-home-connect-need-id", "Enter the ID of the other computer first."),
         ("nd-home-more-ways", "More ways to connect"),
         ("nd-home-files-only", "Transfer files only"),
         ("nd-home-camera", "View the camera"),

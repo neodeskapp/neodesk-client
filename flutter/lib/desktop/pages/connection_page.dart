@@ -143,6 +143,9 @@ class _ConnectionPageState extends State<ConnectionPage>
 
   String selectedConnectionType = 'Connect';
 
+  /// Set when Connect or a way to connect is used with no ID entered.
+  String? _connectError;
+
   bool isWindowMinimized = false;
 
   final AllPeersLoader _allPeersLoader = AllPeersLoader();
@@ -244,6 +247,7 @@ class _ConnectionPageState extends State<ConnectionPage>
         ConnectHeader(
           field: _buildRemoteIDTextField(context),
           onConnect: onConnect,
+          error: _connectError,
           moreWays: [
             (tr('nd-home-files-only'), () => onConnect(isFileTransfer: true)),
             (tr('nd-home-camera'), () => onConnect(isViewCamera: true)),
@@ -265,6 +269,17 @@ class _ConnectionPageState extends State<ConnectionPage>
       bool isTerminal = false,
       bool isTcpTunneling = false}) {
     var id = _idController.id;
+    if (id.replaceAll(' ', '').isEmpty) {
+      // connect() returns without a word on an empty ID, so say what is
+      // missing and put the cursor where it goes. The focus waits a frame
+      // because a menu entry hands it back to its button as the menu closes.
+      final error = tr('nd-home-connect-need-id');
+      setState(() => _connectError = error);
+      ndAnnounce(context, error, assertive: true);
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _idFocusNode.requestFocus());
+      return;
+    }
     connect(context, id,
         isFileTransfer: isFileTransfer,
         isViewCamera: isViewCamera,
@@ -372,6 +387,9 @@ class _ConnectionPageState extends State<ConnectionPage>
                           inputFormatters: [IDTextInputFormatter()],
                           onChanged: (v) {
                             _idController.id = v;
+                            if (_connectError != null) {
+                              setState(() => _connectError = null);
+                            }
                           },
                           onSubmitted: (_) {
                             onConnect();
@@ -381,6 +399,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                   onSelected: (option) {
                     setState(() {
                       _idController.id = option.id;
+                      _connectError = null;
                       FocusScope.of(context).unfocus();
                     });
                   },
