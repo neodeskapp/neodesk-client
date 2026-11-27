@@ -280,6 +280,12 @@ def check_prerelease_table(tmp: Path) -> None:
     expect("> <" not in msi_cell and ">\n<" not in msi_cell, "the button's pieces have gaps between them")
     # GitHub rounds the corners of an image with a width and a height, which cuts the button apart
     expect(not re.search(r"<img[^>]* width=", table), "an image of the download table has a width")
+    # GitHub counts a cell's padding into its width, which squeezed the package
+    # icons to a dot and broke the buttons onto two lines
+    expect(not re.search(r"<t[dh][^>]* width=", table), "a cell of the download table has a width")
+    button_cells = re.findall(r"<td[^>]*><a href=", table)
+    expect(button_cells and all(" nowrap" in c for c in button_cells),
+           "a download button's cell lets its pieces wrap onto two lines")
     for name in ["btn-start", "btn-dot", "btn-mb", "btn-kb"] + [f"btn-{d}" for d in range(10)]:
         expect((HERE.parent / "res" / "release-icons" / f"{name}.png").is_file(), f"{name}.png is not in the repo")
     # One row per package under the heading row, each system once with its icon
@@ -301,8 +307,12 @@ def check_prerelease_table(tmp: Path) -> None:
             write(x64 / name)
     x64_table = release_notes(x64, tmp / "x64.md").split("</table>")[0]
     expect("ARM64" not in x64_table and "x64<br>" in x64_table, "a release without ARM64 builds has an ARM64 column")
-    heading = f"## NeoDesk Client {PRERELEASE}\n"
-    expect(notes.startswith(heading), "notes without a notes file lost their heading")
+    # GitHub shows the release's name above the notes, so they don't repeat it
+    expect(f"# NeoDesk Client {PRERELEASE}" not in notes, "the notes repeat the release's name as a heading")
+    generated = "Official **NeoDesk Client** build.\n\n> [!WARNING]\n> **Beware of support scams.**"
+    expect(notes.startswith(generated),
+           f"notes without a notes file don't start with the line and the warning: {notes[:200]}")
+    expect(notes.index("> [!WARNING]") < notes.index("## Downloads"), "the scam warning is not above the downloads")
 
     # With the release's own notes, they come first and the download table follows
     intro = tmp / "intro.md"
@@ -311,11 +321,13 @@ def check_prerelease_table(tmp: Path) -> None:
     extra.write_text("### Development changes\n\n- feat: something (abc1234)\n", encoding="utf-8")
     notes = release_notes(assets, tmp / "with-intro.md", "--intro-md-file", str(intro), "--extra-md-file", str(extra))
     expect(notes.startswith("Notes of this release.\n"), f"the notes file does not come first: {notes[:200]}")
-    expect(heading not in notes and "Official **NeoDesk Client** build" not in notes,
-           "the generated heading stays above the notes file")
-    # The table sits between the notes' first paragraph and their first heading
-    expect(notes.startswith("Notes of this release.\n\n## Downloads\n"),
-           f"the download table does not follow the notes' first paragraph: {notes[:200]}")
+    expect("Official **NeoDesk Client** build" not in notes, "the generated line stays above the notes file")
+    # The warning and the table sit between the notes' first paragraph and their first heading
+    expect(notes.startswith("Notes of this release.\n\n> [!WARNING]\n"),
+           f"the scam warning does not follow the notes' first paragraph: {notes[:200]}")
+    expect(notes.count("> [!WARNING]") == 1
+           and notes.index("> [!WARNING]") < notes.index("## Downloads\n") < notes.index("## What's new"),
+           f"the warning and the downloads are not between the lead and the notes: {notes[:400]}")
     downloads, rest = notes.split("</table>", 1)
     for name in PRERELEASE_PACKAGES:
         expect(f'href="{base}{name}"' in downloads, f"the download table of the notes file does not link {name}")
@@ -323,7 +335,7 @@ def check_prerelease_table(tmp: Path) -> None:
     expect(rest.index("## What's new") < rest.index("### Development changes"),
            "the change list comes before the notes")
     notes = release_notes(assets, tmp / "missing-intro.md", "--intro-md-file", str(tmp / "none.md"))
-    expect(notes.startswith(heading), "a missing notes file changed the notes")
+    expect(notes.startswith(generated), "a missing notes file changed the notes")
 
 
 def main() -> int:

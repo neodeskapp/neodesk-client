@@ -75,6 +75,18 @@ SUPPORT_FOOTER = (
 )
 
 
+# Above the downloads of every release. Remote support scams talk people into
+# installing a remote desktop app, so the warning stands before the buttons.
+SCAM_WARNING = (
+    "> [!WARNING]\n"
+    "> **Beware of support scams.** Only install NeoDesk if you asked for help yourself, "
+    "from your own IT team or a company you already work with. "
+    "If someone calls or messages you out of the blue and asks you to install it, "
+    "for example claiming to be from Microsoft, your bank or the police, hang up "
+    "and don't give them your ID or password."
+)
+
+
 def _url(repo: str, tag: str, name: str) -> str:
     return f"https://github.com/{repo}/releases/download/{tag}/{name}"
 
@@ -198,12 +210,16 @@ def render_table(
         # follows. GitHub rounds the corners of an image that has both.
         return f'<img src="{image_base}/{icon}.png" height="{height}" alt="{html.escape(alt, quote=True)}">'
 
+    # No widths on the cells: GitHub counts the cell's padding into a width,
+    # which left the package icons 2 pixels and broke the buttons onto two
+    # lines. Without one a column is as wide as its images, and nowrap keeps
+    # a button's pieces on one line on a narrow page too.
 
     lines = [
         "<table>",
         "<tr>",
         '<th align="left" colspan="3">Package</th>',
-        *(f'<th width="200">{label}<br><sub>{runs_on}</sub></th>' for _, label, runs_on in arches),
+        *(f'<th nowrap>{label}<br><sub>{runs_on}</sub></th>' for _, label, runs_on in arches),
         "</tr>",
     ]
     for platform, system, os_icon in SYSTEMS:
@@ -214,17 +230,17 @@ def render_table(
             lines.append("<tr>")
             if i == 0:
                 lines.append(
-                    f'<td rowspan="{len(rows)}" align="center" width="84">'
+                    f'<td rowspan="{len(rows)}" align="center">'
                     f"{img(os_icon, 40, system)}<br><b>{system}</b></td>"
                 )
-            lines.append(f'<td width="28">{img(icon, 28, "")}</td>')
+            lines.append(f"<td>{img(icon, 28, '')}</td>")
             lines.append(f"<td><b>{label}</b> <code>{ext}</code><br><sub>{blurb}</sub></td>")
             for path, (_, arch_label, _) in zip(names, arches):
                 if not path:
                     lines.append('<td align="center"><sub>not built</sub></td>')
                     continue
                 button = _button(img, f"Download {system} {label} {arch_label}", path.stat().st_size)
-                lines.append(f'<td align="center"><a href="{_url(repo, tag, path.name)}">{button}</a></td>')
+                lines.append(f'<td align="center" nowrap><a href="{_url(repo, tag, path.name)}">{button}</a></td>')
             lines.append("</tr>")
     lines.append("</table>")
     footer = DESKTOP_FOOTER if product == "desktop" else SUPPORT_FOOTER
@@ -274,13 +290,14 @@ def render_notes(
     image_base = f"https://raw.githubusercontent.com/{repo}/{image_ref or commit or tag}/res/release-icons"
     table = render_table(product=product, assets=assets, repo=repo, tag=tag, image_base=image_base)
 
+    # GitHub shows the release's name above the notes, so they start without it
     lead, rest = _split_intro(intro_md)
     if lead:
         parts = [lead, ""]
     else:
         what = "NeoDesk Client" if product == "desktop" else "NeoDesk Support Agent"
-        parts = [f"## {release_name}", "", f"Official **{what}** build.", ""]
-    parts += ["## Downloads", "", table]
+        parts = [f"Official **{what}** build.", ""]
+    parts += [SCAM_WARNING, "", "## Downloads", "", table]
     if rest:
         parts += [rest, ""]
 
