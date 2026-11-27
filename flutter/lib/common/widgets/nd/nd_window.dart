@@ -24,7 +24,7 @@ String ndDocsUrl(String path) {
   var lang = bind.mainGetLocalOption(key: kCommConfKeyLang);
   if (lang.isEmpty || lang == 'default') lang = localeName;
   final prefix = lang.toLowerCase().startsWith('de') ? '/de' : '';
-  return 'https://neode.sk$prefix/docs/$path';
+  return 'https://docs.neode.sk$prefix/$path';
 }
 
 class NdWindowTab {
