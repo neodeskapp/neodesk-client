@@ -1535,7 +1535,6 @@ impl DrmCaptureSwitch {
                 );
             }
         }
-        changed
     }
 }
 
