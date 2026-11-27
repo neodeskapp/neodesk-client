@@ -237,12 +237,27 @@ pub enum Handoff {
     GiveWay,
     /// Start a session for `link`. `file` is the downloaded file it came
     /// from, which a kept app deletes: it opens the next links itself.
-    Open { link: String, file: Option<String> },
+    /// `from` is the app that sent it, so a kept app takes the file over
+    /// only from its own product in the same or a newer version
+    /// ([`adopts`]).
+    Open {
+        link: String,
+        file: Option<String>,
+        from: Option<Product>,
+    },
+}
+
+/// A quick support app's product name and version.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Product {
+    pub app: String,
+    pub version: String,
 }
 
 impl Handoff {
-    /// The handoff for a start, with the file it was started from.
-    pub fn of(launch: &Launch, file: Option<&str>) -> Self {
+    /// The handoff for a start of the app `from`, with the file it was
+    /// started from.
+    pub fn of(launch: &Launch, file: Option<&str>, from: &Product) -> Self {
         match launch {
             Launch::Background => Handoff::Ping,
             Launch::Open => Handoff::Show,
@@ -250,6 +265,7 @@ impl Handoff {
             Launch::Link(link) => Handoff::Open {
                 link: link.clone(),
                 file: file.filter(|f| !f.trim().is_empty()).map(str::to_owned),
+                from: Some(from.clone()),
             },
         }
     }
@@ -260,7 +276,13 @@ impl Handoff {
             Handoff::Show => json!({ "do": "show" }),
             Handoff::Remove => json!({ "do": "remove" }),
             Handoff::GiveWay => json!({ "do": "give-way" }),
-            Handoff::Open { link, file } => json!({ "do": "open", "link": link, "file": file }),
+            Handoff::Open { link, file, from } => json!({
+                "do": "open",
+                "link": link,
+                "file": file,
+                "app": from.as_ref().map(|from| &from.app),
+                "version": from.as_ref().map(|from| &from.version),
+            }),
         }
         .to_string()
     }
@@ -277,14 +299,34 @@ impl Handoff {
             "give-way" => Some(Handoff::GiveWay),
             "open" => {
                 let link = value.get("link")?.as_str()?.to_owned();
+                let text = |name: &str| value.get(name).and_then(Value::as_str).map(str::to_owned);
+                let from = text("app")
+                    .zip(text("version"))
+                    .map(|(app, version)| Product { app, version });
                 is_support_link(&link).then(|| Handoff::Open {
                     link,
-                    file: value.get("file").and_then(Value::as_str).map(str::to_owned),
+                    file: text("file"),
+                    from,
                 })
             }
             _ => None,
         }
     }
+}
+
+/// Whether the kept app, which is `kept`, replaces itself with a file that
+/// the app `from` handed over: only one of the same product in the same or
+/// a newer version, so an older download or another brand's quick support
+/// never takes its place.
+pub fn adopts(kept: &Product, from: Option<&Product>) -> bool {
+    let Some(from) = from else {
+        return false;
+    };
+    let number = hbb_common::get_version_number;
+    !kept.app.trim().is_empty()
+        && from.app.trim().eq_ignore_ascii_case(kept.app.trim())
+        && number(&from.version) > 0
+        && number(&from.version) >= number(&kept.version)
 }
 
 /// True for a quick support link, and only for one.
@@ -701,27 +743,56 @@ mod tests {
     fn handoffs_reach_the_running_app_as_sent() {
         let link = "neodesk://support/desk.example.com/ABCDEF23";
         let file = r"C:\Users\ana\Downloads\NeoDesk-QuickSupport-desk.example.com-ABCDEF23.exe";
+        let from = product("NeoDesk", "3.6.20");
         for handoff in [
             Handoff::Ping,
             Handoff::Show,
             Handoff::Remove,
-            Handoff::of(&Launch::Link(link.into()), Some(file)),
-            Handoff::of(&Launch::Link(link.into()), None),
+            Handoff::of(&Launch::Link(link.into()), Some(file), &from),
+            Handoff::of(&Launch::Link(link.into()), None, &from),
+            Handoff::Open {
+                link: link.into(),
+                file: Some(file.into()),
+                from: None,
+            },
         ] {
             assert_eq!(Handoff::decode(&handoff.encode()), Some(handoff));
         }
         assert_eq!(
-            Handoff::of(&Launch::Link(link.into()), Some(file)),
+            Handoff::of(&Launch::Link(link.into()), Some(file), &from),
             Handoff::Open {
                 link: link.into(),
-                file: Some(file.into())
+                file: Some(file.into()),
+                from: Some(from.clone()),
             }
         );
-        assert_eq!(Handoff::of(&Launch::Background, None), Handoff::Ping);
-        assert_eq!(Handoff::of(&Launch::Open, None), Handoff::Show);
+        assert_eq!(Handoff::of(&Launch::Background, None, &from), Handoff::Ping);
+        assert_eq!(Handoff::of(&Launch::Open, None, &from), Handoff::Show);
         assert_eq!(Handoff::decode("{\"do\":\"format c:\"}"), None);
         assert_eq!(Handoff::decode("open"), None);
         assert_eq!(Handoff::decode("{\"do\":\"open\"}"), None);
+    }
+
+    fn product(app: &str, version: &str) -> Product {
+        Product {
+            app: app.into(),
+            version: version.into(),
+        }
+    }
+
+    #[test]
+    fn the_kept_app_takes_over_only_its_own_product_in_a_newer_version() {
+        let kept = product("NeoDesk", "3.6.20");
+        assert!(adopts(&kept, Some(&product("NeoDesk", "3.6.21"))));
+        assert!(adopts(&kept, Some(&product("NeoDesk", "3.6.20"))));
+        assert!(adopts(&kept, Some(&product("neodesk", "3.7.0"))));
+        // An older download stays a download
+        assert!(!adopts(&kept, Some(&product("NeoDesk", "3.6.19"))));
+        // Another brand's quick support never takes the kept app's place
+        assert!(!adopts(&kept, Some(&product("Acme Desk", "9.0.0"))));
+        // Without a version, or from an app that doesn't say
+        assert!(!adopts(&kept, Some(&product("NeoDesk", ""))));
+        assert!(!adopts(&kept, None));
     }
 
     #[test]

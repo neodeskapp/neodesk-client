@@ -494,6 +494,15 @@ fn full_app_name() -> String {
     FULL_APP_NAME.get().cloned().unwrap_or_else(crate::get_app_name)
 }
 
+/// This app's product and version, as a handoff names its sender.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn this_product() -> keep::Product {
+    keep::Product {
+        app: full_app_name(),
+        version: crate::VERSION.to_owned(),
+    }
+}
+
 /// Keep on the ended screen: copies the downloaded file to its place,
 /// registers it, deletes the download and goes on in the background. False
 /// when that did not work; the screen then says so.
@@ -659,17 +668,20 @@ fn take_handoff(handoff: keep::Handoff) {
             #[cfg(windows)]
             give_way();
         }
-        keep::Handoff::Open { link, file } => {
+        keep::Handoff::Open { link, file, from } => {
             // The kept app opens the next links itself, so the download goes,
-            // after the kept app took it over when it is another version
+            // after the kept app took it over when it is a newer version of
+            // the same product
             #[cfg(windows)]
             if let Some(file) = file.filter(|f| is_kept() && keep::deletes_handed_file(f)) {
                 let file = std::path::Path::new(&file);
-                keep::win::adopt(file);
+                if keep::adopts(&this_product(), from.as_ref()) {
+                    keep::win::adopt(file);
+                }
                 keep::win::delete_file(file);
             }
             #[cfg(not(windows))]
-            let _ = file;
+            let _ = (file, from);
             // A session that runs keeps the screen; the link waits for the next
             if SUPPORT.lock().unwrap().is_none() {
                 START_HIDDEN.store(false, Ordering::Relaxed);
@@ -1310,7 +1322,7 @@ fn single_quick_support(args: &[String]) -> Option<Option<CoreMainAction>> {
         .and_then(Invite::deep_link);
     let launch = keep::launch_of(args, link.as_deref(), is_kept())?;
     let started = STARTED_FILE.lock().unwrap().clone();
-    if send_handoff(&keep::Handoff::of(&launch, started.as_deref())) {
+    if send_handoff(&keep::Handoff::of(&launch, started.as_deref(), &this_product())) {
         log::info!("Quick support runs already, handed {launch:?} over");
         return Some(None);
     }
