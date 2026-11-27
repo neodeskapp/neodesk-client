@@ -80,6 +80,9 @@ static KEEP_FAILED: AtomicBool = AtomicBool::new(false);
 /// The kept app went to the background while its session still ended: the
 /// window opens on the ready screen next time.
 static REST_AFTER_SESSION: AtomicBool = AtomicBool::new(false);
+/// A full NeoDesk was installed while the kept app had a session: the kept
+/// app removes itself and quits once the session has ended.
+static GIVE_WAY_AFTER_SESSION: AtomicBool = AtomicBool::new(false);
 
 /// Where onboarding stands, as the UI shows it. The names are the ones of
 /// the UI's `OnboardingPhase`.
@@ -545,15 +548,35 @@ pub fn rest_quick_support() {
     START_HIDDEN.store(false, Ordering::Relaxed);
 }
 
-/// A full NeoDesk is installed: a quick support app this person kept goes,
-/// and one that runs quits. Its neodesk:// under HKCU would override the
-/// full NeoDesk's.
+/// A full NeoDesk is installed: a quick support app this person kept goes.
+/// Its neodesk:// under HKCU would override the full NeoDesk's. A quick
+/// support app that runs does that itself, so a session there goes on
+/// until it ends ([`keep::give_way`]).
 pub fn give_way_to_full_client() {
     #[cfg(windows)]
-    if !is_quick_support() && keep::win::is_kept() {
+    if !is_quick_support() && keep::win::is_kept() && !send_handoff(&keep::Handoff::GiveWay) {
         log::info!("NeoDesk is installed, the kept quick support app goes");
-        send_handoff(&keep::Handoff::Remove);
         keep::win::remove_kept();
+    }
+}
+
+/// Does in this quick support app what a full NeoDesk that was installed
+/// asks for.
+#[cfg(windows)]
+fn give_way() {
+    let in_session = SUPPORT.lock().unwrap().is_some();
+    match keep::give_way(is_kept(), in_session) {
+        keep::GiveWay::RemoveAndQuit => {
+            log::info!("NeoDesk is installed, the kept quick support app goes");
+            quit(true);
+        }
+        keep::GiveWay::EntriesNowFilesAfterSession => {
+            if !GIVE_WAY_AFTER_SESSION.swap(true, Ordering::Relaxed) {
+                log::info!("NeoDesk is installed, the kept quick support app goes after the session");
+            }
+            keep::win::remove_entries();
+        }
+        keep::GiveWay::RemoveKept => keep::win::remove_kept(),
     }
 }
 
@@ -606,12 +629,17 @@ fn take_handoff(handoff: keep::Handoff) {
     match handoff {
         keep::Handoff::Ping => {}
         keep::Handoff::Show => show_window(),
-        // From Apps & installed apps, or a full NeoDesk that was installed.
-        // A downloaded app's session goes on without the kept app.
+        // From Apps & installed apps. A downloaded app's session goes on
+        // without the kept app.
         keep::Handoff::Remove if is_kept() => quit(true),
         keep::Handoff::Remove => {
             #[cfg(windows)]
             keep::win::remove_kept();
+        }
+        // From a full NeoDesk that was installed
+        keep::Handoff::GiveWay => {
+            #[cfg(windows)]
+            give_way();
         }
         keep::Handoff::Open { link, file } => {
             // The kept app opens the next links itself, so the download goes,
@@ -648,11 +676,11 @@ fn show_window() {
 }
 
 /// Ends a session that runs and quits, after removing quick support from
-/// this computer when `remove`.
+/// this computer when `remove` or a full NeoDesk was installed meanwhile.
 #[cfg_attr(not(windows), allow(dead_code))]
 fn quit(remove: bool) {
     end_support();
-    if remove {
+    if remove || GIVE_WAY_AFTER_SESSION.load(Ordering::Relaxed) {
         remove_quick_support();
     }
     std::process::exit(0);
@@ -1020,6 +1048,10 @@ fn start_support(console: Console, code: String) {
     std::thread::spawn(move || {
         support::run(console, code, &AppHost, &STATE, &rx, support::Timing::default());
         *SUPPORT.lock().unwrap() = None;
+        if GIVE_WAY_AFTER_SESSION.load(Ordering::Relaxed) {
+            log::info!("Quick support session ended, the kept quick support app goes");
+            quit(true);
+        }
         if REST_AFTER_SESSION.swap(false, Ordering::Relaxed) {
             STATE.update(|s| *s = State::default());
         }

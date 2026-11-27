@@ -226,8 +226,11 @@ pub enum Handoff {
     Ping,
     /// Show the window.
     Show,
-    /// Remove the kept app and quit.
+    /// Remove the kept app and quit (Remove in Apps & installed apps).
     Remove,
+    /// A full NeoDesk is installed: the kept app goes, but a session that
+    /// runs goes on until it ends ([`give_way`]).
+    GiveWay,
     /// Start a session for `link`. `file` is the downloaded file it came
     /// from, which a kept app deletes: it opens the next links itself.
     Open { link: String, file: Option<String> },
@@ -252,6 +255,7 @@ impl Handoff {
             Handoff::Ping => json!({ "do": "ping" }),
             Handoff::Show => json!({ "do": "show" }),
             Handoff::Remove => json!({ "do": "remove" }),
+            Handoff::GiveWay => json!({ "do": "give-way" }),
             Handoff::Open { link, file } => json!({ "do": "open", "link": link, "file": file }),
         }
         .to_string()
@@ -263,6 +267,7 @@ impl Handoff {
             "ping" => Some(Handoff::Ping),
             "show" => Some(Handoff::Show),
             "remove" => Some(Handoff::Remove),
+            "give-way" => Some(Handoff::GiveWay),
             "open" => Some(Handoff::Open {
                 link: value.get("link")?.as_str()?.to_owned(),
                 file: value.get("file").and_then(Value::as_str).map(str::to_owned),
@@ -303,6 +308,28 @@ pub fn cleanup(kept_process: bool, started: Option<&str>) -> Cleanup {
     Cleanup {
         started_file: started.map_or(false, deletes_handed_file),
         kept: kept_process,
+    }
+}
+
+/// What a quick support app does once a full NeoDesk is installed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GiveWay {
+    /// The kept app without a session: removes itself and quits.
+    RemoveAndQuit,
+    /// The kept app in a session: its registry entries go now, so the full
+    /// NeoDesk opens the links, and its files once the session has ended.
+    EntriesNowFilesAfterSession,
+    /// Not the kept app, which then doesn't run: this process removes it.
+    RemoveKept,
+}
+
+/// What a quick support app that is the kept app when `kept_process`, and
+/// has a session when `in_session`, does once a full NeoDesk is installed.
+pub fn give_way(kept_process: bool, in_session: bool) -> GiveWay {
+    match (kept_process, in_session) {
+        (true, false) => GiveWay::RemoveAndQuit,
+        (true, true) => GiveWay::EntriesNowFilesAfterSession,
+        (false, _) => GiveWay::RemoveKept,
     }
 }
 
@@ -426,6 +453,14 @@ pub mod win {
     /// Removes the kept app's registry entries and its folder. The folder
     /// goes once this process has quit when it can't go now.
     pub fn remove_kept() {
+        remove_entries();
+        remove_files();
+        log::info!("Quick support removed from this computer");
+    }
+
+    /// Removes the kept app's registry entries: neodesk:// when it opens the
+    /// kept app, the autostart and the entry in Apps & installed apps.
+    pub fn remove_entries() {
         let Some(exe) = exe() else {
             return;
         };
@@ -447,12 +482,19 @@ pub mod win {
                 key.delete_value(&name).ok();
             }
         }
+    }
+
+    /// Removes the kept app's folder. What a running kept app still uses
+    /// goes once this process has quit.
+    pub fn remove_files() {
+        let Some(exe) = exe() else {
+            return;
+        };
         if let Some(dir) = exe.parent() {
             if dir.exists() && std::fs::remove_dir_all(dir).is_err() {
                 delete_later(dir);
             }
         }
-        log::info!("Quick support removed from this computer");
     }
 
     /// A newer quick support file opened while the kept app runs: it
@@ -671,6 +713,18 @@ mod tests {
     fn a_kept_app_goes_once_a_full_neodesk_is_installed() {
         assert!(stays(false));
         assert!(!stays(true));
+    }
+
+    #[test]
+    fn a_full_neodesk_installed_in_a_session_lets_the_session_end_first() {
+        assert_eq!(give_way(true, true), GiveWay::EntriesNowFilesAfterSession);
+        assert_eq!(give_way(true, false), GiveWay::RemoveAndQuit);
+        // A downloaded app holds the pipe only while the kept app doesn't run
+        assert_eq!(give_way(false, true), GiveWay::RemoveKept);
+        assert_eq!(give_way(false, false), GiveWay::RemoveKept);
+        // Not the Remove of Apps & installed apps, which ends the session
+        assert_eq!(Handoff::decode(&Handoff::GiveWay.encode()), Some(Handoff::GiveWay));
+        assert_ne!(Handoff::GiveWay.encode(), Handoff::Remove.encode());
     }
 
     #[test]
