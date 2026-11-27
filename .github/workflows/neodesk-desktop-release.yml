@@ -8,12 +8,17 @@
 # use desktop-v* releases but not desktop/* ones. After a desktop-v* release
 # the packages job updates https://pkg.neode.sk (neodesk-packages.yml).
 #
-# Package versions: a tag's version for releases, <Cargo.toml version>-dev.<run
-# number> for manual runs (neodesk-1.5.0-dev.42-windows-x86_64.exe).
+# A manual run on main for all platforms publishes the next release candidate
+# of the version in Cargo.toml: desktop-v1.5.0-rc.9 after rc.8 (see
+# scripts/next_rc_tag.py). The release tags the commit the run built. Once
+# desktop-v<version> itself is released, such a run fails until Cargo.toml
+# has the next version.
+#   gh workflow run neodesk-desktop-release.yml --ref main
 #
-# Manual runs (workflow_dispatch) build one platform or all of them, as
-# artifacts only:
-#   gh workflow run neodesk-desktop-release.yml --ref main -f platforms=linux-x86_64
+# Other manual runs (a branch, one platform, or -f release=false) keep the
+# packages as run artifacts, versioned <Cargo.toml version>-dev.<run number>
+# (neodesk-1.5.0-dev.42-windows-x86_64.exe):
+#   gh workflow run neodesk-desktop-release.yml --ref my-branch -f platforms=linux-x86_64
 #
 # Incoming-only Support Agent packages are a separate workflow:
 #   neodesk-support-generic-release.yml (tags support-v*).
@@ -28,7 +33,7 @@ on:
   workflow_dispatch:
     inputs:
       platforms:
-        description: "Platform to build (artifacts only, no release)"
+        description: "Platform to build (anything but all builds artifacts only)"
         type: choice
         required: true
         default: all
@@ -40,6 +45,10 @@ on:
           - linux-aarch64
           - macos-x86_64
           - macos-aarch64
+      release:
+        description: "On main with all platforms: publish the next release candidate"
+        type: boolean
+        default: true
 
 # A newer run ends the older one of the same ref; a manual run only ends an
 # older manual run, so rerunning one platform leaves a tag run alone.
@@ -77,6 +86,7 @@ jobs:
         shell: bash
         env:
           INPUT_PLATFORMS: ${{ github.event.inputs.platforms }}
+          INPUT_RELEASE: ${{ github.event.inputs.release }}
         run: |
           set -euo pipefail
           BASE_VERSION="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' Cargo.toml | head -n 1)"
@@ -97,8 +107,16 @@ jobs:
             else
               IS_DEV=false
             fi
+          elif [ "${GITHUB_REF}" = "refs/heads/main" ] && [ "${INPUT_PLATFORMS:-all}" = "all" ] && [ "${INPUT_RELEASE:-true}" = "true" ]; then
+            # A full build of main is the next release candidate.
+            python3 scripts/test_next_rc_tag.py
+            PUBLISH=true
+            PLATFORMS=all
+            TAG_NAME="$(git tag -l 'desktop-v*' | python3 scripts/next_rc_tag.py "${BASE_VERSION}")"
+            VERSION="${TAG_NAME#desktop-v}"
+            IS_DEV=false
           else
-            # Manual runs keep the packages as run artifacts.
+            # Other manual runs keep the packages as run artifacts.
             PUBLISH=false
             PLATFORMS="${INPUT_PLATFORMS:-all}"
             TAG_NAME="dev-${RUN_N}-${SHORT_SHA}"
@@ -407,6 +425,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag_name }}
+          # A release candidate of a main build makes its tag here, on the
+          # commit that was built rather than wherever main is by now
+          target_commitish: ${{ github.sha }}
           name: ${{ needs.prepare.outputs.release_name }}
           body_path: release-notes.md
           prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
