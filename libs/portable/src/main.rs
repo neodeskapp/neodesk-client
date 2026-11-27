@@ -40,6 +40,78 @@ fn app_dir_name(exe: &str) -> String {
         .unwrap_or_else(|| APP_PREFIX.to_owned())
 }
 
+// The quick support app a person kept (src/onboard/keep.rs: FOLDER and
+// FILE_NAME) unpacks into a folder of its own next to itself. A downloaded
+// quick support file carries the same payload and unpacks into
+// %LOCALAPPDATA%\<payload>, which a file of another version wipes; the kept
+// app must not run from there. Removing the kept app deletes its folder and
+// so this one with it.
+const KEPT_FOLDER: &str = "NeoDesk Quick Support";
+const KEPT_FILE_NAME: &str = "NeoDesk-QuickSupport.exe";
+const KEPT_UNPACK_FOLDER: &str = "app";
+
+fn is_kept_quick_support(packed: &Path) -> bool {
+    let named = |path: Option<&std::ffi::OsStr>, name: &str| {
+        path.and_then(|p| p.to_str())
+            .map_or(false, |p| p.eq_ignore_ascii_case(name))
+    };
+    named(packed.file_name(), KEPT_FILE_NAME)
+        && named(packed.parent().and_then(Path::file_name), KEPT_FOLDER)
+}
+
+// Where the packed file `packed` unpacks its payload `exe`, with `local` the
+// person's %LOCALAPPDATA%.
+fn unpack_dir(local: &Path, packed: &Path, exe: &str) -> PathBuf {
+    match packed.parent() {
+        Some(folder) if is_kept_quick_support(packed) => folder.join(KEPT_UNPACK_FOLDER),
+        _ => local.join(app_dir_name(exe)),
+    }
+}
+
+// What setup does with the folder it unpacks into.
+#[derive(Debug, PartialEq, Eq)]
+struct Unpack {
+    // Delete the folder first.
+    wipe: bool,
+    // Write the payload's files (those that differ).
+    write: bool,
+}
+
+// `clear` for an install, `same_build` when the folder holds this build,
+// `in_use` when its client runs. A client that runs keeps its files: wiping
+// or overwriting them would break it, and a quick support file started
+// meanwhile only hands its link to it. An install still unpacks.
+fn unpack_plan(clear: bool, same_build: bool, in_use: bool) -> Unpack {
+    if clear {
+        return Unpack { wipe: true, write: true };
+    }
+    if in_use {
+        return Unpack { wipe: false, write: false };
+    }
+    Unpack { wipe: !same_build, write: true }
+}
+
+// True when the client at `exe` runs: Windows refuses to open a running
+// program for writing.
+fn runs(exe: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        const ERROR_SHARING_VIOLATION: i32 = 32;
+        exe.is_file()
+            && std::fs::OpenOptions::new()
+                .write(true)
+                .open(exe)
+                .err()
+                .and_then(|err| err.raw_os_error())
+                == Some(ERROR_SHARING_VIOLATION)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = exe;
+        false
+    }
+}
+
 // The privacy mode broker: RuntimeBroker.exe copied under the client's own
 // name, so stock RustDesk's RuntimeBroker_rustdesk.exe is never touched.
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -176,7 +248,8 @@ fn setup(
     } else {
         // home dir
         if let Some(dir) = dirs::data_local_dir() {
-            dir.join(app_dir_name(&reader.exe))
+            let packed = std::env::current_exe().unwrap_or_default();
+            unpack_dir(&dir, &packed, &reader.exe)
         } else {
             eprintln!("not found data local dir");
             return None;
@@ -191,12 +264,17 @@ fn setup(
         ui::setup();
     }
     let mut ts = 0;
-    let unpack = clear || !is_timestamp_matches(&dir, &mut ts);
-    if unpack {
+    let same_build = is_timestamp_matches(&dir, &mut ts);
+    let plan = unpack_plan(clear, same_build, runs(&dir.join(&reader.exe)));
+    if plan.wipe {
         std::fs::remove_dir_all(&dir).ok();
     } else {
         #[cfg(windows)]
         ui::set_starting();
+    }
+    if !plan.write {
+        println!("{} runs, its files stay", dir.display());
+        return Some(dir.join(&reader.exe));
     }
     let mut metadata_paths = reader.package_paths.clone();
     metadata_paths.extend(remove_dropped_package_files(&dir, &reader.package_paths));
@@ -459,6 +537,40 @@ mod meta_tests {
         assert_eq!(runtime_broker_exe("neodesk.exe"), "RuntimeBroker_neodesk.exe");
         assert_eq!(runtime_broker_exe("bin/NeoDesk.exe"), "RuntimeBroker_neodesk.exe");
         assert_eq!(runtime_broker_exe(""), "RuntimeBroker_rustdesk.exe");
+    }
+
+    #[test]
+    fn the_kept_quick_support_unpacks_apart_from_downloads() {
+        let local = Path::new("/home/ana/AppData/Local");
+        let kept = local
+            .join("Programs")
+            .join("NeoDesk Quick Support")
+            .join("NeoDesk-QuickSupport.exe");
+        let download = Path::new("/home/ana/Downloads")
+            .join("NeoDesk-QuickSupport-desk.example.com-ABCDEF23.exe");
+        assert_eq!(
+            unpack_dir(local, &kept, "neodesk.exe"),
+            local.join("Programs").join("NeoDesk Quick Support").join("app")
+        );
+        assert_eq!(unpack_dir(local, &download, "neodesk.exe"), local.join("neodesk"));
+        // The kept name alone, somewhere else, is a download like any other
+        let renamed = Path::new("/home/ana/Downloads").join("NeoDesk-QuickSupport.exe");
+        assert_eq!(unpack_dir(local, &renamed, "neodesk.exe"), local.join("neodesk"));
+        assert_ne!(
+            unpack_dir(local, &kept, "neodesk.exe"),
+            unpack_dir(local, &download, "neodesk.exe")
+        );
+    }
+
+    #[test]
+    fn a_running_client_keeps_its_files() {
+        // Another build while the client runs: no wipe, no overwrite
+        assert_eq!(unpack_plan(false, false, true), Unpack { wipe: false, write: false });
+        assert_eq!(unpack_plan(false, true, true), Unpack { wipe: false, write: false });
+        assert_eq!(unpack_plan(false, false, false), Unpack { wipe: true, write: true });
+        assert_eq!(unpack_plan(false, true, false), Unpack { wipe: false, write: true });
+        // An install unpacks as before
+        assert_eq!(unpack_plan(true, true, true), Unpack { wipe: true, write: true });
     }
 
     #[test]

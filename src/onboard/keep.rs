@@ -12,6 +12,10 @@
 //! link (or its Open, or its Remove) to the one that runs ([`Handoff`]) and
 //! quits.
 //!
+//! The packer unpacks the kept app into `app` in its folder
+//! (libs/portable/src/main.rs), not where downloaded files unpack, so a
+//! download of another version never wipes what the kept app runs from.
+//!
 //! The paths, the registry entries and the decisions are plain functions
 //! here, so they are tested on every platform; [`win`] applies them.
 
@@ -484,8 +488,10 @@ pub mod win {
         }
     }
 
-    /// Removes the kept app's folder. What a running kept app still uses
-    /// goes once this process has quit.
+    /// Removes the kept app's folder, with the folder `app` in it that the
+    /// packer unpacks the kept app into (libs/portable/src/main.rs), apart
+    /// from the one of downloaded quick support files. What a running kept
+    /// app still uses goes once this process has quit.
     pub fn remove_files() {
         let Some(exe) = exe() else {
             return;
@@ -572,6 +578,9 @@ mod tests {
             "Programs"
         );
         assert!(exe.starts_with(local()));
+        // The packer knows the kept app by these names (libs/portable)
+        assert_eq!(FOLDER, "NeoDesk Quick Support");
+        assert_eq!(FILE_NAME, "NeoDesk-QuickSupport.exe");
     }
 
     #[test]
