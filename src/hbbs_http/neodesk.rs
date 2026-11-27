@@ -182,8 +182,7 @@ pub async fn fetch_health() -> ResultType<Value> {
 }
 
 /// GET `{api}/api/branding` — optional white-label payload from the panel.
-pub async fn fetch_branding() -> ResultType<Value> {
-    let base = api_base();
+async fn fetch_branding(base: &str) -> ResultType<Value> {
     if base.is_empty() {
         bail!("NeoDesk API server is not configured");
     }
@@ -819,7 +818,15 @@ async fn apply_branding_payload(base: &str, payload: BrandingPayload) -> ResultT
 
 /// Called from the hbbs sync loop: fetch and apply Client Branding when API is configured.
 pub async fn sync_client_branding() {
-    let base = api_base();
+    sync_client_branding_from(&api_base()).await;
+}
+
+/// Fetches and applies Client Branding from the API at `base`. The app
+/// window calls this as well: an installed client's service runs as another
+/// account with its own copy of these options, so what the service syncs
+/// never reaches the window.
+pub async fn sync_client_branding_from(base: &str) {
+    let base = base.trim_end_matches('/').to_owned();
     if base.is_empty() || crate::is_public(&base) {
         if is_server_managed() {
             clear_server_branding();
@@ -846,7 +853,7 @@ pub async fn sync_client_branding() {
         *last = Some(Instant::now());
     }
 
-    let value = match fetch_branding().await {
+    let value = match fetch_branding(&base).await {
         Ok(v) => v,
         Err(err) => {
             log::debug!("branding fetch skipped: {err}");
