@@ -18,6 +18,7 @@ class NdButton extends StatefulWidget {
     this.kind = NdButtonKind.plain,
     this.size = NdButtonSize.md,
     this.icon,
+    this.leading,
     this.trailingIcon,
     this.block = false,
     this.tooltip,
@@ -32,6 +33,7 @@ class NdButton extends StatefulWidget {
     required this.onPressed,
     this.size = NdButtonSize.md,
     this.icon,
+    this.leading,
     this.trailingIcon,
     this.block = false,
     this.tooltip,
@@ -50,6 +52,7 @@ class NdButton extends StatefulWidget {
     this.autofocus = false,
   })  : kind = NdButtonKind.link,
         icon = null,
+        leading = null,
         trailingIcon = null,
         block = false,
         labelColor = null;
@@ -59,6 +62,10 @@ class NdButton extends StatefulWidget {
   final NdButtonKind kind;
   final NdButtonSize size;
   final IconData? icon;
+
+  /// A picture before the label where an icon glyph won't do, such as the
+  /// NeoDesk mark in its own colours. Takes the place of [icon].
+  final Widget? leading;
   final IconData? trailingIcon;
   final bool block;
   final String? tooltip;
@@ -153,11 +160,17 @@ class _NdButtonState extends State<NdButton> {
         maxLines: isLink ? null : 2,
         overflow: TextOverflow.ellipsis,
         textAlign: TextAlign.center);
-    if (!isLink && (widget.icon != null || widget.trailingIcon != null)) {
+    if (!isLink &&
+        (widget.icon != null ||
+            widget.leading != null ||
+            widget.trailingIcon != null)) {
       content = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (widget.icon != null) ...[
+          if (widget.leading != null) ...[
+            widget.leading!,
+            const SizedBox(width: 8),
+          ] else if (widget.icon != null) ...[
             Icon(widget.icon, size: 18, color: fg),
             const SizedBox(width: 6),
           ],

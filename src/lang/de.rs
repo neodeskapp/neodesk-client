@@ -1349,6 +1349,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-file-kind-file", "Datei"),
         ("nd-file-kind-drive", "Laufwerk"),
         ("nd-chat-message-from", "Nachricht von {}: {}"),
+        ("nd-sign-in-with-neodesk", "Mit NeoDesk anmelden"),
+        ("nd-sign-in-browser-waiting", "Warte darauf, dass du die Anmeldung im Browser erlaubst"),
+        ("Sign-in was declined in the browser", "Die Anmeldung wurde im Browser abgelehnt"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }
