@@ -154,6 +154,70 @@ class ConfigOP {
   ConfigOP({required this.op, required this.icon});
 }
 
+/// The op of the sign-in through the web console ("Sign in with NeoDesk").
+/// Exact and case-sensitive, as the server matches it; any other name is an
+/// outside identity provider.
+const kNeoDeskOp = 'NeoDesk';
+
+/// Splits the server's sign-in options (UserModel.queryOidcLoginOptions)
+/// into the web console's own sign-in and the other providers, which keep
+/// the server's order. Entries without a name are left out.
+({ConfigOP? neodesk, List<ConfigOP> others}) splitLoginOptions(
+    List<dynamic> options) {
+  ConfigOP? neodesk;
+  final others = <ConfigOP>[];
+  for (final e in options) {
+    if (e is! Map) continue;
+    final name = e['name'];
+    if (name is! String || name.isEmpty) continue;
+    final icon = e['icon'];
+    final config = ConfigOP(op: name, icon: icon is String ? icon : null);
+    if (name == kNeoDeskOp) {
+      neodesk ??= config;
+    } else {
+      others.add(config);
+    }
+  }
+  return (neodesk: neodesk, others: others);
+}
+
+/// The waiting line of a running sign-in: for the web console, that it
+/// waits for the Allow in the browser; for the other providers the
+/// backend's state as before.
+String oidcStateMessageKey(String op, String stateMsg) {
+  if (op == kNeoDeskOp &&
+      (stateMsg == _waitingAccountAuth || stateMsg == _requestingAccountAuth)) {
+    return 'nd-sign-in-browser-waiting';
+  }
+  return stateMsg;
+}
+
+/// "Sign in with NeoDesk": the full-width primary button of the sign-in
+/// through the web console, with the NeoDesk app icon (the mark on its dark
+/// tile, lead/brand/app-icon.svg unchanged). The tile keeps the mark
+/// visible on every accent, also the light blue of the dark theme and a
+/// server's own accent.
+class NdNeoDeskSignInButton extends StatelessWidget {
+  const NdNeoDeskSignInButton({super.key, required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return NdButton.primary(
+      label: translate('nd-sign-in-with-neodesk'),
+      onPressed: onPressed,
+      block: true,
+      leading: SvgPicture.asset(
+        'assets/nd-app-icon.svg',
+        key: const ValueKey('nd-neodesk-mark'),
+        width: 22,
+        height: 22,
+      ),
+    );
+  }
+}
+
 class _OidcAuthController {
   final RxString curOP = ''.obs;
   Future<void> _pendingOperation = Future<void>.value();
@@ -466,43 +530,83 @@ class _WidgetOPState extends State<WidgetOP> {
     return _authAttempt;
   }
 
+  /// Cancel in the waiting state: stops the wait, the button can start a
+  /// new one.
+  Future<void> _cancelWaiting() async {
+    final authAttempt = _authAttempt;
+    if (!_isCurrentAuthAttempt(authAttempt)) {
+      return;
+    }
+    try {
+      final canceled = await widget.cancelAuth(widget.config.op);
+      if (!canceled || !_isCurrentAuthAttempt(authAttempt)) {
+        return;
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Failed to cancel account authentication $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return;
+    }
+    _updateTimer?.cancel();
+    setState(() {
+      _invalidateAuthAttempt();
+      _stateMsg = '';
+      _failedMsg = '';
+      widget.curOP.value = '';
+    });
+  }
+
+  Future<void> _onTap() async {
+    if (!widget.canStartAuth()) {
+      return;
+    }
+    final authAttempt = _resetState();
+    try {
+      final started = await widget.startAuth(widget.config.op);
+      if (!started) {
+        return;
+      }
+    } catch (e) {
+      await _handleAuthFailure(
+        authAttempt,
+        e,
+        'start account authentication',
+      );
+      return;
+    }
+    if (!mounted ||
+        authAttempt != _authAttempt ||
+        widget.curOP.value != widget.config.op) {
+      return;
+    }
+    _beginQueryState(authAttempt);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isNeoDesk = widget.config.op == kNeoDeskOp;
     return Column(
+      crossAxisAlignment: isNeoDesk
+          ? CrossAxisAlignment.stretch
+          : CrossAxisAlignment.center,
       children: [
-        ButtonOP(
-          op: widget.config.op,
-          curOP: widget.curOP,
-          icon: widget.config.icon,
-          primaryColor: str2color(widget.config.op, 0x7f),
-          height: 36,
-          canStartAuth: widget.canStartAuth,
-          onTap: () async {
-            if (!widget.canStartAuth()) {
-              return;
-            }
-            final authAttempt = _resetState();
-            try {
-              final started = await widget.startAuth(widget.config.op);
-              if (!started) {
-                return;
-              }
-            } catch (e) {
-              await _handleAuthFailure(
-                authAttempt,
-                e,
-                'start account authentication',
-              );
-              return;
-            }
-            if (!mounted ||
-                authAttempt != _authAttempt ||
-                widget.curOP.value != widget.config.op) {
-              return;
-            }
-            _beginQueryState(authAttempt);
-          },
-        ),
+        if (isNeoDesk)
+          Obx(() => NdNeoDeskSignInButton(
+                onPressed:
+                    widget.curOP.value == 'rustdesk' || !widget.canStartAuth()
+                        ? null
+                        : _onTap,
+              ))
+        else
+          ButtonOP(
+            op: widget.config.op,
+            curOP: widget.curOP,
+            icon: widget.config.icon,
+            primaryColor: str2color(widget.config.op, 0x7f),
+            height: 36,
+            canStartAuth: widget.canStartAuth,
+            onTap: _onTap,
+          ),
         Obx(() {
           if (widget.curOP.isNotEmpty &&
               widget.curOP.value != widget.config.op) {
@@ -520,7 +624,8 @@ class _WidgetOPState extends State<WidgetOP> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8.0),
                     child: OidcAuthStatus(
-                      message: translate(_stateMsg),
+                      message: translate(
+                          oidcStateMessageKey(widget.config.op, _stateMsg)),
                       browserFallbackPrompt: translate(
                         "Browser didn't open? Use the url below to sign in.",
                       ),
@@ -533,6 +638,19 @@ class _WidgetOPState extends State<WidgetOP> {
                                 authUrl,
                                 _copyAuthUrl,
                               ),
+                    ),
+                  ),
+                if (isNeoDesk &&
+                    _stateMsg.isNotEmpty &&
+                    _failedMsg.isEmpty &&
+                    widget.curOP.value == widget.config.op)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: NdButton(
+                      key: const ValueKey('nd-sign-in-browser-cancel'),
+                      label: translate('Cancel'),
+                      size: NdButtonSize.sm,
+                      onPressed: () => unawaited(_cancelWaiting()),
                     ),
                   ),
                 if (_failedMsg.isNotEmpty)
@@ -633,8 +751,10 @@ class LoginWidgetOP extends StatelessWidget {
 
 /// The sign-in dialog: Username and Password with the labels above, the
 /// error under the field it belongs to, Cancel and Sign in at the end.
-/// [below] holds the third-party sign-in buttons. Enter in Username moves
-/// to Password, Enter in Password signs in.
+/// [above] holds the sign-in through the web console ("Sign in with
+/// NeoDesk"), set apart from the fields by "or"; [below] holds the other
+/// sign-in buttons. Enter in Username moves to Password, Enter in Password
+/// signs in.
 class NdLoginDialog extends StatefulWidget {
   const NdLoginDialog({
     super.key,
@@ -646,6 +766,7 @@ class NdLoginDialog extends StatefulWidget {
     this.passwordError,
     this.busy = false,
     this.userFocusNode,
+    this.above,
     this.below,
   });
 
@@ -659,6 +780,7 @@ class NdLoginDialog extends StatefulWidget {
   /// A sign-in is running: Sign in is off and a bar runs under the fields.
   final bool busy;
   final FocusNode? userFocusNode;
+  final Widget? above;
   final Widget? below;
 
   @override
@@ -688,6 +810,14 @@ class _NdLoginDialogState extends State<NdLoginDialog> {
       onClose: widget.onCancel,
       closeTooltip: translate('Close'),
       children: [
+        if (widget.above != null) ...[
+          widget.above!,
+          Center(
+            key: const ValueKey('nd-sign-in-or'),
+            child: Text(translate('or'),
+                style: context.ndText.small.copyWith(color: c.textMuted)),
+          ),
+        ],
         NdField(
           label: translate('Username'),
           controller: widget.username,
@@ -888,6 +1018,37 @@ Future<bool?> _openLoginDialog() async {
           setState(() => isInProgress = false);
         }
 
+        oidcLoginBody(Map<String, dynamic> authBody) async {
+          LoginResponse? resp;
+          try {
+            // access_token is already stored in the rust side.
+            resp = gFFI.userModel.getLoginResponseFromAuthBody(authBody);
+          } catch (e) {
+            debugPrint('Failed to parse oidc login body: "$authBody"');
+          }
+          close(true);
+
+          if (resp != null) {
+            handleLoginResponse(resp, false, null);
+          }
+        }
+
+        // "Sign in with NeoDesk" at the top when the server offers it.
+        Widget? neodeskAuthWidget() {
+          if (loginOptionsError.value != null) return null;
+          final neodesk = splitLoginOptions(loginOptions).neodesk;
+          if (neodesk == null) return null;
+          return WidgetOP(
+            key: const ValueKey('nd-neodesk-op'),
+            config: neodesk,
+            curOP: curOP,
+            startAuth: oidcAuth.start,
+            cancelAuth: oidcAuth.cancelCurrent,
+            canStartAuth: oidcAuth.canStart,
+            cbLogin: oidcLoginBody,
+          );
+        }
+
         thirdAuthWidget() => Obx(() {
               final error = loginOptionsError.value;
               final inProgress = loginOptionsInProgress.value;
@@ -920,8 +1081,9 @@ Future<bool?> _openLoginDialog() async {
                   ],
                 );
               }
+              final others = splitLoginOptions(loginOptions).others;
               return Offstage(
-                offstage: loginOptions.isEmpty,
+                offstage: others.isEmpty,
                 child: Column(
                   children: [
                     const SizedBox(
@@ -937,29 +1099,12 @@ Future<bool?> _openLoginDialog() async {
                       height: 8.0,
                     ),
                     LoginWidgetOP(
-                      ops: loginOptions
-                          .map((e) => ConfigOP(op: e['name'], icon: e['icon']))
-                          .toList(),
+                      ops: others,
                       curOP: curOP,
                       startAuth: oidcAuth.start,
                       cancelAuth: oidcAuth.cancelCurrent,
                       canStartAuth: oidcAuth.canStart,
-                      cbLogin: (Map<String, dynamic> authBody) async {
-                        LoginResponse? resp;
-                        try {
-                          // access_token is already stored in the rust side.
-                          resp = gFFI.userModel
-                              .getLoginResponseFromAuthBody(authBody);
-                        } catch (e) {
-                          debugPrint(
-                              'Failed to parse oidc login body: "$authBody"');
-                        }
-                        close(true);
-
-                        if (resp != null) {
-                          handleLoginResponse(resp, false, null);
-                        }
-                      },
+                      cbLogin: oidcLoginBody,
                     ),
                   ],
                 ),
@@ -978,6 +1123,7 @@ Future<bool?> _openLoginDialog() async {
                 userFocusNode: userFocusNode,
                 onSignIn: onLogin,
                 onCancel: onDialogCancel,
+                above: neodeskAuthWidget(),
                 below: thirdAuthWidget(),
               )),
         );
