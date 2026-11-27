@@ -473,6 +473,8 @@ pub struct Connection {
     nd_caller: Option<crate::onboard::Helper>,
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     nd_caller_asked: bool,
+    // When the connection window last heard that this peer's input arrived (ms)
+    nd_input_told_ms: AtomicI64,
 }
 
 impl ConnInner {
@@ -681,6 +683,7 @@ impl Connection {
             nd_caller: None,
             #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
             nd_caller_asked: false,
+            nd_input_told_ms: AtomicI64::new(0),
         };
         let addr = hbb_common::try_into_v4(addr);
         if !conn.on_open(addr).await {
@@ -819,6 +822,9 @@ impl Connection {
                             }
                         }
                         ipc::Data::ChatMessage{text} => {
+                            // The person's own line, for the quick support end screen
+                            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                            crate::onboard::note_chat_from_here(&text);
                             let mut misc = Misc::new();
                             misc.set_chat_message(ChatMessage {
                                 text,
@@ -2427,7 +2433,16 @@ impl Connection {
                 true,
                 helper.avatar.clone().unwrap_or_default(),
             ),
-            None => (name, false, self.lr.avatar.clone()),
+            // Quick support: the one-time password went only to the
+            // supporter the console named when the code was redeemed, so a
+            // connection let in with it is that supporter
+            None => match crate::onboard::supporter_for_password(
+                authorized
+                    && self.conn_audit_primary_auth == ConnAuditPrimaryAuth::TemporaryPassword,
+            ) {
+                Some(supporter) => (supporter, true, String::new()),
+                None => (name, false, self.lr.avatar.clone()),
+            },
         };
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         let (vouched, avatar) = (false, self.lr.avatar.clone());
@@ -2511,7 +2526,7 @@ impl Connection {
         simulate: bool,
         show_cursor: bool,
     ) {
-        crate::onboard::note_input();
+        self.note_peer_input();
         self.tx_input
             .send(MessageInput::Mouse(InputMouse {
                 msg,
@@ -2527,7 +2542,7 @@ impl Connection {
     #[inline]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn input_pointer(&self, msg: PointerDeviceEvent, conn_id: i32) {
-        crate::onboard::note_input();
+        self.note_peer_input();
         self.tx_input
             .send(MessageInput::Pointer((msg, conn_id)))
             .ok();
@@ -2580,8 +2595,19 @@ impl Connection {
     fn input_key(&self, msg: KeyEvent, press: bool) {
         // to-do: if is the legacy mode, and the key is function key "LockScreen".
         // Switch to the primary display.
-        crate::onboard::note_input();
+        self.note_peer_input();
         self.tx_input.send(MessageInput::Key((msg, press))).ok();
+    }
+
+    /// Input of this connection's peer arrived. The connection window hears
+    /// it at most once per [`PEER_INPUT_EVERY_MS`] while it keeps coming, and
+    /// says "is using your computer" for a while after each.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    fn note_peer_input(&self) {
+        crate::onboard::note_input();
+        if peer_input_due(&self.nd_input_told_ms, hbb_common::get_time()) {
+            self.tx_to_cm.send(ipc::Data::PeerInput).ok();
+        }
     }
 
     fn verify_h1(&self, h1: &[u8]) -> bool {
@@ -6897,6 +6923,22 @@ pub fn get_control_permission_state(
             None
         }
     }
+}
+
+/// How often the connection window hears that a peer's input arrives.
+const PEER_INPUT_EVERY_MS: i64 = 500;
+
+/// Whether the connection window should hear of input that arrived at
+/// `now`: the first time, then again [`PEER_INPUT_EVERY_MS`] after it last
+/// heard. Remembers `now` in `last` when it answers yes.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn peer_input_due(last: &AtomicI64, now: i64) -> bool {
+    let before = last.load(Ordering::Relaxed);
+    if before > 0 && now - before < PEER_INPUT_EVERY_MS {
+        return false;
+    }
+    last.store(now, Ordering::Relaxed);
+    true
 }
 
 pub struct AuthedConn {

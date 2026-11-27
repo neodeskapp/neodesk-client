@@ -1,14 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_hbb/models/branding_model.dart';
 import 'package:flutter_hbb/onboarding/onboarding_service.dart';
+import 'package:flutter_hbb/onboarding/quick_support_app.dart';
 import 'package:flutter_hbb/onboarding/quick_support_view.dart';
 import 'package:flutter_hbb/onboarding/session_feedback.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
 
 import 'fixtures.dart';
 import 'harness.dart';
 
 const _qsSize = Size(480, 720);
+
+/// The branding the quick support window reads, without the client core.
+class _NoBranding implements BrandingModel {
+  @override
+  final hasLogo = false.obs;
+  @override
+  final logoPath = ''.obs;
+  @override
+  final logoEpoch = 0.obs;
+  @override
+  final accentColor = ''.obs;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 const _base = OnboardingState(
   phase: OnboardingPhase.supportConsent,
@@ -42,18 +60,6 @@ Widget _qs(OnboardingState s,
         onCancel: () => calls?.add('cancel'),
         onClose: () => calls?.add('close'),
         onRetry: () => calls?.add('retry'),
-      ),
-    );
-
-/// A plain desktop behind the session bar.
-Widget _desktop(Widget child) => Builder(
-      builder: (context) => Container(
-        color: context.nd.isDark
-            ? const Color(0xFF1E3442)
-            : const Color(0xFF2F4A5C),
-        alignment: Alignment.topCenter,
-        padding: const EdgeInsets.only(top: 10),
-        child: child,
       ),
     );
 
@@ -157,62 +163,51 @@ void main() {
     expect(find.text(tr('nd-qs-ended-title')), findsNothing);
   });
 
-  forBothThemes('session bar', (tester, b) async {
-    await pumpScreen(
-        tester,
-        _desktop(SessionBar(state: _base, onChat: () {}, onStop: () {})),
-        size: const Size(1100, 400),
-        brightness: b,
-        accent: fernAccent);
-    await shot(tester, 'client-session-bar-default', b);
-  });
-
-  forBothThemes('session bar with chat', (tester, b) async {
-    final s = _base.copyWith(inputActive: false, messages: [
-      OnboardingChatMessage(
-          fromSupporter: true,
-          text:
-              "I'm opening the printer settings now. Please don't move the mouse for a moment.",
-          time: DateTime(2026, 11, 22, 10, 12)),
-      OnboardingChatMessage(
-          fromSupporter: false,
-          text: "OK. It's the printer in the hallway.",
-          time: DateTime(2026, 11, 22, 10, 13)),
-    ]);
-    await pumpScreen(
-        tester,
-        _desktop(Column(mainAxisSize: MainAxisSize.min, children: [
-          SessionBar(state: s, onChat: () {}, onStop: () {}, chatOpen: true),
-          const SizedBox(height: 8),
-          SessionChatPanel(state: s, onSend: (_) {}, onClose: () {}),
-        ])),
-        size: const Size(1100, 400),
-        brightness: b,
-        accent: fernAccent);
-    await shot(tester, 'client-session-bar-chat', b);
-  });
-
-  testWidgets('the bar says "is using your computer" while input arrives',
+  // One in-session UI (receiver step 1): during the session the shared
+  // connection window is the bar. The quick support window no longer turns
+  // into one: it hides while the supporter is connected and comes back for
+  // the end and the feedback.
+  testWidgets('quick support hands the session to the connection window',
       (tester) async {
-    await pumpScreen(
-        tester,
-        Center(
-            child: SessionBar(
-                state: _base.copyWith(inputActive: true),
-                onChat: () {},
-                onStop: () {})),
-        size: const Size(800, 200));
-    expect(find.textContaining('is using your computer', findRichText: true),
-        findsOneWidget);
-    await pumpScreen(
-        tester,
-        Center(
-            child: SessionBar(state: _base, onChat: () {}, onStop: () {})),
-        size: const Size(800, 200));
-    expect(
-        find.textContaining('is viewing and controlling your computer',
-            findRichText: true),
-        findsOneWidget);
+    final calls = <MethodCall>[];
+    const channel = MethodChannel('window_manager');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel,
+        (call) async {
+      calls.add(call);
+      return call.method.startsWith('is') ? false : null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null));
+    if (!Get.isRegistered<BrandingModel>()) {
+      Get.put<BrandingModel>(_NoBranding(), permanent: true);
+    }
+    final service = FakeOnboardingService(
+        _base.copyWith(phase: OnboardingPhase.supportWaiting), true);
+    await pumpScreen(tester, QuickSupportWindow(service: service),
+        size: _qsSize);
+    await tester.pump();
+    expect(calls.map((c) => c.method), isNot(contains('hide')));
+
+    calls.clear();
+    service.emit(_base.copyWith(phase: OnboardingPhase.supportInSession));
+    await tester.pump();
+    await tester.pump();
+    final methods = calls.map((c) => c.method).toList();
+    expect(methods, contains('hide'));
+    // Not the bar any more: the window keeps its size and stays out of
+    // always-on-top
+    expect(methods, isNot(contains('setBounds')));
+    expect(methods, isNot(contains('setAlwaysOnTop')));
+    expect(methods, isNot(contains('setSkipTaskbar')));
+
+    calls.clear();
+    service.emit(_ended.copyWith(feedback: _form));
+    await tester.pump();
+    await tester.pump();
+    expect(calls.map((c) => c.method),
+        containsAllInOrder(['show', 'focus']));
+    expect(find.text(tr('nd-qs-ended-title')), findsOneWidget);
+    expect(find.text(tr('nd-qs-feedback-title')), findsOneWidget);
   });
 
   testWidgets('consent lists exactly what is given; text and files only when ticked',
@@ -244,73 +239,6 @@ void main() {
     await svc.consent(true, const QuickSupportGrants(fileTransfer: true));
     expect(svc.grants, const QuickSupportGrants(fileTransfer: true));
     expect(svc.calls.last, 'consent:true:file_transfer');
-  });
-
-  final withFiles = _base.copyWith(
-    phase: OnboardingPhase.supportInSession,
-    filesOpen: true,
-    files: [
-      OnboardingFileLine(
-          toThisComputer: true,
-          path: r'C:\Users\tester',
-          name: 'to-win.txt',
-          size: 36,
-          time: DateTime(2026, 11, 23, 8, 41)),
-      OnboardingFileLine(
-          toThisComputer: false,
-          path: r'C:\Users\tester\Desktop\from-win.txt',
-          name: 'from-win.txt',
-          size: 31,
-          time: DateTime(2026, 11, 23, 8, 42)),
-    ],
-  );
-
-  forBothThemes('session bar with files', (tester, b) async {
-    var opened = 0;
-    await pumpScreen(
-        tester,
-        _desktop(Column(mainAxisSize: MainAxisSize.min, children: [
-          SessionBar(
-              state: withFiles,
-              onChat: () {},
-              onStop: () {},
-              onFiles: () => opened++),
-          const SizedBox(height: 8),
-          SessionFilesPanel(state: withFiles, onClose: () {}),
-        ])),
-        size: const Size(1100, 460),
-        brightness: b,
-        accent: fernAccent);
-    expect(find.text('Files (2)'), findsOneWidget);
-    expect(find.text('Mara Jensen has your files open.'), findsOneWidget);
-    expect(find.text(r'To this computer: C:\Users\tester'), findsOneWidget);
-    expect(
-        find.text(r'From this computer: C:\Users\tester\Desktop\from-win.txt'),
-        findsOneWidget);
-    expect(find.text('36 B'), findsOneWidget);
-    // Newest first.
-    expect(
-        tester.getTopLeft(find.text('from-win.txt')).dy <
-            tester.getTopLeft(find.text('to-win.txt')).dy,
-        isTrue);
-    await tester.tap(find.text('Files (2)'));
-    expect(opened, 1);
-    await shot(tester, 'client-session-bar-files', b);
-  });
-
-  testWidgets('the bar has no Files button before files move', (tester) async {
-    await pumpScreen(
-        tester,
-        Center(
-            child: SessionBar(
-                state: _base.copyWith(phase: OnboardingPhase.supportInSession),
-                onChat: () {},
-                onStop: () {},
-                onFiles: () {})),
-        size: const Size(800, 200));
-    expect(find.text('Files'), findsNothing);
-    expect(sessionFileSize(4718592), '4.5 MB');
-    expect(sessionFileSize(1536), '1.5 KB');
   });
 
   testWidgets('Allow and Decline reach the service; the fake follows them',

@@ -17,12 +17,20 @@ class CmFileModel {
 
   CmFileModel(this.parent);
 
+  /// The files of connection [id]; made when first asked for, so a log
+  /// that comes before its card was opened is kept.
+  RxList<CmFileLog> tableOf(int id) =>
+      _jobTables.putIfAbsent(id, () => RxList<CmFileLog>());
+
+  /// The files of the connections [ids], in the order they came per
+  /// connection. Read inside Obx, it follows them.
+  List<CmFileLog> jobsOf(Iterable<int> ids) =>
+      [for (final id in ids) ...tableOf(id)];
+
   void updateCurrentClientId(int id) {
-    if (_jobTables[id] == null) {
-      _jobTables[id] = RxList<CmFileLog>();
-    }
+    final table = tableOf(id);
     Future.delayed(Duration.zero, () {
-      currentJobTable.value = _jobTables[id]!;
+      currentJobTable.value = table;
     });
   }
 
@@ -61,11 +69,7 @@ class CmFileModel {
 
   _dealOneJob(dynamic l, bool calcSpeed) {
     final data = TransferJobSerdeData.fromJson(l);
-    var jobTable = _jobTables[data.connId];
-    if (jobTable == null) {
-      debugPrint("jobTable should not be null");
-      return;
-    }
+    final jobTable = tableOf(data.connId);
     CmFileLog? job = jobTable.firstWhereOrNull((e) => e.id == data.id);
     if (job == null) {
       job = CmFileLog();
@@ -111,11 +115,7 @@ class CmFileModel {
       FileActionLog data = FileActionLog.fromJson(d);
       Client? client =
           gFFI.serverModel.clients.firstWhereOrNull((e) => e.id == data.connId);
-      var jobTable = _jobTables[data.connId];
-      if (jobTable == null) {
-        debugPrint("jobTable should not be null");
-        return;
-      }
+      final jobTable = tableOf(data.connId);
       int removeUnreadCount = 0;
       if (data.dir) {
         bool isChild(String parent, String child) {
@@ -159,11 +159,7 @@ class CmFileModel {
     try {
       dynamic d = jsonDecode(log);
       FileActionLog data = FileActionLog.fromJson(d);
-      var jobTable = _jobTables[data.connId];
-      if (jobTable == null) {
-        debugPrint("jobTable should not be null");
-        return;
-      }
+      final jobTable = tableOf(data.connId);
       jobTable.add(CmFileLog()
         ..id = data.id
         ..fileName = data.path
@@ -180,11 +176,7 @@ class CmFileModel {
     try {
       dynamic d = jsonDecode(log);
       FileRenamenLog data = FileRenamenLog.fromJson(d);
-      var jobTable = _jobTables[data.connId];
-      if (jobTable == null) {
-        debugPrint("jobTable should not be null");
-        return;
-      }
+      final jobTable = tableOf(data.connId);
       final fileName = '${data.path} -> ${data.newName}';
       jobTable.add(CmFileLog()
         ..id = 0

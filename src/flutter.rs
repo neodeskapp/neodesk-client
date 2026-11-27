@@ -1564,6 +1564,10 @@ pub mod connection_manager {
         fn file_transfer_log(&self, action: &str, log: &str) {
             self.push_event("cm_file_transfer_log", &[(action, log)]);
         }
+
+        fn peer_input(&self, id: i32) {
+            self.push_event("cm_peer_input", &[("id", &id.to_string())]);
+        }
     }
 
     impl FlutterHandler {

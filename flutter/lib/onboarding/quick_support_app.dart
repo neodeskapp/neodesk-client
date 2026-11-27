@@ -7,7 +7,6 @@ import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd_dialog_host.dart';
 import 'package:flutter_hbb/common/widgets/branding_logo.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
-import 'package:flutter_hbb/native/window_frame.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'onboarding_service.dart';
@@ -15,18 +14,11 @@ import 'quick_support_view.dart';
 
 const kQuickSupportWindowSize = Size(480, 720);
 
-/// The bar window: wide enough for the bar and its shadow, and taller with
-/// the chat or the files open under it.
-const _kBarWindow = Size(760, 64);
-const _kBarWindowPanel = Size(760, 64 + 8 + 400);
-
-/// What shows under the session bar.
-enum _Panel { none, chat, files }
-
 /// The quick support app in the main window: the 480 x 720 window with the
-/// consent and status screens, and during the session the bar at the top of
-/// the screen. The window itself becomes the bar, so it hides while the bar
-/// shows (DESIGN.md, Quick support app).
+/// consent and status screens. During the session the connection window
+/// (the --cm process, the same as in the full client) is the bar at the top
+/// of the screen, so this window hides and comes back for the end
+/// (DESIGN.md, Quick support app).
 class QuickSupportWindow extends StatefulWidget {
   const QuickSupportWindow({super.key, required this.service});
   final OnboardingService service;
@@ -39,10 +31,7 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
     with WindowListener {
   StreamSubscription<OnboardingState>? _sub;
   late OnboardingState _state = widget.service.current;
-  bool _bar = false;
-  _Panel _panel = _Panel.none;
-  int _seenMessages = 0;
-  int _seenFiles = 0;
+  bool _hidden = false;
 
   @override
   void initState() {
@@ -62,65 +51,20 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
 
   Future<void> _onState(OnboardingState s) async {
     if (!mounted) return;
-    final wantBar = s.phase == OnboardingPhase.supportInSession;
-    // A new chat message opens the chat, a file that moves the files.
-    final fromSupporter = s.messages.where((m) => m.fromSupporter).length;
-    final newMessage = fromSupporter > _seenMessages;
-    _seenMessages = fromSupporter;
-    final newFile = s.files.length > _seenFiles;
-    _seenFiles = s.files.length;
-    setState(() {
-      _state = s;
-      if (wantBar && newMessage) _panel = _Panel.chat;
-      if (wantBar && newFile) _panel = _Panel.files;
-      if (!wantBar) _panel = _Panel.none;
-    });
+    setState(() => _state = s);
     if ((s.accentHex ?? '').isNotEmpty) {
       BrandingModel.current.accentColor.value = s.accentHex!;
     }
-    if (wantBar != _bar) {
-      _bar = wantBar;
-      await _applyFrame();
-      await _applyWindow();
-    } else if (_bar) {
-      await _applyWindow();
-    }
-  }
-
-  /// The bar window is transparent around the bar, so it has no frame,
-  /// shadow or Windows 11 outline; the 480 x 720 window gets them back.
-  Future<void> _applyFrame() async {
-    if (!Platform.isWindows) return;
+    // While the supporter is connected the connection window is the bar
+    final hide = s.phase == OnboardingPhase.supportInSession;
+    if (hide == _hidden) return;
+    _hidden = hide;
     try {
-      if (_bar) {
-        await windowManager.setAsFrameless();
-        await windowManager.setHasShadow(false);
+      if (hide) {
+        await windowManager.hide();
       } else {
-        await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-      }
-      setMainWindowPlain(_bar);
-    } catch (e) {
-      debugPrint('quick support frame: $e');
-    }
-  }
-
-  Future<void> _applyWindow() async {
-    try {
-      if (_bar) {
-        await windowManager.setResizable(true);
-        await windowManager.setSize(
-            _panel == _Panel.none ? _kBarWindow : _kBarWindowPanel);
-        await windowManager.setAlwaysOnTop(true);
-        await windowManager.setSkipTaskbar(true);
-        await windowManager.setAlignment(Alignment.topCenter);
-        await windowManager.setResizable(false);
-      } else {
-        await windowManager.setAlwaysOnTop(false);
-        await windowManager.setSkipTaskbar(false);
-        await windowManager.setResizable(true);
-        await windowManager.setSize(kQuickSupportWindowSize);
-        await windowManager.setAlignment(Alignment.center);
-        await windowManager.setResizable(false);
+        await windowManager.show();
+        await windowManager.focus();
       }
     } catch (e) {
       debugPrint('quick support window: $e');
@@ -164,12 +108,6 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
     exit(0);
   }
 
-  /// Opens [panel] under the bar, or closes it when it is open.
-  void _toggle(_Panel panel) {
-    setState(() => _panel = _panel == panel ? _Panel.none : panel);
-    _applyWindow();
-  }
-
   Widget? _logo() {
     final b = BrandingModel.current;
     if (!b.hasLogo.value || b.logoPath.value.isEmpty) return null;
@@ -184,42 +122,6 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
 
   @override
   Widget build(BuildContext context) {
-    if (_bar) {
-      return Material(
-        type: MaterialType.transparency,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SessionBar(
-                state: _state,
-                chatOpen: _panel == _Panel.chat,
-                onDrag: () => windowManager.startDragging(),
-                onChat: () => _toggle(_Panel.chat),
-                onFiles: () => _toggle(_Panel.files),
-                onStop: () => widget.service.endSupport(),
-              ),
-              if (_panel == _Panel.chat) ...[
-                const SizedBox(height: 8),
-                SessionChatPanel(
-                  state: _state,
-                  onSend: widget.service.sendChat,
-                  onClose: () => _toggle(_Panel.none),
-                ),
-              ],
-              if (_panel == _Panel.files) ...[
-                const SizedBox(height: 8),
-                SessionFilesPanel(
-                  state: _state,
-                  onClose: () => _toggle(_Panel.none),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
     return NdWindowFrame(
       titleBar: GestureDetector(
         onPanStart: (_) => windowManager.startDragging(),

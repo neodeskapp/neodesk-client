@@ -199,6 +199,9 @@ pub trait InvokeUiCM: Send + Clone + 'static + Sized {
     fn update_voice_call_state(&self, client: &Client);
 
     fn file_transfer_log(&self, action: &str, log: &str);
+
+    /// Input of the peer of connection `id` arrived.
+    fn peer_input(&self, _id: i32) {}
 }
 
 impl<T: InvokeUiCM> Deref for ConnectionManager<T> {
@@ -675,6 +678,9 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                 }
                                 Data::CloseVoiceCall(reason) => {
                                     self.cm.voice_call_closed(self.conn_id, reason.as_str());
+                                }
+                                Data::PeerInput => {
+                                    self.cm.ui_handler.peer_input(self.conn_id);
                                 }
                                 #[cfg(target_os = "windows")]
                                 Data::ClipboardNonFile(_) => {

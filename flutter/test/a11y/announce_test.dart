@@ -66,8 +66,9 @@ void main() {
     });
   });
 
-  testWidgets('quick support says when the supporter connects and when it '
-      'ends', (tester) async {
+  // The connection window's bar says who is connected (cm_screens_test);
+  // the quick support window, hidden during the session, says the end.
+  testWidgets('quick support says when the session ends', (tester) async {
     final said = recordAnnouncements(tester);
     final state = ValueNotifier(const OnboardingState(
       phase: OnboardingPhase.supportWaiting,
@@ -94,7 +95,8 @@ void main() {
     state.value = state.value.copyWith(phase: OnboardingPhase.supportEnded);
     await tester.pump();
     final lines = said.map((a) => a.message).toList();
-    expect(lines.first, contains('is viewing and controlling your computer'));
+    expect(lines.where((l) => l.contains('is viewing and controlling')),
+        isEmpty);
     expect(lines.last, tr('nd-qs-ended-title'));
     expect(said.every((a) => a.assertive), isTrue);
   });

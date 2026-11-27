@@ -397,6 +397,8 @@ showCmWindow({bool isStartup = false}) async {
       await windowManager.minimize(); //needed
       await windowManager.setSizeAlignment(
           kConnectionManagerWindowSizeClosedChat, Alignment.topRight);
+      // The connection manager shapes the window again (card or bar)
+      cmWindowShape = null;
       windowOnTop(null);
     }
   }

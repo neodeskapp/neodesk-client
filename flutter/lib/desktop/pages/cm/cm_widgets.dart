@@ -438,3 +438,319 @@ String cmConnectedFor(Duration d) {
   }
   return tr('nd-cm-connected-h', [d.inHours, minutes % 60]);
 }
+
+/// What the connection window shows: the card (requests, the switches, the
+/// tabs of several people), the bar at the top of the screen during a
+/// session, or the bar with the chat or the files open under it.
+enum CmShape { card, bar, barPanel }
+
+/// The window around the bar: wide enough for the bar and its shadow, and
+/// taller with a panel open under it.
+const kCmBarWindow = Size(760, 64);
+const kCmBarWindowPanel = Size(760, 64 + 8 + 400);
+
+/// The connection window during a session: the [bar] while [barAllowed]
+/// (someone was let in and nobody waits for Allow), the [card] once the
+/// person expands the bar, and the bar again when they collapse the card.
+/// A session that is let in starts as the bar. The card stays built while
+/// the bar shows, so its timers and state carry on, but it takes no focus.
+class CmBarOrCard extends StatefulWidget {
+  const CmBarOrCard({
+    super.key,
+    required this.barAllowed,
+    required this.bar,
+    required this.card,
+    this.panelOpen = false,
+    this.onShape,
+  });
+
+  final bool barAllowed;
+
+  /// The bar; Expand calls the callback.
+  final Widget Function(VoidCallback expand) bar;
+
+  /// The card; the callback collapses it into the bar, null when there is
+  /// no bar to collapse into.
+  final Widget Function(VoidCallback? collapse) card;
+
+  /// The bar has the chat or the files open under it.
+  final bool panelOpen;
+
+  /// The shape after each build, for the window around it.
+  final ValueChanged<CmShape>? onShape;
+
+  @override
+  State<CmBarOrCard> createState() => _CmBarOrCardState();
+}
+
+class _CmBarOrCardState extends State<CmBarOrCard> {
+  bool _expanded = false;
+
+  @override
+  void didUpdateWidget(covariant CmBarOrCard old) {
+    super.didUpdateWidget(old);
+    if (!old.barAllowed && widget.barAllowed) _expanded = false;
+  }
+
+  CmShape get _shape => !widget.barAllowed || _expanded
+      ? CmShape.card
+      : widget.panelOpen
+          ? CmShape.barPanel
+          : CmShape.bar;
+
+  @override
+  Widget build(BuildContext context) {
+    final shape = _shape;
+    if (widget.onShape != null) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => widget.onShape?.call(shape));
+    }
+    final bar = shape != CmShape.card;
+    final card = widget.card(
+        widget.barAllowed ? () => setState(() => _expanded = false) : null);
+    return Stack(children: [
+      Positioned.fill(
+        child: Offstage(
+          offstage: bar,
+          child: ExcludeFocus(excluding: bar, child: card),
+        ),
+      ),
+      if (bar)
+        Positioned.fill(
+            child: widget.bar(() => setState(() => _expanded = true))),
+    ]);
+  }
+}
+
+/// The bar's sentence, with the part to set in bold.
+class CmBarText {
+  const CmBarText(this.sentence, {this.name = ''});
+  final String sentence;
+  final String name;
+}
+
+/// The bar's sentence for the people connected now, each named as the
+/// window names them (cmCaller) and counted once however many connections
+/// they have: "<name> is viewing and controlling your computer", "<name>
+/// is using your computer" while their input arrives, or how many people
+/// are connected.
+CmBarText cmBarText(List<String> names, {required bool using}) {
+  if (names.length > 1) {
+    return CmBarText(tr('nd-cm-bar-count', [names.length]));
+  }
+  final name = names.isEmpty ? '' : names.first;
+  return CmBarText(
+      using ? tr('nd-qs-bar-using', [name]) : tr('nd-qs-bar-viewing', [name]),
+      name: name);
+}
+
+/// The bar at the top of the screen during a session: drag handle, mark,
+/// who is connected, Files once files move, Chat, Stop and Expand. When it
+/// appears, the screen reader says who is on the computer.
+class CmSessionBar extends StatefulWidget {
+  const CmSessionBar({
+    super.key,
+    required this.text,
+    required this.onStop,
+    required this.onExpand,
+    this.onChat,
+    this.onFiles,
+    this.filesLabel,
+    this.filesOpen = false,
+    this.onDrag,
+  });
+
+  final CmBarText text;
+  final VoidCallback onStop;
+  final VoidCallback onExpand;
+
+  /// Null leaves Chat out (nobody to chat with).
+  final VoidCallback? onChat;
+
+  /// Null leaves Files out: no files moved yet.
+  final VoidCallback? onFiles;
+  final String? filesLabel;
+  final bool filesOpen;
+
+  /// Starts moving the window (the drag handle).
+  final VoidCallback? onDrag;
+
+  @override
+  State<CmSessionBar> createState() => _CmSessionBarState();
+}
+
+class _CmSessionBarState extends State<CmSessionBar> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ndAnnounce(context, widget.text.sentence, assertive: true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.nd;
+    final t = context.ndText;
+    final sentence = widget.text.sentence;
+    final name = widget.text.name;
+    // The name in bold inside the translated sentence
+    final i = name.isEmpty ? -1 : sentence.indexOf(name);
+    final style = t.body.copyWith(fontSize: 15, height: 22 / 15);
+    final text = i < 0
+        ? Text(sentence,
+            style: style, maxLines: 1, overflow: TextOverflow.ellipsis)
+        : Text.rich(
+            TextSpan(style: style, children: [
+              TextSpan(text: sentence.substring(0, i)),
+              TextSpan(
+                  text: name,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              TextSpan(text: sentence.substring(i + name.length)),
+            ]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis);
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.only(left: 4, right: 4),
+      decoration: BoxDecoration(
+        color: c.bgFloat,
+        borderRadius: NdSize.r,
+        border: Border.all(color: c.rule),
+        boxShadow: c.shadowFloat,
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        GestureDetector(
+          onPanStart: widget.onDrag == null ? null : (_) => widget.onDrag!(),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.move,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Icon(NdIcons.dragIndicator, size: 18, color: c.textMuted),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        const NdLogoMark(size: 18),
+        const SizedBox(width: 10),
+        Flexible(child: text),
+        const SizedBox(width: 14),
+        if (widget.onFiles != null) ...[
+          NdButton(
+              label: widget.filesLabel ?? tr('nd-qs-files'),
+              icon: widget.filesOpen ? NdIcons.folderOpen : NdIcons.folder,
+              size: NdButtonSize.sm,
+              onPressed: widget.onFiles),
+          const SizedBox(width: 8),
+        ],
+        if (widget.onChat != null) ...[
+          NdButton(
+              label: translate('Chat'),
+              size: NdButtonSize.sm,
+              onPressed: widget.onChat),
+          const SizedBox(width: 8),
+        ],
+        NdButton(
+            label: tr('nd-stop'),
+            size: NdButtonSize.sm,
+            kind: NdButtonKind.danger,
+            onPressed: widget.onStop),
+        const SizedBox(width: 4),
+        NdIconButton(
+            icon: NdIcons.expandMore,
+            tooltip: tr('nd-cm-bar-expand'),
+            color: c.text,
+            iconSize: 20,
+            onPressed: widget.onExpand),
+      ]),
+    );
+  }
+}
+
+/// The chat or the files under the bar: a title with Close over [child].
+class CmBarPanel extends StatelessWidget {
+  const CmBarPanel({
+    super.key,
+    required this.title,
+    required this.onClose,
+    required this.child,
+    this.closeFocusable = true,
+  });
+
+  final String title;
+  final VoidCallback onClose;
+  final Widget child;
+
+  /// False keeps Close out of the keyboard's reach (keys a remote computer
+  /// types can reach the window while the chat is open).
+  final bool closeFocusable;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.nd;
+    return Container(
+      width: 400,
+      height: 388,
+      decoration: BoxDecoration(
+        color: c.bgFloat,
+        borderRadius: NdSize.r,
+        border: Border.all(color: c.rule),
+        boxShadow: c.shadowFloat,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+          child: Row(children: [
+            Expanded(
+                child: Semantics(
+                    header: true,
+                    child: Text(title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.ndText.heading))),
+            ExcludeFocus(
+              excluding: !closeFocusable,
+              child: NdIconButton(
+                  icon: NdIcons.close,
+                  tooltip: translate('Close'),
+                  color: c.text,
+                  iconSize: 20,
+                  onPressed: onClose),
+            ),
+          ]),
+        ),
+        const NdRule(),
+        Expanded(child: child),
+      ]),
+    );
+  }
+}
+
+/// The bar window's content: the bar at the top, a panel under it, and
+/// nothing else on the transparent window.
+class CmBarWindow extends StatelessWidget {
+  const CmBarWindow({super.key, required this.bar, this.panel});
+  final Widget bar;
+  final Widget? panel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              bar,
+              if (panel != null) ...[const SizedBox(height: 8), panel!],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

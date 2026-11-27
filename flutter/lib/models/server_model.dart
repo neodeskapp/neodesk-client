@@ -51,7 +51,8 @@ class ServerModel with ChangeNotifier {
 
   final List<Client> _clients = [];
 
-  Timer? cmHiddenTimer;
+  /// Ends the "is using your computer" of the bar 2 s after the last input.
+  Timer? _inputTimer;
 
   final _wakelockKey = UniqueKey();
 
@@ -591,13 +592,6 @@ class ServerModel with ChangeNotifier {
     Future.delayed(Duration.zero, () async {
       if (!hideCm) windowOnTop(null);
     });
-    // Only do the hidden task when on Desktop.
-    if (client.authorized && isDesktop) {
-      cmHiddenTimer = Timer(const Duration(seconds: 3), () {
-        if (!hideCm) windowManager.minimize();
-        cmHiddenTimer = null;
-      });
-    }
     parent.target?.chatModel
         .updateConnIdOfKey(MessageKey(client.peerId, client.id));
   }
@@ -685,6 +679,19 @@ class ServerModel with ChangeNotifier {
           duration: Duration(milliseconds: 200),
           curve: Curves.fastLinearToSlowEaseIn);
     });
+  }
+
+  /// Input of the peer of a connection arrived (cm_peer_input): the bar says
+  /// "is using your computer" until [kCmInputActiveFor] after the last.
+  void onPeerInput(Map<String, dynamic> evt) {
+    final id = int.tryParse('${evt['id']}');
+    final client = _clients.firstWhereOrNull((c) => c.id == id);
+    if (client == null) return;
+    final was = client.inputActive;
+    client.lastInput = DateTime.now();
+    _inputTimer?.cancel();
+    _inputTimer = Timer(kCmInputActiveFor, notifyListeners);
+    if (!was) notifyListeners();
   }
 
   /// A permission of a client changed in the connection manager.
@@ -840,6 +847,11 @@ class Client {
 
   RxInt unreadChatMessageCount = 0.obs;
 
+  /// When input of this caller last arrived, for the bar's "is using".
+  DateTime? lastInput;
+  bool get inputActive =>
+      lastInput != null && DateTime.now().difference(lastInput!) < kCmInputActiveFor;
+
   Client(this.id, this.authorized, this.isFileTransfer, this.isViewCamera,
       this.name, this.peerId, this.keyboard, this.clipboard, this.audio);
 
@@ -910,6 +922,9 @@ class Client {
     }
   }
 }
+
+/// How long after a caller's input the bar says "is using your computer".
+const kCmInputActiveFor = Duration(seconds: 2);
 
 String getLoginDialogTag(int id) {
   return kLoginDialogTag + id.toString();
