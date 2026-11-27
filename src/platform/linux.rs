@@ -42,6 +42,8 @@ static mut UNMODIFIED: bool = true;
 struct ActiveUserLookupCache {
     uid: String,
     username: String,
+    /// seat0 shows a Wayland login screen (`Desktop::is_login_wayland`).
+    login_wayland: bool,
 }
 
 const INVALID_TERM_VALUES: [&str; 3] = ["", "unknown", "dumb"];
@@ -67,7 +69,11 @@ lazy_static::lazy_static! {
         let x11 = hbb_common::platform::linux::is_x11_or_headless();
         #[cfg(feature = "drm")]
         {
-            if x11 && !display_server_forced() && is_login_screen_wayland() {
+            if x11
+                && drm_capture_enabled()
+                && !display_server_forced()
+                && is_login_screen_wayland()
+            {
                 log::info!(
                     "drm: seat0 is a Wayland login screen that reads as x11 upstream; \
                      treating it as Wayland so the DRM path is not disabled at the one \
@@ -275,9 +281,21 @@ fn update_active_user_lookup_cache(desktop: &Desktop) {
             *cache = Some(ActiveUserLookupCache {
                 uid: desktop.uid.clone(),
                 username: desktop.username.clone(),
+                login_wayland: desktop.is_login_wayland(),
             });
         }
     }
+}
+
+/// Whether the service loop last saw a Wayland login screen on seat0. Cache only, never `loginctl`,
+/// so the `_drm` producer can ask on every frame; `false` while the cache is empty.
+#[inline]
+pub fn active_session_is_wayland_login_cached() -> bool {
+    ACTIVE_USER_LOOKUP_CACHE
+        .lock()
+        .ok()
+        .and_then(|cache| cache.as_ref().map(|entry| entry.login_wayland))
+        .unwrap_or(false)
 }
 
 #[inline]
@@ -375,8 +393,288 @@ pub struct xcb_xfixes_get_cursor_image {
 
 #[inline]
 pub fn is_login_screen_wayland() -> bool {
-    let values = get_values_of_seat0_with_gdm_wayland(&[0, 2]);
+    let values = get_values_of_seat0_with_gdm_wayland(&[0, 2, 1]);
+    #[cfg(feature = "drm")]
+    if drm_capture_enabled() {
+        let props = session_props(&values[0]).unwrap_or_default();
+        let socket = std::env::var("RUSTDESK_FORCED_DISPLAY_SERVER").as_deref()
+            != Ok(DISPLAY_SERVER_X11)
+            && has_wayland_socket(&values[2]);
+        return is_wayland_login_screen_props(&values[1], &props, socket);
+    }
     is_gdm_user(&values[1]) && get_display_server_of_session(&values[0]) == DISPLAY_SERVER_WAYLAND
+}
+
+/// greetd starts its greeter with no `XDG_SESSION_TYPE`, so logind records the session as
+/// `Type=tty` whatever the greeter draws with, and the display server then reads as x11. A greeter
+/// whose user has a compositor socket is a Wayland login screen all the same (cosmic-greeter,
+/// gtkgreet, ReGreet, ...); a console greeter (tuigreet, agreety) has none and is left as it was.
+/// A display server forced to x11 keeps the greeter on the x11 path, as `adopt_wayland_tty_greeter`
+/// does, so the login gate does not refuse a greeter the service serves over X11. See
+/// `is_wayland_login_screen_props`.
+///
+/// `loginctl show-session -p Class -p Type <sid>`.
+#[cfg(feature = "drm")]
+fn session_props(sid: &str) -> Option<String> {
+    if sid.is_empty() {
+        return None;
+    }
+    let failure = match Command::new(CMD_LOGINCTL.as_str())
+        .args(["show-session", "-p", "Class", "-p", "Type", sid])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            return Some(String::from_utf8_lossy(&output.stdout).into_owned());
+        }
+        Ok(output) => output.status.to_string(),
+        Err(err) => err.to_string(),
+    };
+    hbb_common::throttled_log!(
+        Duration::from_secs(60),
+        info,
+        "loginctl show-session {sid} failed ({failure}); not taken for a login screen"
+    );
+    None
+}
+
+/// Whether seat0's active session is a Wayland login screen, from the account that owns it and
+/// what `loginctl show-session -p Class -p Type` prints for it. logind's `Class=greeter` is what
+/// says login screen: the account name differs between display managers and releases (`gdm`,
+/// `sddm`, and `gdm-greeter` since GDM 49), so the names are only kept for a logind that does not
+/// report the class. A greetd greeter is `Type=tty`; `wayland_socket` says whether it runs a
+/// compositor (and that the display server is not forced to X11).
+#[cfg(any(feature = "drm", test))]
+fn is_wayland_login_screen_props(user: &str, props: &str, wayland_socket: bool) -> bool {
+    let has = |prop: &str| props.lines().any(|line| line.trim() == prop);
+    let greeter = has("Class=greeter") || is_gdm_user(user);
+    (greeter && has("Type=wayland")) || (is_tty_greeter_props(props) && wayland_socket)
+}
+
+#[cfg(any(feature = "drm", test))]
+fn is_tty_greeter_props(props: &str) -> bool {
+    let has = |prop: &str| props.lines().any(|line| line.trim() == prop);
+    has("Class=greeter") && has("Type=tty")
+}
+
+/// Derived from the uid, not `XDG_RUNTIME_DIR`: the root service is given no such variable.
+#[cfg(feature = "drm")]
+fn has_wayland_socket(uid: &str) -> bool {
+    !uid.is_empty()
+        && uid.bytes().all(|b| b.is_ascii_digit())
+        && dir_has_wayland_socket(Path::new(&format!("/run/user/{uid}")))
+}
+
+#[cfg(any(feature = "drm", test))]
+fn dir_has_wayland_socket(dir: &Path) -> bool {
+    use std::os::unix::fs::FileTypeExt;
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        // Expected until logind has created the runtime directory.
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return false,
+        Err(err) => {
+            hbb_common::throttled_log!(
+                Duration::from_secs(60),
+                info,
+                "Could not read {}: {err}; not taken for a greetd greeter",
+                dir.display()
+            );
+            return false;
+        }
+    };
+    entries.flatten().any(|entry| {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        name.starts_with("wayland-")
+            && !name.ends_with(".lock")
+            && entry.file_type().map_or(false, |t| t.is_socket())
+    })
+}
+
+#[cfg(test)]
+mod tty_greeter_tests {
+    use super::*;
+
+    #[test]
+    fn a_greetd_greeter_running_a_compositor_is_a_wayland_login_screen() {
+        // What `loginctl show-session -p Class -p Type` prints for cosmic-greeter under greetd.
+        assert!(is_tty_greeter_props("Type=tty\nClass=greeter\n"));
+        assert!(!is_tty_greeter_props("Type=tty\nClass=user\n"));
+        assert!(!is_tty_greeter_props("Type=wayland\nClass=greeter\n"));
+    }
+
+    /// What `loginctl show-session -p Class -p Type` prints for seat0's session, per display
+    /// manager, as read on the lab machines (GDM 46 and 51, SDDM 0.21), and for greetd.
+    #[test]
+    fn a_wayland_login_screen_is_told_apart_by_logind_not_by_the_account_name() {
+        let wayland_greeter = "Type=wayland\nClass=greeter\n";
+        // GDM 46 (Ubuntu 24.04): account gdm.
+        assert!(is_wayland_login_screen_props("gdm", wayland_greeter, false));
+        // GDM 51 (Fedora 45): the dynamic account gdm-greeter (and -2, -3 for more seats).
+        assert!(is_wayland_login_screen_props("gdm-greeter", wayland_greeter, false));
+        assert!(is_wayland_login_screen_props("gdm-greeter-2", wayland_greeter, false));
+        // SDDM with its Wayland greeter (Fedora 45 KDE).
+        assert!(is_wayland_login_screen_props("sddm", wayland_greeter, false));
+        // greetd: Type=tty; a Wayland login screen only with a compositor socket.
+        assert!(is_wayland_login_screen_props("greeter", "Type=tty\nClass=greeter\n", true));
+        assert!(!is_wayland_login_screen_props("greeter", "Type=tty\nClass=greeter\n", false));
+        // X11 login screens: LightDM, and GDM with WaylandEnable=false.
+        assert!(!is_wayland_login_screen_props("lightdm", "Type=x11\nClass=greeter\n", false));
+        assert!(!is_wayland_login_screen_props("gdm", "Type=x11\nClass=greeter\n", false));
+        // A signed-in Wayland session is no login screen, even with a compositor socket.
+        assert!(!is_wayland_login_screen_props("tester", "Type=wayland\nClass=user\n", true));
+        // A logind that answers nothing: the account name still says gdm or sddm.
+        assert!(is_wayland_login_screen_props("gdm", "Type=wayland\n", false));
+        assert!(!is_wayland_login_screen_props("tester", "", true));
+
+        let dir = std::env::temp_dir().join(format!("rustdesk-tty-greeter-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("wayland-1.lock"), b"").unwrap();
+        assert!(
+            !dir_has_wayland_socket(&dir),
+            "a console greeter runs no compositor"
+        );
+        let _listener = std::os::unix::net::UnixListener::bind(dir.join("wayland-1")).unwrap();
+        assert!(dir_has_wayland_socket(&dir));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// The root service sets this for a greeter `--server`: that process reads the greeter account's
+/// config, which has not synced from root yet when `IS_X11` is computed.
+#[cfg(feature = "drm")]
+pub(crate) const ENV_DRM_CAPTURE: &str = "RUSTDESK_DRM_CAPTURE";
+
+/// Set to `N` to keep NeoDesk off a Wayland login screen; DRM capture is used nowhere else.
+/// Read by the root service from its own config.
+#[cfg(feature = "drm")]
+pub(crate) const OPTION_ALLOW_DRM_LOGIN_SCREEN: &str = "allow-drm-login-screen";
+
+/// Whether this machine lets the root service read a Wayland login screen through DRM/KMS.
+/// On unless an admin turned it off (`neodesk --option allow-drm-login-screen N` as root, or a
+/// server strategy).
+pub fn drm_login_screen_allowed() -> bool {
+    #[cfg(feature = "drm")]
+    {
+        Config::get_option(OPTION_ALLOW_DRM_LOGIN_SCREEN) != "N"
+    }
+    #[cfg(not(feature = "drm"))]
+    {
+        false
+    }
+}
+
+/// Whether this process takes the drm paths. NeoDesk uses DRM capture at a Wayland login screen
+/// only: nobody is there to answer the desktop portal's consent prompt. Inside a signed-in session
+/// the portal stays the only way to read the screen, so its `--server` runs as a build without drm.
+///
+/// - The root `--service`: on while `drm_login_screen_allowed()`; it starts the `_drm` producer
+///   at the first Wayland login screen it sees and gives the login screen's `--server` the flag.
+/// - A login-screen `--server`: on through `ENV_DRM_CAPTURE`, set by the service only for that
+///   process (`try_start_server_`).
+/// - Every other process: off.
+///
+/// The variable is not what keeps a session's screen private: the producer refuses every peer
+/// while seat0 is not at a Wayland login screen (`handle_drm_conn`), so a process that sets it
+/// by hand gets nothing.
+///
+/// The Wayland enumeration in `hbb_common` and `scrap` does not read this: with no compositor
+/// named in the environment it probes the seat's socket and backs off after a failure.
+pub fn drm_capture_enabled() -> bool {
+    #[cfg(feature = "drm")]
+    {
+        drm_capture_policy(
+            std::env::var(ENV_DRM_CAPTURE).as_deref() == Ok("Y"),
+            *IS_ROOT_SERVICE,
+            drm_login_screen_allowed(),
+        )
+    }
+    #[cfg(not(feature = "drm"))]
+    {
+        false
+    }
+}
+
+/// `drm_capture_enabled` without the process state.
+#[cfg(any(feature = "drm", test))]
+fn drm_capture_policy(login_screen_server: bool, root_service: bool, allowed: bool) -> bool {
+    login_screen_server || (root_service && allowed)
+}
+
+/// The home page's notice about reaching this computer's login screen: a translation key, or
+/// empty for none. Only a Wayland login screen needs one; with DRM capture there is nothing to say.
+pub fn login_screen_notice() -> &'static str {
+    #[cfg(feature = "drm")]
+    let (built, loads) = (true, scrap::drmtap_dl::get().is_some());
+    #[cfg(not(feature = "drm"))]
+    let (built, loads) = (false, false);
+    login_screen_notice_for(
+        is_login_wayland(),
+        is_installed(),
+        built && loads,
+        drm_login_screen_allowed(),
+    )
+}
+
+fn login_screen_notice_for(
+    login_wayland: bool,
+    installed: bool,
+    drm_works: bool,
+    allowed: bool,
+) -> &'static str {
+    if !login_wayland {
+        ""
+    } else if !installed {
+        // The root service, which reads the login screen, comes with the installed package only.
+        "nd-login-screen-portable"
+    } else if !drm_works {
+        // Built without drm, or the bundled libdrmtap does not load here (a glibc older than its
+        // build): the login screen falls back to the portal, which cannot serve it.
+        "nd-login-screen-no-drm"
+    } else if !allowed {
+        "nd-login-screen-off"
+    } else {
+        ""
+    }
+}
+
+#[cfg(test)]
+mod login_screen_policy_tests {
+    use super::*;
+
+    #[test]
+    fn only_the_service_and_the_login_screen_server_take_the_drm_paths() {
+        // The service, unless an admin turned it off.
+        assert!(drm_capture_policy(false, true, true));
+        assert!(!drm_capture_policy(false, true, false));
+        // The login screen's --server, which the service starts with the flag.
+        assert!(drm_capture_policy(true, false, true));
+        // A signed-in session's --server, the UI, the CLI: the portal path, whatever the option.
+        assert!(!drm_capture_policy(false, false, true));
+        assert!(!drm_capture_policy(false, false, false));
+    }
+
+    #[test]
+    fn the_home_page_says_what_to_do_only_where_the_login_screen_is_out_of_reach() {
+        // X11 login screens, or no login screen config: nothing to say.
+        assert_eq!(login_screen_notice_for(false, false, false, false), "");
+        assert_eq!(login_screen_notice_for(false, true, true, true), "");
+        // The installed package with DRM capture that loads: no warning.
+        assert_eq!(login_screen_notice_for(true, true, true, true), "");
+        // A portable build has no root service.
+        assert_eq!(login_screen_notice_for(true, false, true, true), "nd-login-screen-portable");
+        assert_eq!(login_screen_notice_for(true, false, false, true), "nd-login-screen-portable");
+        // Installed, but without DRM capture or with a libdrmtap that does not load.
+        assert_eq!(login_screen_notice_for(true, true, false, true), "nd-login-screen-no-drm");
+        // Installed with DRM capture, turned off by an admin.
+        assert_eq!(login_screen_notice_for(true, true, true, false), "nd-login-screen-off");
+    }
+}
+
+#[cfg(feature = "drm")]
+lazy_static::lazy_static! {
+    static ref IS_ROOT_SERVICE: bool =
+        std::env::args().nth(1).as_deref() == Some("--service") && is_root();
 }
 
 /// An explicit `RUSTDESK_FORCED_DISPLAY_SERVER` is an operator override, and the root service
@@ -905,6 +1203,10 @@ fn try_start_server_(desktop: Option<&Desktop>) -> ResultType<Option<Child>> {
                     ));
                 }
             }
+            #[cfg(feature = "drm")]
+            if desktop.is_login_wayland() && drm_capture_enabled() {
+                envs.push((ENV_DRM_CAPTURE, "Y".to_owned()));
+            }
             envs.push((
                 "TERM",
                 get_cur_term(&desktop.uid).unwrap_or_else(|| suggest_best_term()),
@@ -1073,29 +1375,6 @@ pub fn start_os_service() {
         allow_err!(crate::ipc::start(crate::POSTFIX_SERVICE));
     });
 
-    // DRM/KMS capture producer (opt-in `drm` feature): a dedicated thread + runtime that streams
-    // scanout frames to the user `--server` over the `_drm` service-scoped channel. Runs here
-    // because this process is the root service that already holds CAP_SYS_ADMIN for the in-process
-    // (direct-mode) libdrmtap read.
-    //
-    // Builder, like every other thread this feature starts: `thread::spawn` PANICS if the thread
-    // cannot be created (EAGAIN under a thread-count or memory limit), and here that panic would
-    // unwind out of `start_os_service` -- taking down the root service itself, for a feature whose
-    // failure should only cost DRM capture. Losing the producer leaves the consumer to fall back to
-    // PipeWire/X11, which is the same path a host without the feature takes.
-    #[cfg(feature = "drm")]
-    if let Err(err) = std::thread::Builder::new()
-        .name("drm-producer".into())
-        .spawn(|| {
-            crate::ipc::start_drm();
-        })
-    {
-        log::warn!(
-            "failed to spawn the drm capture producer thread: {err}; DRM capture is off for \
-             this boot and the consumer falls back to PipeWire/X11"
-        );
-    }
-
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     let (mut display, mut xauth): (String, String) = ("".to_owned(), "".to_owned());
@@ -1112,9 +1391,24 @@ pub fn start_os_service() {
 
     let mut cm0 = false;
     let mut last_restart = Instant::now();
+    #[cfg(feature = "drm")]
+    let mut drm_capture = DrmCaptureSwitch::new();
     while running.load(Ordering::SeqCst) {
+        #[cfg(feature = "drm")]
+        if drm_capture.poll() {
+            log::info!(
+                "drm capture switched {}; restarting --server",
+                if drm_capture.on { "on" } else { "off" }
+            );
+            desktop = Desktop::default();
+            stop_server(&mut server);
+            stop_server(&mut user_server);
+            force_stop_server();
+        }
         desktop.refresh();
         update_active_user_lookup_cache(&desktop);
+        #[cfg(feature = "drm")]
+        drm_capture.start_producer_at(&desktop);
 
         // Duplicate logic here with should_start_server.
         if desktop.username == "root" || desktop.is_login_wayland() {
@@ -1135,16 +1429,17 @@ pub fn start_os_service() {
                 // Run the login-screen --server as the active seat0 session user (the greeter
                 // account) rather than root, so the DRM capture GPU/EGL convert never loads the
                 // vendor GPU userspace in a privileged process. is_login_wayland() matches a GDM or
-                // SDDM Wayland greeter (is_gdm_user covers both), and desktop.uid is that greeter's
-                // uid, so this drops to whichever greeter owns seat0. A greeter is_gdm_user does not
-                // recognize (e.g. LightDM) never reaches this branch -- it takes the unprivileged
-                // else-branch below already. A genuine root graphical session (username=="root")
+                // SDDM Wayland greeter (is_gdm_user covers both) or a greetd one (tty_greeter), and
+                // desktop.uid is that greeter's uid, so this drops to whichever greeter owns seat0.
+                // A greeter neither recognizes (e.g. LightDM) never reaches this branch -- it takes
+                // the unprivileged else-branch below already. A genuine root graphical session (username=="root")
                 // has no lower uid to drop to, so it stays root. The whole branch is gated on the drm
-                // feature, so the drm-off build is upstream's single `start_server(None, ..)` line.
+                // feature and on allow-drm-capture; otherwise it is upstream's single
+                // `start_server(None, ..)` line.
                 #[cfg(not(feature = "drm"))]
                 start_server(None, &mut server);
                 #[cfg(feature = "drm")]
-                if desktop.username != "root" && !desktop.uid.is_empty() {
+                if drm_capture_enabled() && desktop.username != "root" && !desktop.uid.is_empty() {
                     start_server(Some(&desktop), &mut server);
                     // If dropping to the greeter uid did not produce a RUNNING server, fall back to a
                     // root --server so the login screen stays remotable instead of looping on a
@@ -1159,7 +1454,7 @@ pub fn start_os_service() {
                         log::warn!(
                             "greeter --server did not stay up; falling back to a root --server"
                         );
-                        start_server(None, &mut server);
+                        start_root_login_screen_server(&mut server);
                     }
                 } else {
                     start_server(None, &mut server);
@@ -1211,6 +1506,103 @@ pub fn start_os_service() {
     log::info!("Exit");
 }
 
+/// The root `--server` the service falls back to at a Wayland login screen whose greeter account
+/// cannot run one. It is the login screen's server all the same, so it gets the flag the greeter's
+/// would have had.
+#[cfg(feature = "drm")]
+fn start_root_login_screen_server(server: &mut Option<Child>) {
+    match std::env::current_exe()
+        .and_then(|exe| Command::new(exe).arg("--server").env(ENV_DRM_CAPTURE, "Y").spawn())
+    {
+        Ok(ps) => *server = Some(ps),
+        Err(err) => log::error!("Failed to start the login screen's root --server: {err}"),
+    }
+}
+
+/// Follows `allow-drm-login-screen` from the service loop. The `_drm` producer starts the first
+/// time the service sees a Wayland login screen with the option on, and then stays up;
+/// `handle_drm_conn` refuses every peer while the option is off or seat0 shows anything else.
+#[cfg(feature = "drm")]
+struct DrmCaptureSwitch {
+    on: bool,
+    producer_started: bool,
+}
+
+#[cfg(feature = "drm")]
+impl DrmCaptureSwitch {
+    fn new() -> Self {
+        Self {
+            on: drm_capture_enabled(),
+            producer_started: false,
+        }
+    }
+
+    /// Whether the option changed since the last call: every `--server` decided its paths at start.
+    fn poll(&mut self) -> bool {
+        let on = drm_capture_enabled();
+        let changed = on != self.on;
+        self.on = on;
+        changed
+    }
+
+    /// A machine that never shows a Wayland login screen (X11, or a console) never loads libdrmtap
+    /// or opens a DRM device in the root service.
+    fn start_producer_at(&mut self, desktop: &Desktop) {
+        if self.on && !self.producer_started && desktop.is_login_wayland() {
+            self.producer_started = true;
+            // DRM/KMS capture producer (opt-in `drm` feature): a dedicated thread + runtime that
+            // streams scanout frames to the user `--server` over the `_drm` service-scoped channel.
+            // Runs here because this process is the root service that already holds CAP_SYS_ADMIN
+            // for the in-process (direct-mode) libdrmtap read.
+            //
+            // Builder, like every other thread this feature starts: `thread::spawn` PANICS if the
+            // thread cannot be created (EAGAIN under a thread-count or memory limit), and here that
+            // panic would unwind out of `start_os_service` -- taking down the root service itself,
+            // for a feature whose failure should only cost DRM capture. Losing the producer leaves
+            // the consumer to fall back to PipeWire/X11, which is the same path a host without the
+            // feature takes.
+            if let Err(err) = std::thread::Builder::new()
+                .name("drm-producer".into())
+                .spawn(|| {
+                    crate::ipc::start_drm();
+                })
+            {
+                log::warn!(
+                    "failed to spawn the drm capture producer thread: {err}; DRM capture is off \
+                     for this boot and the consumer falls back to PipeWire/X11"
+                );
+            }
+        }
+    }
+}
+
+/// The service acts on `allow-drm-login-screen` from its own copy of the config, which only a
+/// non-root `--server` syncs. A root `--server` that applied a change to the option hands its
+/// config over itself, and so does the CLI, or the change never takes effect. The UI does not:
+/// `SyncConfig` carries the whole config, and a long-lived process may hold an older copy of it.
+#[cfg(feature = "drm")]
+pub async fn sync_drm_capture_to_service(was_allowed: bool) {
+    use crate::ipc::{connect_service, Data};
+    use hbb_common::config::Config2;
+    if !is_root() || drm_login_screen_allowed() == was_allowed {
+        return;
+    }
+    let result = async {
+        let mut conn = connect_service(1000).await?;
+        let configs = Box::new((Config::get(), Config2::get()));
+        conn.send(&Data::SyncConfig(Some(configs))).await?;
+        conn.next_timeout(1000).await
+    }
+    .await;
+    match result {
+        Ok(Some(Data::SyncConfig(None))) => {
+            log::info!("allow-drm-login-screen changed as root, config synced to the service")
+        }
+        Ok(_) => log::warn!("the service did not confirm the allow-drm-login-screen sync"),
+        Err(err) => log::warn!("failed to sync allow-drm-login-screen to the service: {err}"),
+    }
+}
+
 #[inline]
 /// Returns the cached active `(uid, username)` snapshot when available.
 /// Callers that require a fresh seat0 lookup should call `get_values_of_seat0` directly.
@@ -1238,8 +1630,9 @@ pub fn get_active_userid_fresh() -> String {
     // A Wayland greeter owns seat0 while it is up and the DRM backend serves it, so a uid gate that
     // cannot see it rejects the greeter's own `--server`. `Desktop::refresh` reads it the same way.
     #[cfg(feature = "drm")]
-    return get_values_of_seat0_with_gdm_wayland(&[1])[0].clone();
-    #[cfg(not(feature = "drm"))]
+    if drm_capture_enabled() {
+        return get_values_of_seat0_with_gdm_wayland(&[1])[0].clone();
+    }
     get_values_of_seat0(&[1])[0].clone()
 }
 
@@ -1265,7 +1658,12 @@ fn get_cm() -> bool {
 }
 
 pub fn is_login_wayland() -> bool {
-    let files = ["/etc/gdm3/custom.conf", "/etc/gdm/custom.conf"];
+    // Debian's gdm3 reads /etc/gdm3/daemon.conf instead of custom.conf.
+    let files = [
+        "/etc/gdm3/custom.conf",
+        "/etc/gdm/custom.conf",
+        "/etc/gdm3/daemon.conf",
+    ];
     match (
         Regex::new(r"# *WaylandEnable *= *false"),
         Regex::new(r"WaylandEnable *= *true"),
@@ -1357,7 +1755,17 @@ pub fn is_prelogin() -> bool {
     }
     let name = get_active_username();
     if let Ok(res) = run_cmds(&format!("getent passwd {}", name)) {
-        return res.contains("/bin/false") || res.contains("/usr/sbin/nologin");
+        return res.lines().any(|entry| {
+            let shell = entry.trim().rsplit(':').next().unwrap_or_default();
+            matches!(
+                shell,
+                "/bin/false"
+                    | "/usr/bin/false"
+                    | "/usr/sbin/nologin"
+                    | "/sbin/nologin"
+                    | "/usr/bin/nologin"
+            )
+        });
     }
     false
 }
@@ -2020,6 +2428,12 @@ mod desktop {
         pub home: String,
         pub dbus: String,
         pub wl_display: String,
+        /// logind's `Class=greeter`, whatever the account is called (`gdm-greeter` on GDM 49+).
+        #[cfg(feature = "drm")]
+        greeter: bool,
+        /// `Class=greeter` with `Type=tty`, see `is_wayland_tty_greeter`.
+        #[cfg(feature = "drm")]
+        tty_greeter: bool,
     }
 
     impl Desktop {
@@ -2030,7 +2444,34 @@ mod desktop {
 
         #[inline]
         pub fn is_login_wayland(&self) -> bool {
+            #[cfg(feature = "drm")]
+            if (self.tty_greeter || self.greeter) && self.is_wayland() {
+                return true;
+            }
             super::is_gdm_user(&self.username) && self.protocol == DISPLAY_SERVER_WAYLAND
+        }
+
+        /// The greeter's compositor creates its socket after logind has registered the session,
+        /// so a greeter first seen without one is asked again on every refresh until it has one.
+        /// Every compositor variable is dropped, not only the x11 values guessed meanwhile: going
+        /// straight from a user session to the greeter keeps that session's WAYLAND_DISPLAY and
+        /// bus here, and an endpoint the greeter `--server` is handed is never searched past.
+        /// A display server forced to x11 is the operator's answer, so it is left alone, as
+        /// `IS_X11` does; one forced to Wayland agrees with the socket and is adopted.
+        #[cfg(feature = "drm")]
+        fn adopt_wayland_tty_greeter(&mut self) {
+            if self.tty_greeter
+                && !self.is_wayland()
+                && std::env::var("RUSTDESK_FORCED_DISPLAY_SERVER").as_deref()
+                    != Ok(DISPLAY_SERVER_X11)
+                && super::has_wayland_socket(&self.uid)
+            {
+                self.protocol = DISPLAY_SERVER_WAYLAND.to_owned();
+                self.display.clear();
+                self.xauth.clear();
+                self.wl_display.clear();
+                self.dbus.clear();
+            }
         }
 
         fn get_display_xauth_wayland(&mut self) {
@@ -2369,10 +2810,22 @@ mod desktop {
             last
         }
 
+        /// Preserves an active seat0 session's cached identity so the service loop only retries
+        /// late Wayland display discovery instead of repeating the full seat lookup.
         pub fn refresh(&mut self) {
             if !self.sid.is_empty() && is_active_and_seat0(&self.sid) {
+                #[cfg(feature = "drm")]
+                if self.tty_greeter {
+                    self.adopt_wayland_tty_greeter();
+                    return;
+                }
                 // Xwayland display and xauth may not be available in a short time after login.
-                if is_xwayland_running(&self.uid) && !self.is_login_wayland() {
+                // Avoid scanning processes on X11, where Xwayland discovery cannot provide any
+                // useful session information.
+                if self.is_wayland()
+                    && !self.is_login_wayland()
+                    && is_xwayland_running(&self.uid)
+                {
                     self.get_display_xauth_xwayland();
                 } else if self.is_wayland() {
                     self.get_display_xauth_wayland();
@@ -2390,6 +2843,18 @@ mod desktop {
             self.uid = seat0_values[1].clone();
             self.username = seat0_values[2].clone();
             self.protocol = get_display_server_of_session(&self.sid).into();
+            #[cfg(feature = "drm")]
+            if super::drm_capture_enabled() {
+                let props = super::session_props(&self.sid).unwrap_or_default();
+                self.greeter = props.lines().any(|line| line.trim() == "Class=greeter");
+                self.tty_greeter = super::is_tty_greeter_props(&props);
+                if self.tty_greeter {
+                    // `Type=tty` names no display server, and the fallback above read this
+                    // service's own environment: only a compositor socket makes it Wayland.
+                    self.protocol = DISPLAY_SERVER_X11.to_owned();
+                }
+                self.adopt_wayland_tty_greeter();
+            }
             if self.is_login_wayland() {
                 self.display = "".to_owned();
                 self.xauth = "".to_owned();
@@ -2406,9 +2871,11 @@ mod desktop {
                 // greeter as `gdm-greeter`, which that helper does not match -- measured on the
                 // test host, where the greeter server therefore takes the branch below and gets a
                 // fully populated environment. This is for the display managers whose greeter user
-                // does match.
+                // does match, and for greetd's Wayland greeters (`adopt_wayland_tty_greeter`).
                 #[cfg(feature = "drm")]
-                self.get_home();
+                if super::drm_capture_enabled() {
+                    self.get_home();
+                }
                 return;
             }
 

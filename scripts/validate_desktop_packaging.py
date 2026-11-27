@@ -57,6 +57,7 @@ STOCK_RUSTDESK = (
     (r"\brustdesk\.service\b", "the rustdesk.service unit"),
     (r"\b(systemctl|service)\b.*\srustdesk(\s|;|$)", "a command on the rustdesk service"),
     (r"/usr/share/rustdesk\b|/app/share/rustdesk\b", "stock RustDesk's install folder"),
+    (r"/usr/lib/rustdesk\b", "stock RustDesk's library folder"),
     (r"(?<!tmpdeb)/usr/bin/rustdesk\b|/app/bin/rustdesk\b", "stock RustDesk's command"),
     (r"\.config/rustdesk\b", "stock RustDesk's settings folder"),
     (r"applications/rustdesk(-link)?\.desktop", "stock RustDesk's desktop file"),

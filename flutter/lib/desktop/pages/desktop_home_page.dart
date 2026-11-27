@@ -332,13 +332,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         cards.add(notice(translate('wayland_experiment_tip'),
             tone: NdTone.info,
             help: tr('nd-help'),
-            link: 'https://rustdesk.com/docs/en/client/linux/#x11-required'));
-      } else if (bind.mainIsLoginWayland()) {
-        cards.add(notice(
-            translate('Login screen using Wayland is not supported'),
+            link: ndDocsUrl(kNdLinuxLoginScreenDocs)));
+      }
+      // Empty where the login screen can be reached (an installed package with DRM capture, or
+      // an X11 login screen); otherwise what to do about it. Also in a Wayland session, which
+      // usually comes with a Wayland login screen.
+      final loginNotice = bind.mainGetCommonSync(key: 'login-screen-notice');
+      if (loginNotice.isNotEmpty) {
+        cards.add(notice(tr(loginNotice),
             tone: NdTone.info,
             help: tr('nd-help'),
-            link: 'https://rustdesk.com/docs/en/client/linux/#login-screen'));
+            link: ndDocsUrl(kNdLinuxLoginScreenDocs)));
       }
       return cards;
     }

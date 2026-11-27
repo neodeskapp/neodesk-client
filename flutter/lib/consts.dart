@@ -738,6 +738,9 @@ const kNeoDeskDiscordUrl = 'https://discord.gg/nwERSawufr';
 const kNeoDeskLicenseSpdx = 'AGPL-3.0-only';
 const kNeoDeskLicenseName = 'GNU Affero General Public License v3.0';
 const kNeoDeskClientProduct = 'neodesk-desktop';
+
+/// The client's page on reaching a Linux computer at its login screen (Wayland and X11).
+const kNdLinuxLoginScreenDocs = 'getting-started/connect-a-client/linux-login-screen';
 const kNeoDeskDisplayName = 'NeoDesk Client';
 const kNeoDeskForkAttributionTip =
     'NeoDesk Client is based on RustDesk. Its source code is available under the AGPL-3.0.';

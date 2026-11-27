@@ -1053,6 +1053,30 @@ jobs:
           name: bridge-artifact
           path: ./
 
+      # DRM capture for the Wayland login screen. The container's meson is too old to build
+      # libdrmtap, so build it here from the pin in build.py (commit and source SHA-256 checked
+      # there) and hand the .so to the container via DRMTAP_PREBUILT_DIR. Its SHA-256 goes along,
+      # so every package can be checked to carry this very file.
+      - name: Build libdrmtap
+        if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y meson ninja-build pkg-config \
+            libdrm-dev libegl1-mesa-dev libgles2-mesa-dev
+          python3 scripts/test_check_drm_package.py
+          python3 - <<'PY'
+          import hashlib, importlib.util, sys
+          spec = importlib.util.spec_from_file_location("b", "build.py")
+          b = importlib.util.module_from_spec(spec)
+          sys.argv = ["build.py"]
+          spec.loader.exec_module(b)
+          so = b.build_libdrmtap_so()
+          digest = hashlib.sha256(open(so, "rb").read()).hexdigest()
+          print(f"::notice::built {so}, SHA-256 {digest}")
+          open("third_party/libdrmtap/build-pkg/libdrmtap.sha256", "w").write(digest + "\n")
+          PY
+
       - uses: rustdesk-org/run-on-arch-action@d3fcfbb632b84cf7f6bc772bfaaa2c2f4f8789a8 # no release tag; commit 2026-05-26
         name: Build rustdesk
         id: vcpkg
@@ -1099,6 +1123,7 @@ jobs:
                tree \
                python3 \
                rpm \
+               cpio \
                unzip \
                wget \
                xz-utils \
@@ -1136,7 +1161,13 @@ jobs:
             echo $JOBS
             # The container doesn't see the job's environment.
             export NEODESK_RELEASE_VERSION="${{ inputs.version }}"
-            cargo build --locked --lib $JOBS --features hwcodec,flutter,unix-file-copy-paste --release
+            # The .so built on the runner; build.py checks it comes from the pinned checkout.
+            export DRMTAP_PREBUILT_DIR=/workspace/third_party/libdrmtap/build-pkg
+            # build.py names the features, so the library and the packaging agree on drm.
+            FEATURES="$(python3 ./build.py --flutter --hwcodec --unix-file-copy-paste --print-features)"
+            echo "cargo features: ${FEATURES}"
+            case ",${FEATURES}," in *,drm,*) ;; *) echo "::error::no drm in ${FEATURES}"; exit 1 ;; esac
+            cargo build --locked --lib $JOBS --features "${FEATURES}" --release
             # target/release/{deps,build} stay for the Rust cache step.
             du -sh /workspace/target || true
 
@@ -1194,7 +1225,9 @@ jobs:
             export CARGO_INCREMENTAL=0
             export DEB_ARCH=${{ matrix.job.deb_arch }}
             python3 ./build.py --flutter --skip-cargo
+            SO_SHA256="$(cat /workspace/third_party/libdrmtap/build-pkg/libdrmtap.sha256)"
             for name in neodesk*??.deb; do
+              python3 scripts/check_drm_package.py "$name" --so-sha256 "${SO_SHA256}"
               mv "$name" "${name%%.deb}-${{ matrix.job.arch }}.deb"
             done
 
@@ -1208,9 +1241,14 @@ jobs:
                 sed -i "s/linux\/x64/linux\/arm64/g" ./res/rpm-flutter.spec
                 ;;
             esac
+            # On aarch64 the flutter-elinux engine's own glibc needs are not measured, so the
+            # glibc check runs on x86_64 only.
+            RPM_CHECK_ARGS="--so-sha256 ${SO_SHA256}"
+            if [[ "${{ matrix.job.arch }}" != "x86_64" ]]; then RPM_CHECK_ARGS="${RPM_CHECK_ARGS} --no-glibc-check"; fi
             HBB=`pwd` rpmbuild ./res/rpm-flutter.spec -bb
             pushd ~/rpmbuild/RPMS/${{ matrix.job.arch }}
             for name in neodesk*??.rpm; do
+                python3 /workspace/scripts/check_drm_package.py "$name" ${RPM_CHECK_ARGS}
                 mv "$name" /workspace/"${name%%.rpm}.rpm"
             done
 
@@ -1225,6 +1263,7 @@ jobs:
             HBB=`pwd` rpmbuild ./res/rpm-flutter-suse.spec -bb
             pushd ~/rpmbuild/RPMS/${{ matrix.job.arch }}
             for name in neodesk*??.rpm; do
+                python3 /workspace/scripts/check_drm_package.py "$name" ${RPM_CHECK_ARGS}
                 mv "$name" /workspace/"${name%%.rpm}-suse.rpm"
             done
 

@@ -149,10 +149,10 @@ def make_parser():
         help='Build with unix file copy paste feature'
     )
     parser.add_argument(
-        '--drm',
+        '--no-drm',
         action='store_true',
-        help='Linux only: build the DRM/KMS capture backend (bundles libdrmtap.so, '
-             'dlopen-ed in-process by the root service). Off by default.'
+        help='Linux only: build without the DRM/KMS capture backend (on by default for Flutter '
+             'builds; it bundles libdrmtap.so, dlopen-ed in-process by the root service)'
     )
     parser.add_argument(
         '--print-features',
@@ -160,6 +160,12 @@ def make_parser():
         help='Print the cargo feature list these flags select, and exit without building. For a '
              'caller that runs its own cargo line and then packages with --skip-cargo: it can ask '
              'for the list rather than repeat it, so the two cannot drift.'
+    )
+    parser.add_argument(
+        '--print-libdrmtap-digest',
+        action='store_true',
+        help='Fetch libdrmtap at the pinned commit, print the SHA-256 of its source tree for '
+             'LIBDRMTAP_SOURCE_SHA256_PINNED, and exit.'
     )
     parser.add_argument(
         '--print-package-version',
@@ -311,11 +317,10 @@ def external_resources(flutter, args, res_dir):
 def linux_packaging_branch():
     """Which packaging path `main()` will take on THIS host.
 
-    MUST mirror the elif chain in main() (pacman / yum / zypper / else), and exists so `--drm` can
-    refuse a branch that is not drm-aware instead of silently producing a stock-named package with
-    the capture backend compiled in. Only the final `deb` branch reaches `build_flutter_deb`, which
-    is what bundles libdrmtap, renames the package, adds Conflicts/Provides and asserts the staged
-    binary really is a drm build.
+    MUST mirror the elif chain in main() (pacman / yum / zypper / else), and exists so the drm
+    backend is compiled in only where the package can carry libdrmtap: the `deb` branch
+    (`build_flutter_deb`) and the pacman Flutter branch (PKGBUILD). The yum and zypper branches
+    build Sciter rpms from res/rpm.spec and res/rpm-suse.spec, which do not.
     """
     if os.path.isfile('/usr/bin/pacman'):
         return 'pacman'
@@ -336,29 +341,14 @@ def get_features(args):
         features.append('flutter')
     if args.unix_file_copy_paste:
         features.append('unix-file-copy-paste')
-    if args.drm:
-        # Say so rather than quietly handing back a stock build: the backend is Linux-only, so on
-        # any other host the flag cannot be honoured and the resulting binary would look like a
-        # DRM build without being one.
-        if windows or osx:
-            raise Exception('--drm is Linux only')
-        # And only on the deb branch. The other three Linux paths (pacman/yum/zypper) package
-        # straight from `target/release` without bundling libdrmtap, without the rename, without
-        # Conflicts/Provides and without assert_staged_binary_is_drm() -- so they would emit a
-        # package NAMED `rustdesk` carrying the consent-bypass backend and the root-side uinput
-        # injection. The separate package name is the informed consent this feature rests on, so
-        # refuse rather than ship a stock-named build of it.
-        branch = linux_packaging_branch()
-        if branch != 'deb':
-            raise Exception(
-                f'--drm is only supported on the deb packaging path; this host would package via '
-                f'{branch}, which cannot bundle libdrmtap or name the package distinctly')
+    # The backend is off at runtime until the user turns on allow-drm-capture, so every Linux
+    # Flutter package carries it.
+    if (args.flutter and not (windows or osx) and not args.no_drm
+            and linux_packaging_branch() in ('deb', 'pacman')):
         features.append('drm')
-        # The display wake is its own compile gate on top of `drm`, and the unattended package is
-        # exactly where it belongs: that variant exists to reach a machine nobody is sitting at,
-        # and a machine whose screen went dark is the case it is for. Dropping `drm-wake` from
-        # this line builds the same capture backend with no wake code in the binary at all.
-        # It is ALSO switchable at runtime; see OPTION_ENABLE_DRM_DISPLAY_WAKE.
+        # The display wake is its own compile gate on top of `drm`: it reaches a machine whose
+        # screen went dark, which is the unattended case DRM capture is for. It is also switchable
+        # at runtime; see OPTION_ENABLE_DRM_DISPLAY_WAKE.
         features.append('drm-wake')
     if osx:
         if args.screencapturekit:
@@ -392,7 +382,7 @@ Architecture: %s
 Maintainer: NeoDesk <security@neode.sk>
 Homepage: https://neode.sk
 Depends: libgtk-3-0t64 | libgtk-3-0, libxcb-randr0, libxdo3 | libxdo4, libxfixes3, libxcb-shape0, libxcb-xfixes0, libasound2t64 | libasound2, libsystemd0, curl, libva2, libva-drm2, libva-x11-2, libgstreamer-plugins-base1.0-0, gstreamer1.0-pipewire%s
-Recommends: libayatana-appindicator3-1
+Recommends: libayatana-appindicator3-1, libdrm2 (>= 2.4.101), libegl1, libgles2
 Description: A remote control software.
 
 """ % (package_version(release_version(version)), get_deb_arch(), get_deb_extra_depends())
@@ -424,9 +414,14 @@ def ffi_bindgen_function_refactor():
 # The commit is fetched directly by sha, so no branch or tag name takes part in the build: see
 # build_libdrmtap_so(). This is the SINGLE source of truth for the pin, deliberately not duplicated in
 # any workflow, so a bump is one edit here (plus the informational version comment in
-# libs/scrap/Cargo.toml). This commit is libdrmtap v0.5.4.
+# libs/scrap/Cargo.toml). This commit is libdrmtap v0.5.12.
 LIBDRMTAP_REPO_PINNED = 'https://github.com/rustdesk-org/libdrmtap'
-LIBDRMTAP_SHA_PINNED = '5da68a3a368db569716d0d0f11cefacbb11b2290'
+LIBDRMTAP_SHA_PINNED = '5936a7a88b94aa43516a3dd0eb509d2383f31e2d'
+# SHA-256 over the source tree at LIBDRMTAP_SHA_PINNED (libdrmtap_source_digest). The commit id is a
+# SHA-1 and names the tree; this second, independent hash means a changed tree cannot pass for the
+# pinned one even where SHA-1 does not hold. A bump moves both lines together:
+#   python3 build.py --print-libdrmtap-digest
+LIBDRMTAP_SOURCE_SHA256_PINNED = 'b87cc9973a764aae0898fc5399414e78690ee10bcdc4302a49a85b5e90091c22'
 LIBDRMTAP_REPO = os.environ.get('DRMTAP_REPO', LIBDRMTAP_REPO_PINNED)
 LIBDRMTAP_SHA = os.environ.get('DRMTAP_SHA', LIBDRMTAP_SHA_PINNED)
 # Every way of getting a different .so than the pin needs the same explicit opt-in. Otherwise the
@@ -457,7 +452,7 @@ def _prebuilt_dir_is_the_pinned_checkout(prebuilt_dir):
 
 
 def _validate_libdrmtap_pin():
-    # Called from build_libdrmtap_so(), NOT at import: a stock (non --drm) build must stay
+    # Called from build_libdrmtap_so(), NOT at import: a build without drm (--no-drm) must stay
     # byte-identical to upstream in behaviour too, and leftover DRMTAP_* variables in the
     # environment (or a malformed sha) must not be able to fail a build that never touches
     # libdrmtap.
@@ -493,6 +488,60 @@ def _validate_libdrmtap_pin():
         raise Exception(f'DRMTAP_REPO does not look like a git remote url: {LIBDRMTAP_REPO!r}')
 
 
+def libdrmtap_source_digest(src):
+    """SHA-256 over the committed tree at HEAD of the git checkout `src`: one line per file with its
+    mode, path and the SHA-256 of its bytes, in path order. Read from git's objects, not from the
+    working tree, so a build directory or an edited file in the checkout does not change it."""
+    listing = subprocess.check_output(['git', '-C', src, 'ls-tree', '-r', '-z', '--full-tree', 'HEAD'])
+    entries = []
+    for record in listing.split(b'\0'):
+        if not record:
+            continue
+        meta, path = record.split(b'\t', 1)
+        mode, kind, obj = meta.split(b' ')
+        if kind != b'blob':
+            # A submodule (`commit`) would be a tree this digest cannot see into.
+            raise Exception(f'libdrmtap at {src} has a {kind.decode()} entry {path.decode()!r}')
+        content = subprocess.check_output(['git', '-C', src, 'cat-file', 'blob', obj.decode()])
+        entries.append((path, mode, hashlib.sha256(content).hexdigest().encode()))
+    h = hashlib.sha256()
+    for path, mode, digest in sorted(entries):
+        h.update(mode + b' ' + path + b' ' + digest + b'\n')
+    return h.hexdigest()
+
+
+def fetch_libdrmtap_source_digest():
+    # Into a scratch directory, so a bump can be measured without touching third_party/.
+    import tempfile
+    with tempfile.TemporaryDirectory() as src:
+        for cmd in (['init', '-q'], ['remote', 'add', 'origin', LIBDRMTAP_REPO_PINNED],
+                    ['-c', 'http.followRedirects=false', 'fetch', '-q', '--depth', '1', 'origin',
+                     LIBDRMTAP_SHA_PINNED],
+                    ['checkout', '-q', 'FETCH_HEAD']):
+            subprocess.check_call(['git', '-C', src] + cmd)
+        return libdrmtap_source_digest(src)
+
+
+def _verify_libdrmtap_source(src):
+    # Only the pinned commit has a known digest; a deliberate override (DRMTAP_ALLOW_UNPINNED=1 with
+    # another DRMTAP_SHA) is warned about in _validate_libdrmtap_pin and not checked here.
+    if LIBDRMTAP_SHA != LIBDRMTAP_SHA_PINNED:
+        return
+    got = libdrmtap_source_digest(src)
+    if got != LIBDRMTAP_SOURCE_SHA256_PINNED:
+        shutil.rmtree(src, ignore_errors=True)
+        raise Exception(
+            f'libdrmtap at {src} has source SHA-256 {got}, expected {LIBDRMTAP_SOURCE_SHA256_PINNED} '
+            f'for commit {LIBDRMTAP_SHA_PINNED}. The fetched tree is not the reviewed one; the '
+            'checkout was removed. If the pin was bumped on purpose, update both lines in build.py.')
+    print(f'[drm] libdrmtap source {LIBDRMTAP_SHA_PINNED} matches SHA-256 {got}')
+
+
+def libdrmtap_license_path():
+    # MIT: the licence text ships with every package that carries the library.
+    return os.path.join(REPO_ROOT, 'third_party', 'libdrmtap', 'LICENSE')
+
+
 def _single_real_so(paths, where):
     # Return the one real libdrmtap.so.0.* object among `paths`, failing if there are zero or several.
     # glob order is arbitrary, so silently taking [0] could ship a stale or wrong-arch object left
@@ -519,12 +568,18 @@ def build_libdrmtap_so():
         # (rather than silently falling back to a source build) if it holds no single real .so.
         prebuilt = glob.glob(os.path.join(prebuilt_dir, 'libdrmtap.so.0.*'))
         so = _single_real_so(prebuilt, f'DRMTAP_PREBUILT_DIR={prebuilt_dir}')
+        # The pinned checkout this was built from (how CI hands the library over) is checked like a
+        # fresh fetch; an unpinned prebuilt directory was already refused or warned about above.
+        if _prebuilt_dir_is_the_pinned_checkout(prebuilt_dir):
+            _verify_libdrmtap_source(os.path.join(REPO_ROOT, 'third_party', 'libdrmtap'))
         # Check the stub case HERE too, not only on the source path below. This is the widest
         # override of the three -- no fetch, no sha verification, an object built by something this
         # script cannot see -- so it is the likeliest to hand over a CPU-only build, and skipping the
         # assertion on exactly this path would leave the check guarding only the case that was
-        # already trustworthy.
+        # already trustworthy. The helper check rides along for the same reason, and it matters
+        # more here than anywhere: this is the branch the packaging workflow takes.
         _assert_so_has_egl(so)
+        _assert_so_has_no_helper(so)
         return so
     # Fetch the pinned source if it is not already present. third_party/libdrmtap is not a submodule
     # anymore; it is git-ignored. The commit is fetched BY SHA rather than by cloning a branch:
@@ -539,7 +594,9 @@ def build_libdrmtap_so():
         os.makedirs(src, exist_ok=True)
         system2(f'git -C "{src}" init -q')
         system2(f'git -C "{src}" remote add origin {LIBDRMTAP_REPO}')
-        system2(f'git -C "{src}" fetch --depth 1 origin {LIBDRMTAP_SHA}')
+        # No HTTP redirects: a renamed or moved repository fails the fetch instead of quietly
+        # serving the pin from wherever the redirect points.
+        system2(f'git -C "{src}" -c http.followRedirects=false fetch --depth 1 origin {LIBDRMTAP_SHA}')
         system2(f'git -C "{src}" checkout -q FETCH_HEAD')
     # Verify the pin whenever the source is a GIT checkout. A fetch by sha cannot resolve to anything
     # else, so this now guards the OTHER case: a reused checkout left by an earlier build at a
@@ -554,9 +611,24 @@ def build_libdrmtap_so():
             raise Exception(
                 f'libdrmtap at {src} is {got_sha}, expected {LIBDRMTAP_SHA} '
                 f'(stale checkout from a different pin; removed, re-run to re-fetch)')
+        _verify_libdrmtap_source(src)
     build_dir = os.path.join(src, 'build-pkg')
+    # Configure a fresh dir, or RE-configure one an earlier build left behind. Without the second
+    # branch a build-pkg created before this option was added keeps its old configuration, meson
+    # skips setup, and the compile produces a helper-enabled .so. The assertion below then fails
+    # the build rather than shipping it, so this is a developer-build correctness fix and not a
+    # security one -- but it turns a confusing failure into no failure at all.
     if not os.path.exists(os.path.join(build_dir, 'build.ninja')):
-        system2(f'meson setup "{build_dir}" "{src}" --buildtype=release')
+        # -Dhelper=disabled: rustdesk never uses the privileged helper. The capture context is
+        # opened only in the root service (every drmtap_open lives in src/ipc/drm.rs), which
+        # already has CAP_SYS_ADMIN, and the unprivileged side opens a render node instead. Without
+        # this the library still carries the fallback: a fork/exec that walks six hardcoded paths,
+        # two of them under /usr/local, and execs the first that passes access(X_OK) with no check
+        # of its owner or mode -- inside the ROOT process. The option compiles that path out
+        # entirely. Requested by the maintainer on rustdesk#16242.
+        system2(f'meson setup "{build_dir}" "{src}" --buildtype=release -Dhelper=disabled')
+    else:
+        system2(f'meson configure "{build_dir}" -Dhelper=disabled')
     # Build only the shared library, not the bundled helper binary or the static archive. Since
     # libdrmtap 0.4.11 the project is `both_libraries` (a version-scripted .so + a static .a), so the
     # bare `drmtap` target is ambiguous ("drmtap:shared_library" vs "drmtap:static_library"); ask for
@@ -567,7 +639,29 @@ def build_libdrmtap_so():
     # require exactly one so a stale object from an earlier build is never silently picked.
     so = _single_real_so(sos, f'the libdrmtap meson build dir {build_dir}')
     _assert_so_has_egl(so)
+    _assert_so_has_no_helper(so)
     return so
+
+
+def _assert_so_has_no_helper(so_path):
+    # Asserted on the ARTIFACT for the same reason the EGL check is: a build flag cannot notice a
+    # stale object left by an earlier build, or one substituted by hand, and `-Dhelper=disabled` is
+    # silently accepted by meson versions that predate the option. What the option removes is the
+    # whole fork/exec path, so the produced .so imports no socketpair and carries none of the
+    # helper search paths; both go to zero, measured on libdrmtap 0.5.6 (4 -> 0 and 3 -> 0).
+    #
+    # This matters because the object is loaded by the ROOT service. With the path compiled in, a
+    # caller that ever lost CAP_SYS_ADMIN would exec whatever sits at the first of six hardcoded
+    # locations that passes access(X_OK), without checking its owner or its mode.
+    with open(so_path, 'rb') as f:
+        blob = f.read()
+    found = [m.decode() for m in (b'socketpair', b'/usr/libexec/drmtap-helper') if m in blob]
+    if found:
+        raise Exception(
+            f'{so_path} still carries the privileged-helper fallback ({", ".join(found)}). '
+            f'It must be built with -Dhelper=disabled: rustdesk captures as root and never uses '
+            f'the helper, so this is a fork/exec path in the privileged process that nothing '
+            f'reaches. Delete third_party/libdrmtap/build-pkg and rebuild.')
 
 
 def _assert_so_has_egl(so_path):
@@ -598,9 +692,6 @@ def _assert_so_has_egl(so_path):
             'depends on is not in it, and DRM capture would silently fall back to PipeWire. '
             'Install the EGL development packages and rebuild (Debian/Ubuntu: libegl-dev '
             'libgles2-mesa-dev; Arch: mesa libglvnd).')
-
-
-DRM_PACKAGE_NAME = 'rustdesk-unattended-wayland'
 
 
 def assert_so_satisfies_the_runtime_abi_gate(so_path):
@@ -654,80 +745,26 @@ def assert_so_satisfies_the_runtime_abi_gate(so_path):
 
 def stage_libdrmtap_into_deb(so_path):
     # Put the built libdrmtap object plus its soname symlink into the staged deb. Only the soname
-    # symlink is needed: libdrmtap is resolved by ABSOLUTE path (/usr/lib/rustdesk/libdrmtap.so.0) at
-    # the in-process dlopen site (drmtap_dl.rs), so the deb does NOT drop /usr/lib/rustdesk into the
+    # symlink is needed: libdrmtap is resolved by ABSOLUTE path (/usr/lib/neodesk/libdrmtap.so.0) at
+    # the in-process dlopen site (drmtap_dl.rs), so the deb does NOT drop /usr/lib/neodesk into the
     # system-wide /etc/ld.so.conf.d search path, which would let this private library shadow a system
     # library for every binary on the host (Debian Policy 10.2 forbids that). No ld.so.conf.d drop-in
     # and no ldconfig trigger are shipped, so the stock postinst is used unchanged.
     assert_so_satisfies_the_runtime_abi_gate(so_path)
     so_basename = os.path.basename(so_path)
-    system2('mkdir -p tmpdeb/usr/lib/rustdesk')
+    system2('mkdir -p tmpdeb/usr/lib/neodesk')
     # Quoted: so_path comes from the repo root or from DRMTAP_PREBUILT_DIR, either of which can
     # contain a space, and an unquoted interpolation would split the argument and fail obscurely.
-    system2(f'cp "{so_path}" tmpdeb/usr/lib/rustdesk/')
-    system2(f'ln -sf "{so_basename}" tmpdeb/usr/lib/rustdesk/libdrmtap.so.0')
+    system2(f'cp "{so_path}" tmpdeb/usr/lib/neodesk/')
+    system2(f'ln -sf "{so_basename}" tmpdeb/usr/lib/neodesk/libdrmtap.so.0')
+    stage_libdrmtap_license('tmpdeb/usr/lib/neodesk')
 
 
-def _max_glibc_minor(path):
-    # Read from .dynstr rather than via objdump so packaging needs no binutils; chunked because
-    # librustdesk.so is ~45 MB.
-    best = 0
-    with open(path, 'rb') as f:
-        tail = b''
-        while True:
-            chunk = f.read(1 << 20)
-            if not chunk:
-                return best
-            for m in re.finditer(rb'GLIBC_2\.(\d+)', tail + chunk):
-                best = max(best, int(m.group(1)))
-            tail = chunk[-16:]
-
-
-def measured_glibc_floor():
-    # libdrmtap is built on a newer base than the rest of the deb, so the floor is whichever staged
-    # object is higher -- and it moves whenever either base does.
-    paths = [p for p in glob.glob('tmpdeb/usr/lib/rustdesk/libdrmtap.so.0.*')
-             + glob.glob('tmpdeb/usr/share/neodesk/lib/librustdesk.so')
-             + glob.glob('tmpdeb/usr/share/neodesk/neodesk')
-             if os.path.isfile(p) and not os.path.islink(p)]
-    minor = max((_max_glibc_minor(p) for p in paths), default=0)
-    if not minor:
-        raise Exception(
-            f'could not measure a GLIBC_2.x floor from any staged object ({paths or "none found"}); '
-            'refusing to ship the unattended-wayland variant with an undeclared libc6 floor, which '
-            'is what lets it install on a host where libdrmtap can never load')
-    return f'2.{minor}'
-
-
-def retarget_control_to_drm_variant():
-    # Rewrite the control file that generate_control_file just produced, instead of parameterizing that
-    # function: the stock packaging path stays exactly as upstream wrote it, and everything specific to
-    # this variant lives here. The variant installs the same files as the stock package, so it must
-    # conflict with and replace it: you install one or the other, never both. It also needs libdrmtap's
-    # own runtime deps, which the stock package has no reason to carry.
-    path = '../res/DEBIAN/control'
-    floor = measured_glibc_floor()
-    print(f'[drm] {DRM_PACKAGE_NAME} libc6 floor measured at {floor}')
-    with open(path) as f:
-        lines = f.readlines()
-    out = []
-    for line in lines:
-        if line.startswith('Package: neodesk'):
-            out.append(f'Package: {DRM_PACKAGE_NAME}\n')
-            out.append('Conflicts: neodesk\nReplaces: neodesk\nProvides: neodesk\n')
-        elif line.startswith('Depends:'):
-            # 2.4.101 is where drmModeGetFB2 landed; below it libdrmtap loads and can never capture.
-            out.append(line.rstrip('\n') + ', libdrm2 (>= 2.4.101), libegl1, libgles2, '
-                       f'libc6 (>= {floor})\n')
-        else:
-            out.append(line)
-    body = ''.join(out)
-    # Fail loudly rather than silently shipping a package that says `neodesk`: a stock control file
-    # that stopped matching either anchor would otherwise produce a variant deb wearing the stock name.
-    if f'Package: {DRM_PACKAGE_NAME}\n' not in body or 'libegl1' not in body:
-        raise Exception(f'could not retarget {path} to the drm variant; upstream control layout changed')
-    with open(path, 'w') as f:
-        f.write(body)
+def stage_libdrmtap_license(dest_dir):
+    lic = libdrmtap_license_path()
+    if not os.path.isfile(lic):
+        raise Exception(f'no libdrmtap licence at {lic}; the MIT licence must ship with the library')
+    shutil.copyfile(lic, os.path.join(dest_dir, 'LICENSE.libdrmtap'))
 
 
 def build_flutter_deb(version, features):
@@ -758,11 +795,10 @@ def build_flutter_deb(version, features):
         'cp ../res/neodesk-link.desktop tmpdeb/usr/share/applications/neodesk-link.desktop')
     system2(
         "echo \"#!/bin/sh\" >> tmpdeb/usr/share/neodesk/files/polkit && chmod a+x tmpdeb/usr/share/neodesk/files/polkit")
-    # Bundle libdrmtap.so only when this build actually enabled the `drm` feature, so stock packages
-    # stay exactly what they were. The root service dlopens it in-process by absolute path.
+    # Bundle libdrmtap.so only when this build actually enabled the `drm` feature (not with
+    # --no-drm). The root service dlopens it in-process by absolute path.
     # `features` is the comma-joined string, so split it: a bare substring test would also match any
-    # future feature merely containing "drm" (drm-lease, vaapi-drm) and rename the deb to the
-    # consent-bypass variant without --drm ever being passed.
+    # future feature merely containing "drm" (drm-lease, vaapi-drm).
     ships_so = 'drm' in features.split(',')
     if ships_so:
         # Same artifact assertion as the --package path. Under --skip-cargo nothing here rebuilt the
@@ -772,8 +808,6 @@ def build_flutter_deb(version, features):
 
     system2('mkdir -p tmpdeb/DEBIAN')
     generate_control_file(version)
-    if ships_so:
-        retarget_control_to_drm_variant()
     system2('cp -a ../res/DEBIAN/* tmpdeb/DEBIAN/')
     md5_file_folder("tmpdeb/")
     system2('dpkg-deb -b tmpdeb neodesk.deb;')
@@ -781,13 +815,10 @@ def build_flutter_deb(version, features):
     system2('/bin/rm -rf tmpdeb/')
     system2('/bin/rm -rf ../res/DEBIAN/control')
     os.rename('neodesk.deb', '../neodesk-%s.deb' % version)
-    if ships_so:
-        # Named apart from the stock package so installing the consent-free variant is a deliberate act.
-        os.rename('../neodesk-%s.deb' % version, f'../{DRM_PACKAGE_NAME}-{version}.deb')
     os.chdir("..")
 
 
-DRMTAP_DLOPEN_MARKER = b'/usr/lib/rustdesk/libdrmtap.so.0'
+DRMTAP_DLOPEN_MARKER = b'/usr/lib/neodesk/libdrmtap.so.0'
 # Present only when `drm-wake` is compiled in: the runtime option constant is itself
 # #[cfg(feature = "drm-wake")] (src/ipc/drm.rs). The dlopen marker above cannot stand in for it -
 # `--features drm` alone produces a binary that carries the dlopen path and NO wake code, and that
@@ -811,38 +842,30 @@ def _carries_drmtap_marker(path, marker=DRMTAP_DLOPEN_MARKER):
 
 
 def assert_staged_binary_is_drm():
-    """The staged BINARY must really be a drm build before it is named the unattended-wayland
-    variant. That package conflicts with and replaces the stock one, so shipping a stock binary
-    under that name produces something that can never capture and cannot be installed alongside
-    what it replaced. The marker is the absolute dlopen path from drmtap_dl.rs, present only when
-    the feature is compiled in -- assert what was produced, not what was asked for.
-
-    Called from BOTH packaging paths. It used to guard only one of them, and `--skip-cargo` (which
-    is how CI packages) reaches the other, where nothing had rebuilt the binary at all.
+    """The staged BINARY must really be a drm build before libdrmtap is packaged with it. Under
+    `--skip-cargo` (how CI packages) nothing here rebuilt the binary, so `features` says what was
+    asked for while the staged bundle can be anything. The marker is the absolute dlopen path from
+    drmtap_dl.rs, present only when the feature is compiled in -- assert what was produced, not
+    what was asked for.
     """
     binaries = [p for p in glob.glob('tmpdeb/usr/share/neodesk/lib/librustdesk.so')
                 + glob.glob('tmpdeb/usr/share/neodesk/neodesk') if os.path.isfile(p)]
     if not any(_carries_drmtap_marker(p) for p in binaries):
         raise Exception(
-            f'--drm was requested but the staged bundle does not look like a drm build (no '
+            f'the build enabled drm but the staged bundle does not look like a drm build (no '
             f'{DRMTAP_DLOPEN_MARKER.decode()} dlopen path in {binaries or "any staged binary"}); '
-            'refusing to package it as the unattended-wayland variant, which conflicts with and '
-            'replaces the stock package but could never capture')
-    # And the WAKE half. `--drm` enables `drm-wake` too (see get_features), and the deb is named and
-    # documented as the variant that can reach a machine whose screen has gone dark. The dlopen
-    # marker above does not distinguish them: `--features drm` alone carries it and has no wake code
-    # at all. Asserting only the first half is how a deb can be named for a feature it does not have.
+            'the cargo line that produced it is missing the feature: --features ...,drm,drm-wake '
+            '(or pass --no-drm)')
+    # And the WAKE half: get_features enables `drm-wake` with `drm`, and the dlopen marker above
+    # does not tell them apart -- `--features drm` alone carries it and has no wake code at all.
     if not any(_carries_drmtap_marker(p, DRMTAP_WAKE_MARKER) for p in binaries):
         raise Exception(
-            f'--drm was requested but the staged binary has no {DRMTAP_WAKE_MARKER.decode()} '
+            f'the build enabled drm but the staged binary has no {DRMTAP_WAKE_MARKER.decode()} '
             f'marker in {binaries or "any staged binary"}, so it was built without `drm-wake`; '
-            'refusing to package it as the unattended-wayland variant, which is named and '
-            'documented as the build that can wake an idle-disabled display. If this fired under '
-            '--skip-cargo, the cargo line that produced the bundle is missing the feature: '
-            '--features ...,drm,drm-wake')
+            'the cargo line that produced it is missing the feature: --features ...,drm,drm-wake')
 
 
-def build_deb_from_folder(version, binary_folder, want_drm=False):
+def build_deb_from_folder(version, binary_folder):
     os.chdir('flutter')
     system2('mkdir -p tmpdeb/usr/bin/')
     system2('mkdir -p tmpdeb/usr/share/neodesk')
@@ -866,39 +889,34 @@ def build_deb_from_folder(version, binary_folder, want_drm=False):
         'cp ../res/neodesk-link.desktop tmpdeb/usr/share/applications/neodesk-link.desktop')
     system2(
         "echo \"#!/bin/sh\" >> tmpdeb/usr/share/neodesk/files/polkit && chmod a+x tmpdeb/usr/share/neodesk/files/polkit")
-    # Where the capture library comes from for a `--package <folder> --drm` build. Two shapes are
+    # Where the capture library comes from for a `--package <folder>` drm build. Two shapes are
     # supported, because two exist in practice: a bundle that already carries libdrmtap.so.0.*
     # (someone staged it, e.g. a CI artifact), and a plain bundle, which is what every build path
     # here actually produces -- the flutter deb builds the library straight into the staged deb, so
-    # nothing ever puts it inside the bundle folder. Demanding it in the bundle made this flag
-    # combination impossible to satisfy.
+    # nothing ever puts it inside the bundle folder.
     bundled_glob = glob.glob('tmpdeb/usr/share/neodesk/libdrmtap.so.0.*')
     bundle_carries_so = any(os.path.isfile(p) and not os.path.islink(p) for p in bundled_glob)
-    # The variant must be decided by the EXPLICIT --drm request, not merely by what happens to be
-    # staged: a bundle that carries the .so must NOT be shipped as the consent-bypass variant when
-    # --drm was never passed.
+    # `--package` compiles nothing, so only the staged binary knows whether it is a drm build; a
+    # Sciter or --no-drm bundle must not get libdrmtap.
+    want_drm = any(_carries_drmtap_marker(p)
+                   for p in glob.glob('tmpdeb/usr/share/neodesk/lib/librustdesk.so')
+                   + glob.glob('tmpdeb/usr/share/neodesk/neodesk') if os.path.isfile(p))
     if bundle_carries_so and not want_drm:
         raise Exception(
-            'the staged bundle carries libdrmtap.so.0.* but --drm was not passed; refusing '
-            'to silently ship the consent-bypass unattended-wayland variant (pass --drm to '
-            'build it deliberately)')
+            'the staged bundle carries libdrmtap.so.0.* but the binary is not a drm build')
     if want_drm:
-        # Whichever shape we are in, the staged BINARY must really be a drm build. This is the
-        # property the old presence-of-the-.so test stood in for, badly: a stock binary packaged as
-        # the unattended-wayland variant would carry the consent-bypass name, conflict with and
-        # replace the stock package, and never be able to capture. The marker is the absolute
-        # dlopen path from drmtap_dl.rs, present only when the feature is compiled in -- the same
-        # kind of artifact assertion as _assert_so_has_egl, and for the same reason: assert what
-        # was produced, not what was asked for.
+        # The dlopen marker decided want_drm; this also asserts the drm-wake half.
         assert_staged_binary_is_drm()
         if bundle_carries_so:
-            so = _single_real_so(bundled_glob, 'the staged --drm bundle')
+            so = _single_real_so(bundled_glob, 'the staged drm bundle')
             # The THIRD artifact source, and the last one that was missing the check: --package
             # takes the .so straight out of a bundle somebody else produced, so it has the same
             # exposure as DRMTAP_PREBUILT_DIR (see the comment on that branch). A CPU-only stub
             # would ship, the loader would accept it, and capture would degrade to PipeWire
-            # without a word.
+            # without a word. A bundle produced before the helper was disabled is caught here too,
+            # which is the point: it must not be repackaged into a deb.
             _assert_so_has_egl(so)
+            _assert_so_has_no_helper(so)
             stage_libdrmtap_into_deb(so)
             system2(f'rm -f "{so}"')
             system2('rm -f tmpdeb/usr/share/neodesk/libdrmtap.so tmpdeb/usr/share/neodesk/libdrmtap.so.0')
@@ -909,10 +927,6 @@ def build_deb_from_folder(version, binary_folder, want_drm=False):
 
     system2('mkdir -p tmpdeb/DEBIAN')
     generate_control_file(version)
-    # Keyed on the EXPLICIT request, not on what happened to be staged: by here a --drm build has
-    # its library in tmpdeb whichever of the two shapes it came from.
-    if want_drm:
-        retarget_control_to_drm_variant()
     system2('cp -a ../res/DEBIAN/* tmpdeb/DEBIAN/')
     md5_file_folder("tmpdeb/")
     system2('dpkg-deb -b tmpdeb neodesk.deb;')
@@ -920,8 +934,6 @@ def build_deb_from_folder(version, binary_folder, want_drm=False):
     system2('/bin/rm -rf tmpdeb/')
     system2('/bin/rm -rf ../res/DEBIAN/control')
     os.rename('neodesk.deb', '../neodesk-%s.deb' % version)
-    if want_drm:
-        os.rename('../neodesk-%s.deb' % version, f'../{DRM_PACKAGE_NAME}-{version}.deb')
     os.chdir("..")
 
 
@@ -956,6 +968,9 @@ def build_flutter_arch_manjaro(version, features):
     os.chdir('flutter')
     system2('flutter build linux --release')
     system2(f'strip {flutter_build_dir}/lib/librustdesk.so')
+    # PKGBUILD installs the library from third_party/libdrmtap/build-pkg.
+    if 'drm' in features.split(','):
+        build_libdrmtap_so()
     os.chdir('../res')
     system2('HBB=`pwd`/.. FLUTTER=1 makepkg -f')
 
@@ -1016,6 +1031,9 @@ def main():
     if args.print_package_version:
         print(package_version(release_version(get_version())))
         return
+    if args.print_libdrmtap_digest:
+        print(fetch_libdrmtap_source_digest())
+        return
 
     if os.path.exists(exe_path):
         os.unlink(exe_path)
@@ -1032,7 +1050,7 @@ def main():
     portable = args.portable
     package = args.package
     if package:
-        build_deb_from_folder(version, package, args.drm)
+        build_deb_from_folder(version, package)
         return
     res_dir = 'resources'
     external_resources(flutter, args, res_dir)

@@ -6,8 +6,12 @@ License:    AGPL-3.0-only
 URL:        https://neode.sk
 Vendor:     NeoDesk <security@neode.sk>
 Requires:   gtk3 libxcb libXfixes alsa-lib libva gstreamer1-plugins-base
-Recommends: libayatana-appindicator-gtk3 libxdo
+Recommends: libayatana-appindicator-gtk3 libxdo libdrm.so.2()(64bit) libEGL.so.1()(64bit) libGLESv2.so.2()(64bit)
 Provides:   libdesktop_drop_plugin.so()(64bit), libdesktop_multi_window_plugin.so()(64bit), libfile_selector_linux_plugin.so()(64bit), libflutter_custom_cursor_plugin.so()(64bit), libflutter_linux_gtk.so()(64bit), libscreen_retriever_plugin.so()(64bit), libtray_manager_plugin.so()(64bit), liburl_launcher_linux_plugin.so()(64bit), libwindow_manager_plugin.so()(64bit), libwindow_size_plugin.so()(64bit), libtexture_rgba_renderer_plugin.so()(64bit)
+# libdrmtap is dlopen-ed by the root service only at a Wayland login screen, and falls back if it cannot
+# load, so its own dependencies (newer glibc, EGL, libdrm) must not become requirements of the package.
+%global __requires_exclude_from ^/usr/lib/neodesk/.*$
+%global __provides_exclude_from ^/usr/lib/neodesk/.*$
 
 # https://docs.fedoraproject.org/en-US/packaging-guidelines/Scriptlets/
 
@@ -31,9 +35,13 @@ install -Dm 644 $HBB/res/neodesk.desktop -t "%{buildroot}/usr/share/neodesk/file
 install -Dm 644 $HBB/res/neodesk-link.desktop -t "%{buildroot}/usr/share/neodesk/files"
 install -Dm 644 $HBB/res/128x128@2x.png "%{buildroot}/usr/share/icons/hicolor/256x256/apps/neodesk.png"
 install -Dm 644 $HBB/res/scalable.svg "%{buildroot}/usr/share/icons/hicolor/scalable/apps/neodesk.svg"
+mkdir -p "%{buildroot}/usr/lib/neodesk"
+so=$(find "${DRMTAP_PREBUILT_DIR:-${HBB}/third_party/libdrmtap/build-pkg}" -maxdepth 1 -type f -name 'libdrmtap.so.0.*' 2>/dev/null || true)
+if [ -n "$so" ]; then install -Dm 755 "$so" -t "%{buildroot}/usr/lib/neodesk"; ln -s "$(basename "$so")" "%{buildroot}/usr/lib/neodesk/libdrmtap.so.0"; install -Dm 644 "$(dirname "$so")/../LICENSE" "%{buildroot}/usr/lib/neodesk/LICENSE.libdrmtap"; fi
 
 %files
 /usr/share/neodesk/*
+/usr/lib/neodesk
 /usr/share/neodesk/files/neodesk.service
 /usr/share/icons/hicolor/256x256/apps/neodesk.png
 /usr/share/icons/hicolor/scalable/apps/neodesk.svg

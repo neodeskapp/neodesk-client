@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart' show translate;
+import 'package:flutter_hbb/consts.dart' show kCommConfKeyLang;
+import 'package:flutter_hbb/models/platform_model.dart' show bind, localeName;
 
 import '../../theme/nd_theme.dart';
 import 'nd_button.dart';
@@ -15,6 +17,14 @@ String tr(String key, [List<Object?> args = const []]) {
     s = s.replaceFirst('{}', '${a ?? ''}');
   }
   return s;
+}
+
+/// A page of the NeoDesk docs at neode.sk, in German when the app speaks German.
+String ndDocsUrl(String path) {
+  var lang = bind.mainGetLocalOption(key: kCommConfKeyLang);
+  if (lang.isEmpty || lang == 'default') lang = localeName;
+  final prefix = lang.toLowerCase().startsWith('de') ? '/de' : '';
+  return 'https://docs.neode.sk$prefix/$path';
 }
 
 class NdWindowTab {

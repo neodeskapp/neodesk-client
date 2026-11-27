@@ -354,7 +354,11 @@ async fn start_hbbs_sync_async() {
                         if let Some(strategy) = sealed_only.remove("strategy") {
                             if let Ok(strategy) = serde_json::from_value::<StrategyOptions>(strategy) {
                                 log::info!("strategy updated");
+                                #[cfg(all(target_os = "linux", feature = "drm"))]
+                                let drm_capture_was_on = crate::platform::linux::drm_login_screen_allowed();
                                 handle_config_options(strategy.config_options);
+                                #[cfg(all(target_os = "linux", feature = "drm"))]
+                                crate::platform::linux::sync_drm_capture_to_service(drm_capture_was_on).await;
                             }
                         }
                         if let Some(command) = sealed_only.remove("connection_mode_command") {
