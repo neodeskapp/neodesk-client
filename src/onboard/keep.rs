@@ -602,8 +602,11 @@ pub mod win {
         }
     }
 
-    /// Deletes `path` (a file or a folder) a few seconds from now, from a
-    /// command prompt without a window, after this process has quit.
+    /// Deletes `path` (a file or a folder) after this process has quit, from
+    /// a command prompt without a window. It tries every two seconds for
+    /// half a minute, since the helper processes of the kept app (the
+    /// connection manager and the like) can hold files in its unpack folder
+    /// a little longer.
     fn delete_later(path: &Path) {
         let path = path.display().to_string();
         let delete = if Path::new(&path).is_dir() {
@@ -611,7 +614,9 @@ pub mod win {
         } else {
             format!("del /f /q \"{path}\"")
         };
-        let script = format!("ping -n 4 127.0.0.1 > nul & {delete}");
+        let script = format!(
+            "for /l %i in (1,1,15) do (ping -n 3 127.0.0.1 > nul & {delete} 2> nul & if not exist \"{path}\" exit /b 0)"
+        );
         if let Err(err) = std::process::Command::new("cmd.exe")
             .arg("/c")
             .raw_arg(&script)
