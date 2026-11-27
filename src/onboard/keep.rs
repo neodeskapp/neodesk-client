@@ -287,6 +287,25 @@ pub fn deletes_handed_file(file: &str) -> bool {
             .map_or(false, |invite| invite.kind == Some(super::link::Kind::Support))
 }
 
+/// What Remove deletes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cleanup {
+    /// The downloaded file the process was started from.
+    pub started_file: bool,
+    /// The kept app: its registry entries and its folder.
+    pub kept: bool,
+}
+
+/// What Remove deletes in a process started from the file `started` that
+/// is the kept app when `kept_process`. A downloaded quick support app
+/// deletes its download only: a kept app from an earlier session stays.
+pub fn cleanup(kept_process: bool, started: Option<&str>) -> Cleanup {
+    Cleanup {
+        started_file: started.map_or(false, deletes_handed_file),
+        kept: kept_process,
+    }
+}
+
 /// The Windows side: the files, the registry and the handoff pipe.
 #[cfg(windows)]
 pub mod win {
@@ -652,6 +671,34 @@ mod tests {
     fn a_kept_app_goes_once_a_full_neodesk_is_installed() {
         assert!(stays(false));
         assert!(!stays(true));
+    }
+
+    #[test]
+    fn remove_in_a_downloaded_app_leaves_a_kept_app_alone() {
+        let download =
+            r"C:\Users\ana\Downloads\NeoDesk-QuickSupport-desk.example.com-ABCDEF23.exe";
+        let kept = exe(&local()).display().to_string();
+        assert_eq!(
+            cleanup(false, Some(download)),
+            Cleanup {
+                started_file: true,
+                kept: false
+            }
+        );
+        assert_eq!(
+            cleanup(true, Some(&kept)),
+            Cleanup {
+                started_file: false,
+                kept: true
+            }
+        );
+        assert_eq!(
+            cleanup(false, None),
+            Cleanup {
+                started_file: false,
+                kept: false
+            }
+        );
     }
 
     #[test]

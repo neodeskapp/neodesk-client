@@ -518,16 +518,17 @@ pub fn keep_quick_support() -> bool {
     false
 }
 
-/// Remove: deletes the downloaded file, and the kept app with its entries.
-/// The app quits after it.
+/// Remove: deletes the downloaded file, and in the kept app the kept app
+/// with its entries. The app quits after it.
 pub fn remove_quick_support() {
     #[cfg(windows)]
     {
         let started = STARTED_FILE.lock().unwrap().clone();
-        if let Some(file) = started.filter(|file| keep::deletes_handed_file(file)) {
+        let cleanup = keep::cleanup(is_kept(), started.as_deref());
+        if let Some(file) = started.filter(|_| cleanup.started_file) {
             keep::win::delete_file(std::path::Path::new(&file));
         }
-        if is_kept() || keep::win::is_kept() {
+        if cleanup.kept {
             keep::win::remove_kept();
         }
     }
