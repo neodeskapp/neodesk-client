@@ -1104,6 +1104,14 @@ fn execute_command(command: &str, args: &Value) -> Value {
         "files.read" => read_file(args),
         "service.control" => service_control(args),
         "process.terminate" => terminate_process(args),
+        // Fleet tasks run on desktop computers only (fleet/mod.rs)
+        "fleet.run" | "fleet.resources" | "fleet.compliance" => {
+            let mut result = json!({"status": "unsupported", "code": "platform_not_supported"});
+            if command == "fleet.run" {
+                result["run_id"] = args.get("run_id").cloned().unwrap_or(Value::Null);
+            }
+            result
+        }
         _ => json!({"status": "unsupported", "code": "command_not_supported", "data": {}}),
     }
 }
@@ -1115,6 +1123,20 @@ pub fn process_commands(commands: &[Value]) -> Vec<Value> {
             Some(id) if id > 0 => id,
             _ => continue,
         };
+        let command_name = command.get("command").and_then(Value::as_str).unwrap_or("");
+        // Fleet commands keep their own record of what ran, so a command the
+        // server sends again while it runs, or after its result got lost, is
+        // answered without running twice
+        #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+        if crate::fleet::is_fleet_command(command_name) {
+            let args = command.get("args").cloned().unwrap_or_else(|| json!({}));
+            if let Some(result) =
+                crate::fleet::accept(id, command_name, &args, config::is_incoming_only())
+            {
+                results.push(result);
+            }
+            continue;
+        }
         {
             let mut seen = match SEEN_COMMANDS.lock() {
                 Ok(seen) => seen,
@@ -1130,7 +1152,6 @@ pub fn process_commands(commands: &[Value]) -> Vec<Value> {
             }
         }
 
-        let command_name = command.get("command").and_then(Value::as_str).unwrap_or("");
         let args = command.get("args").cloned().unwrap_or_else(|| json!({}));
         let result = if config::is_incoming_only() && command_name != "collect.metrics" {
             json!({"status": "permission_denied", "code": "support_agent_restricted", "data": {}})
@@ -1350,6 +1371,27 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0]["status"], "ok");
         assert_eq!(results[0]["result"]["snapshot"]["kind"], "metrics");
+    }
+
+    /// A fleet command the server sends again is answered again: the
+    /// server keeps it open until a final result arrives, and the one sent
+    /// before may have been lost. The dedupe set of the other commands
+    /// would swallow it.
+    #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn a_fleet_command_sent_again_is_answered_again() {
+        let command = json!({
+            "id": 900_101,
+            "command": "fleet.run",
+            "args": {"run_id": 7, "type": "teleport"},
+        });
+        for _ in 0..2 {
+            let results = process_commands(&[command.clone()]);
+            assert_eq!(results.len(), 1);
+            assert_eq!(results[0]["id"], 900_101);
+            assert_eq!(results[0]["status"], "unsupported");
+            assert_eq!(results[0]["result"]["run_id"], 7);
+        }
     }
 
     /// L500: a process that does not run the server (the window) never
