@@ -241,6 +241,10 @@ class CmPermissionList extends StatelessWidget {
 /// to the switches and the buttons. The title is not a button: Enter there
 /// does nothing, so typing that was meant for another window cannot allow a
 /// connection.
+///
+/// The title draws its focus ring only when the user moved focus there, or
+/// when the system asks for visible focus (a screen reader or high contrast
+/// is on). Focus given on arrival alone shows no ring.
 class CmRequestBody extends StatefulWidget {
   const CmRequestBody({
     super.key,
@@ -265,12 +269,18 @@ class _CmRequestBodyState extends State<CmRequestBody> {
   final _titleFocus = FocusNode(debugLabel: 'connection request');
   bool _focused = false;
 
+  /// True while the title holds the focus it was given on arrival.
+  bool _arrivalFocus = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (widget.focusOnArrival) _titleFocus.requestFocus();
+      if (widget.focusOnArrival) {
+        _arrivalFocus = true;
+        _titleFocus.requestFocus();
+      }
       ndAnnounce(context, tr('nd-cm-request-title', [widget.name]),
           assertive: true);
     });
@@ -287,6 +297,10 @@ class _CmRequestBodyState extends State<CmRequestBody> {
     final t = context.ndText;
     final name = widget.name;
     final title = Text(tr('nd-cm-request-title', [name]), style: t.titleMd);
+    final systemWantsRing = (MediaQuery.maybeAccessibleNavigationOf(context) ??
+            false) ||
+        (MediaQuery.maybeHighContrastOf(context) ?? false);
+    final showRing = _focused && (!_arrivalFocus || systemWantsRing);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -294,10 +308,13 @@ class _CmRequestBodyState extends State<CmRequestBody> {
         const SizedBox(height: 16),
         Focus(
           focusNode: _titleFocus,
-          onFocusChange: (f) => setState(() => _focused = f),
+          onFocusChange: (f) => setState(() {
+            _focused = f;
+            if (!f) _arrivalFocus = false;
+          }),
           child: Semantics(
             header: true,
-            child: _focused ? NdFocusRing(child: title) : title,
+            child: showRing ? NdFocusRing(child: title) : title,
           ),
         ),
         const SizedBox(height: 6),

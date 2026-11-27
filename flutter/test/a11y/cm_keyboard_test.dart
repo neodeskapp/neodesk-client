@@ -124,11 +124,46 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('the focused title shows a focus ring', (tester) async {
+  testWidgets('the title shows no focus ring when the request arrives',
+      (tester) async {
     await pumpScreen(
         tester, _page(block: false),
         size: const Size(380, 600));
     await tester.pump();
+    expect(focusedName(), 'Mara Jensen wants to connect to this computer');
+    expect(find.byType(NdFocusRing), findsNothing);
+  });
+
+  for (final (what, data) in [
+    ('a screen reader', const MediaQueryData(accessibleNavigation: true)),
+    ('high contrast', const MediaQueryData(highContrast: true)),
+  ]) {
+    testWidgets('with $what on, the title shows its focus ring on arrival',
+        (tester) async {
+      await pumpScreen(
+          tester,
+          Builder(
+              builder: (context) => MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                        accessibleNavigation: data.accessibleNavigation,
+                        highContrast: data.highContrast),
+                    child: _page(block: false),
+                  )),
+          size: const Size(380, 600));
+      await tester.pump();
+      expect(find.byType(NdFocusRing), findsOneWidget);
+    });
+  }
+
+  testWidgets('the title shows its focus ring when Tab brings focus back',
+      (tester) async {
+    await pumpScreen(
+        tester, _page(block: false),
+        size: const Size(380, 600));
+    await tester.pump();
+    await tabOrder(tester, max: 1);
+    await tabOrder(tester, max: 1, backwards: true);
+    expect(focusedName(), 'Mara Jensen wants to connect to this computer');
     expect(find.byType(NdFocusRing), findsOneWidget);
   });
 
