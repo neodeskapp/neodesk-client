@@ -391,6 +391,19 @@ pub fn give_way(kept_process: bool, in_session: bool) -> GiveWay {
     }
 }
 
+/// What a quick support app started with a link, which no running one took
+/// over, does about a kept app: nothing without a full NeoDesk or without a
+/// kept app on the computer. Otherwise the kept app goes as it does once a
+/// full NeoDesk is installed, with the session of this link still to come,
+/// so a kept app opened through its neodesk:// under HKCU still serves it.
+pub fn on_link_start(
+    full_client_installed: bool,
+    kept_on_disk: bool,
+    kept_process: bool,
+) -> Option<GiveWay> {
+    (full_client_installed && kept_on_disk).then(|| give_way(kept_process, true))
+}
+
 /// The Windows side: the files, the registry and the handoff pipe.
 #[cfg(windows)]
 pub mod win {
@@ -830,6 +843,19 @@ mod tests {
         // Not the Remove of Apps & installed apps, which ends the session
         assert_eq!(Handoff::decode(&Handoff::GiveWay.encode()), Some(Handoff::GiveWay));
         assert_ne!(Handoff::GiveWay.encode(), Handoff::Remove.encode());
+    }
+
+    #[test]
+    fn a_link_start_cleans_up_a_kept_app_once_a_full_neodesk_is_there() {
+        // The kept app opened by its own neodesk:// serves the link, then goes
+        assert_eq!(
+            on_link_start(true, true, true),
+            Some(GiveWay::EntriesNowFilesAfterSession)
+        );
+        // A download removes a kept app that doesn't run
+        assert_eq!(on_link_start(true, true, false), Some(GiveWay::RemoveKept));
+        assert_eq!(on_link_start(false, true, true), None);
+        assert_eq!(on_link_start(true, false, false), None);
     }
 
     #[test]

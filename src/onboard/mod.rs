@@ -574,7 +574,12 @@ pub fn give_way_to_full_client() {
 #[cfg(windows)]
 fn give_way() {
     let in_session = SUPPORT.lock().unwrap().is_some();
-    match keep::give_way(is_kept(), in_session) {
+    give_way_with(keep::give_way(is_kept(), in_session));
+}
+
+#[cfg(windows)]
+fn give_way_with(step: keep::GiveWay) {
+    match step {
         keep::GiveWay::RemoveAndQuit => {
             log::info!("NeoDesk is installed, the kept quick support app goes");
             quit(true);
@@ -1347,6 +1352,13 @@ fn single_quick_support(args: &[String]) -> Option<Option<CoreMainAction>> {
             Some(Some(CoreMainAction::StartUi(Vec::new())))
         }
         keep::Launch::Link(_) => {
+            // After a full NeoDesk was installed for the whole computer (an
+            // MSI), links open the kept app through its neodesk:// under
+            // HKCU until this person starts NeoDesk
+            let full = keep::win::full_client_installed(&full_app_name());
+            if let Some(step) = keep::on_link_start(full, keep::win::is_kept(), is_kept()) {
+                give_way_with(step);
+            }
             listen_for_handoffs();
             if is_kept() {
                 start_tray();
