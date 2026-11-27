@@ -63,6 +63,71 @@ class OnboardingChatMessage {
   final DateTime time;
 }
 
+/// The kinds of feedback question the console can ask.
+enum FeedbackKind { rating, text, choice, yesno }
+
+/// One question of the console's feedback form after quick support.
+@immutable
+class FeedbackQuestion {
+  const FeedbackQuestion({
+    required this.id,
+    required this.kind,
+    required this.label,
+    this.required = false,
+    this.long = false,
+    this.options = const [],
+  });
+
+  final String id;
+  final FeedbackKind kind;
+  final String label;
+  final bool required;
+
+  /// A text question with a field of several lines.
+  final bool long;
+
+  /// The options of a choice.
+  final List<String> options;
+
+  /// Whether [value] answers this question.
+  bool answeredBy(Object? value) => switch (kind) {
+        FeedbackKind.rating => value is int && value >= 1 && value <= 5,
+        FeedbackKind.text => value is String && value.trim().isNotEmpty,
+        FeedbackKind.choice => value is String && options.contains(value),
+        FeedbackKind.yesno => value is bool,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is FeedbackQuestion &&
+      other.id == id &&
+      other.kind == kind &&
+      other.label == label &&
+      other.required == required &&
+      other.long == long &&
+      listEquals(other.options, options);
+
+  @override
+  int get hashCode =>
+      Object.hash(id, kind, label, required, long, Object.hashAll(options));
+}
+
+/// Where the person's feedback stands.
+enum FeedbackState { none, sending, sent, failed }
+
+/// Whether [answers] (by question id) answer every required one of
+/// [questions] and at least one of them: Send may go.
+bool feedbackComplete(
+    List<FeedbackQuestion> questions, Map<String, Object> answers) {
+  var any = false;
+  for (final q in questions) {
+    final ok = q.answeredBy(answers[q.id]);
+    if (q.required && !ok) return false;
+    any |= ok;
+  }
+  return any;
+}
+
 /// What the person allows on the quick support consent screen besides the
 /// screen, the mouse and the keyboard. Both stay off until ticked.
 @immutable
@@ -156,6 +221,10 @@ class OnboardingState {
     this.files = const [],
     this.filesOpen = false,
     this.asking,
+    this.sessionStarted,
+    this.sessionEnded,
+    this.feedback = const [],
+    this.feedbackState = FeedbackState.none,
   });
 
   final OnboardingPhase phase;
@@ -216,6 +285,22 @@ class OnboardingState {
   /// manager: the name it gave (supportWaiting).
   final String? asking;
 
+  /// When the supporter's session began, and when quick support ended
+  /// after it (supportEnded).
+  final DateTime? sessionStarted;
+  final DateTime? sessionEnded;
+
+  /// The console's feedback questions for the end screen; empty when it
+  /// asks none.
+  final List<FeedbackQuestion> feedback;
+  final FeedbackState feedbackState;
+
+  /// How long the session took, once it ended.
+  Duration? get sessionLength =>
+      sessionStarted == null || sessionEnded == null
+          ? null
+          : sessionEnded!.difference(sessionStarted!);
+
   OnboardingState copyWith({
     OnboardingPhase? phase,
     String? server,
@@ -239,6 +324,10 @@ class OnboardingState {
     List<OnboardingFileLine>? files,
     bool? filesOpen,
     String? asking,
+    DateTime? sessionStarted,
+    DateTime? sessionEnded,
+    List<FeedbackQuestion>? feedback,
+    FeedbackState? feedbackState,
   }) =>
       OnboardingState(
         phase: phase ?? this.phase,
@@ -262,6 +351,10 @@ class OnboardingState {
         files: files ?? this.files,
         filesOpen: filesOpen ?? this.filesOpen,
         asking: asking ?? this.asking,
+        sessionStarted: sessionStarted ?? this.sessionStarted,
+        sessionEnded: sessionEnded ?? this.sessionEnded,
+        feedback: feedback ?? this.feedback,
+        feedbackState: feedbackState ?? this.feedbackState,
       );
 
   /// The supporter's first name for the short lines; the full name when the
@@ -300,6 +393,10 @@ abstract class OnboardingService {
 
   /// Sends a chat line to the supporter during quick support.
   Future<void> sendChat(String text) async {}
+
+  /// Sends the person's feedback after quick support: answers by question
+  /// id (stars as int, text, the chosen option, yes or no as bool).
+  Future<void> sendFeedback(Map<String, Object> answers) async {}
 
   /// Done on the joined screen: the app goes to Home.
   void dismissJoined() {}
@@ -502,6 +599,12 @@ class FakeOnboardingService extends OnboardingService {
       OnboardingChatMessage(
           fromSupporter: false, text: text, time: DateTime.now()),
     ]));
+  }
+
+  @override
+  Future<void> sendFeedback(Map<String, Object> answers) async {
+    calls.add('sendFeedback:${jsonEncode(answers)}');
+    emit(_state.copyWith(feedbackState: FeedbackState.sent));
   }
 
   @override

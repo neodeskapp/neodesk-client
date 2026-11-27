@@ -470,7 +470,7 @@ pub struct Connection {
     // Quick support (A271): the helper the server vouched for as this
     // connection's caller, and whether the server was asked
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
-    nd_caller: Option<String>,
+    nd_caller: Option<crate::onboard::Helper>,
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     nd_caller_asked: bool,
 }
@@ -2409,12 +2409,17 @@ impl Connection {
         // The connection manager names the caller only when the server
         // vouched for it, with the server's name for the helper (A271)
         #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
-        let (name, vouched) = match &self.nd_caller {
-            Some(helper) => (helper.clone(), true),
-            None => (name, false),
+        // and its picture from the console, not the one the caller sent
+        let (name, vouched, avatar) = match &self.nd_caller {
+            Some(helper) => (
+                helper.name.clone(),
+                true,
+                helper.avatar.clone().unwrap_or_default(),
+            ),
+            None => (name, false, self.lr.avatar.clone()),
         };
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-        let vouched = false;
+        let (vouched, avatar) = (false, self.lr.avatar.clone());
         // The quick support window says a request waits for the person
         // (L553), by name only for a caller the server vouched for
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -2429,7 +2434,7 @@ impl Connection {
             port_forward: self.port_forward_address.clone(),
             peer_id,
             name,
-            avatar: self.lr.avatar.clone(),
+            avatar,
             authorized,
             keyboard: self.keyboard,
             clipboard: self.clipboard,

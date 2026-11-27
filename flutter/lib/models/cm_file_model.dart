@@ -139,10 +139,7 @@ class CmFileModel {
         ..fileName = data.path
         ..action = CmFileAction.remove
         ..state = JobState.done);
-      final currentSelectedTab =
-          gFFI.serverModel.tabController.state.value.selectedTabInfo;
-      if (!(gFFI.chatModel.isShowCMSidePage &&
-          currentSelectedTab.key == data.connId.toString())) {
+      if (!isDesktop) {
         // Wrong number if unreadCount changes during deletion, which rarely happens
         RxInt? rx = client?.unreadChatMessageCount;
         if (rx != null) {
@@ -201,15 +198,13 @@ class CmFileModel {
     }
   }
 
+  /// Counts a file event as unread. On desktop the count is the Chat tab's,
+  /// so file events are not counted there: the Files tab lists them.
   _addUnread(int connId) {
+    if (isDesktop) return;
     Client? client =
         gFFI.serverModel.clients.firstWhereOrNull((e) => e.id == connId);
-    final currentSelectedTab =
-        gFFI.serverModel.tabController.state.value.selectedTabInfo;
-    if (!(gFFI.chatModel.isShowCMSidePage &&
-        currentSelectedTab.key == connId.toString())) {
-      client?.unreadChatMessageCount.value += 1;
-    }
+    client?.unreadChatMessageCount.value += 1;
   }
 }
 

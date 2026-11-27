@@ -360,7 +360,6 @@ extension StringExtension on String {
 }
 
 const Size kConnectionManagerWindowSizeClosedChat = Size(380, 600);
-const Size kConnectionManagerWindowSizeOpenChat = Size(780, 600);
 // Tabbar transition duration, now we remove the duration
 const Duration kTabTransitionDuration = Duration.zero;
 const double kEmptyMarginTop = 50;

@@ -29,7 +29,9 @@ abstract class OnboardingNative {
   /// errorText, errorReason, joinStep, deviceId, deviceName, folderId, link,
   /// fileName, messages (fromSupporter, text, time in ms), files
   /// (toThisComputer, path, name, count, size, time), inputActive,
-  /// filesOpen, quickSupport, hasServer.
+  /// filesOpen, quickSupport, hasServer, sessionStarted and sessionEnded
+  /// (ms), feedback (id, kind, label, required, long, options),
+  /// feedbackState.
   String state();
 
   bool isQuickSupport();
@@ -39,6 +41,9 @@ abstract class OnboardingNative {
   void dismissFailedJoin();
   void endSupport();
   void sendChat(String text);
+
+  /// The feedback answers as a JSON object by question id.
+  void sendFeedback(String answers);
 }
 
 const _activePhases = {
@@ -97,6 +102,46 @@ List<OnboardingFileLine> _filesOf(Object? value) {
         ),
   ];
 }
+
+DateTime? _timeOf(Object? value) =>
+    value is int && value > 0 ? DateTime.fromMillisecondsSinceEpoch(value) : null;
+
+List<FeedbackQuestion> _feedbackOf(Object? value) {
+  if (value is! List) return const [];
+  FeedbackKind? kindOf(Object? name) {
+    for (final kind in FeedbackKind.values) {
+      if (kind.name == name) return kind;
+    }
+    return null;
+  }
+
+  return [
+    for (final q in value)
+      if (q is Map &&
+          q['id'] is String &&
+          q['label'] is String &&
+          kindOf(q['kind']) != null)
+        FeedbackQuestion(
+          id: q['id'] as String,
+          kind: kindOf(q['kind'])!,
+          label: q['label'] as String,
+          required: q['required'] == true,
+          long: q['long'] == true,
+          options: [
+            if (q['options'] is List)
+              for (final o in q['options'] as List)
+                if (o is String) o,
+          ],
+        ),
+  ];
+}
+
+FeedbackState _feedbackStateOf(Object? value) => switch (value) {
+      'sending' => FeedbackState.sending,
+      'sent' => FeedbackState.sent,
+      'failed' => FeedbackState.failed,
+      _ => FeedbackState.none,
+    };
 
 bool _sameMessages(
     List<OnboardingChatMessage> a, List<OnboardingChatMessage> b) {
@@ -160,6 +205,10 @@ OnboardingState parseOnboardingState(String json) {
     files: _filesOf(map['files']),
     filesOpen: map['filesOpen'] == true,
     asking: _text(map['asking']),
+    sessionStarted: _timeOf(map['sessionStarted']),
+    sessionEnded: _timeOf(map['sessionEnded']),
+    feedback: _feedbackOf(map['feedback']),
+    feedbackState: _feedbackStateOf(map['feedbackState']),
   );
 }
 
@@ -180,6 +229,10 @@ bool _sameState(OnboardingState a, OnboardingState b) =>
     a.declined == b.declined &&
     a.filesOpen == b.filesOpen &&
     a.asking == b.asking &&
+    a.sessionStarted == b.sessionStarted &&
+    a.sessionEnded == b.sessionEnded &&
+    a.feedbackState == b.feedbackState &&
+    listEquals(a.feedback, b.feedback) &&
     listEquals(a.files, b.files) &&
     _sameMessages(a.messages, b.messages);
 
@@ -271,6 +324,13 @@ class FfiOnboardingService extends OnboardingService {
   Future<void> sendChat(String text) async {
     if (text.trim().isEmpty) return;
     _native.sendChat(text);
+    _called();
+  }
+
+  @override
+  Future<void> sendFeedback(Map<String, Object> answers) async {
+    if (answers.isEmpty) return;
+    _native.sendFeedback(jsonEncode(answers));
     _called();
   }
 

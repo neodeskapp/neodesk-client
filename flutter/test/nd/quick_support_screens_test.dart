@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/onboarding/onboarding_service.dart';
 import 'package:flutter_hbb/onboarding/quick_support_view.dart';
+import 'package:flutter_hbb/onboarding/session_feedback.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fixtures.dart';
@@ -28,10 +29,13 @@ Widget _window(Widget child) => NdWindowFrame(
       child: child,
     );
 
-Widget _qs(OnboardingState s, {List<String>? calls}) => _window(
+Widget _qs(OnboardingState s,
+        {List<String>? calls, List<Map<String, Object>>? sent}) =>
+    _window(
       QuickSupportView(
         state: s,
         logo: fernLogo(),
+        onFeedback: (answers) => sent?.add(answers),
         onAllow: (grants) => calls?.add(
             ['allow', ...grants.names].join(' ')),
         onDecline: () => calls?.add('decline'),
@@ -53,6 +57,46 @@ Widget _desktop(Widget child) => Builder(
       ),
     );
 
+/// A session of 14 minutes with two files and three chat lines, then the
+/// console's feedback form.
+final _ended = _base.copyWith(
+  phase: OnboardingPhase.supportEnded,
+  sessionStarted: DateTime(2026, 11, 27, 10, 0),
+  sessionEnded: DateTime(2026, 11, 27, 10, 14),
+  files: [
+    OnboardingFileLine(
+        toThisComputer: true,
+        path: r'C:\Users\jo\Downloads\printer-driver.zip',
+        name: 'printer-driver.zip',
+        time: DateTime(2026, 11, 27, 10, 4)),
+    OnboardingFileLine(
+        toThisComputer: false,
+        path: r'C:\Users\jo\Desktop\error.log',
+        name: 'error.log',
+        time: DateTime(2026, 11, 27, 10, 6)),
+  ],
+  messages: [
+    for (var i = 0; i < 3; i++)
+      OnboardingChatMessage(
+          fromSupporter: i.isEven,
+          text: 'line $i',
+          time: DateTime(2026, 11, 27, 10, i)),
+  ],
+);
+
+const _form = [
+  FeedbackQuestion(
+      id: 'q1',
+      kind: FeedbackKind.rating,
+      label: 'How happy are you with the help?',
+      required: true),
+  FeedbackQuestion(
+      id: 'q2',
+      kind: FeedbackKind.text,
+      label: 'Anything you want to tell us?',
+      long: true),
+];
+
 void main() {
   final states = {
     'connecting': _base.copyWith(phase: OnboardingPhase.supportConnecting),
@@ -60,6 +104,10 @@ void main() {
     'waiting': _base.copyWith(phase: OnboardingPhase.supportWaiting),
     'ended': _base.copyWith(phase: OnboardingPhase.supportEnded),
     'expired': _base.copyWith(phase: OnboardingPhase.supportExpired),
+    'ended-summary': _ended,
+    'ended-feedback': _ended.copyWith(feedback: _form),
+    'ended-feedback-sent':
+        _ended.copyWith(feedback: _form, feedbackState: FeedbackState.sent),
   };
   for (final e in states.entries) {
     forBothThemes('quick support ${e.key}', (tester, b) async {
@@ -295,5 +343,92 @@ void main() {
         size: _qsSize);
     expect(find.text('Mara Jensen wants to see your screen to help you'),
         findsOneWidget);
+  });
+
+  testWidgets('the end shows who helped, how long, and the files and messages',
+      (tester) async {
+    await pumpScreen(tester, _qs(_ended), size: _qsSize);
+    expect(find.text(tr('nd-qs-ended-title')), findsOneWidget);
+    expect(find.text(tr('nd-qs-summary-helper')), findsOneWidget);
+    expect(find.text('Mara Jensen'), findsOneWidget);
+    expect(find.text('14 min'), findsOneWidget);
+    expect(find.text(tr('nd-qs-summary-files')), findsOneWidget);
+    expect(find.text(tr('nd-qs-summary-messages')), findsOneWidget);
+    // No form from the console: Close only
+    expect(find.text(tr('nd-qs-feedback-send')), findsNothing);
+    expect(find.text('Close'), findsOneWidget);
+  });
+
+  testWidgets('a session without files or chat leaves those rows out',
+      (tester) async {
+    await pumpScreen(
+        tester,
+        _qs(_ended.copyWith(files: const [], messages: const [])),
+        size: _qsSize);
+    expect(find.text(tr('nd-qs-summary-length')), findsOneWidget);
+    expect(find.text(tr('nd-qs-summary-files')), findsNothing);
+    expect(find.text(tr('nd-qs-summary-messages')), findsNothing);
+  });
+
+  testWidgets('Send waits for the required stars and sends what was given',
+      (tester) async {
+    final sent = <Map<String, Object>>[];
+    await pumpScreen(tester, _qs(_ended.copyWith(feedback: _form), sent: sent),
+        size: _qsSize);
+    expect(find.text('How happy are you with the help?'), findsOneWidget);
+    final send = find.text(tr('nd-qs-feedback-send'));
+    expect(send, findsOneWidget);
+
+    // The comment alone is not enough: the stars are required
+    await tester.enterText(find.byType(TextField), 'Quick and friendly');
+    await tester.pump();
+    await tester.ensureVisible(send);
+    await tester.pumpAndSettle();
+    await tester.tap(send);
+    await tester.pump();
+    expect(sent, isEmpty);
+
+    final four = find.byTooltip(tr('nd-qs-stars', [4]));
+    await tester.ensureVisible(four);
+    await tester.pumpAndSettle();
+    await tester.tap(four);
+    await tester.pump();
+    await tester.ensureVisible(send);
+    await tester.pumpAndSettle();
+    await tester.tap(send);
+    await tester.pump();
+    expect(sent, [
+      {'q1': 4, 'q2': 'Quick and friendly'}
+    ]);
+  });
+
+  testWidgets('after Send the form gives way to thanks', (tester) async {
+    await pumpScreen(
+        tester,
+        _qs(_ended.copyWith(
+            feedback: _form, feedbackState: FeedbackState.sent)),
+        size: _qsSize);
+    expect(find.text(tr('nd-qs-feedback-thanks')), findsOneWidget);
+    expect(find.text('How happy are you with the help?'), findsNothing);
+    expect(find.text(tr('nd-qs-feedback-send')), findsNothing);
+  });
+
+  testWidgets('a failed Send says so and keeps the form', (tester) async {
+    await pumpScreen(
+        tester,
+        _qs(_ended.copyWith(
+            feedback: _form, feedbackState: FeedbackState.failed)),
+        size: _qsSize);
+    expect(find.text(tr('nd-qs-feedback-failed')), findsOneWidget);
+    expect(find.text('How happy are you with the help?'), findsOneWidget);
+  });
+
+  test('a session length reads as people say it', () {
+    useLanguage('en');
+    expect(sessionLengthText(const Duration(seconds: 40)), 'Under a minute');
+    expect(sessionLengthText(const Duration(minutes: 14, seconds: 50)),
+        '14 min');
+    expect(sessionLengthText(const Duration(hours: 1, minutes: 5)),
+        '1 h 5 min');
   });
 }

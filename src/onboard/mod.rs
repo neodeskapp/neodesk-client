@@ -21,11 +21,14 @@ mod caller;
 #[cfg_attr(not(windows), allow(dead_code))]
 mod cli_output;
 mod device_key;
+mod feedback;
 mod grants;
 mod http;
 mod join;
 mod link;
 mod support;
+
+pub use caller::Helper;
 
 use std::{
     sync::{
@@ -121,6 +124,15 @@ pub struct State {
     /// What the supporter sent to this computer or took from it in a quick
     /// support session, oldest first.
     pub files: Vec<FileLine>,
+    /// When the supporter's first session in this quick support began, and
+    /// when quick support ended after it. Milliseconds since 1970.
+    pub session_started: Option<i64>,
+    pub session_ended: Option<i64>,
+    /// The console's feedback questions for the end screen, empty when it
+    /// asks none (see [`feedback`]).
+    pub feedback: Vec<Value>,
+    /// "sending", "sent" or "failed" once the person sent their answers.
+    pub feedback_state: Option<String>,
 }
 
 /// A file transfer of a quick support session, as it started.
@@ -761,6 +773,10 @@ fn start_support(console: Console, code: String) {
     STATE.update(|s| {
         s.messages.clear();
         s.files.clear();
+        s.session_started = None;
+        s.session_ended = None;
+        s.feedback.clear();
+        s.feedback_state = None;
     });
     *GRANTS.lock().unwrap() = Grants::default();
     let (tx, rx) = mpsc::channel();
@@ -792,6 +808,50 @@ pub fn end_support() {
         }
         tx.send(support::Command::End).ok();
     }
+}
+
+/// Sends the person's feedback (`answers`: a JSON object of answers by
+/// question id) to the console of the session that ended. The end screen
+/// follows `feedbackState`; after "failed" it may send again.
+pub fn send_feedback(answers: String) {
+    let Some(channel) = feedback::current() else {
+        return;
+    };
+    if matches!(
+        STATE.get().feedback_state.as_deref(),
+        Some("sending") | Some("sent")
+    ) {
+        return;
+    }
+    let answers: Value = serde_json::from_str(&answers).unwrap_or(Value::Null);
+    let Some(body) = feedback::body(&channel.questions, &answers) else {
+        return;
+    };
+    STATE.update(|s| s.feedback_state = Some("sending".to_owned()));
+    std::thread::spawn(move || {
+        let sent = send_feedback_now(&channel, &body);
+        log::info!("Quick support feedback: {sent}");
+        STATE.update(|s| s.feedback_state = Some(sent.to_owned()));
+    });
+}
+
+/// Posts `body` to the console of `channel`: "sent" or "failed".
+fn send_feedback_now(channel: &feedback::Channel, body: &Value) -> &'static str {
+    let Ok(runtime) = hbb_common::tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        return "failed";
+    };
+    runtime.block_on(async {
+        let Ok(http) = http::Http::new(channel.console.clone()).await else {
+            return "failed";
+        };
+        match http.post(feedback::PATH, body, Some(&channel.token)).await {
+            Ok(answer) => feedback::sent_state(&answer),
+            Err(_) => "failed",
+        }
+    })
 }
 
 /// Keeps a chat line the supporter sent, for the quick support screen.
@@ -854,7 +914,7 @@ pub(crate) fn quick_support_options() -> [(&'static str, &'static str); 3] {
 /// The helper behind a connection that came through the relay session
 /// `relay_session` without a password, when the server vouches for it
 /// (A271); None for every other caller, and outside quick support.
-pub async fn vouched_caller(device_id: &str, relay_session: &str) -> Option<String> {
+pub async fn vouched_caller(device_id: &str, relay_session: &str) -> Option<Helper> {
     if !is_quick_support() {
         return None;
     }

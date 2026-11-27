@@ -9,7 +9,11 @@
 //! (`/password`, again only when the password changes) and polls
 //! `GET /api/support/session` so the session stays open. A 401 means the
 //! supporter ended it or it timed out. Stop and closing the app end it: the
-//! supporter is cut off first, then the console hears of it (`/end`).
+//! supporter is cut off first, then the console hears of it (`/end`). So
+//! does the end of the supporter's session on this computer (Stop session in
+//! the connection manager, or the supporter leaving): quick support is one
+//! session. After a session the app asks the console for its feedback
+//! questions ([`feedback`]) for the end screen.
 
 use std::{
     sync::mpsc::{Receiver, RecvTimeoutError, TryRecvError},
@@ -20,7 +24,7 @@ use hbb_common::{log, tokio};
 use serde_json::{json, Value};
 
 use super::{
-    caller,
+    caller, feedback,
     grants::Grants,
     http::{Answer, Http, OnboardError},
     join::{DeviceIdentity, ServerSettings},
@@ -223,6 +227,15 @@ impl<'a> Session<'a> {
         session_status(&answer)
     }
 
+    /// The console's feedback questions for this session; none when it asks
+    /// none or does not answer.
+    pub async fn feedback(&self) -> Vec<Value> {
+        match self.http.get(feedback::PATH, Some(&self.token)).await {
+            Ok(answer) => feedback::questions(&answer),
+            Err(_) => Vec::new(),
+        }
+    }
+
     pub async fn end(&self) -> Result<(), OnboardError> {
         let answer = self
             .http
@@ -298,6 +311,25 @@ pub fn run(
         });
         host.shut_down();
     };
+    // After a session took place: when it ended, and the console's feedback
+    // questions for the end screen.
+    let after_session = |session: &Session| {
+        let ended = hbb_common::get_time();
+        state.update(|s| s.session_ended = Some(ended));
+        if state.get().session_started.is_none() {
+            return;
+        }
+        let questions = runtime.block_on(session.feedback());
+        if questions.is_empty() {
+            return;
+        }
+        feedback::open(feedback::Channel {
+            console: console.clone(),
+            token: session.token.clone(),
+            questions: questions.clone(),
+        });
+        state.update(|s| s.feedback = questions);
+    };
 
     if let Err(err) = runtime.block_on(session.report_device(&host.device())) {
         if err == OnboardError::SessionEnded {
@@ -357,7 +389,7 @@ pub fn run(
     // From now on a connection without the password may ask the console
     // whether it is the helper; until this run returns
     host.caller_channel(Some(caller::Channel {
-        console,
+        console: console.clone(),
         token: session.token.clone(),
     }));
     let _closes = ClosesChannel(host);
@@ -374,23 +406,41 @@ pub fn run(
             stop(host, state);
             log::info!("Quick support ended here");
             runtime.block_on(session.end()).ok();
-            return;
+            return after_session(&session);
         }
         let password = host.password();
         if !password.is_empty() && password != handed_over && Instant::now() >= next_try {
             match runtime.block_on(session.hand_over(&password)) {
                 Ok(()) => handed_over = password,
-                Err(OnboardError::SessionEnded) => return end_here(None),
+                Err(OnboardError::SessionEnded) => {
+                    end_here(None);
+                    return after_session(&session);
+                }
                 Err(err) => {
                     log::warn!("Quick support password not handed over: {}", err.code());
                     next_try = Instant::now() + timing.poll;
                 }
             }
         }
-        let (phase, asking) = if host.in_session() {
-            (Phase::SupportInSession, None)
+        let in_session = host.in_session();
+        if in_session && state.get().session_started.is_none() {
+            let started = hbb_common::get_time();
+            state.update(|s| s.session_started = Some(started));
+        }
+        let asking = if in_session { None } else { host.asking() };
+        if !in_session && asking.is_none() && state.get().session_started.is_some() {
+            // The session ended on this computer (Stop session, or the
+            // supporter left): quick support ends with it, so the app shows
+            // the end instead of waiting again.
+            stop(host, state);
+            log::info!("Quick support ended with the session");
+            runtime.block_on(session.end()).ok();
+            return after_session(&session);
+        }
+        let phase = if in_session {
+            Phase::SupportInSession
         } else {
-            (Phase::SupportWaiting, host.asking())
+            Phase::SupportWaiting
         };
         state.update(|s| {
             s.phase = phase;
@@ -401,7 +451,7 @@ pub fn run(
                 stop(host, state);
                 log::info!("Quick support ended here");
                 runtime.block_on(session.end()).ok();
-                return;
+                return after_session(&session);
             }
             Ok(Command::Consent(..)) | Err(RecvTimeoutError::Timeout) => {}
         }
@@ -410,7 +460,8 @@ pub fn run(
                 Ok(_) => state.update(|s| s.clear_error()),
                 Err(OnboardError::SessionEnded) => {
                     log::info!("Quick support ended by the supporter or timed out");
-                    return end_here(None);
+                    end_here(None);
+                    return after_session(&session);
                 }
                 Err(err) => state.update(|s| s.fail(&err)),
             }

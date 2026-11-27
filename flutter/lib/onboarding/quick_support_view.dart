@@ -5,6 +5,7 @@ import 'package:flutter_hbb/common.dart' show translate;
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 import 'onboarding_service.dart';
+import 'session_feedback.dart';
 
 /// The quick support window (480 x 720): connecting, consent, waiting,
 /// ended, declined, expired and offline (DESIGN.md, Quick support app).
@@ -17,6 +18,7 @@ class QuickSupportView extends StatefulWidget {
     required this.onCancel,
     required this.onClose,
     required this.onRetry,
+    this.onFeedback,
     this.logo,
     this.waitedLong = false,
   });
@@ -33,6 +35,9 @@ class QuickSupportView extends StatefulWidget {
   /// Close after the end: quits the app.
   final VoidCallback onClose;
   final VoidCallback onRetry;
+
+  /// Send on the end screen, with the answers by question id.
+  final ValueChanged<Map<String, Object>>? onFeedback;
   final Widget? logo;
 
   /// Shows the "hasn't connected yet" line at once (screenshots).
@@ -49,6 +54,9 @@ class _QuickSupportViewState extends State<QuickSupportView> {
   /// The consent screen's choices; both start off.
   bool _clipboard = false;
   bool _files = false;
+
+  /// The end screen's feedback answers until Send.
+  Map<String, Object> _answers = const {};
 
   @override
   void initState() {
@@ -250,20 +258,68 @@ class _QuickSupportViewState extends State<QuickSupportView> {
               Text(tr('nd-qs-declined', [full]), style: lead),
             ]);
           } else {
+            final asks = s.feedback.isNotEmpty &&
+                s.feedbackState != FeedbackState.sent;
+            final sending = s.feedbackState == FeedbackState.sending;
             body.addAll([
               Text(tr('nd-qs-ended-title'), style: title),
               const SizedBox(height: 16),
               Text(tr('nd-qs-ended-lead', [short, companyOrServer]),
                   style: lead),
-              if ((s.fileName ?? '').isNotEmpty) ...[
+              if (s.sessionLength != null) ...[
                 const SizedBox(height: 20),
-                Text(tr('nd-qs-ended-hint'), style: t.body.copyWith(
-                    color: c.textMuted)),
+                SessionSummary(state: s),
+              ],
+              if (asks) ...[
+                const SizedBox(height: 32),
+                Text(tr('nd-qs-feedback-title'),
+                    style: t.heading.copyWith(fontSize: 17)),
+                const SizedBox(height: 16),
+                SessionFeedbackForm(
+                  questions: s.feedback,
+                  enabled: !sending,
+                  onChanged: (a) => setState(() => _answers = a),
+                ),
+                if (s.feedbackState == FeedbackState.failed) ...[
+                  const SizedBox(height: 16),
+                  NdNotice(
+                      text: tr('nd-qs-feedback-failed'), tone: NdTone.danger),
+                ],
+              ],
+              if (s.feedbackState == FeedbackState.sent) ...[
+                const SizedBox(height: 24),
+                Row(children: [
+                  Icon(NdIcons.checkCircle, size: 20, color: c.success),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: Text(tr('nd-qs-feedback-thanks'), style: lead)),
+                ]),
+              ],
+              if ((s.fileName ?? '').isNotEmpty) ...[
+                const SizedBox(height: 28),
+                Text(tr('nd-qs-ended-hint'), style: t.small),
                 const SizedBox(height: 4),
                 SelectableText(s.fileName!, style: t.mono.copyWith(
-                    fontSize: 14, height: 20 / 14)),
+                    fontSize: 13, height: 18 / 13, color: c.textMuted)),
               ],
             ]);
+            if (asks) {
+              primary = NdButton.primary(
+                  label: tr('nd-qs-feedback-send'),
+                  size: NdButtonSize.lg,
+                  block: true,
+                  onPressed: !sending &&
+                          widget.onFeedback != null &&
+                          feedbackComplete(s.feedback, _answers)
+                      ? () => widget.onFeedback!(Map.of(_answers))
+                      : null);
+              secondary = NdButton(
+                  label: translate('Close'),
+                  size: NdButtonSize.lg,
+                  block: true,
+                  onPressed: widget.onClose);
+              break;
+            }
           }
           primary = NdButton.primary(
               label: translate('Close'),

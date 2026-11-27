@@ -32,6 +32,10 @@ class BindOnboardingNative implements OnboardingNative {
 
   @override
   void sendChat(String text) => bind.mainOnboardSendChat(text: text);
+
+  @override
+  void sendFeedback(String answers) =>
+      bind.mainOnboardSendFeedback(answers: answers);
 }
 
 /// The one onboarding service of the app. The link handler in common.dart

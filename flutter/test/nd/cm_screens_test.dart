@@ -275,24 +275,28 @@ void main() {
     await pumpScreen(
       tester,
       _cmWindow(
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                CmHeader(
-                    name: 'Mara Jensen',
-                    subtitle: cmConnectedFor(const Duration(minutes: 12))),
-                const SizedBox(height: 16),
-                CmTabs(value: CmTab.access, onChanged: (_) {}),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: CmPermissionList(items: _perms(all: true)),
-                  ),
-                ),
-              ]),
-        ),
+        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  CmHeader(
+                      name: 'Mara Jensen',
+                      subtitle: cmConnectedFor(const Duration(minutes: 12))),
+                  const SizedBox(height: 16),
+                  CmTabs(value: CmTab.access, onChanged: (_) {}),
+                ]),
+          ),
+          Expanded(
+            child: CmTabBody(
+              tab: CmTab.access,
+              access: _perms(all: true),
+              chat: (_) => const SizedBox(),
+              files: (_) => const SizedBox(),
+            ),
+          ),
+        ]),
         NdButton(
             label: tr('nd-cm-stop'),
             kind: NdButtonKind.danger,
@@ -337,5 +341,77 @@ void main() {
     expect(cmConnectedFor(const Duration(seconds: 70)), 'Connected for 1 min');
     expect(cmConnectedFor(const Duration(minutes: 80)),
         'Connected for 1 h 20 min');
+  });
+
+  // Files opened the chat before: every tab shows its own page, and the
+  // window keeps its size
+  testWidgets('each tab opens its own page in the same room', (tester) async {
+    var tab = CmTab.access;
+    await pumpScreen(
+      tester,
+      StatefulBuilder(
+        builder: (context, setState) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+          CmTabs(value: tab, onChanged: (t) => setState(() => tab = t)),
+          Expanded(
+            child: CmTabBody(
+              tab: tab,
+              access: _perms(),
+              chat: (_) => const Text('the chat'),
+              files: (_) => const Text('the files'),
+            ),
+          ),
+        ]),
+      ),
+      size: _cmSize,
+    );
+    expect(find.text(tr('nd-cm-perm-input')), findsOneWidget);
+    await tester.tap(find.text(tr('nd-cm-tab-files')));
+    await tester.pump();
+    expect(find.text('the files'), findsOneWidget);
+    expect(find.text('the chat'), findsNothing);
+    await tester.tap(find.text(translate('Chat')));
+    await tester.pump();
+    expect(find.text('the chat'), findsOneWidget);
+    expect(find.text('the files'), findsNothing);
+    expect(tester.getSize(find.byType(CmTabBody)).width, _cmSize.width);
+  });
+
+  // The switches scroll at the card's full width, so the scrollbar runs
+  // along the window's edge and not over them
+  testWidgets('the switches scroll at full width with their own padding',
+      (tester) async {
+    await pumpScreen(
+      tester,
+      CmTabBody(
+        tab: CmTab.access,
+        access: _perms(all: true),
+        chat: (_) => const SizedBox(),
+        files: (_) => const SizedBox(),
+      ),
+      size: const Size(380, 200),
+    );
+    final scroll = find.byType(SingleChildScrollView);
+    expect(tester.getSize(scroll).width, 380);
+    final lastSwitch = tester.getTopRight(find.byType(NdSwitch).first);
+    expect(lastSwitch.dx, lessThanOrEqualTo(380 - 20));
+  });
+
+  test('a file transfer opens on Files and a camera has no Files', () {
+    expect(cmShownTab(CmTab.access, file: true), CmTab.files);
+    expect(cmShownTab(CmTab.chat, file: true), CmTab.chat);
+    expect(cmShownTab(CmTab.files, camera: true), CmTab.access);
+    expect(cmShownTab(CmTab.files), CmTab.files);
+  });
+
+  testWidgets('a file transfer has no Access tab', (tester) async {
+    await pumpScreen(
+      tester,
+      CmTabs(value: CmTab.files, showAccess: false, onChanged: (_) {}),
+      size: const Size(380, 60),
+    );
+    expect(find.text(tr('nd-cm-tab-access')), findsNothing);
+    expect(find.text(tr('nd-cm-tab-files')), findsOneWidget);
   });
 }
