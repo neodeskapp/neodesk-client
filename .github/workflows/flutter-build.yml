@@ -368,7 +368,11 @@ jobs:
           # older entry that has them.
           prefix-key: ${{ matrix.job.os }}${{ !matrix.job.rust-target-cache && '-registry' || '' }}
           cache-targets: ${{ matrix.job.rust-target-cache }}
-          cache-on-failure: true
+          # A target cache is saved only by a build that got through. A
+          # cancelled or failed run saved a nearly empty target/ before, and
+          # every later run with the same Cargo.lock restored that one entry
+          # and built all crates again.
+          cache-on-failure: ${{ !matrix.job.rust-target-cache }}
 
       - name: Restore vcpkg binary cache
         id: vcpkg-cache
@@ -765,7 +769,11 @@ jobs:
           # older entry that has them.
           prefix-key: ${{ matrix.job.os }}${{ !matrix.job.rust-target-cache && '-registry' || '' }}
           cache-targets: ${{ matrix.job.rust-target-cache }}
-          cache-on-failure: true
+          # A target cache is saved only by a build that got through. A
+          # cancelled or failed run saved a nearly empty target/ before, and
+          # every later run with the same Cargo.lock restored that one entry
+          # and built all crates again.
+          cache-on-failure: ${{ !matrix.job.rust-target-cache }}
 
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -963,7 +971,8 @@ jobs:
         with:
           prefix-key: linux-${{ matrix.job.target }}
           cache-targets: true
-          cache-on-failure: true
+          # Saved only by a build that got through, as on Windows and macOS
+          cache-on-failure: false
 
       - name: Disable rust bridge build
         run: |
