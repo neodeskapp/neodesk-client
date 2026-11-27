@@ -333,16 +333,16 @@ class _DesktopHomePageState extends State<DesktopHomePage>
             tone: NdTone.info,
             help: tr('nd-help'),
             link: ndDocsUrl(kNdLinuxLoginScreenDocs)));
-      } else {
-        // Empty where the login screen can be reached (an installed package with DRM capture, or
-        // an X11 login screen); otherwise what to do about it.
-        final loginNotice = bind.mainGetCommonSync(key: 'login-screen-notice');
-        if (loginNotice.isNotEmpty) {
-          cards.add(notice(tr(loginNotice),
-              tone: NdTone.info,
-              help: tr('nd-help'),
-              link: ndDocsUrl(kNdLinuxLoginScreenDocs)));
-        }
+      }
+      // Empty where the login screen can be reached (an installed package with DRM capture, or
+      // an X11 login screen); otherwise what to do about it. Also in a Wayland session, which
+      // usually comes with a Wayland login screen.
+      final loginNotice = bind.mainGetCommonSync(key: 'login-screen-notice');
+      if (loginNotice.isNotEmpty) {
+        cards.add(notice(tr(loginNotice),
+            tone: NdTone.info,
+            help: tr('nd-help'),
+            link: ndDocsUrl(kNdLinuxLoginScreenDocs)));
       }
       return cards;
     }
