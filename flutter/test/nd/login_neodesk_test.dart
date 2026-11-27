@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart' show translate;
 import 'package:flutter_hbb/common/widgets/login.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 
@@ -75,6 +76,10 @@ void main() {
       expect(translate('nd-sign-in-with-neodesk'), 'Mit NeoDesk anmelden');
       expect(translate('Sign-in was declined in the browser'),
           isNot('Sign-in was declined in the browser'));
+      expect(
+          translate(
+              'This sign-in request has expired. Start the sign-in again.'),
+          isNot('This sign-in request has expired. Start the sign-in again.'));
     });
   });
 
@@ -135,11 +140,15 @@ void main() {
                 of: button,
                 matching: find.text(translate('nd-sign-in-with-neodesk'))),
             findsOneWidget);
-        expect(
-            find.descendant(
-                of: button,
-                matching: find.byKey(const ValueKey('nd-neodesk-mark'))),
-            findsOneWidget);
+        // The app icon (the mark on its dark tile), so the mark stays
+        // visible on the light-blue accent of the dark theme.
+        final mark = find.descendant(
+            of: button,
+            matching: find.byKey(const ValueKey('nd-neodesk-mark')));
+        expect(mark, findsOneWidget);
+        final loader = tester.widget<SvgPicture>(mark).bytesLoader;
+        expect(loader, isA<SvgAssetLoader>());
+        expect((loader as SvgAssetLoader).assetName, 'assets/nd-app-icon.svg');
         final or = find.byKey(const ValueKey('nd-sign-in-or'));
         final username = find.widgetWithText(NdField, translate('Username'));
         expect(or, findsOneWidget);

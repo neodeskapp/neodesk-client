@@ -193,9 +193,10 @@ String oidcStateMessageKey(String op, String stateMsg) {
 }
 
 /// "Sign in with NeoDesk": the full-width primary button of the sign-in
-/// through the web console, with the NeoDesk mark. The mark keeps its
-/// brand colours: the ones for dark backgrounds on a dark fill, the ones
-/// for light backgrounds on a light fill.
+/// through the web console, with the NeoDesk app icon (the mark on its dark
+/// tile, lead/brand/app-icon.svg unchanged). The tile keeps the mark
+/// visible on every accent, also the light blue of the dark theme and a
+/// server's own accent.
 class NdNeoDeskSignInButton extends StatelessWidget {
   const NdNeoDeskSignInButton({super.key, required this.onPressed});
 
@@ -203,17 +204,15 @@ class NdNeoDeskSignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final darkFill = context.nd.onAccent.computeLuminance() > 0.5;
-    final logo = darkFill ? NdColors.dark : NdColors.light;
     return NdButton.primary(
       label: translate('nd-sign-in-with-neodesk'),
       onPressed: onPressed,
       block: true,
-      leading: CustomPaint(
+      leading: SvgPicture.asset(
+        'assets/nd-app-icon.svg',
         key: const ValueKey('nd-neodesk-mark'),
-        size: const Size.square(18),
-        painter:
-            NdMarkPainter(logo.logoSquare, logo.logoCircle, logo.logoOverlap),
+        width: 22,
+        height: 22,
       ),
     );
   }

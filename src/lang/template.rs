@@ -1346,6 +1346,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-sign-in-with-neodesk", ""),
         ("nd-sign-in-browser-waiting", ""),
         ("Sign-in was declined in the browser", ""),
+        ("This sign-in request has expired. Start the sign-in again.", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }
