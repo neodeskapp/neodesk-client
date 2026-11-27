@@ -22,6 +22,10 @@ const TIME_TELEMETRY: Duration = Duration::from_secs(60);
 const TELEMETRY_JITTER_SECS: u64 = 30;
 const UPLOAD_SYSINFO_TIMEOUT: Duration = Duration::from_secs(120);
 const TIME_CONN: Duration = Duration::from_secs(3);
+/// Bytes of finished fleet results one heartbeat carries. The server takes
+/// 512 KiB of telemetry and 256 KiB per result.
+#[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+const FLEET_RESULTS_BUDGET: usize = 300 * 1024;
 
 fn telemetry_interval(device_id: &str) -> Duration {
     let jitter = device_id.bytes().fold(0_u64, |value, byte| {
@@ -257,6 +261,15 @@ async fn start_hbbs_sync_async() {
                         }
                     }
                 }
+                // Finished fleet tasks go out with this heartbeat, a few
+                // seconds after they end rather than at the next telemetry
+                // interval
+                #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+                let fleet_results = {
+                    let taken = crate::fleet::take_results(FLEET_RESULTS_BUDGET, true);
+                    telemetry_results.extend(taken.iter().cloned());
+                    taken
+                };
                 if conns.is_empty()
                     && telemetry_results.is_empty()
                     && last_sent.map(|x| x.elapsed() < TIME_HEARTBEAT).unwrap_or(false)
@@ -330,7 +343,15 @@ async fn start_hbbs_sync_async() {
                         "uuid": v["uuid"],
                     });
                 }
-                if let Ok(s) = crate::post_request(url.clone(), request.to_string(), "").await {
+                let response = crate::post_request(url.clone(), request.to_string(), "").await;
+                // Results that did not reach the server go again later
+                #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+                if response.is_err()
+                    || (request.get("neodesk_envelope").is_none() && request.get("telemetry").is_none())
+                {
+                    crate::fleet::requeue(fleet_results);
+                }
+                if let Ok(s) = response {
                     if let Some(answer) = read_heartbeat_answer(&s, telemetry::open_response) {
                         let HeartbeatAnswer { fields: mut rsp, mut sealed_only, sealed: secure_response } = answer;
                         crate::hbbs_http::neodesk::note_heartbeat_error(rsp.get("error").and_then(Value::as_str));
@@ -387,7 +408,7 @@ async fn start_hbbs_sync_async() {
                         }
                         if let Some(commands) = sealed_only.remove("telemetry_commands") {
                             if let Ok(commands) = serde_json::from_value::<Vec<Value>>(commands) {
-                                telemetry_results = telemetry::process_commands(&commands);
+                                telemetry_results.extend(telemetry::process_commands(&commands));
                             }
                         }
                     }
