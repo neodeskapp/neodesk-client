@@ -181,14 +181,17 @@ The release builds for every system come from
 
 Please report a security problem privately, not on Discord or in the
 Discussions: use [Report a vulnerability](https://github.com/neodeskapp/neodesk-client/security/advisories/new)
-on the Security tab, or email security@neode.sk. [SECURITY.md](SECURITY.md)
+on the Security tab, or email security@neode.sk. The
+[security policy](https://github.com/neodeskapp/.github/blob/main/SECURITY.md)
 says what to include and what happens next.
 
 ## Contributing
 
 Changes come in as pull requests against `main`.
-[CONTRIBUTING.md](CONTRIBUTING.md) has the checks to run and how commit
-messages look, and the [code of conduct](CODE_OF_CONDUCT.md) applies.
+The [contributing guide](https://github.com/neodeskapp/.github/blob/main/CONTRIBUTING.md)
+has the build steps, the checks to run and how commit messages look, and
+the [code of conduct](https://github.com/neodeskapp/.github/blob/main/CODE_OF_CONDUCT.md)
+applies.
 
 ## Attribution and license
 
