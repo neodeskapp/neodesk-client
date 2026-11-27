@@ -124,6 +124,21 @@ pub struct Server {
 pub type ServerPtr = Arc<RwLock<Server>>;
 pub type ServerPtrWeak = Weak<RwLock<Server>>;
 
+/// This `--server` serves a Wayland login screen over DRM. There is no X server to reach, so the
+/// file clipboard, which needs one, fails and restarts about every second for the whole session.
+#[cfg(feature = "unix-file-copy-paste")]
+fn serves_wayland_login_screen() -> bool {
+    #[cfg(all(target_os = "linux", feature = "drm"))]
+    {
+        crate::platform::linux::drm_capture_enabled()
+            && crate::platform::linux::is_login_screen_wayland_cached()
+    }
+    #[cfg(not(all(target_os = "linux", feature = "drm")))]
+    {
+        false
+    }
+}
+
 pub fn new() -> ServerPtr {
     let mut server = Server {
         connections: HashMap::new(),
@@ -138,9 +153,11 @@ pub fn new() -> ServerPtr {
             clipboard_service::NAME.to_owned(),
         )));
         #[cfg(feature = "unix-file-copy-paste")]
-        server.add_service(Box::new(clipboard_service::new(
-            clipboard_service::FILE_NAME.to_owned(),
-        )));
+        if !serves_wayland_login_screen() {
+            server.add_service(Box::new(clipboard_service::new(
+                clipboard_service::FILE_NAME.to_owned(),
+            )));
+        }
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
