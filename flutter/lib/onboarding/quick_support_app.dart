@@ -7,6 +7,7 @@ import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd_dialog_host.dart';
 import 'package:flutter_hbb/common/widgets/branding_logo.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
+import 'package:flutter_hbb/native/window_frame.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'onboarding_service.dart';
@@ -79,9 +80,27 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
     }
     if (wantBar != _bar) {
       _bar = wantBar;
+      await _applyFrame();
       await _applyWindow();
     } else if (_bar) {
       await _applyWindow();
+    }
+  }
+
+  /// The bar window is transparent around the bar, so it has no frame,
+  /// shadow or Windows 11 outline; the 480 x 720 window gets them back.
+  Future<void> _applyFrame() async {
+    if (!Platform.isWindows) return;
+    try {
+      if (_bar) {
+        await windowManager.setAsFrameless();
+        await windowManager.setHasShadow(false);
+      } else {
+        await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+      }
+      setMainWindowPlain(_bar);
+    } catch (e) {
+      debugPrint('quick support frame: $e');
     }
   }
 
