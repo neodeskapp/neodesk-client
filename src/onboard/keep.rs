@@ -265,6 +265,9 @@ impl Handoff {
         .to_string()
     }
 
+    /// None for anything a quick support app doesn't send, and for an Open
+    /// whose link is not a support link: a join link would make the kept
+    /// app join the server.
     pub fn decode(text: &str) -> Option<Self> {
         let value: Value = serde_json::from_str(text).ok()?;
         match value.get("do")?.as_str()? {
@@ -272,13 +275,22 @@ impl Handoff {
             "show" => Some(Handoff::Show),
             "remove" => Some(Handoff::Remove),
             "give-way" => Some(Handoff::GiveWay),
-            "open" => Some(Handoff::Open {
-                link: value.get("link")?.as_str()?.to_owned(),
-                file: value.get("file").and_then(Value::as_str).map(str::to_owned),
-            }),
+            "open" => {
+                let link = value.get("link")?.as_str()?.to_owned();
+                is_support_link(&link).then(|| Handoff::Open {
+                    link,
+                    file: value.get("file").and_then(Value::as_str).map(str::to_owned),
+                })
+            }
             _ => None,
         }
     }
+}
+
+/// True for a quick support link, and only for one.
+pub fn is_support_link(link: &str) -> bool {
+    super::link::parse(link)
+        .map_or(false, |invite| invite.kind == Some(super::link::Kind::Support))
 }
 
 /// What a kept app does when it starts without a link: it removes itself
@@ -710,6 +722,19 @@ mod tests {
         assert_eq!(Handoff::decode("{\"do\":\"format c:\"}"), None);
         assert_eq!(Handoff::decode("open"), None);
         assert_eq!(Handoff::decode("{\"do\":\"open\"}"), None);
+    }
+
+    #[test]
+    fn a_handoff_opens_support_links_only() {
+        let open = |link: &str| json!({ "do": "open", "link": link }).to_string();
+        assert!(Handoff::decode(&open("neodesk://support/desk.example.com/ABCDEF23")).is_some());
+        assert!(Handoff::decode(&open("https://desk.example.com/s/ABCDEF23")).is_some());
+        // A join link would make the kept app join the server
+        assert_eq!(Handoff::decode(&open("neodesk://join/desk.example.com/ABCDEF23")), None);
+        assert_eq!(Handoff::decode(&open("https://desk.example.com/join/ABCDEF23")), None);
+        // A bare code can be either kind
+        assert_eq!(Handoff::decode(&open("ABCDEF23")), None);
+        assert_eq!(Handoff::decode(&open("")), None);
     }
 
     #[test]
