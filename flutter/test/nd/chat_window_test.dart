@@ -414,6 +414,27 @@ void main() {
     });
   });
 
+  testWidgets('the buttons line up with the field and the messages beside them', (tester) async {
+    await withChat(tester, (chat) async {
+      chat.open(messages: [msg(1, text: 'Restart it please'), msg(2, text: 'rwar', from: me)]);
+      await tester.pump();
+      final field = tester.getRect(find.ancestor(of: find.byType(TextField), matching: find.byType(Container)).first);
+      for (final label in ['Attach files', 'Send']) {
+        final button = tester.getRect(find.bySemanticsLabel(label));
+        expect(button.top, field.top, reason: '$label starts with the field');
+        expect(button.bottom, field.bottom, reason: '$label ends with the field');
+      }
+      for (final text in ['Restart it please', 'rwar']) {
+        final bubble = tester.getRect(find.ancestor(of: find.text(text), matching: find.byType(Container)).first);
+        final row = find.ancestor(of: find.text(text), matching: find.byType(Row)).first;
+        final button = tester.getRect(find.descendant(of: row, matching: find.bySemanticsLabel('Message options')));
+        expect(button.center.dy, bubble.center.dy, reason: 'options of "$text" sit in the middle of the bubble');
+        expect(min((button.left - bubble.right).abs(), (bubble.left - button.right).abs()), 4,
+            reason: 'options of "$text" keep a gap to the bubble');
+      }
+    });
+  });
+
   testWidgets('the options open as the app menu beside an own message, and a reaction closes it', (tester) async {
     await withChat(tester, (chat) async {
       chat.open(messages: [msg(1, text: 'The printer blinks orange', from: me)]);
