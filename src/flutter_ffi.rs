@@ -1266,6 +1266,16 @@ pub fn main_onboard_send_chat(text: String) -> SyncReturn<()> {
     SyncReturn(())
 }
 
+/// Sends the person's feedback after quick support: `answers` is a JSON
+/// object of answers by question id. The state's `feedbackState` follows it.
+pub fn main_onboard_send_feedback(answers: String) -> SyncReturn<()> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::onboard::send_feedback(answers);
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let _ = answers;
+    SyncReturn(())
+}
+
 /// True when this process is the quick support app.
 pub fn main_onboard_is_quick_support() -> SyncReturn<bool> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

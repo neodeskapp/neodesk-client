@@ -52,6 +52,16 @@ pub const PATH: &str = "/api/support/session/caller";
 pub const WAIT: Duration = Duration::from_secs(5);
 /// The longest helper name shown, in characters.
 const HELPER_MAX_CHARS: usize = 128;
+/// The longest helper picture taken, as the data URL's characters.
+const AVATAR_MAX_CHARS: usize = 64 * 1024;
+
+/// The helper the server vouched for: the name, and the console account's
+/// picture as a data URL when it has one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Helper {
+    pub name: String,
+    pub avatar: Option<String>,
+}
 
 /// Where to ask: the console of the quick support session and its token.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,16 +112,40 @@ pub fn vouched_helper(answer: &Answer, device_id: &str, session: &str) -> Option
     (!helper.is_empty()).then(|| helper.to_owned())
 }
 
-/// Asks the console about the relay session `session`; the helper's name
-/// when it vouches within `wait`.
-pub async fn ask(channel: &Channel, device_id: &str, session: &str, wait: Duration) -> Option<String> {
+/// The helper's picture in a vouching `answer`: a PNG, JPEG or WebP data
+/// URL of at most [`AVATAR_MAX_CHARS`]. Anything else is no picture.
+pub fn helper_avatar(answer: &Answer) -> Option<String> {
+    let avatar = answer.body.get("helper_avatar")?.as_str()?.trim();
+    if avatar.len() > AVATAR_MAX_CHARS {
+        return None;
+    }
+    let data = ["data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,"]
+        .iter()
+        .find_map(|prefix| avatar.strip_prefix(prefix))?;
+    let base64 = |c: char| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=');
+    (!data.is_empty() && data.chars().all(base64)).then(|| avatar.to_owned())
+}
+
+/// The helper when `answer` vouches for the relay session `session` of the
+/// device `device_id`.
+pub fn vouched(answer: &Answer, device_id: &str, session: &str) -> Option<Helper> {
+    let name = vouched_helper(answer, device_id, session)?;
+    Some(Helper {
+        name,
+        avatar: helper_avatar(answer),
+    })
+}
+
+/// Asks the console about the relay session `session`; the helper when it
+/// vouches within `wait`.
+pub async fn ask(channel: &Channel, device_id: &str, session: &str, wait: Duration) -> Option<Helper> {
     let asked = async {
         let http = Http::new(channel.console.clone()).await.ok()?;
         let answer = http
             .post(PATH, &request_body(session), Some(channel.token.as_str()))
             .await
             .ok()?;
-        vouched_helper(&answer, device_id, session)
+        vouched(&answer, device_id, session)
     };
     tokio::time::timeout(wait, asked).await.ok().flatten()
 }
@@ -120,7 +154,7 @@ pub async fn ask(channel: &Channel, device_id: &str, session: &str, wait: Durati
 /// `session` without a password, when the server vouches for it. None
 /// outside quick support, before the person allowed it, and for every
 /// caller the server does not confirm.
-pub async fn vouched_caller(device_id: &str, session: &str) -> Option<String> {
+pub async fn vouched_caller(device_id: &str, session: &str) -> Option<Helper> {
     let channel = CHANNEL.lock().unwrap().clone()?;
     if !may_ask(&channel) {
         log::info!("Quick support: the console is not on HTTPS; a caller needs the password");

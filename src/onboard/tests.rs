@@ -524,6 +524,13 @@ fn support_console_with(device_answer: (u16, Value), end_delay: Duration) -> Sup
                 (404, json!({"success": false, "error": "invalid_or_expired"}))
             };
         }
+        // The feedback routes take the token after the end too
+        if request.path == super::feedback::PATH && request.bearer() == Some("tok") {
+            return match request.method.as_str() {
+                "GET" => (200, feedback_form()),
+                _ => (200, json!({"success": true})),
+            };
+        }
         if request.bearer() != Some("tok") || over.load(Ordering::SeqCst) {
             return (401, json!({"success": false, "error": "invalid_session"}));
         }
@@ -650,6 +657,136 @@ fn quick_support_reports_the_device_waits_for_consent_and_hands_over_the_passwor
     assert!(console.fake.requests_to("/api/support/session/end").is_empty());
 }
 
+/// The console's feedback form as the fake console sends it.
+fn feedback_form() -> Value {
+    json!({"success": true, "given": false, "form": {"questions": [
+        {"id": "q1", "kind": "rating", "label": "How was the help?", "required": true},
+        {"id": "q2", "kind": "text", "label": "Anything else?", "required": false, "long": true},
+    ]}})
+}
+
+/// When the supporter's session on this computer ends (Stop session in the
+/// connection manager, or the supporter leaves), quick support ends with
+/// it: the window shows the end, not "waiting" again, the console hears of
+/// it, and the end screen gets the console's feedback questions.
+#[test]
+fn quick_support_ends_with_the_session_and_asks_for_feedback() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ABCDEF23");
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    run.commands.send(Command::Consent(true, Grants::default())).unwrap();
+    wait_for("waiting", || run.state.get().phase == Phase::SupportWaiting);
+    assert_eq!(run.state.get().session_started, None);
+
+    run.host.in_session.store(true, Ordering::SeqCst);
+    wait_for("in session", || run.state.get().phase == Phase::SupportInSession);
+    assert!(run.state.get().session_started.is_some());
+    // No feedback is asked for while the session runs
+    assert!(console.fake.requests_to(super::feedback::PATH).is_empty());
+
+    run.host.in_session.store(false, Ordering::SeqCst);
+    wait_for("ended", || run.state.get().phase == Phase::SupportEnded);
+    run.thread.join().unwrap();
+    let state = run.state.get();
+    assert_eq!(state.phase, Phase::SupportEnded);
+    assert!(run.host.shut_down.load(Ordering::SeqCst));
+    assert_eq!(console.fake.requests_to("/api/support/session/end").len(), 1);
+    assert!(state.session_ended >= state.session_started);
+    let asked = console.fake.requests_to(super::feedback::PATH);
+    assert_eq!(asked.len(), 1);
+    assert_eq!(asked[0].method, "GET");
+    assert_eq!(asked[0].bearer(), Some("tok"));
+    let ids: Vec<_> = state.feedback.iter().map(|q| q["id"].clone()).collect();
+    assert_eq!(ids, vec![json!("q1"), json!("q2")]);
+}
+
+/// Quick support that ends before any session took place asks for no
+/// feedback: there was nothing to rate.
+#[test]
+fn quick_support_without_a_session_asks_for_no_feedback() {
+    let console = support_console((200, json!({"success": true, "session": {"status": "asking"}})));
+    let run = run_support(&console, "ABCDEF23");
+    wait_for("consent screen", || run.state.get().phase == Phase::SupportConsent);
+    run.commands.send(Command::Consent(true, Grants::default())).unwrap();
+    wait_for("waiting", || run.state.get().phase == Phase::SupportWaiting);
+    run.commands.send(Command::End).unwrap();
+    run.thread.join().unwrap();
+    assert_eq!(run.state.get().phase, Phase::SupportEnded);
+    assert!(run.state.get().feedback.is_empty());
+    assert!(console.fake.requests_to(super::feedback::PATH).is_empty());
+}
+
+/// The end screen shows only questions it can show, at most ten, and none
+/// when the console has feedback off or already has the answers.
+#[test]
+fn feedback_questions_are_taken_only_from_a_good_answer() {
+    use super::feedback;
+    let answer = |status: u16, body: Value| http::Answer { status, body };
+    let form = |questions: Value| json!({"success": true, "form": {"questions": questions}});
+    let got = feedback::questions(&answer(200, form(json!([
+        {"id": "a", "kind": "rating", "label": " How was it? ", "required": true},
+        {"id": "b", "kind": "choice", "label": "Pick", "options": ["One", "Two", ""]},
+        {"id": "c", "kind": "choice", "label": "One option only", "options": ["One"]},
+        {"id": "d", "kind": "slider", "label": "Unknown kind"},
+        {"id": "e", "kind": "text", "label": "   "},
+        {"id": "a", "kind": "yesno", "label": "Same id again"},
+        {"id": "f", "kind": "yesno", "label": "Line\u{7}break"},
+    ]))));
+    assert_eq!(
+        got,
+        vec![
+            json!({"id": "a", "kind": "rating", "label": "How was it?", "required": true}),
+            json!({"id": "b", "kind": "choice", "label": "Pick", "required": false, "options": ["One", "Two"]}),
+            json!({"id": "f", "kind": "yesno", "label": "Linebreak", "required": false}),
+        ]
+    );
+    let many: Vec<Value> = (0..15)
+        .map(|i| json!({"id": format!("q{i}"), "kind": "yesno", "label": "x"}))
+        .collect();
+    assert_eq!(feedback::questions(&answer(200, form(json!(many)))).len(), 10);
+    let one = json!([{"id": "a", "kind": "yesno", "label": "x"}]);
+    assert!(feedback::questions(&answer(404, json!({"success": false, "error": "feedback_off"}))).is_empty());
+    assert!(feedback::questions(&answer(401, form(one.clone()))).is_empty());
+    let mut given = form(one);
+    given["given"] = json!(true);
+    assert!(feedback::questions(&answer(200, given)).is_empty());
+}
+
+/// The answers go out only for the console's questions and as their kind
+/// needs; a required question without an answer sends nothing.
+#[test]
+fn feedback_answers_fit_the_questions() {
+    use super::feedback;
+    let questions = vec![
+        json!({"id": "stars", "kind": "rating", "label": "x", "required": true}),
+        json!({"id": "note", "kind": "text", "label": "x", "required": false, "long": true}),
+        json!({"id": "pick", "kind": "choice", "label": "x", "required": false, "options": ["A", "B"]}),
+        json!({"id": "again", "kind": "yesno", "label": "x", "required": false}),
+    ];
+    assert_eq!(
+        feedback::body(&questions, &json!({"stars": 4, "note": "  thanks  ", "pick": "B", "again": true, "other": 1})),
+        Some(json!({"answers": {"stars": 4, "note": "thanks", "pick": "B", "again": true}}))
+    );
+    // Answers that don't fit are left out
+    assert_eq!(
+        feedback::body(&questions, &json!({"stars": 5, "note": "", "pick": "C", "again": "yes"})),
+        Some(json!({"answers": {"stars": 5}}))
+    );
+    let long = "x".repeat(3000);
+    let sent = feedback::body(&questions, &json!({"stars": 1, "note": long})).unwrap();
+    assert_eq!(sent["answers"]["note"].as_str().unwrap().len(), feedback::MAX_TEXT_CHARS);
+    // The required rating is missing or out of range: nothing goes out
+    assert_eq!(feedback::body(&questions, &json!({"note": "hi"})), None);
+    assert_eq!(feedback::body(&questions, &json!({"stars": 6})), None);
+    assert_eq!(feedback::body(&questions, &json!({"stars": 0})), None);
+
+    let answer = |status: u16, body: Value| http::Answer { status, body };
+    assert_eq!(feedback::sent_state(&answer(200, json!({"success": true}))), "sent");
+    assert_eq!(feedback::sent_state(&answer(409, json!({"error": "already_given"}))), "sent");
+    assert_eq!(feedback::sent_state(&answer(400, json!({"error": "invalid_answers"}))), "failed");
+    assert_eq!(feedback::sent_state(&answer(409, json!({"error": "wrong_state"}))), "failed");
+}
+
 /// While a connection waits for the person's answer in the connection
 /// manager, the quick support window says so instead of "has not connected
 /// yet" (L553).
@@ -739,6 +876,34 @@ fn the_caller_check_believes_only_an_answer_for_this_connection() {
     assert_eq!(shown.chars().count(), 128);
 }
 
+/// The helper's picture comes with the server's answer: a PNG, JPEG or
+/// WebP data URL of at most 64 KB. Anything else (an address the computer
+/// would fetch, another type, a picture too large or not base64) is no
+/// picture, and the helper is still vouched for.
+#[test]
+fn the_caller_check_takes_only_a_small_picture_from_the_server() {
+    let (me, relay) = ("123456789", "6f1c2a9e-relay");
+    let with = |avatar: Value| {
+        let mut body = vouched(me, relay, "Olga Operator");
+        body["helper_avatar"] = avatar;
+        caller::vouched(&caller_answer(200, body), me, relay).unwrap()
+    };
+    let png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    assert_eq!(with(json!(png)), caller::Helper { name: "Olga Operator".to_owned(), avatar: Some(png.to_owned()) });
+    assert!(with(json!("data:image/jpeg;base64,/9j/4AAQ")).avatar.is_some());
+    for (why, avatar) in [
+        ("an address", json!("https://example.com/olga.png")),
+        ("another type", json!("data:image/svg+xml;base64,PHN2Zz4=")),
+        ("not base64", json!("data:image/png;base64,<script>")),
+        ("empty data", json!("data:image/png;base64,")),
+        ("too large", json!(format!("data:image/png;base64,{}", "A".repeat(64 * 1024)))),
+        ("no text", json!(42)),
+    ] {
+        assert_eq!(with(avatar).avatar, None, "{why}");
+    }
+    assert_eq!(caller::vouched(&caller_answer(200, vouched(me, relay, "Olga Operator")), me, relay).unwrap().avatar, None);
+}
+
 /// The check goes to the console's route with the session token and the
 /// relay session, and takes the helper from the answer. A console that does
 /// not know the route, or does not answer in time, vouches for nobody.
@@ -758,7 +923,7 @@ fn the_caller_check_asks_the_console_with_the_session_token() {
     };
     let wait = Duration::from_secs(5);
     assert_eq!(
-        block_on(caller::ask(&channel(&good, "tok"), me, relay, wait)).as_deref(),
+        block_on(caller::ask(&channel(&good, "tok"), me, relay, wait)).map(|h| h.name).as_deref(),
         Some("Olga Operator")
     );
     let sent = good.requests_to(caller::PATH);

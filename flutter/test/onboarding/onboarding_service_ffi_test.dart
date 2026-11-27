@@ -48,6 +48,9 @@ class FakeNative implements OnboardingNative {
 
   @override
   void sendChat(String text) => _call('chat $text');
+
+  @override
+  void sendFeedback(String answers) => _call('feedback $answers');
 }
 
 FfiOnboardingService serviceOf(FakeNative native,
@@ -376,6 +379,60 @@ void main() {
     expect(seen.single.messages.map((m) => m.text),
         ['Which printer?', 'The one upstairs']);
     expect(seen.single.messages.last.fromSupporter, isFalse);
+  });
+
+  test('the end of a session comes with its times and the feedback form',
+      () {
+    final state = parseOnboardingState(jsonEncode({
+      'phase': 'supportEnded',
+      'sessionStarted': 1700000000000,
+      'sessionEnded': 1700000750000,
+      'feedback': [
+        {'id': 'q1', 'kind': 'rating', 'label': 'How was the help?', 'required': true},
+        {'id': 'q2', 'kind': 'text', 'label': 'Anything else?', 'long': true},
+        {'id': 'q3', 'kind': 'choice', 'label': 'Pick', 'options': ['A', 'B']},
+        {'id': 'q4', 'kind': 'slider', 'label': 'Unknown kind'},
+        {'kind': 'yesno', 'label': 'No id'},
+      ],
+      'feedbackState': 'failed',
+    }));
+    expect(state.sessionLength, const Duration(minutes: 12, seconds: 30));
+    expect(state.feedback.map((q) => q.id), ['q1', 'q2', 'q3']);
+    expect(state.feedback[0].kind, FeedbackKind.rating);
+    expect(state.feedback[0].required, isTrue);
+    expect(state.feedback[1].long, isTrue);
+    expect(state.feedback[2].options, ['A', 'B']);
+    expect(state.feedbackState, FeedbackState.failed);
+
+    final none = parseOnboardingState(jsonEncode({'phase': 'supportEnded'}));
+    expect(none.sessionLength, isNull);
+    expect(none.feedback, isEmpty);
+    expect(none.feedbackState, FeedbackState.none);
+  });
+
+  test('feedback goes to the core as JSON and Send waits for required answers',
+      () async {
+    final native = FakeNative();
+    final service = serviceOf(native);
+    await service.sendFeedback({'q1': 4, 'q2': 'Thanks'});
+    expect(native.calls, ['feedback {"q1":4,"q2":"Thanks"}']);
+    await service.sendFeedback({});
+    expect(native.calls, hasLength(1));
+
+    const questions = [
+      FeedbackQuestion(
+          id: 'q1', kind: FeedbackKind.rating, label: 'x', required: true),
+      FeedbackQuestion(id: 'q2', kind: FeedbackKind.text, label: 'x'),
+    ];
+    expect(feedbackComplete(questions, {}), isFalse);
+    expect(feedbackComplete(questions, {'q2': 'Thanks'}), isFalse);
+    expect(feedbackComplete(questions, {'q1': 6}), isFalse);
+    expect(feedbackComplete(questions, {'q1': 5}), isTrue);
+    const optional = [
+      FeedbackQuestion(id: 'q2', kind: FeedbackKind.text, label: 'x'),
+    ];
+    expect(feedbackComplete(optional, {'q2': '  '}), isFalse);
+    expect(feedbackComplete(optional, {'q2': 'ok'}), isTrue);
   });
 
   test('the quick support build comes from the core', () {

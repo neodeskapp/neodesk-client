@@ -49,6 +49,8 @@ class NdField extends StatefulWidget {
     this.height,
     this.textAlignVertical,
     this.semanticLabel,
+    this.lines = 1,
+    this.maxLength,
   });
 
   final String? label;
@@ -77,6 +79,12 @@ class NdField extends StatefulWidget {
   final double? width;
   final double? height;
   final TextAlignVertical? textAlignVertical;
+
+  /// More than 1: a field of that many lines that wraps (a comment).
+  final int lines;
+
+  /// The most characters it takes; no counter is shown.
+  final int? maxLength;
 
   @override
   State<NdField> createState() => _NdFieldState();
@@ -141,7 +149,9 @@ class _NdFieldState extends State<NdField> {
       width: widget.width,
       padding: EdgeInsets.only(
           left: widget.large ? 12 : 10,
-          right: widget.trailing != null ? 4 : (widget.large ? 12 : 10)),
+          right: widget.trailing != null ? 4 : (widget.large ? 12 : 10),
+          top: widget.lines > 1 ? 8 : 0,
+          bottom: widget.lines > 1 ? 8 : 0),
       decoration: BoxDecoration(
         color: widget.enabled ? c.bg : c.bgSubtle,
         borderRadius: NdSize.r,
@@ -166,12 +176,27 @@ class _NdFieldState extends State<NdField> {
               readOnly: widget.readOnly,
               onChanged: widget.onChanged,
               onSubmitted: widget.onSubmitted,
-              keyboardType: widget.keyboardType,
+              keyboardType: widget.lines > 1
+                  ? TextInputType.multiline
+                  : widget.keyboardType,
+              minLines: widget.lines > 1 ? widget.lines : null,
+              maxLines: widget.lines > 1 ? widget.lines : 1,
+              maxLength: widget.maxLength,
+              maxLengthEnforcement: widget.maxLength == null
+                  ? null
+                  : MaxLengthEnforcement.enforced,
               inputFormatters: widget.inputFormatters,
               style: style,
               cursorColor: c.text,
               cursorWidth: 1,
-              textAlignVertical: TextAlignVertical.center,
+              textAlignVertical: widget.lines > 1
+                  ? TextAlignVertical.top
+                  : TextAlignVertical.center,
+              buildCounter: (_,
+                      {required currentLength,
+                      required isFocused,
+                      maxLength}) =>
+                  null,
               decoration: InputDecoration(
                 isCollapsed: true,
                 contentPadding: EdgeInsets.zero,
