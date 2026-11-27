@@ -1243,7 +1243,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-qs-file-from", "Von diesem Computer: {}"),
         ("nd-qs-file-from-here", "Von diesem Computer"),
         ("nd-qs-keep-title", "NeoDesk Schnellhilfe auf diesem Computer behalten?"),
-        ("nd-qs-keep-line", "Dann öffnet der nächste Hilfelink sie sofort. Sie wartet im Hintergrund und fragt dich vor jeder Sitzung."),
+        ("nd-qs-keep-line", "Dann öffnet der nächste Hilfelink sie sofort. Im Hintergrund wartet sie und fragt dich vor jeder Sitzung."),
         ("nd-qs-keep", "Auf diesem Computer behalten"),
         ("nd-qs-remove", "Von diesem Computer entfernen"),
         ("nd-qs-kept-line", "NeoDesk Schnellhilfe bleibt auf diesem Computer und öffnet den nächsten Hilfelink."),
