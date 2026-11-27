@@ -1512,6 +1512,18 @@ where
 }
 
 #[inline]
+/// Connects to the pipe `postfix` of a quick support process, also from a
+/// process that is not one (a full NeoDesk asks a kept quick support app to
+/// remove itself).
+#[cfg(windows)]
+pub(crate) async fn connect_quick_support(
+    ms_timeout: u64,
+    postfix: &str,
+) -> ResultType<ConnectionTmpl<ConnClient>> {
+    let path = crate::onboard::namespaced_ipc_path(&Config::ipc_path(postfix));
+    connect_with_path(ms_timeout, &path).await
+}
+
 async fn connect_with_path(ms_timeout: u64, path: &str) -> ResultType<ConnectionTmpl<ConnClient>> {
     #[cfg(windows)]
     let client = timeout(ms_timeout, connect_pipe(path)).await??;

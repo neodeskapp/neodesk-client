@@ -1199,7 +1199,7 @@ pub fn main_pair_with_code(server: String, code: String) -> String {
 /// `deviceId`, `deviceName`, `folderId`, `link`, `fileName`, `messages`
 /// (`fromSupporter`, `text`, `time` in ms), `files` (`toThisComputer`,
 /// `path`, `name`, `count`, `size`, `time`), `inputActive`, `filesOpen`,
-/// `quickSupport`, `hasServer`.
+/// `quickSupport`, `hasServer`, `canKeep`, `kept`, `startHidden`.
 pub fn main_onboard_state() -> SyncReturn<String> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let state = crate::onboard::state_json();
@@ -1263,6 +1263,33 @@ pub fn main_onboard_send_chat(text: String) -> SyncReturn<()> {
     crate::onboard::send_chat(text);
     #[cfg(any(target_os = "android", target_os = "ios"))]
     let _ = text;
+    SyncReturn(())
+}
+
+/// Keep on the screen after a quick support session: the app stays on this
+/// computer (Windows), opens the next support link and waits in the
+/// background. False when it could not be kept.
+pub fn main_onboard_keep_quick_support() -> SyncReturn<bool> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let kept = crate::onboard::keep_quick_support();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let kept = false;
+    SyncReturn(kept)
+}
+
+/// Remove after a quick support session: deletes the downloaded file, and
+/// the kept app with its entries. The app quits after it.
+pub fn main_onboard_remove_quick_support() -> SyncReturn<()> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::onboard::remove_quick_support();
+    SyncReturn(())
+}
+
+/// Close in the kept quick support app: it waits in the background for the
+/// next link.
+pub fn main_onboard_rest_quick_support() -> SyncReturn<()> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::onboard::rest_quick_support();
     SyncReturn(())
 }
 

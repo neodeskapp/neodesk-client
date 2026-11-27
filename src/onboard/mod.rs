@@ -24,6 +24,10 @@ mod device_key;
 mod grants;
 mod http;
 mod join;
+#[cfg_attr(not(windows), allow(dead_code))]
+mod keep;
+#[cfg(windows)]
+mod keep_tray;
 mod link;
 mod support;
 
@@ -66,6 +70,16 @@ const FILE_LINES_KEPT: usize = 200;
 
 static QUICK_SUPPORT: AtomicBool = AtomicBool::new(false);
 static LAST_INPUT_MS: AtomicI64 = AtomicI64::new(0);
+/// This process is the quick support app kept on the computer, or became it
+/// with Keep (see [`keep`]).
+static KEPT: AtomicBool = AtomicBool::new(false);
+/// The kept app started at sign-in: its window stays hidden.
+static START_HIDDEN: AtomicBool = AtomicBool::new(false);
+/// Keep did not work; the ended screen says so.
+static KEEP_FAILED: AtomicBool = AtomicBool::new(false);
+/// The kept app went to the background while its session still ended: the
+/// window opens on the ready screen next time.
+static REST_AFTER_SESSION: AtomicBool = AtomicBool::new(false);
 
 /// Where onboarding stands, as the UI shows it. The names are the ones of
 /// the UI's `OnboardingPhase`.
@@ -231,7 +245,15 @@ lazy_static::lazy_static! {
     static ref SUPPORT: Mutex<Option<mpsc::Sender<support::Command>>> = Mutex::new(None);
     static ref JOINING: Mutex<Option<String>> = Mutex::new(None);
     static ref GRANTS: Mutex<Grants> = Mutex::new(Grants::default());
+    /// The full path of the file the person started (Windows, from the
+    /// packer), which Remove deletes.
+    static ref STARTED_FILE: Mutex<Option<String>> = Mutex::new(None);
 }
+
+/// The client's own name, before quick support mode renames the app.
+static FULL_APP_NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+/// Whether the ended screen offers Keep, decided once.
+static CAN_KEEP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 /// True in a quick support process.
 pub fn is_quick_support() -> bool {
@@ -291,10 +313,22 @@ pub fn init_process_mode() {
             _ => {}
         }
     }
+    // The kept app is quick support without a link of its own
+    #[cfg(windows)]
+    let kept = started.map_or(false, keep::is_kept_file);
+    #[cfg(not(windows))]
+    let kept = false;
+    #[cfg(windows)]
+    {
+        *STARTED_FILE.lock().unwrap() = keep::win::started_file()
+            .map(|path| path.display().to_string());
+    }
     let quick = std::env::var(QUICK_SUPPORT_ENV).map_or(false, |v| v == "1")
+        || kept
         || pending.as_ref().map_or(false, |invite| invite.kind == Some(Kind::Support));
     if quick {
         enter_quick_support_mode();
+        KEPT.store(kept, Ordering::Relaxed);
     }
     if let Some(invite) = &pending {
         STATE.update(|s| {
@@ -310,6 +344,7 @@ pub fn init_process_mode() {
 }
 
 fn enter_quick_support_mode() {
+    FULL_APP_NAME.get_or_init(crate::get_app_name);
     std::env::set_var(QUICK_SUPPORT_ENV, "1");
     *config::APP_NAME.write().unwrap() = QUICK_SUPPORT_APP_NAME.to_owned();
     let mut hard = config::HARD_SETTINGS.write().unwrap();
@@ -419,7 +454,216 @@ pub fn state_json() -> String {
     value["filesOpen"] = Value::Bool(files_open());
     value["quickSupport"] = Value::Bool(is_quick_support());
     value["hasServer"] = Value::Bool(has_server());
+    value["canKeep"] = Value::Bool(can_keep());
+    value["kept"] = Value::Bool(is_kept());
+    value["startHidden"] = Value::Bool(START_HIDDEN.load(Ordering::Relaxed));
+    value["keepFailed"] = Value::Bool(KEEP_FAILED.load(Ordering::Relaxed));
     value.to_string()
+}
+
+/// True in the quick support app kept on this computer.
+pub fn is_kept() -> bool {
+    is_quick_support() && KEPT.load(Ordering::Relaxed)
+}
+
+/// Whether the ended screen offers to keep quick support on this computer:
+/// on Windows, in a downloaded quick support file the packer named, and not
+/// on a computer with a full NeoDesk, which opens support links itself.
+fn can_keep() -> bool {
+    *CAN_KEEP.get_or_init(|| {
+        #[cfg(windows)]
+        {
+            is_quick_support()
+                && !is_kept()
+                && STARTED_FILE
+                    .lock()
+                    .unwrap()
+                    .as_deref()
+                    .map_or(false, keep::deletes_handed_file)
+                && !keep::win::full_client_installed(&full_app_name())
+        }
+        #[cfg(not(windows))]
+        false
+    })
+}
+
+fn full_app_name() -> String {
+    FULL_APP_NAME.get().cloned().unwrap_or_else(crate::get_app_name)
+}
+
+/// Keep on the ended screen: copies the downloaded file to its place,
+/// registers it, deletes the download and goes on in the background. False
+/// when that did not work; the screen then says so.
+pub fn keep_quick_support() -> bool {
+    #[cfg(windows)]
+    if can_keep() {
+        let full = keep::win::full_client_installed(&full_app_name());
+        match keep::win::keep(full) {
+            Ok((exe, downloaded)) => {
+                log::info!("Quick support kept at {}", exe.display());
+                if let Some(file) = downloaded {
+                    keep::win::delete_file(&file);
+                }
+                KEPT.store(true, Ordering::Relaxed);
+                KEEP_FAILED.store(false, Ordering::Relaxed);
+                listen_for_handoffs();
+                start_tray();
+                rest_quick_support();
+                return true;
+            }
+            Err(err) => log::error!("Quick support not kept: {err}"),
+        }
+    }
+    KEEP_FAILED.store(true, Ordering::Relaxed);
+    false
+}
+
+/// Remove: deletes the downloaded file, and the kept app with its entries.
+/// The app quits after it.
+pub fn remove_quick_support() {
+    #[cfg(windows)]
+    {
+        let started = STARTED_FILE.lock().unwrap().clone();
+        if let Some(file) = started.filter(|file| keep::deletes_handed_file(file)) {
+            keep::win::delete_file(std::path::Path::new(&file));
+        }
+        if is_kept() || keep::win::is_kept() {
+            keep::win::remove_kept();
+        }
+    }
+}
+
+/// Close in the kept app: the window goes, the app waits in the background
+/// for the next link, and opens on the screen that says so.
+pub fn rest_quick_support() {
+    if SUPPORT.lock().unwrap().is_none() {
+        STATE.update(|s| *s = State::default());
+    } else {
+        REST_AFTER_SESSION.store(true, Ordering::Relaxed);
+    }
+    START_HIDDEN.store(false, Ordering::Relaxed);
+}
+
+/// A full NeoDesk is installed: a quick support app this person kept goes,
+/// and one that runs quits. Its neodesk:// under HKCU would override the
+/// full NeoDesk's.
+pub fn give_way_to_full_client() {
+    #[cfg(windows)]
+    if !is_quick_support() && keep::win::is_kept() {
+        log::info!("NeoDesk is installed, the kept quick support app goes");
+        send_handoff(&keep::Handoff::Remove);
+        keep::win::remove_kept();
+    }
+}
+
+/// Hands `handoff` to the quick support app that runs in this Windows
+/// session. False when none runs.
+#[cfg(windows)]
+fn send_handoff(handoff: &keep::Handoff) -> bool {
+    let text = handoff.encode();
+    block_on(async move {
+        let mut conn = crate::ipc::connect_quick_support(1_000, &keep::win::handoff_ipc()).await?;
+        conn.send(&crate::ipc::Data::UrlLink(text)).await
+    })
+    .map_or(false, |sent| sent.is_ok())
+}
+
+/// Takes the handoffs of quick support apps started later, once per process.
+#[cfg(windows)]
+fn listen_for_handoffs() {
+    static LISTENING: std::sync::Once = std::sync::Once::new();
+    LISTENING.call_once(|| {
+        std::thread::spawn(|| {
+            block_on(async {
+                use hbb_common::futures::StreamExt as _;
+                let mut incoming =
+                    match crate::ipc::new_listener(&keep::win::handoff_ipc()).await {
+                        Ok(incoming) => incoming,
+                        Err(err) => {
+                            log::error!("Quick support takes no handoffs: {err}");
+                            return;
+                        }
+                    };
+                while let Some(Ok(conn)) = incoming.next().await {
+                    let mut conn = crate::ipc::Connection::new(conn);
+                    if let Ok(Some(crate::ipc::Data::UrlLink(text))) = conn.next_timeout(2_000).await
+                    {
+                        match keep::Handoff::decode(&text) {
+                            Some(handoff) => take_handoff(handoff),
+                            None => log::warn!("Quick support ignored a handoff"),
+                        }
+                    }
+                }
+            });
+        });
+    });
+}
+
+/// Does what a later start handed over.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn take_handoff(handoff: keep::Handoff) {
+    match handoff {
+        keep::Handoff::Ping => {}
+        keep::Handoff::Show => show_window(),
+        // From Apps & installed apps, or a full NeoDesk that was installed.
+        // A downloaded app's session goes on without the kept app.
+        keep::Handoff::Remove if is_kept() => quit(true),
+        keep::Handoff::Remove => {
+            #[cfg(windows)]
+            keep::win::remove_kept();
+        }
+        keep::Handoff::Open { link, file } => {
+            // The kept app opens the next links itself, so the download goes,
+            // after the kept app took it over when it is another version
+            #[cfg(windows)]
+            if let Some(file) = file.filter(|f| is_kept() && keep::deletes_handed_file(f)) {
+                let file = std::path::Path::new(&file);
+                keep::win::adopt(file);
+                keep::win::delete_file(file);
+            }
+            #[cfg(not(windows))]
+            let _ = file;
+            // A session that runs keeps the screen; the link waits for the next
+            if SUPPORT.lock().unwrap().is_none() {
+                START_HIDDEN.store(false, Ordering::Relaxed);
+                redeem_support(link);
+            }
+            show_window();
+        }
+    }
+}
+
+/// Tells the quick support window to show itself.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn show_window() {
+    START_HIDDEN.store(false, Ordering::Relaxed);
+    #[cfg(feature = "flutter")]
+    {
+        let event = json!({ "name": "quick_support_show" }).to_string();
+        if crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, event).is_none() {
+            log::warn!("Quick support has no window to show");
+        }
+    }
+}
+
+/// Ends a session that runs and quits, after removing quick support from
+/// this computer when `remove`.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn quit(remove: bool) {
+    end_support();
+    if remove {
+        remove_quick_support();
+    }
+    std::process::exit(0);
+}
+
+#[cfg(windows)]
+fn start_tray() {
+    keep_tray::start(keep_tray::Actions {
+        open: show_window,
+        remove: || quit(true),
+        quit: || quit(false),
+    });
 }
 
 /// True when this client already has an ID server.
@@ -761,6 +1005,13 @@ fn start_support(console: Console, code: String) {
     STATE.update(|s| {
         s.messages.clear();
         s.files.clear();
+        // The kept app's window shows the session from the start, not the
+        // screen it waits on
+        s.phase = Phase::SupportConnecting;
+        s.supporter_name = None;
+        s.company = None;
+        s.asking = None;
+        s.clear_error();
     });
     *GRANTS.lock().unwrap() = Grants::default();
     let (tx, rx) = mpsc::channel();
@@ -768,6 +1019,9 @@ fn start_support(console: Console, code: String) {
     std::thread::spawn(move || {
         support::run(console, code, &AppHost, &STATE, &rx, support::Timing::default());
         *SUPPORT.lock().unwrap() = None;
+        if REST_AFTER_SESSION.swap(false, Ordering::Relaxed) {
+            STATE.update(|s| *s = State::default());
+        }
     });
 }
 
@@ -972,6 +1226,12 @@ impl support::SupportHost for AppHost {
 /// Handles `--join <link or code>` and a support link as the only argument.
 /// None lets `core_main` go on.
 pub fn core_main_hook(args: &[String]) -> Option<Option<CoreMainAction>> {
+    #[cfg(windows)]
+    if is_quick_support() {
+        if let Some(action) = single_quick_support(args) {
+            return Some(action);
+        }
+    }
     let text = invite_argument(args)?;
     let invite = match link::parse(text) {
         Ok(invite) => invite,
@@ -982,6 +1242,52 @@ pub fn core_main_hook(args: &[String]) -> Option<Option<CoreMainAction>> {
         Some(Kind::Support) => Some(start_quick_support_process(invite)),
         _ if args[0] == "--join" => Some(cli_join(invite)),
         _ => None,
+    }
+}
+
+/// One quick support app per Windows session: a start while one runs hands
+/// its link, Open or Remove over and quits. Otherwise this process becomes
+/// the one that takes the handoffs; the kept app started without a link
+/// waits with its tray icon. None lets the start go on as before.
+#[cfg(windows)]
+fn single_quick_support(args: &[String]) -> Option<Option<CoreMainAction>> {
+    let link = PENDING
+        .lock()
+        .unwrap()
+        .as_ref()
+        .filter(|invite| invite.kind == Some(Kind::Support))
+        .and_then(Invite::deep_link);
+    let launch = keep::launch_of(args, link.as_deref(), is_kept())?;
+    let started = STARTED_FILE.lock().unwrap().clone();
+    if send_handoff(&keep::Handoff::of(&launch, started.as_deref())) {
+        log::info!("Quick support runs already, handed {launch:?} over");
+        return Some(None);
+    }
+    match launch {
+        keep::Launch::Remove => {
+            remove_quick_support();
+            Some(None)
+        }
+        keep::Launch::Background | keep::Launch::Open => {
+            if !keep::stays(keep::win::full_client_installed(&full_app_name())) {
+                log::info!("NeoDesk is installed, the kept quick support app goes");
+                remove_quick_support();
+                return Some(None);
+            }
+            START_HIDDEN.store(launch == keep::Launch::Background, Ordering::Relaxed);
+            listen_for_handoffs();
+            start_tray();
+            // Offline until a link comes: the last session stopped the service
+            std::thread::spawn(|| crate::start_server(false, false));
+            Some(Some(CoreMainAction::StartUi(Vec::new())))
+        }
+        keep::Launch::Link(_) => {
+            listen_for_handoffs();
+            if is_kept() {
+                start_tray();
+            }
+            None
+        }
     }
 }
 

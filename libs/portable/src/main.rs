@@ -22,6 +22,9 @@ const APP_PREFIX: &str = "rustdesk";
 #[cfg(windows)]
 const VERIFIED_UPDATE_FILE_PREFIX: &str = "neodesk-verified-";
 const APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
+// The full path of this file: a quick support file the person keeps copies
+// itself from there (src/onboard/keep.rs).
+const PACKED_PATH_ENV_KEY: &str = "NEODESK_PACKED_PATH";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
 
@@ -265,6 +268,7 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) -> Option<std::process::
     }
 
     cmd.env(APPNAME_RUNTIME_ENV_KEY, exe_name);
+    cmd.env(PACKED_PATH_ENV_KEY, &exe);
     if use_null_stdio() {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())

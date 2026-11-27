@@ -769,6 +769,11 @@ pub fn core_main() -> Option<CoreMainAction> {
     #[cfg(windows)]
     if !crate::onboard::is_quick_support() {
         crate::platform::ensure_user_uri_schemes();
+        // Also after an MSI install, which runs as the system: a quick
+        // support app this person kept goes once NeoDesk is installed.
+        if crate::platform::is_installed() {
+            crate::onboard::give_way_to_full_client();
+        }
     }
     #[cfg(feature = "flutter")]
     return Some(CoreMainAction::StartUi(flutter_args));

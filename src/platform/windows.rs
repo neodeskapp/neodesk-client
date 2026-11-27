@@ -2013,6 +2013,9 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
     install_progress::begin(&path, size);
     run_cmds(cmds, debug, "install")?;
     install_progress::script_done();
+    // A kept quick support app goes: its neodesk:// under HKCU would
+    // override the one just installed for the whole computer.
+    crate::onboard::give_way_to_full_client();
     run_after_run_cmds(silent);
     Ok(())
 }
