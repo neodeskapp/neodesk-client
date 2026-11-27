@@ -162,6 +162,12 @@ def make_parser():
              'for the list rather than repeat it, so the two cannot drift.'
     )
     parser.add_argument(
+        '--print-libdrmtap-digest',
+        action='store_true',
+        help='Fetch libdrmtap at the pinned commit, print the SHA-256 of its source tree for '
+             'LIBDRMTAP_SOURCE_SHA256_PINNED, and exit.'
+    )
+    parser.add_argument(
         '--print-package-version',
         action='store_true',
         help='Print the version a deb or an rpm of this build carries (1.5.0~rc.4), and exit.'
@@ -411,6 +417,11 @@ def ffi_bindgen_function_refactor():
 # libs/scrap/Cargo.toml). This commit is libdrmtap v0.5.12.
 LIBDRMTAP_REPO_PINNED = 'https://github.com/rustdesk-org/libdrmtap'
 LIBDRMTAP_SHA_PINNED = '5936a7a88b94aa43516a3dd0eb509d2383f31e2d'
+# SHA-256 over the source tree at LIBDRMTAP_SHA_PINNED (libdrmtap_source_digest). The commit id is a
+# SHA-1 and names the tree; this second, independent hash means a changed tree cannot pass for the
+# pinned one even where SHA-1 does not hold. A bump moves both lines together:
+#   python3 build.py --print-libdrmtap-digest
+LIBDRMTAP_SOURCE_SHA256_PINNED = 'b87cc9973a764aae0898fc5399414e78690ee10bcdc4302a49a85b5e90091c22'
 LIBDRMTAP_REPO = os.environ.get('DRMTAP_REPO', LIBDRMTAP_REPO_PINNED)
 LIBDRMTAP_SHA = os.environ.get('DRMTAP_SHA', LIBDRMTAP_SHA_PINNED)
 # Every way of getting a different .so than the pin needs the same explicit opt-in. Otherwise the
@@ -477,6 +488,60 @@ def _validate_libdrmtap_pin():
         raise Exception(f'DRMTAP_REPO does not look like a git remote url: {LIBDRMTAP_REPO!r}')
 
 
+def libdrmtap_source_digest(src):
+    """SHA-256 over the committed tree at HEAD of the git checkout `src`: one line per file with its
+    mode, path and the SHA-256 of its bytes, in path order. Read from git's objects, not from the
+    working tree, so a build directory or an edited file in the checkout does not change it."""
+    listing = subprocess.check_output(['git', '-C', src, 'ls-tree', '-r', '-z', '--full-tree', 'HEAD'])
+    entries = []
+    for record in listing.split(b'\0'):
+        if not record:
+            continue
+        meta, path = record.split(b'\t', 1)
+        mode, kind, obj = meta.split(b' ')
+        if kind != b'blob':
+            # A submodule (`commit`) would be a tree this digest cannot see into.
+            raise Exception(f'libdrmtap at {src} has a {kind.decode()} entry {path.decode()!r}')
+        content = subprocess.check_output(['git', '-C', src, 'cat-file', 'blob', obj.decode()])
+        entries.append((path, mode, hashlib.sha256(content).hexdigest().encode()))
+    h = hashlib.sha256()
+    for path, mode, digest in sorted(entries):
+        h.update(mode + b' ' + path + b' ' + digest + b'\n')
+    return h.hexdigest()
+
+
+def fetch_libdrmtap_source_digest():
+    # Into a scratch directory, so a bump can be measured without touching third_party/.
+    import tempfile
+    with tempfile.TemporaryDirectory() as src:
+        for cmd in (['init', '-q'], ['remote', 'add', 'origin', LIBDRMTAP_REPO_PINNED],
+                    ['-c', 'http.followRedirects=false', 'fetch', '-q', '--depth', '1', 'origin',
+                     LIBDRMTAP_SHA_PINNED],
+                    ['checkout', '-q', 'FETCH_HEAD']):
+            subprocess.check_call(['git', '-C', src] + cmd)
+        return libdrmtap_source_digest(src)
+
+
+def _verify_libdrmtap_source(src):
+    # Only the pinned commit has a known digest; a deliberate override (DRMTAP_ALLOW_UNPINNED=1 with
+    # another DRMTAP_SHA) is warned about in _validate_libdrmtap_pin and not checked here.
+    if LIBDRMTAP_SHA != LIBDRMTAP_SHA_PINNED:
+        return
+    got = libdrmtap_source_digest(src)
+    if got != LIBDRMTAP_SOURCE_SHA256_PINNED:
+        shutil.rmtree(src, ignore_errors=True)
+        raise Exception(
+            f'libdrmtap at {src} has source SHA-256 {got}, expected {LIBDRMTAP_SOURCE_SHA256_PINNED} '
+            f'for commit {LIBDRMTAP_SHA_PINNED}. The fetched tree is not the reviewed one; the '
+            'checkout was removed. If the pin was bumped on purpose, update both lines in build.py.')
+    print(f'[drm] libdrmtap source {LIBDRMTAP_SHA_PINNED} matches SHA-256 {got}')
+
+
+def libdrmtap_license_path():
+    # MIT: the licence text ships with every package that carries the library.
+    return os.path.join(REPO_ROOT, 'third_party', 'libdrmtap', 'LICENSE')
+
+
 def _single_real_so(paths, where):
     # Return the one real libdrmtap.so.0.* object among `paths`, failing if there are zero or several.
     # glob order is arbitrary, so silently taking [0] could ship a stale or wrong-arch object left
@@ -503,6 +568,10 @@ def build_libdrmtap_so():
         # (rather than silently falling back to a source build) if it holds no single real .so.
         prebuilt = glob.glob(os.path.join(prebuilt_dir, 'libdrmtap.so.0.*'))
         so = _single_real_so(prebuilt, f'DRMTAP_PREBUILT_DIR={prebuilt_dir}')
+        # The pinned checkout this was built from (how CI hands the library over) is checked like a
+        # fresh fetch; an unpinned prebuilt directory was already refused or warned about above.
+        if _prebuilt_dir_is_the_pinned_checkout(prebuilt_dir):
+            _verify_libdrmtap_source(os.path.join(REPO_ROOT, 'third_party', 'libdrmtap'))
         # Check the stub case HERE too, not only on the source path below. This is the widest
         # override of the three -- no fetch, no sha verification, an object built by something this
         # script cannot see -- so it is the likeliest to hand over a CPU-only build, and skipping the
@@ -525,7 +594,9 @@ def build_libdrmtap_so():
         os.makedirs(src, exist_ok=True)
         system2(f'git -C "{src}" init -q')
         system2(f'git -C "{src}" remote add origin {LIBDRMTAP_REPO}')
-        system2(f'git -C "{src}" fetch --depth 1 origin {LIBDRMTAP_SHA}')
+        # No HTTP redirects: a renamed or moved repository fails the fetch instead of quietly
+        # serving the pin from wherever the redirect points.
+        system2(f'git -C "{src}" -c http.followRedirects=false fetch --depth 1 origin {LIBDRMTAP_SHA}')
         system2(f'git -C "{src}" checkout -q FETCH_HEAD')
     # Verify the pin whenever the source is a GIT checkout. A fetch by sha cannot resolve to anything
     # else, so this now guards the OTHER case: a reused checkout left by an earlier build at a
@@ -540,6 +611,7 @@ def build_libdrmtap_so():
             raise Exception(
                 f'libdrmtap at {src} is {got_sha}, expected {LIBDRMTAP_SHA} '
                 f'(stale checkout from a different pin; removed, re-run to re-fetch)')
+        _verify_libdrmtap_source(src)
     build_dir = os.path.join(src, 'build-pkg')
     # Configure a fresh dir, or RE-configure one an earlier build left behind. Without the second
     # branch a build-pkg created before this option was added keeps its old configuration, meson
@@ -685,6 +757,14 @@ def stage_libdrmtap_into_deb(so_path):
     # contain a space, and an unquoted interpolation would split the argument and fail obscurely.
     system2(f'cp "{so_path}" tmpdeb/usr/lib/neodesk/')
     system2(f'ln -sf "{so_basename}" tmpdeb/usr/lib/neodesk/libdrmtap.so.0')
+    stage_libdrmtap_license('tmpdeb/usr/lib/neodesk')
+
+
+def stage_libdrmtap_license(dest_dir):
+    lic = libdrmtap_license_path()
+    if not os.path.isfile(lic):
+        raise Exception(f'no libdrmtap licence at {lic}; the MIT licence must ship with the library')
+    shutil.copyfile(lic, os.path.join(dest_dir, 'LICENSE.libdrmtap'))
 
 
 def build_flutter_deb(version, features):
@@ -950,6 +1030,9 @@ def main():
         return
     if args.print_package_version:
         print(package_version(release_version(get_version())))
+        return
+    if args.print_libdrmtap_digest:
+        print(fetch_libdrmtap_source_digest())
         return
 
     if os.path.exists(exe_path):

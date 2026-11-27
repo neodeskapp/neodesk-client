@@ -37,7 +37,7 @@ install -Dm 644 $HBB/res/128x128@2x.png "%{buildroot}/usr/share/icons/hicolor/25
 install -Dm 644 $HBB/res/scalable.svg "%{buildroot}/usr/share/icons/hicolor/scalable/apps/neodesk.svg"
 mkdir -p "%{buildroot}/usr/lib/neodesk"
 so=$(find "${DRMTAP_PREBUILT_DIR:-${HBB}/third_party/libdrmtap/build-pkg}" -maxdepth 1 -type f -name 'libdrmtap.so.0.*' 2>/dev/null || true)
-if [ -n "$so" ]; then install -Dm 755 "$so" -t "%{buildroot}/usr/lib/neodesk"; ln -s "$(basename "$so")" "%{buildroot}/usr/lib/neodesk/libdrmtap.so.0"; fi
+if [ -n "$so" ]; then install -Dm 755 "$so" -t "%{buildroot}/usr/lib/neodesk"; ln -s "$(basename "$so")" "%{buildroot}/usr/lib/neodesk/libdrmtap.so.0"; install -Dm 644 "$(dirname "$so")/../LICENSE" "%{buildroot}/usr/lib/neodesk/LICENSE.libdrmtap"; fi
 
 %files
 /usr/share/neodesk/*
