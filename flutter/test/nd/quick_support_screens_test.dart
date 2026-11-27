@@ -38,8 +38,14 @@ Widget _qs(OnboardingState s, {List<String>? calls}) => _window(
         onCancel: () => calls?.add('cancel'),
         onClose: () => calls?.add('close'),
         onRetry: () => calls?.add('retry'),
+        onKeep: () => calls?.add('keep'),
+        onRemove: () => calls?.add('remove'),
       ),
     );
+
+/// A normal end in a downloaded quick support file on Windows.
+final _endedKeep =
+    _base.copyWith(phase: OnboardingPhase.supportEnded, canKeep: true);
 
 /// A plain desktop behind the session bar.
 Widget _desktop(Widget child) => Builder(
@@ -61,6 +67,9 @@ void main() {
     'ended': _base.copyWith(phase: OnboardingPhase.supportEnded),
     'expired': _base.copyWith(phase: OnboardingPhase.supportExpired),
   };
+  states['ended-keep'] = _endedKeep;
+  states['ready'] = const OnboardingState(
+      phase: OnboardingPhase.joined, server: fernServer, kept: true);
   for (final e in states.entries) {
     forBothThemes('quick support ${e.key}', (tester, b) async {
       await pumpScreen(tester, _qs(e.value),
@@ -107,6 +116,105 @@ void main() {
     expect(find.text(tr('nd-qs-refused-title')), findsOneWidget);
     expect(find.text(words), findsOneWidget);
     expect(find.text(tr('nd-qs-ended-title')), findsNothing);
+  });
+
+  // After the session the person keeps quick support on the computer or
+  // removes it
+  for (final lang in ['en', 'de']) {
+    testWidgets('the end of a session asks to keep or remove ($lang)',
+        (tester) async {
+      final calls = <String>[];
+      await pumpScreen(tester, _qs(_endedKeep, calls: calls),
+          size: _qsSize, lang: lang);
+      expect(find.text(tr('nd-qs-keep-title')), findsOneWidget);
+      expect(find.text(tr('nd-qs-keep-line')), findsOneWidget);
+      // The file goes either way, so the old hint about deleting it is gone
+      expect(find.text(tr('nd-qs-ended-hint')), findsNothing);
+      expect(find.text(tr('Close')), findsNothing);
+      await tester.tap(find.text(tr('nd-qs-keep')));
+      await tester.tap(find.text(tr('nd-qs-remove')));
+      expect(calls, ['keep', 'remove']);
+      if (lang == 'de') {
+        expect(find.text('Auf diesem Computer behalten'), findsOneWidget);
+        expect(find.text('Von diesem Computer entfernen'), findsOneWidget);
+      }
+    });
+  }
+
+  testWidgets('without a way to keep it the end stays as it was',
+      (tester) async {
+    final calls = <String>[];
+    await pumpScreen(
+        tester, _qs(_endedKeep.copyWith(canKeep: false), calls: calls),
+        size: _qsSize);
+    expect(find.text(tr('nd-qs-keep-title')), findsNothing);
+    expect(find.text(tr('nd-qs-remove')), findsNothing);
+    expect(find.text(tr('nd-qs-ended-hint')), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    expect(calls, ['close']);
+  });
+
+  testWidgets('a declined session offers no keeping', (tester) async {
+    await pumpScreen(tester, _qs(_endedKeep.copyWith(declined: true)),
+        size: _qsSize);
+    expect(find.text(tr('nd-qs-keep-title')), findsNothing);
+    expect(find.text('Close'), findsOneWidget);
+  });
+
+  testWidgets('the kept app says it stays and offers Remove', (tester) async {
+    final calls = <String>[];
+    await pumpScreen(
+        tester, _qs(_endedKeep.copyWith(kept: true), calls: calls),
+        size: _qsSize);
+    expect(find.text(tr('nd-qs-kept-line')), findsOneWidget);
+    expect(find.text(tr('nd-qs-keep-title')), findsNothing);
+    await tester.tap(find.text('Close'));
+    await tester.tap(find.text(tr('nd-qs-remove')));
+    expect(calls, ['close', 'remove']);
+  });
+
+  testWidgets('keeping that failed says so and offers only Close',
+      (tester) async {
+    await pumpScreen(tester, _qs(_endedKeep.copyWith(keepFailed: true)),
+        size: _qsSize);
+    expect(find.text(tr('nd-qs-keep-failed')), findsOneWidget);
+    expect(find.text(tr('nd-qs-keep')), findsNothing);
+    expect(find.text('Close'), findsOneWidget);
+  });
+
+  for (final phase in [OnboardingPhase.notSetUp, OnboardingPhase.joined]) {
+    testWidgets('the kept app opened without a link is ready (${phase.name})',
+        (tester) async {
+      final calls = <String>[];
+      await pumpScreen(
+          tester, _qs(OnboardingState(phase: phase, kept: true), calls: calls),
+          size: _qsSize, lang: 'de');
+      expect(find.text('NeoDesk Schnellhilfe ist bereit'), findsOneWidget);
+      expect(find.text(tr('nd-qs-connecting-title')), findsNothing);
+      await tester.tap(find.text(tr('nd-qs-remove')));
+      expect(calls, ['remove']);
+    });
+  }
+
+  test('closing after the session removes, and the kept app stays', () {
+    QuickSupportClose close(OnboardingState s) => quickSupportCloseOf(s);
+    expect(close(_endedKeep), QuickSupportClose.remove);
+    expect(close(_endedKeep.copyWith(declined: true)), QuickSupportClose.remove);
+    expect(close(_endedKeep.copyWith(phase: OnboardingPhase.supportExpired)),
+        QuickSupportClose.remove);
+    // Not over yet: closing quits as before and the file stays
+    expect(close(_endedKeep.copyWith(phase: OnboardingPhase.supportConnecting)),
+        QuickSupportClose.quit);
+    expect(close(_endedKeep.copyWith(phase: OnboardingPhase.supportConsent)),
+        QuickSupportClose.quit);
+    // macOS, Linux, or no file to keep
+    expect(close(_endedKeep.copyWith(canKeep: false)), QuickSupportClose.quit);
+    // The person chose Keep and it did not work
+    expect(close(_endedKeep.copyWith(keepFailed: true)), QuickSupportClose.quit);
+    for (final phase in OnboardingPhase.values) {
+      expect(close(OnboardingState(phase: phase, kept: true)),
+          QuickSupportClose.rest);
+    }
   });
 
   forBothThemes('session bar', (tester, b) async {

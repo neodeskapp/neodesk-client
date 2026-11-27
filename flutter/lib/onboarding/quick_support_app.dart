@@ -7,6 +7,7 @@ import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd_dialog_host.dart';
 import 'package:flutter_hbb/common/widgets/branding_logo.dart';
 import 'package:flutter_hbb/models/branding_model.dart';
+import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/native/window_frame.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -26,7 +27,8 @@ enum _Panel { none, chat, files }
 /// The quick support app in the main window: the 480 x 720 window with the
 /// consent and status screens, and during the session the bar at the top of
 /// the screen. The window itself becomes the bar, so it hides while the bar
-/// shows (DESIGN.md, Quick support app).
+/// shows (DESIGN.md, Quick support app). The kept app hides the window
+/// between sessions and shows it again for a link or the tray's Open.
 class QuickSupportWindow extends StatefulWidget {
   const QuickSupportWindow({super.key, required this.service});
   final OnboardingService service;
@@ -51,10 +53,16 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
     windowManager.setPreventClose(true);
     _sub = widget.service.states.listen(_onState);
     WidgetsBinding.instance.addPostFrameCallback((_) => _onState(_state));
+    platformFFI.registerEventHandler(_kShowEvent, _kShowEvent, (_) async {
+      await _show();
+    }, replace: true);
   }
+
+  static const _kShowEvent = 'quick_support_show';
 
   @override
   void dispose() {
+    platformFFI.unregisterEventHandler(_kShowEvent, _kShowEvent);
     _sub?.cancel();
     windowManager.removeListener(this);
     super.dispose();
@@ -134,7 +142,45 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
   @override
   void onWindowClose() => _close();
 
-  /// Closing ends the session; while connected it asks first.
+  /// Shows the window: a link came, or Open in the tray.
+  Future<void> _show() async {
+    widget.service.refresh();
+    if (_bar) return;
+    try {
+      await windowManager.show();
+      await windowManager.focus();
+    } catch (e) {
+      debugPrint('quick support show: $e');
+    }
+  }
+
+  /// Keep on the ended screen: the window goes, the app waits in the
+  /// background with its tray icon.
+  Future<void> _keep() async {
+    if (await widget.service.keepQuickSupport()) {
+      await windowManager.hide();
+    }
+  }
+
+  /// Remove: the downloaded file goes (and the kept app), then the app quits.
+  Future<void> _remove() async {
+    if (_connected ||
+        _state.phase == OnboardingPhase.supportConsent ||
+        _state.phase == OnboardingPhase.supportConnecting) {
+      await widget.service.endSupport();
+    }
+    await widget.service.removeQuickSupport();
+    await _quit();
+  }
+
+  Future<void> _quit() async {
+    await windowManager.setPreventClose(false);
+    await windowManager.destroy();
+    exit(0);
+  }
+
+  /// Closing ends the session; while connected it asks first. After the
+  /// session it counts as Remove, and the kept app goes to the background.
   Future<void> _close() async {
     if (_connected) {
       final name = (_state.supporterName ?? '').trim();
@@ -159,9 +205,18 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
         _state.phase == OnboardingPhase.supportConnecting) {
       await widget.service.endSupport();
     }
-    await windowManager.setPreventClose(false);
-    await windowManager.destroy();
-    exit(0);
+    switch (quickSupportCloseOf(_state)) {
+      case QuickSupportClose.rest:
+        await widget.service.restQuickSupport();
+        await windowManager.hide();
+        return;
+      case QuickSupportClose.remove:
+        await widget.service.removeQuickSupport();
+        break;
+      case QuickSupportClose.quit:
+        break;
+    }
+    await _quit();
   }
 
   /// Opens [panel] under the bar, or closes it when it is open.
@@ -240,6 +295,8 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
         onDecline: () => widget.service.consent(false),
         onCancel: () => widget.service.endSupport(),
         onClose: _close,
+        onKeep: _keep,
+        onRemove: _remove,
         onRetry: () {
           final link = _state.link;
           if (link != null) widget.service.redeemSupport(link);

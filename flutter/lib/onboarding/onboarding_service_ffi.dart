@@ -29,7 +29,8 @@ abstract class OnboardingNative {
   /// errorText, errorReason, joinStep, deviceId, deviceName, folderId, link,
   /// fileName, messages (fromSupporter, text, time in ms), files
   /// (toThisComputer, path, name, count, size, time), inputActive,
-  /// filesOpen, quickSupport, hasServer.
+  /// filesOpen, quickSupport, hasServer, canKeep, kept, startHidden,
+  /// keepFailed.
   String state();
 
   bool isQuickSupport();
@@ -39,6 +40,9 @@ abstract class OnboardingNative {
   void dismissFailedJoin();
   void endSupport();
   void sendChat(String text);
+  bool keepQuickSupport();
+  void removeQuickSupport();
+  void restQuickSupport();
 }
 
 const _activePhases = {
@@ -160,6 +164,10 @@ OnboardingState parseOnboardingState(String json) {
     files: _filesOf(map['files']),
     filesOpen: map['filesOpen'] == true,
     asking: _text(map['asking']),
+    canKeep: map['canKeep'] == true,
+    kept: map['kept'] == true,
+    startHidden: map['startHidden'] == true,
+    keepFailed: map['keepFailed'] == true,
   );
 }
 
@@ -180,6 +188,10 @@ bool _sameState(OnboardingState a, OnboardingState b) =>
     a.declined == b.declined &&
     a.filesOpen == b.filesOpen &&
     a.asking == b.asking &&
+    a.canKeep == b.canKeep &&
+    a.kept == b.kept &&
+    a.startHidden == b.startHidden &&
+    a.keepFailed == b.keepFailed &&
     listEquals(a.files, b.files) &&
     _sameMessages(a.messages, b.messages);
 
@@ -228,6 +240,7 @@ class FfiOnboardingService extends OnboardingService {
   }
 
   /// Reads the state now and tells the listeners when it changed.
+  @override
   void refresh() {
     _lastRead = DateTime.now();
     final next = parseOnboardingState(_native.state());
@@ -271,6 +284,22 @@ class FfiOnboardingService extends OnboardingService {
   Future<void> sendChat(String text) async {
     if (text.trim().isEmpty) return;
     _native.sendChat(text);
+    _called();
+  }
+
+  @override
+  Future<bool> keepQuickSupport() async {
+    final kept = _native.keepQuickSupport();
+    _called();
+    return kept;
+  }
+
+  @override
+  Future<void> removeQuickSupport() async => _native.removeQuickSupport();
+
+  @override
+  Future<void> restQuickSupport() async {
+    _native.restQuickSupport();
     _called();
   }
 

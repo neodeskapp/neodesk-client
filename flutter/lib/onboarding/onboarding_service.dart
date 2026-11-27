@@ -156,6 +156,10 @@ class OnboardingState {
     this.files = const [],
     this.filesOpen = false,
     this.asking,
+    this.canKeep = false,
+    this.kept = false,
+    this.startHidden = false,
+    this.keepFailed = false,
   });
 
   final OnboardingPhase phase;
@@ -216,6 +220,21 @@ class OnboardingState {
   /// manager: the name it gave (supportWaiting).
   final String? asking;
 
+  /// The ended screen offers to keep quick support on this computer
+  /// (Windows, a downloaded quick support file, no full NeoDesk).
+  final bool canKeep;
+
+  /// This is the quick support app kept on this computer: Close sends it to
+  /// the background, and it offers Remove.
+  final bool kept;
+
+  /// The kept app started at sign-in: the window stays hidden until a link
+  /// comes or the tray's Open.
+  final bool startHidden;
+
+  /// Keep did not work.
+  final bool keepFailed;
+
   OnboardingState copyWith({
     OnboardingPhase? phase,
     String? server,
@@ -239,6 +258,10 @@ class OnboardingState {
     List<OnboardingFileLine>? files,
     bool? filesOpen,
     String? asking,
+    bool? canKeep,
+    bool? kept,
+    bool? startHidden,
+    bool? keepFailed,
   }) =>
       OnboardingState(
         phase: phase ?? this.phase,
@@ -262,6 +285,10 @@ class OnboardingState {
         files: files ?? this.files,
         filesOpen: filesOpen ?? this.filesOpen,
         asking: asking ?? this.asking,
+        canKeep: canKeep ?? this.canKeep,
+        kept: kept ?? this.kept,
+        startHidden: startHidden ?? this.startHidden,
+        keepFailed: keepFailed ?? this.keepFailed,
       );
 
   /// The supporter's first name for the short lines; the full name when the
@@ -306,6 +333,20 @@ abstract class OnboardingService {
 
   /// Set up by hand after a failed join: the failure is left behind.
   void dismissFailedJoin() {}
+
+  /// Keep on the ended screen: quick support stays on this computer and
+  /// waits in the background. False when it could not.
+  Future<bool> keepQuickSupport() async => false;
+
+  /// Remove: the downloaded file goes, and the kept app with it. The app
+  /// quits after it.
+  Future<void> removeQuickSupport() async {}
+
+  /// Close in the kept app: it waits in the background for the next link.
+  Future<void> restQuickSupport() async {}
+
+  /// Reads the state now (the kept app's window was asked to show).
+  void refresh() {}
 }
 
 /// What people paste into the invite field.
@@ -515,6 +556,33 @@ class FakeOnboardingService extends OnboardingService {
     if (_state.phase == OnboardingPhase.joinFailed) {
       emit(_state.copyWith(phase: OnboardingPhase.notSetUp, clearError: true));
     }
+  }
+
+  /// Whether the next Keep works.
+  bool keepWorks = true;
+
+  @override
+  Future<bool> keepQuickSupport() async {
+    calls.add('keepQuickSupport');
+    if (!keepWorks) {
+      emit(_state.copyWith(keepFailed: true));
+      return false;
+    }
+    emit(OnboardingState(
+        phase: OnboardingPhase.notSetUp, kept: true, canKeep: _state.canKeep));
+    return true;
+  }
+
+  @override
+  Future<void> removeQuickSupport() async {
+    calls.add('removeQuickSupport');
+  }
+
+  @override
+  Future<void> restQuickSupport() async {
+    calls.add('restQuickSupport');
+    emit(OnboardingState(
+        phase: OnboardingPhase.notSetUp, kept: _state.kept, canKeep: _state.canKeep));
   }
 }
 

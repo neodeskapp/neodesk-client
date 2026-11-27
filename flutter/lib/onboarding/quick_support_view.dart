@@ -6,8 +6,33 @@ import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 
 import 'onboarding_service.dart';
 
+/// What closing the quick support window does.
+enum QuickSupportClose {
+  /// Quit, as before: the session was not over, or nothing can be kept.
+  quit,
+
+  /// Quit and delete the downloaded file: the session is over and the
+  /// person did not keep quick support.
+  remove,
+
+  /// The kept app goes to the background and waits for the next link.
+  rest,
+}
+
+/// What closing the window in state [s] does. Closing without a choice
+/// after the session counts as Remove.
+QuickSupportClose quickSupportCloseOf(OnboardingState s) {
+  if (s.kept) return QuickSupportClose.rest;
+  final over = s.phase == OnboardingPhase.supportEnded ||
+      s.phase == OnboardingPhase.supportExpired;
+  if (over && s.canKeep && !s.keepFailed) return QuickSupportClose.remove;
+  return QuickSupportClose.quit;
+}
+
 /// The quick support window (480 x 720): connecting, consent, waiting,
 /// ended, declined, expired and offline (DESIGN.md, Quick support app).
+/// After a session it offers to keep quick support on the computer, and
+/// the kept app shows that it is ready when it opens without a link.
 class QuickSupportView extends StatefulWidget {
   const QuickSupportView({
     super.key,
@@ -17,6 +42,8 @@ class QuickSupportView extends StatefulWidget {
     required this.onCancel,
     required this.onClose,
     required this.onRetry,
+    this.onKeep,
+    this.onRemove,
     this.logo,
     this.waitedLong = false,
   });
@@ -33,6 +60,12 @@ class QuickSupportView extends StatefulWidget {
   /// Close after the end: quits the app.
   final VoidCallback onClose;
   final VoidCallback onRetry;
+
+  /// Keep on this computer, on the ended screen.
+  final VoidCallback? onKeep;
+
+  /// Remove from this computer, on the ended screen and in the kept app.
+  final VoidCallback? onRemove;
   final Widget? logo;
 
   /// Shows the "hasn't connected yet" line at once (screenshots).
@@ -81,6 +114,9 @@ class _QuickSupportViewState extends State<QuickSupportView> {
       OnboardingPhase.supportInSession => tr('nd-qs-bar-viewing', [short]),
       OnboardingPhase.supportEnded => tr('nd-qs-ended-title'),
       OnboardingPhase.supportExpired => tr('nd-qs-expired-title'),
+      OnboardingPhase.notSetUp ||
+      OnboardingPhase.joined when s.kept =>
+        tr('nd-qs-ready-title'),
       _ => null,
     };
   }
@@ -250,12 +286,24 @@ class _QuickSupportViewState extends State<QuickSupportView> {
               Text(tr('nd-qs-declined', [full]), style: lead),
             ]);
           } else {
+            final offerKeep = s.canKeep && !s.kept && !s.keepFailed;
             body.addAll([
               Text(tr('nd-qs-ended-title'), style: title),
               const SizedBox(height: 16),
               Text(tr('nd-qs-ended-lead', [short, companyOrServer]),
                   style: lead),
-              if ((s.fileName ?? '').isNotEmpty) ...[
+              if (s.kept) ...[
+                const SizedBox(height: 16),
+                Text(tr('nd-qs-kept-line'), style: lead),
+              ] else if (offerKeep) ...[
+                const SizedBox(height: 28),
+                Text(tr('nd-qs-keep-title'), style: t.heading),
+                const SizedBox(height: 8),
+                Text(tr('nd-qs-keep-line'), style: lead),
+              ] else if (s.keepFailed) ...[
+                const SizedBox(height: 16),
+                Text(tr('nd-qs-keep-failed'), style: lead),
+              ] else if ((s.fileName ?? '').isNotEmpty) ...[
                 const SizedBox(height: 20),
                 Text(tr('nd-qs-ended-hint'), style: t.body.copyWith(
                     color: c.textMuted)),
@@ -264,12 +312,55 @@ class _QuickSupportViewState extends State<QuickSupportView> {
                     fontSize: 14, height: 20 / 14)),
               ],
             ]);
+            if (offerKeep && widget.onKeep != null) {
+              // Closing the window without a choice removes it too
+              primary = NdButton.primary(
+                  label: tr('nd-qs-keep'),
+                  size: NdButtonSize.lg,
+                  block: true,
+                  onPressed: widget.onKeep);
+              secondary = NdButton(
+                  label: tr('nd-qs-remove'),
+                  size: NdButtonSize.lg,
+                  block: true,
+                  onPressed: widget.onRemove ?? widget.onClose);
+              break;
+            }
           }
           primary = NdButton.primary(
               label: translate('Close'),
               size: NdButtonSize.lg,
               block: true,
               onPressed: widget.onClose);
+          if (s.kept && widget.onRemove != null) {
+            secondary = NdButton(
+                label: tr('nd-qs-remove'),
+                size: NdButtonSize.lg,
+                block: true,
+                onPressed: widget.onRemove);
+          }
+          break;
+        case OnboardingPhase.notSetUp:
+        case OnboardingPhase.joined:
+          if (!s.kept) continue connecting;
+          // The kept app opened without a link: it waits for one
+          body.addAll([
+            Text(tr('nd-qs-ready-title'), style: title),
+            const SizedBox(height: 16),
+            Text(tr('nd-qs-ready-line'), style: lead),
+          ]);
+          primary = NdButton.primary(
+              label: translate('Close'),
+              size: NdButtonSize.lg,
+              block: true,
+              onPressed: widget.onClose);
+          if (widget.onRemove != null) {
+            secondary = NdButton(
+                label: tr('nd-qs-remove'),
+                size: NdButtonSize.lg,
+                block: true,
+                onPressed: widget.onRemove);
+          }
           break;
         case OnboardingPhase.supportExpired:
           body.addAll([
@@ -283,6 +374,7 @@ class _QuickSupportViewState extends State<QuickSupportView> {
               block: true,
               onPressed: widget.onClose);
           break;
+        connecting:
         default:
           body.addAll([
             Text(tr('nd-qs-connecting-title'), style: title),

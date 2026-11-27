@@ -224,7 +224,8 @@ void _registerOnboarding() {
   );
 }
 
-/// The quick support app: one 480 x 720 window that is not resizable.
+/// The quick support app: one 480 x 720 window that is not resizable. The
+/// kept app started at sign-in keeps it hidden; its tray icon opens it.
 void runQuickSupportApp() async {
   await initEnv(kAppTypeMain);
   await bind.mainCheckConnectStatus();
@@ -236,9 +237,12 @@ void runQuickSupportApp() async {
   );
   final options = getHiddenTitleBarWindowOptions(
       size: kQuickSupportWindowSize, center: true);
+  final hidden = OnboardingService.instance.current.startHidden;
   windowManager.waitUntilReadyToShow(options, () async {
-    await windowManager.show();
-    await windowManager.focus();
+    if (!hidden) {
+      await windowManager.show();
+      await windowManager.focus();
+    }
     await windowManager.setOpacity(1);
     await windowManager.setTitle(translate('nd-qs-window-title'));
     setResizable(false);

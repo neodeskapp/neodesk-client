@@ -48,6 +48,21 @@ class FakeNative implements OnboardingNative {
 
   @override
   void sendChat(String text) => _call('chat $text');
+
+  /// What the next keep answers.
+  bool keeps = true;
+
+  @override
+  bool keepQuickSupport() {
+    _call('keep');
+    return keeps;
+  }
+
+  @override
+  void removeQuickSupport() => _call('remove');
+
+  @override
+  void restQuickSupport() => _call('rest');
 }
 
 FfiOnboardingService serviceOf(FakeNative native,
@@ -94,6 +109,46 @@ void main() {
     expect(
         parseOnboardingState(jsonEncode({'phase': 'supportWaiting'})).asking,
         isNull);
+  });
+
+  test('reads what the core says about keeping quick support', () {
+    final state = parseOnboardingState(jsonEncode({
+      'phase': 'supportEnded',
+      'canKeep': true,
+      'kept': true,
+      'startHidden': true,
+      'keepFailed': true,
+    }));
+    expect(state.canKeep, isTrue);
+    expect(state.kept, isTrue);
+    expect(state.startHidden, isTrue);
+    expect(state.keepFailed, isTrue);
+    final plain = parseOnboardingState(jsonEncode({'phase': 'supportEnded'}));
+    expect(plain.canKeep, isFalse);
+    expect(plain.kept, isFalse);
+    expect(plain.startHidden, isFalse);
+    expect(plain.keepFailed, isFalse);
+  });
+
+  test('keep, remove and rest reach the core, and a change of kept shows',
+      () async {
+    final native = FakeNative()
+      ..stateMap = {'phase': 'supportEnded', 'canKeep': true};
+    final service = serviceOf(native);
+    final seen = <OnboardingState>[];
+    service.states.listen(seen.add);
+    native.onCall = (call) {
+      if (call == 'keep') native.stateMap = {'phase': 'notSetUp', 'kept': true};
+    };
+    expect(await service.keepQuickSupport(), isTrue);
+    await Future<void>.delayed(Duration.zero);
+    expect(service.current.kept, isTrue);
+    expect(seen.last.kept, isTrue);
+    native.keeps = false;
+    expect(await service.keepQuickSupport(), isFalse);
+    await service.restQuickSupport();
+    await service.removeQuickSupport();
+    expect(native.calls, ['keep', 'keep', 'rest', 'remove']);
   });
 
   test('a finished join shows the facts of the invite', () {
