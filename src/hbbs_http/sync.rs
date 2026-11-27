@@ -406,6 +406,11 @@ async fn start_hbbs_sync_async() {
                                 );
                             }
                         }
+                        // The receiver's badge while the chat socket is down
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                        if let Some(count) = sealed_only.remove("tickets_unread").and_then(|v| v.as_u64()) {
+                            crate::nd_tickets::set_unread(count);
+                        }
                         if let Some(commands) = sealed_only.remove("telemetry_commands") {
                             if let Ok(commands) = serde_json::from_value::<Vec<Value>>(commands) {
                                 telemetry_results.extend(telemetry::process_commands(&commands));
@@ -429,6 +434,7 @@ const SEALED_ONLY: &[&str] = &[
     "connection_mode_command",
     "strategy",
     "modified_at",
+    "tickets_unread",
 ];
 
 /// A heartbeat answer as the sync loop reads it.
@@ -972,5 +978,19 @@ mod tests {
             Ok(json!({"modified_at": 4, "strategy": strategy})),
         );
         assert_eq!(answer.sealed_only.get("strategy"), Some(&strategy));
+    }
+
+    /// The receiver's badge counts tickets_unread only from the sealed
+    /// answer, where the server puts it.
+    #[test]
+    fn the_unread_tickets_count_only_from_inside_the_envelope() {
+        let answer = read(json!({"tickets_unread": 9}), Err("no envelope".to_owned()));
+        assert_eq!(answer.fields.get("tickets_unread"), None);
+        assert_eq!(answer.sealed_only.get("tickets_unread"), None);
+        let answer = read(
+            json!({"neodesk_envelope": {"version": 1}, "tickets_unread": 9}),
+            Ok(json!({"tickets_unread": 2})),
+        );
+        assert_eq!(answer.sealed_only.get("tickets_unread"), Some(&json!(2)));
     }
 }

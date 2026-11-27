@@ -747,6 +747,9 @@ pub const IPC_PUBLIC_KEY: &str = "public-key";
 /// Whether 2FA is on ("Y" or "N"). The 2FA secret itself stays in the
 /// process that holds the device's secrets (L442).
 pub const IPC_2FA_SET: &str = "2fa-set";
+/// The receiver's tickets with something unread (nd_tickets.rs), which the
+/// tray asks the process with the device token for.
+pub const IPC_TICKETS_UNREAD: &str = "nd-tickets-unread";
 
 fn bool_to_yn(value: bool) -> String {
     if value { "Y" } else { "N" }.to_owned()
@@ -1133,6 +1136,16 @@ async fn handle(data: Data, stream: &mut Connection) {
                     value = Some(Config::get_unlock_pin());
                 } else if name == "trusted-devices" {
                     value = Some(Config::get_trusted_devices_json());
+                } else if name == IPC_TICKETS_UNREAD {
+                    // The receiver's tray: tickets with something unread
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    {
+                        value = crate::nd_tickets::unread().map(|n| n.to_string());
+                    }
+                    #[cfg(any(target_os = "android", target_os = "ios"))]
+                    {
+                        value = None;
+                    }
                 } else {
                     value = None;
                 }

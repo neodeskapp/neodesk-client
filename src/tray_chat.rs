@@ -34,11 +34,36 @@ const NOTE_CHARS: usize = 120;
 pub const NOT_CHAT: u16 = 3;
 
 /// A notification to show: the staff member's name and the start of the
-/// message.
+/// message, and the page a click opens. For a ticket of the receiver the
+/// title and the body are translation keys ([`Note::keys`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Note {
     pub title: String,
     pub body: String,
+    /// What a click opens: "chat", or "tickets/<id>" in the receiver.
+    pub link: String,
+    pub keys: bool,
+}
+
+impl Note {
+    fn message(title: String, body: String) -> Self {
+        Note {
+            title,
+            body,
+            link: "chat".to_owned(),
+            keys: false,
+        }
+    }
+
+    /// The receiver's ticket `id` has news from staff.
+    fn ticket(id: u64) -> Self {
+        Note {
+            title: "nd-rcv-note-ticket".to_owned(),
+            body: "nd-rcv-note-ticket-body".to_owned(),
+            link: format!("tickets/{id}"),
+            keys: true,
+        }
+    }
 }
 
 /// A staff message the computer hasn't read.
@@ -68,6 +93,8 @@ pub struct TrayChat {
     notified: u64,
     /// The main window shows the chat in front.
     front: bool,
+    /// The receiver: news about its tickets notifies too.
+    pub receiver: bool,
 }
 
 fn id_of(v: &serde_json::Value) -> Option<u64> {
@@ -161,6 +188,11 @@ impl TrayChat {
                 self.prune();
                 Ok(vec![])
             }
+            // A ticket the person opened has an answer or a new status
+            // (PROTOCOL.md, ticket.updated)
+            "ticket.updated" if self.receiver && v["unread"] == true => {
+                Ok(id_of(&v["ticket_id"]).map(Note::ticket).into_iter().collect())
+            }
             _ => Ok(vec![]),
         }
     }
@@ -231,10 +263,7 @@ impl TrayChat {
         if self.front {
             return vec![];
         }
-        vec![Note {
-            title: m.name,
-            body: shorten(&m.text),
-        }]
+        vec![Note::message(m.name, shorten(&m.text))]
     }
 
     /// The socket ended with `status` (the HTTP status of a refused
@@ -321,7 +350,10 @@ pub fn watch(sender: std::sync::mpsc::Sender<ChatReport>) {
         }
     };
     runtime.block_on(async move {
-        let mut chat = TrayChat::default();
+        let mut chat = TrayChat {
+            receiver: crate::onboard::is_receiver(),
+            ..Default::default()
+        };
         let mut last = None;
         let mut report = |chat: &TrayChat| {
             let now = ChatReport {
@@ -333,9 +365,18 @@ pub fn watch(sender: std::sync::mpsc::Sender<ChatReport>) {
             }
         };
         let mut notify = |note: Note| {
+            let (title, body) = if note.keys {
+                (
+                    crate::client::translate(note.title),
+                    crate::client::translate(note.body),
+                )
+            } else {
+                (note.title, note.body)
+            };
+            let link = note.link;
             std::thread::spawn(move || {
-                crate::nd_chat::show_notification(&note.title, &note.body, || {
-                    crate::tray_menu::open_link("chat")
+                crate::nd_chat::show_notification(&title, &body, move || {
+                    crate::tray_menu::open_link(&link)
                 })
             });
         };
@@ -394,7 +435,14 @@ mod tests {
         Note {
             title: "Anna Weber".to_owned(),
             body: body.to_owned(),
+            link: "chat".to_owned(),
+            keys: false,
         }
+    }
+
+    fn ticket_updated(id: u64, unread: bool) -> String {
+        json!({"type": "ticket.updated", "ticket_id": id, "status": "in_progress", "unread": unread})
+            .to_string()
     }
 
     fn connected() -> TrayChat {
@@ -479,6 +527,31 @@ mod tests {
         );
         assert_eq!(chat.entry(), Some(4));
         assert_eq!(chat.frame(&new(staff(5, "e"))), Ok(vec![]), "a message is told once");
+    }
+
+    /// The receiver: staff answered a ticket of this computer or changed
+    /// its status. The notification opens that ticket; a message's opens
+    /// Messages.
+    #[test]
+    fn news_about_a_ticket_notifies_the_receiver_and_opens_that_ticket() {
+        let mut chat = connected();
+        chat.receiver = true;
+        chat.frame(&history(vec![], 0)).unwrap();
+        let notes = chat.frame(&ticket_updated(24, true)).unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].link, "tickets/24");
+        assert!(notes[0].keys, "the text comes from the language files");
+        assert_eq!(chat.frame(&ticket_updated(24, false)), Ok(vec![]), "nothing unread");
+        let message = chat.frame(&new(staff(1, "Hi"))).unwrap();
+        assert_eq!(message[0].link, "chat");
+        assert_eq!(chat.entry(), Some(1), "a ticket is not a chat message");
+    }
+
+    #[test]
+    fn outside_the_receiver_news_about_tickets_says_nothing() {
+        let mut chat = connected();
+        chat.frame(&history(vec![], 0)).unwrap();
+        assert_eq!(chat.frame(&ticket_updated(24, true)), Ok(vec![]));
     }
 
     #[test]

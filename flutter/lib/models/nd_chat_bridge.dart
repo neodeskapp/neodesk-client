@@ -117,6 +117,10 @@ class NdChatService with WindowListener {
   /// The chat window is shown in place of Home.
   final open = false.obs;
 
+  /// The receiver opens the chat in its home window instead, and a
+  /// notification's page ("chat", "tickets/<id>") there (receiver_app.dart).
+  void Function(String link)? openLink;
+
   /// The app's window has the focus.
   final focused = ValueNotifier<bool>(true);
 
@@ -128,12 +132,16 @@ class NdChatService with WindowListener {
   late final NdChatModel model = NdChatModel(
     connect: _connect,
     files: _files,
-    notify: (title, body) => bind.mainSetCommon(
-        key: 'nd-chat-notify',
-        value: jsonEncode({'title': title, 'body': body})),
+    notify: (title, body) => notifyWith(title, body, 'chat'),
     announce: (name, text) =>
         ndAnnounce(null, tr('nd-chat-message-from', [name, text])),
   );
+
+  /// Shows a system notification whose click opens [link].
+  void notifyWith(String title, String body, String link) =>
+      bind.mainSetCommon(
+          key: 'nd-chat-notify',
+          value: jsonEncode({'title': title, 'body': body, 'link': link}));
 
   /// Connects the chat of this computer, once per process.
   void start() {
@@ -158,7 +166,13 @@ class NdChatService with WindowListener {
 
   Future<void> _onEvent(Map<String, dynamic> evt) async {
     if (evt['activated'] == true) {
-      show();
+      final link = evt['link'];
+      final elsewhere = openLink;
+      if (elsewhere != null && link is String && link.isNotEmpty) {
+        elsewhere(link);
+      } else {
+        show();
+      }
       return;
     }
     if (evt.containsKey('tray')) {
@@ -185,6 +199,11 @@ class NdChatService with WindowListener {
 
   /// Brings the main window up with the chat on Home.
   Future<void> show() async {
+    final elsewhere = openLink;
+    if (elsewhere != null) {
+      elsewhere('chat');
+      return;
+    }
     for (var i = 0; i < 50 && !Get.isRegistered<DesktopTabController>(); i++) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
@@ -197,15 +216,22 @@ class NdChatService with WindowListener {
 
   void close() => open.value = false;
 
-  Widget page() => NdChatPage(
+  /// The chat page; the receiver's has no back button and a button for a
+  /// picture of the screen ([screenshot]).
+  Widget page(
+          {bool showClose = true,
+          Future<NdChatLocalFile?> Function()? screenshot}) =>
+      NdChatPage(
         model: model,
         onClose: close,
         windowFocused: focused,
+        showClose: showClose,
         actions: NdChatPageActions(
           pickFiles: _pickFiles,
           saveFile: _saveFile,
           picture: _picture,
           helperPicture: _helperPicture,
+          screenshot: screenshot,
           openLink: (uri) =>
               launchUrl(uri, mode: LaunchMode.externalApplication),
         ),

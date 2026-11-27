@@ -57,6 +57,17 @@ pub enum NdChat {
     /// The server is starting or stopping (503 with `X-NeoDesk-Chat:
     /// starting`): ask again after these seconds.
     Starting(u32),
+    /// The receiver's window: a request to the computer's tickets
+    /// (nd_tickets.rs), `path` under /api/tickets/nd. A body of `size`
+    /// bytes follows as the next raw frame when `size` isn't 0.
+    Api {
+        method: String,
+        path: String,
+        size: u64,
+    },
+    /// The request's HTTP status; an answer of `size` bytes follows as a raw
+    /// frame when `size` isn't 0.
+    ApiAnswer { status: u16, size: u64 },
 }
 
 /// [`NdChat::Closed`] and [`NdChat::Uploaded`] when this computer holds no
@@ -84,15 +95,15 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 const FILE_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// The server, device and token the chat uses.
-struct Access {
-    api: String,
-    device_id: String,
-    token: String,
+pub(crate) struct Access {
+    pub(crate) api: String,
+    pub(crate) device_id: String,
+    pub(crate) token: String,
 }
 
 /// The device token when it was issued for this device and server, as the
-/// enrollment requests use it.
-fn access() -> Option<Access> {
+/// enrollment requests use it. The tickets of the receiver use it too.
+pub(crate) fn access() -> Option<Access> {
     let api = crate::get_api_server(
         Config::get_option("api-server"),
         Config::get_option("custom-rendezvous-server"),
@@ -217,6 +228,9 @@ pub async fn serve(request: NdChat, stream: &mut Connection) {
             stream.send(&Data::NdChat(answer)).await.ok();
         }
         NdChat::Download { id, inline } => download(stream, &id, inline).await,
+        NdChat::Api { method, path, size } => {
+            crate::nd_tickets::serve(stream, &method, &path, size).await
+        }
         _ => {}
     }
 }
@@ -496,8 +510,13 @@ fn took(generation: u64, text: &str) {
         .and_then(|v| v["type"].as_str().map(str::to_owned))
         .unwrap_or_default();
     match kind.as_str() {
-        "welcome" => hub.welcome = Some((text.to_owned(), std::time::Instant::now())),
+        "welcome" => {
+            hub.welcome = Some((text.to_owned(), std::time::Instant::now()));
+            // The socket is back: the tickets' unread count of now
+            crate::nd_tickets::refresh_unread();
+        }
         "helper" => hub.helper = Some(text.to_owned()),
+        "ticket.updated" => crate::nd_tickets::refresh_unread(),
         _ => {}
     }
     for m in &hub.members {
@@ -1132,17 +1151,20 @@ pub mod window {
         }
     }
 
-    /// Shows an OS notification for {"title", "body"}. Clicking it on
-    /// Windows sends {"name": "nd-chat", "activated": true}.
+    /// Shows an OS notification for {"title", "body", "link"?}. Clicking it
+    /// on Windows sends {"name": "nd-chat", "activated": true, "link": link},
+    /// the link being the page the receiver opens ("chat",
+    /// "tickets/<id>"), empty without one.
     fn notify(request: &str) {
         let Ok(request) = serde_json::from_str::<serde_json::Value>(request) else {
             return;
         };
         let title = request["title"].as_str().unwrap_or_default().to_owned();
         let body = request["body"].as_str().unwrap_or_default().to_owned();
+        let link = request["link"].as_str().unwrap_or_default().to_owned();
         std::thread::spawn(move || {
-            show_notification(&title, &body, || {
-                push(serde_json::json!({"name": "nd-chat", "activated": true}))
+            show_notification(&title, &body, move || {
+                push(serde_json::json!({"name": "nd-chat", "activated": true, "link": link}))
             })
         });
     }
@@ -1247,6 +1269,12 @@ mod tests {
             NdChat::Front(true),
             NdChat::Tray(false),
             NdChat::Starting(5),
+            NdChat::Api {
+                method: "POST".to_owned(),
+                path: "/api/tickets/nd/24/read".to_owned(),
+                size: 2,
+            },
+            NdChat::ApiAnswer { status: 204, size: 0 },
         ] {
             let data = Data::NdChat(message.clone());
             let text = serde_json::to_string(&data).unwrap();
@@ -1550,7 +1578,9 @@ mod tests {
             notes.lock().unwrap().as_slice(),
             [crate::tray_chat::Note {
                 title: "Anna Weber".to_owned(),
-                body: "second".to_owned()
+                body: "second".to_owned(),
+                link: "chat".to_owned(),
+                keys: false,
             }]
         );
         drop(sender);

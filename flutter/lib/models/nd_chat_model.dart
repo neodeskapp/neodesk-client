@@ -580,10 +580,16 @@ class NdChatModel extends ChangeNotifier {
         _onError(v);
         break;
       default:
+        // ticket.updated and other frames for the computer, not the chat
+        onOtherFrame?.call(v);
         return;
     }
     notifyListeners();
   }
+
+  /// Hears the socket's frames the chat doesn't read (the receiver's
+  /// tickets take ticket.updated).
+  void Function(Map<dynamic, dynamic> frame)? onOtherFrame;
 
   void _onWelcome(Map v) {
     connected = true;

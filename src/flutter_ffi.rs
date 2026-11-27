@@ -1285,6 +1285,17 @@ pub fn main_onboard_is_quick_support() -> SyncReturn<bool> {
     SyncReturn(quick)
 }
 
+/// True when this process is the receiver: the app on a supported computer
+/// with one home window (Get help, Messages, My tickets). The signed client
+/// config carries `receiver=Y`; a debug build also takes NEODESK_RECEIVER=1.
+pub fn main_onboard_is_receiver() -> SyncReturn<bool> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let receiver = crate::onboard::is_receiver();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let receiver = false;
+    SyncReturn(receiver)
+}
+
 pub fn main_get_local_option(key: String) -> SyncReturn<String> {
     SyncReturn(get_local_option(key))
 }
@@ -2764,6 +2775,15 @@ pub fn main_get_common(key: String) -> String {
     if key.starts_with("nd-chat-") {
         return crate::nd_chat::window::get(&key);
     }
+    // The receiver's tickets and the picture of the screen
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if key.starts_with("nd-tickets-") {
+        return crate::nd_tickets::window::get(&key);
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if key == "nd-screenshot" {
+        return crate::nd_screenshot::take_json();
+    }
     if key == "is-printer-installed" {
         #[cfg(target_os = "windows")]
         {
@@ -2875,7 +2895,11 @@ pub fn main_get_common(key: String) -> String {
 pub fn main_get_common_sync(key: String) -> SyncReturn<String> {
     // Metadata verification performs blocking network requests. Keep this key on
     // the asynchronous FFI path to avoid blocking the calling Flutter isolate.
-    if key.starts_with("verified-download-url-") || key == "nd-update-check" {
+    if key.starts_with("verified-download-url-")
+        || key == "nd-update-check"
+        || key.starts_with("nd-tickets-")
+        || key == "nd-screenshot"
+    {
         return SyncReturn("error:unsupported".to_owned());
     }
     SyncReturn(main_get_common(key))

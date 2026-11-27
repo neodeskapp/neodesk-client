@@ -69,6 +69,7 @@ impl TrayMenu {
                 stop_service: crate::ui_interface::get_builtin_option(
                     config::keys::OPTION_HIDE_STOP_SERVICE,
                 ) != "Y",
+                receiver: crate::onboard::is_receiver(),
             },
             copied_at: None,
             clipboard: None,
@@ -186,25 +187,45 @@ impl TrayMenu {
             .map(|(action, _)| *action)
     }
 
-    /// The first line of the menu, for the tooltip.
+    /// The first line of the menu, for the tooltip. The receiver's menu has
+    /// no state line; its tooltip says the state all the same.
     pub fn status(&self) -> String {
+        if self.offers.receiver {
+            let (key, arg) = tray_model::status_line(&self.report.facts);
+            return translate(key.to_owned()).replace("{}", &arg);
+        }
         self.shown
             .first()
             .map(|(_, text, _)| text.clone())
             .unwrap_or_default()
     }
 
-    /// The first line of the menu and, with new messages in the chat, a line
-    /// saying so: the tooltip.
+    /// The first line of the menu and, with new messages in the chat or
+    /// tickets with something unread, a line saying so: the tooltip.
     pub fn tooltip_status(&self) -> String {
-        let status = self.status();
-        match tray_model::chat_tooltip(self.chat) {
-            Some((key, count)) => format!(
-                "{status}\n{}",
-                translate(key.to_owned()).replace("{}", &count)
-            ),
-            None => status,
+        let mut status = self.status();
+        let tickets = if self.offers.receiver {
+            tray_model::tickets_tooltip(self.report.facts.tickets)
+        } else {
+            None
+        };
+        for (key, count) in [tray_model::chat_tooltip(self.chat), tickets]
+            .into_iter()
+            .flatten()
+        {
+            status = format!("{status}\n{}", translate(key.to_owned()).replace("{}", &count));
         }
+        status
+    }
+
+    /// The number on the receiver's tray icon (0 outside the receiver).
+    pub fn badge(&self) -> u32 {
+        if !self.offers.receiver {
+            return 0;
+        }
+        let mut facts = self.report.facts.clone();
+        facts.chat = self.chat;
+        tray_model::badge(&facts)
     }
 
     /// Runs the actions that need nothing from the tray icon itself.
@@ -214,6 +235,8 @@ impl TrayMenu {
             Action::Settings => open_link("settings"),
             Action::About => open_link("settings/about"),
             Action::Chat => open_link("chat"),
+            Action::GetHelp => open_link("help"),
+            Action::Tickets => open_link("tickets"),
             Action::StopService => set_paused(true),
             Action::AcceptConnections => set_paused(false),
             Action::Status | Action::Open => {}
@@ -337,6 +360,7 @@ fn facts_of(options: &HashMap<String, String>, online: Online, reason: &str) -> 
         standing: standing_of(&get("neodesk-device-standing")),
         service_stopped: config::option2bool("stop-service", &get("stop-service")),
         chat: None,
+        tickets: 0,
     }
 }
 
@@ -360,12 +384,15 @@ fn standing_of(raw: &str) -> Standing {
     }
 }
 
-/// Asks the service every second for its online state, its options and
-/// this computer's ID, and sends a report whenever they change.
+/// Asks the service every second for its online state, its options, this
+/// computer's ID and, for the receiver, its tickets with something unread,
+/// and sends a report whenever they change.
 #[tokio::main(flavor = "current_thread")]
 async fn watch(sender: mpsc::Sender<Report>) {
     let mut options = local_options();
     let mut id = String::new();
+    let mut tickets = 0;
+    let receiver = crate::onboard::is_receiver();
     let mut last: Option<Report> = None;
     loop {
         if let Ok(mut c) = crate::ipc::connect(1000, "").await {
@@ -387,6 +414,11 @@ async fn watch(sender: mpsc::Sender<Report>) {
                             Ok(Some(Data::Config((name, Some(value))))) if name == "id" => {
                                 id = value;
                             }
+                            Ok(Some(Data::Config((name, value))))
+                                if name == crate::ipc::IPC_TICKETS_UNREAD =>
+                            {
+                                tickets = value.and_then(|v| v.parse().ok()).unwrap_or(tickets);
+                            }
                             _ => {}
                         }
                     }
@@ -394,13 +426,20 @@ async fn watch(sender: mpsc::Sender<Report>) {
                         c.send(&Data::OnlineStatus(None)).await.ok();
                         c.send(&Data::Options(None)).await.ok();
                         c.send(&Data::Config(("id".to_owned(), None))).await.ok();
+                        if receiver {
+                            c.send(&Data::Config((crate::ipc::IPC_TICKETS_UNREAD.to_owned(), None)))
+                                .await
+                                .ok();
+                        }
                     }
                 }
                 let Some(online) = online else {
                     continue;
                 };
+                let mut facts = facts_of(&options, online, "");
+                facts.tickets = tickets;
                 let report = Report {
-                    facts: facts_of(&options, online, ""),
+                    facts,
                     id: id.clone(),
                 };
                 if last.as_ref() != Some(&report) {
@@ -409,8 +448,10 @@ async fn watch(sender: mpsc::Sender<Report>) {
                 }
             }
         }
+        let mut facts = facts_of(&options, Online::NotReady, "ipc_disconnected");
+        facts.tickets = tickets;
         let report = Report {
-            facts: facts_of(&options, Online::NotReady, "ipc_disconnected"),
+            facts,
             id: id.clone(),
         };
         if last.as_ref() != Some(&report) {

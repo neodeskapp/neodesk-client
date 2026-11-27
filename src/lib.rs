@@ -58,6 +58,10 @@ mod custom_server;
 mod install_standing;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod nd_chat;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod nd_screenshot;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod nd_tickets;
 mod lang;
 mod own_name;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
