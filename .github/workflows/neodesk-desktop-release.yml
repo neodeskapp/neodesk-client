@@ -1,17 +1,15 @@
 # NeoDesk Client (full desktop client): build, and release on tags.
 #
-# Every push to main builds the client for all six desktop
-# targets and keeps the packages as workflow artifacts of the run. Nothing is
-# published.
+# Pushes to main build nothing, so merges leave the runners to CI.
 #
-# A desktop/<version> or desktop-v<version> tag builds the same and publishes
-# a GitHub Release on this repository with a download table in the release
-# notes. The console only takes releases whose tag has no slash, so it can
+# A desktop/<version> or desktop-v<version> tag builds the client for all six
+# desktop targets and publishes a GitHub Release on this repository with a
+# download table in the release notes. The console only takes releases whose tag has no slash, so it can
 # use desktop-v* releases but not desktop/* ones. After a desktop-v* release
 # the packages job updates https://pkg.neode.sk (neodesk-packages.yml).
 #
 # Package versions: a tag's version for releases, <Cargo.toml version>-dev.<run
-# number> for everything else (neodesk-1.5.0-dev.42-windows-x86_64.exe).
+# number> for manual runs (neodesk-1.5.0-dev.42-windows-x86_64.exe).
 #
 # Manual runs (workflow_dispatch) build one platform or all of them, as
 # artifacts only:
@@ -24,17 +22,9 @@ name: NeoDesk desktop release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "desktop/*"
       - "desktop-v*"
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-      - ".gitignore"
-      - "LICENSE"
-      - "PRIVACY"
   workflow_dispatch:
     inputs:
       platforms:
@@ -51,8 +41,8 @@ on:
           - macos-x86_64
           - macos-aarch64
 
-# A newer push ends the older run of the same branch; a manual run only ends
-# an older manual run, so rerunning one platform leaves a push run alone.
+# A newer run ends the older one of the same ref; a manual run only ends an
+# older manual run, so rerunning one platform leaves a tag run alone.
 concurrency:
   group: neodesk-desktop-release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
@@ -108,7 +98,7 @@ jobs:
               IS_DEV=false
             fi
           else
-            # Branch pushes and manual runs keep the packages as run artifacts.
+            # Manual runs keep the packages as run artifacts.
             PUBLISH=false
             PLATFORMS="${INPUT_PLATFORMS:-all}"
             TAG_NAME="dev-${RUN_N}-${SHORT_SHA}"
