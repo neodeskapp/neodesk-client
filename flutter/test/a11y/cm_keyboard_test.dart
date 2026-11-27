@@ -174,4 +174,25 @@ void main() {
     expect(
         cmRemoteMaySendKeys([_client(keyboard: false), _client()]), isTrue);
   });
+
+  testWidgets(
+      'with the chat open the message field takes focus while a remote '
+      'computer may send keys', (tester) async {
+    final field = FocusNode(debugLabel: 'message');
+    addTearDown(field.dispose);
+    Widget page(bool chatOpen) => cmControlPageBlock(
+        child: Material(child: TextField(focusNode: field)),
+        block: false.obs,
+        remoteMaySendKeys: true,
+        systemBlocksRemoteKeys: false,
+        chatOpen: chatOpen);
+    await pumpScreen(tester, page(false), size: const Size(380, 200));
+    field.requestFocus();
+    await tester.pump();
+    expect(field.hasFocus, isFalse);
+    await pumpScreen(tester, page(true), size: const Size(380, 200));
+    field.requestFocus();
+    await tester.pump();
+    expect(field.hasFocus, isTrue);
+  });
 }

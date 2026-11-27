@@ -1,7 +1,6 @@
 // original cm window in Sciter version.
 
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
@@ -13,7 +12,6 @@ import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:flutter_hbb/models/cm_file_model.dart';
 import 'package:flutter_hbb/utils/platform_channel.dart';
 import 'package:get/get.dart';
-import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -124,7 +122,6 @@ class ConnectionManager extends StatefulWidget {
 class ConnectionManagerState extends State<ConnectionManager>
     with WidgetsBindingObserver {
   final RxBool _controlPageBlock = false.obs;
-  final RxBool _sidePageBlock = false.obs;
 
   ConnectionManagerState() {
     gFFI.serverModel.tabController.onSelected = (client_id_str) {
@@ -154,7 +151,6 @@ class ConnectionManagerState extends State<ConnectionManager>
     if (state == AppLifecycleState.resumed) {
       if (!allowRemoteCMModification()) {
         shouldBeBlocked(_controlPageBlock, null);
-        shouldBeBlocked(_sidePageBlock, null);
       }
     }
   }
@@ -223,76 +219,32 @@ class ConnectionManagerState extends State<ConnectionManager>
                   ],
                 );
               },
-              pageViewBuilder: (pageView) => LayoutBuilder(
-                builder: (context, constrains) {
-                  var borderWidth = 0.0;
-                  if (constrains.maxWidth >
-                      kConnectionManagerWindowSizeClosedChat.width) {
-                    borderWidth = kConnectionManagerWindowSizeOpenChat.width -
-                        constrains.maxWidth;
-                  } else {
-                    borderWidth = kConnectionManagerWindowSizeClosedChat.width -
-                        constrains.maxWidth;
-                  }
-                  if (borderWidth < 0 || borderWidth > 50) {
-                    borderWidth = 0;
-                  }
-                  final realClosedWidth =
-                      kConnectionManagerWindowSizeClosedChat.width -
-                          borderWidth;
-                  final realChatPageWidth =
-                      constrains.maxWidth - realClosedWidth;
-                  final row = Row(children: [
-                    if (constrains.maxWidth >
-                        kConnectionManagerWindowSizeClosedChat.width)
-                      Consumer<ChatModel>(
-                          builder: (_, model, child) => SizedBox(
-                                width: realChatPageWidth,
-                                child: allowRemoteCMModification()
-                                    ? buildSidePage()
-                                    : buildRemoteBlock(
-                                        child: buildSidePage(),
-                                        block: _sidePageBlock,
-                                        mask: true),
-                              )),
-                    SizedBox(
-                        width: realClosedWidth,
-                        child: SizedBox(
-                            width: realClosedWidth,
-                            child: allowRemoteCMModification()
-                                ? pageView
-                                : Consumer<ServerModel>(
-                                    builder: (_, model, __) =>
-                                        cmControlPageBlock(
-                                            child: pageView,
-                                            block: _controlPageBlock,
-                                            remoteMaySendKeys:
-                                                cmRemoteMaySendKeys(
-                                                    model.clients),
-                                            systemBlocksRemoteKeys:
-                                                cmSystemBlocksRemoteKeys())))),
-                  ]);
-                  return Container(
-                    color: context.nd.bg,
-                    child: row,
-                  );
-                },
+              // The window keeps one size: Access, Chat and Files are tabs
+              // of the card, so opening one never resizes the window.
+              pageViewBuilder: (pageView) => Container(
+                color: context.nd.bg,
+                child: allowRemoteCMModification()
+                    ? pageView
+                    : Consumer<ServerModel>(
+                        builder: (_, model, __) => Consumer<ChatModel>(
+                            builder: (_, chat, __) => cmControlPageBlock(
+                                child: pageView,
+                                block: _controlPageBlock,
+                                remoteMaySendKeys:
+                                    cmRemoteMaySendKeys(model.clients),
+                                systemBlocksRemoteKeys:
+                                    cmSystemBlocksRemoteKeys(),
+                                chatOpen: _chatOpen(model, chat)))),
               ),
             ),
           );
   }
 
-  Widget buildSidePage() {
-    final selected = gFFI.serverModel.tabController.state.value.selected;
-    if (selected < 0 || selected >= gFFI.serverModel.clients.length) {
-      return Offstage();
-    }
-    final clientType = gFFI.serverModel.clients[selected].type_();
-    if (clientType == ClientType.file) {
-      return _FileTransferLogPage();
-    } else {
-      return ChatPage(type: ChatPageType.desktopCM);
-    }
+  /// Whether the selected card shows its chat.
+  bool _chatOpen(ServerModel model, ChatModel chat) {
+    final selected = model.tabController.state.value.selected;
+    if (selected < 0 || selected >= model.clients.length) return false;
+    return chat.cmTabOf(model.clients[selected].id) == CmTab.chat;
   }
 
   Widget buildTitleBar() {
@@ -504,6 +456,29 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
       offersAllow: cmOffersAllow(Provider.of<ServerModel>(context).approveMode,
           vouched: client.vouched));
 
+  /// The open tab. A file transfer has no Access tab and opens on Files.
+  CmTab _tab(BuildContext context) => cmShownTab(
+      Provider.of<ChatModel>(context).cmTabOf(client.id),
+      file: client.type_() == ClientType.file,
+      camera: client.type_() == ClientType.camera);
+
+  /// In quick support the quick support window shows the end of the
+  /// session, so a card whose connection ended goes away by itself instead
+  /// of waiting for Close.
+  bool _closing = false;
+  void _closeWhenEnded() {
+    if (_closing || !client.disconnected || !bind.mainOnboardIsQuickSupport()) {
+      return;
+    }
+    _closing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await bind.cmRemoveDisconnectedConnection(connId: client.id);
+      if (await bind.cmGetClientsLength() == 0) {
+        windowManager.close();
+      }
+    });
+  }
+
   Widget _avatar(String name, {bool own = true}) {
     // The picture a caller sends is its own claim: only for a caller shown
     // by its name
@@ -520,9 +495,11 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    _closeWhenEnded();
     var name = client.name.isNotEmpty ? client.name : client.peerId;
     final permissions = _permissions();
     Widget body;
+    Widget foot = _CmControlPanel(client: client);
     if (!client.authorized) {
       final caller = _caller(context);
       final own = !caller.unknown;
@@ -543,47 +520,60 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
         ),
       );
     } else {
-      body = Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Obx(() => CmHeader(
-                name: name,
-                subtitle: client.disconnected
-                    ? translate('Disconnected')
-                    : cmConnectedFor(Duration(seconds: _seconds.value)),
-                kind: _kind,
-                avatar: _avatar(name))),
-            const SizedBox(height: 16),
-            if (!client.disconnected &&
-                (client.type_() == ClientType.remote ||
-                    client.type_() == ClientType.file ||
-                    client.type_() == ClientType.camera))
-              CmTabs(
-                value: CmTab.access,
-                showFiles: client.type_() != ClientType.camera,
-                unread: client.unreadChatMessageCount.value,
-                onChanged: (tab) => checkClickTime(client.id, () {
-                  if (tab == CmTab.files) {
-                    gFFI.chatModel.toggleCMFilePage();
-                  } else if (tab == CmTab.chat) {
-                    gFFI.chatModel
-                        .toggleCMChatPage(MessageKey(client.peerId, client.id));
-                  }
-                }),
-              ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(top: 4, bottom: 12),
-                child: CmPermissionList(items: permissions),
-              ),
+      final type = client.type_();
+      final hasTabs = !client.disconnected &&
+          (type == ClientType.remote ||
+              type == ClientType.file ||
+              type == ClientType.camera);
+      final tab = _tab(context);
+      // With the chat open only its message field takes keyboard focus
+      // while keys a remote computer types can reach this window
+      final guard = hasTabs &&
+          tab == CmTab.chat &&
+          cmRemoteKeysReachHere(Provider.of<ServerModel>(context).clients);
+      foot = ExcludeFocus(excluding: guard, child: foot);
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Obx(() => CmHeader(
+                    name: name,
+                    subtitle: client.disconnected
+                        ? translate('Disconnected')
+                        : cmConnectedFor(Duration(seconds: _seconds.value)),
+                    kind: _kind,
+                    avatar: _avatar(name))),
+                const SizedBox(height: 16),
+                if (hasTabs)
+                  Obx(() => ExcludeFocus(
+                      excluding: guard,
+                      child: CmTabs(
+                        value: tab,
+                        showAccess: type != ClientType.file,
+                        showFiles: type != ClientType.camera,
+                        unread: client.unreadChatMessageCount.value,
+                        onChanged: (tab) => checkClickTime(client.id,
+                            () => gFFI.chatModel.setCMTab(client.id, tab)),
+                      ))),
+              ],
             ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: CmTabBody(
+              tab: hasTabs ? tab : CmTab.access,
+              access: permissions,
+              chat: (_) => ChatPage(type: ChatPageType.desktopCM),
+              files: (_) => _FileTransferLogPage(),
+            ),
+          ),
+        ],
       );
     }
-    return CmScreen(body: body, foot: _CmControlPanel(client: client));
+    return CmScreen(body: body, foot: foot);
   }
 }
 
@@ -849,19 +839,30 @@ bool cmSystemBlocksRemoteKeys() =>
 ///   drops the keys remote computers type before they reach this window
 ///   ([systemBlocksRemoteKeys], Windows). Otherwise the page takes no
 ///   keyboard focus, as before.
+/// - With the chat open ([chatOpen]) the page lets its message field take
+///   focus, so the person can write; the card then keeps every other
+///   control out of the keyboard's reach itself (cmRemoteKeysReachHere).
 /// - Every action still checks that the click or key did not come from the
 ///   remote computer (checkClickTime), as a second layer.
 Widget cmControlPageBlock(
         {required Widget child,
         required RxBool block,
         required bool remoteMaySendKeys,
-        required bool systemBlocksRemoteKeys}) =>
+        required bool systemBlocksRemoteKeys,
+        bool chatOpen = false}) =>
     buildRemoteBlock(
         child: ExcludeFocus(
-            excluding: remoteMaySendKeys && !systemBlocksRemoteKeys,
+            excluding:
+                remoteMaySendKeys && !systemBlocksRemoteKeys && !chatOpen,
             child: child),
         block: block,
         mask: false);
+
+/// Whether a key a remote computer types can reach this window's controls.
+bool cmRemoteKeysReachHere(Iterable<Client> clients) =>
+    !allowRemoteCMModification() &&
+    cmRemoteMaySendKeys(clients) &&
+    !cmSystemBlocksRemoteKeys();
 
 bool allowRemoteCMModification() {
   return option2bool(kOptionAllowRemoteCmModification,
@@ -876,210 +877,103 @@ class _FileTransferLogPage extends StatefulWidget {
 }
 
 class __FileTransferLogPageState extends State<_FileTransferLogPage> {
+  final _scroll = ScrollController();
+
   @override
-  Widget build(BuildContext context) {
-    return statusList();
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
   }
 
-  Widget generateCard(Widget child) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.all(
-          Radius.circular(15.0),
-        ),
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final jobs = gFFI.cmFileModel.currentJobTable;
+      if (jobs.isEmpty) return _empty(context);
+      return ListView.separated(
+        controller: _scroll,
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+        itemCount: jobs.length,
+        separatorBuilder: (_, __) => const NdRule(),
+        itemBuilder: (context, i) => _row(context, jobs[jobs.length - 1 - i]),
+      );
+    });
+  }
+
+  Widget _empty(BuildContext context) {
+    final c = context.nd;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(NdIcons.swapHoriz, size: 28, color: c.textMuted),
+          const SizedBox(height: 8),
+          Text(translate("No transfers in progress"),
+              textAlign: TextAlign.center,
+              style: context.ndText.body.copyWith(color: c.textMuted)),
+        ]),
       ),
-      child: child,
     );
   }
 
-  iconLabel(CmFileLog item) {
-    switch (item.action) {
-      case CmFileAction.none:
-        return Container();
-      case CmFileAction.localToRemote:
-      case CmFileAction.remoteToLocal:
-        return Column(
-          children: [
-            Transform.rotate(
-              angle: item.action == CmFileAction.remoteToLocal ? 0 : pi,
-              child: Icon(NdIcons.arrowForward,
-                  color: Theme.of(context).tabBarTheme.labelColor),
-            ),
-            Text(item.action == CmFileAction.remoteToLocal
-                ? translate('Send')
-                : translate('Receive'))
-          ],
-        );
-      case CmFileAction.remove:
-        return Column(
-          children: [
-            Icon(
-              NdIcons.delete,
-              color: Theme.of(context).tabBarTheme.labelColor,
-            ),
-            Text(translate('Delete'))
-          ],
-        );
-      case CmFileAction.createDir:
-        return Column(
-          children: [
-            Icon(
-              NdIcons.createNewFolder,
-              color: Theme.of(context).tabBarTheme.labelColor,
-            ),
-            Text(translate('Create Folder'))
-          ],
-        );
-      case CmFileAction.rename:
-        return Column(
-          children: [
-            Icon(
-              NdIcons.rename,
-              color: Theme.of(context).tabBarTheme.labelColor,
-            ),
-            Text(translate('Rename'))
-          ],
-        );
-    }
-  }
+  (IconData, String) _what(CmFileLog item) => switch (item.action) {
+        CmFileAction.remoteToLocal => (NdIcons.arrowUpward, translate('Send')),
+        CmFileAction.localToRemote =>
+          (NdIcons.arrowDownward, translate('Receive')),
+        CmFileAction.remove => (NdIcons.delete, translate('Delete')),
+        CmFileAction.createDir =>
+          (NdIcons.createNewFolder, translate('Create Folder')),
+        CmFileAction.rename => (NdIcons.rename, translate('Rename')),
+        CmFileAction.none => (NdIcons.swapHoriz, ''),
+      };
 
-  Widget statusList() {
-    return PreferredSize(
-      preferredSize: const Size(200, double.infinity),
-      child: Container(
-          padding: const EdgeInsets.all(12.0),
-          child: Obx(
-            () {
-              final jobTable = gFFI.cmFileModel.currentJobTable;
-              statusListView(List<CmFileLog> jobs) => ListView.builder(
-                    controller: ScrollController(),
-                    itemBuilder: (BuildContext context, int index) {
-                      final item = jobs[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 5),
-                        child: generateCard(
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    width: 50,
-                                    child: iconLabel(item),
-                                  ).paddingOnly(left: 15),
-                                  const SizedBox(
-                                    width: 16.0,
-                                  ),
-                                  Expanded(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.fileName,
-                                        ).paddingSymmetric(vertical: 10),
-                                        if (item.totalSize > 0)
-                                          Text(
-                                            '${translate("Total")} ${readableFileSize(item.totalSize.toDouble())}',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: MyTheme.darkGray,
-                                            ),
-                                          ),
-                                        if (item.totalSize > 0)
-                                          Offstage(
-                                            offstage: item.state !=
-                                                JobState.inProgress,
-                                            child: Text(
-                                              '${translate("Speed")} ${readableFileSize(item.speed)}/s',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: MyTheme.darkGray,
-                                              ),
-                                            ),
-                                          ),
-                                        Offstage(
-                                          offstage: !(item.isTransfer() &&
-                                              item.state !=
-                                                  JobState.inProgress),
-                                          child: Text(
-                                            translate(
-                                              item.display(),
-                                            ),
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: MyTheme.darkGray,
-                                            ),
-                                          ),
-                                        ),
-                                        if (item.totalSize > 0)
-                                          Offstage(
-                                            offstage: item.state !=
-                                                JobState.inProgress,
-                                            child: LinearPercentIndicator(
-                                              padding:
-                                                  EdgeInsets.only(right: 15),
-                                              animateFromLastPercent: true,
-                                              center: Text(
-                                                '${(item.finishedSize / item.totalSize * 100).toStringAsFixed(0)}%',
-                                              ),
-                                              barRadius: Radius.circular(15),
-                                              percent: item.finishedSize /
-                                                  item.totalSize,
-                                              progressColor: MyTheme.accent,
-                                              backgroundColor:
-                                                  Theme.of(context).hoverColor,
-                                              lineHeight:
-                                                  kDesktopFileTransferRowHeight,
-                                            ).paddingSymmetric(vertical: 15),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ).paddingSymmetric(vertical: 10),
-                        ),
-                      );
-                    },
-                    itemCount: jobTable.length,
-                  );
-
-              return jobTable.isEmpty
-                  ? generateCard(
-                      Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(NdIcons.swapHoriz,
-                                    size: 40,
-                                    color: Theme.of(context)
-                                        .tabBarTheme
-                                        .labelColor)
-                                .paddingOnly(bottom: 10),
-                            Text(
-                              translate("No transfers in progress"),
-                              textAlign: TextAlign.center,
-                              textScaler: TextScaler.linear(1.20),
-                              style: TextStyle(
-                                  color:
-                                      Theme.of(context).tabBarTheme.labelColor),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : statusListView(jobTable);
-            },
-          )),
+  Widget _row(BuildContext context, CmFileLog item) {
+    final c = context.nd;
+    final t = context.ndText;
+    final (icon, action) = _what(item);
+    final running = item.state == JobState.inProgress && item.totalSize > 0;
+    final details = <String>[
+      if (action.isNotEmpty) action,
+      if (item.totalSize > 0) readableFileSize(item.totalSize.toDouble()),
+      if (running) '${readableFileSize(item.speed)}/s',
+      if (item.isTransfer() && item.state != JobState.inProgress)
+        translate(item.display()),
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(icon, size: 18, color: c.textMuted),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.fileName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.body.copyWith(fontSize: 14, height: 20 / 14)),
+              if (details.isNotEmpty)
+                Text(details.join(', '), style: t.small),
+              if (running) ...[
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: (item.finishedSize / item.totalSize)
+                        .clamp(0.0, 1.0),
+                    minHeight: 4,
+                    color: c.accent,
+                    backgroundColor: c.rule,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ]),
     );
   }
 }

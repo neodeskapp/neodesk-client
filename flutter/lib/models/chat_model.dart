@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/shared_state.dart';
 import 'package:flutter_hbb/common/theme/nd_theme.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd_icons.dart';
+import 'package:flutter_hbb/desktop/pages/cm/cm_widgets.dart' show CmTab;
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/mobile/pages/home_page.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
@@ -18,7 +19,6 @@ import 'package:get/get.dart';
 import 'package:uuid/uuid.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../consts.dart';
 import '../common.dart';
 import '../common/widgets/overlay.dart';
 import '../main.dart';
@@ -95,13 +95,23 @@ class ChatModel with ChangeNotifier {
   late final Map<MessageKey, MessageBody> _messages = {};
 
   MessageKey _currentKey = MessageKey('', -2); // -2 is invalid value
-  late bool _isShowCMSidePage = false;
+  /// The connection manager's tab per connection (Access, Chat, Files).
+  final Map<int, CmTab> _cmTabs = {};
 
   Map<MessageKey, MessageBody> get messages => _messages;
 
   MessageKey get currentKey => _currentKey;
 
-  bool get isShowCMSidePage => _isShowCMSidePage;
+  /// The connection manager's tab of connection [connId].
+  CmTab cmTabOf(int connId) => _cmTabs[connId] ?? CmTab.access;
+
+  /// Whether the connection manager shows [tab] of connection [connId]
+  /// now: its card is the selected one and [tab] is open.
+  bool cmShows(int connId, CmTab tab) {
+    final selected =
+        parent.target?.serverModel.tabController.state.value.selectedTabInfo;
+    return selected?.key == connId.toString() && cmTabOf(connId) == tab;
+  }
 
   void setOverlayState(BlockableOverlayState blockableOverlayState) {
     _blockableOverlayState = blockableOverlayState;
@@ -265,9 +275,7 @@ class ChatModel with ChangeNotifier {
   showChatPage(MessageKey key) async {
     if (isDesktop) {
       if (isConnManager) {
-        if (!_isShowCMSidePage) {
-          await toggleCMChatPage(key);
-        }
+        await showCMChatPage(key);
       } else {
         if (_isChatOverlayHide()) {
           await toggleChatOverlay();
@@ -282,43 +290,28 @@ class ChatModel with ChangeNotifier {
     }
   }
 
-  toggleCMChatPage(MessageKey key) async {
-    if (gFFI.chatModel.currentKey != key) {
-      gFFI.chatModel.changeCurrentKey(key);
-    }
-    await toggleCMSidePage();
-  }
-
-  toggleCMFilePage() async {
-    await toggleCMSidePage();
-  }
-
-  var _togglingCMSidePage = false; // protect order for await
-  toggleCMSidePage() async {
-    if (_togglingCMSidePage) return false;
-    _togglingCMSidePage = true;
-    if (_isShowCMSidePage) {
-      _isShowCMSidePage = !_isShowCMSidePage;
-      notifyListeners();
-      await windowManager.show();
-      await windowManager.setSizeAlignment(
-          kConnectionManagerWindowSizeClosedChat, Alignment.topRight);
-    } else {
-      final currentSelectedTab =
-          gFFI.serverModel.tabController.state.value.selectedTabInfo;
-      final client = parent.target?.serverModel.clients.firstWhereOrNull(
-          (client) => client.id.toString() == currentSelectedTab.key);
+  /// Opens [tab] in the card of connection [connId]. The window keeps its
+  /// size: the tabs share the card's room.
+  void setCMTab(int connId, CmTab tab) {
+    if (cmTabOf(connId) == tab) return;
+    _cmTabs[connId] = tab;
+    if (tab == CmTab.chat) {
+      final client = parent.target?.serverModel.clients
+          .firstWhereOrNull((client) => client.id == connId);
       if (client != null) {
         client.unreadChatMessageCount.value = 0;
+        changeCurrentKey(MessageKey(client.peerId, client.id));
       }
       requestChatInputFocus();
-      await windowManager.show();
-      await windowManager.setSizeAlignment(
-          kConnectionManagerWindowSizeOpenChat, Alignment.topRight);
-      _isShowCMSidePage = !_isShowCMSidePage;
-      notifyListeners();
     }
-    _togglingCMSidePage = false;
+    notifyListeners();
+  }
+
+  /// Opens the chat of [key] in the connection manager.
+  showCMChatPage(MessageKey key) async {
+    if (currentKey != key) changeCurrentKey(key);
+    setCMTab(key.connId, CmTab.chat);
+    await windowManager.show();
   }
 
   changeCurrentKey(MessageKey key) {

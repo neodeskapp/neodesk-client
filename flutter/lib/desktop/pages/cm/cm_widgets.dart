@@ -368,9 +368,12 @@ enum CmTab { access, chat, files }
 
 class CmTabs extends StatelessWidget {
   const CmTabs({super.key, required this.value, required this.onChanged,
-      this.showFiles = true, this.unread = 0});
+      this.showAccess = true, this.showFiles = true, this.unread = 0});
   final CmTab value;
   final ValueChanged<CmTab> onChanged;
+
+  /// A file transfer has no switches: no Access tab.
+  final bool showAccess;
   final bool showFiles;
   final int unread;
 
@@ -379,7 +382,7 @@ class CmTabs extends StatelessWidget {
     return NdTabs<CmTab>(
       gap: 24,
       tabs: [
-        NdTab(CmTab.access, tr('nd-cm-tab-access')),
+        if (showAccess) NdTab(CmTab.access, tr('nd-cm-tab-access')),
         NdTab(CmTab.chat,
             unread > 0 ? '${translate('Chat')} ($unread)' : translate('Chat')),
         if (showFiles) NdTab(CmTab.files, tr('nd-cm-tab-files')),
@@ -388,6 +391,43 @@ class CmTabs extends StatelessWidget {
       onChanged: onChanged,
     );
   }
+}
+
+/// The tab a card shows for the one chosen: a file transfer has no Access
+/// tab and opens on Files, a camera has no Files tab.
+CmTab cmShownTab(CmTab chosen, {bool file = false, bool camera = false}) {
+  if (file && chosen == CmTab.access) return CmTab.files;
+  if (camera && chosen == CmTab.files) return CmTab.access;
+  return chosen;
+}
+
+/// The room under the tabs: the switches, the chat or the files. Each tab
+/// has the whole room, so the window keeps its size when the tab changes.
+class CmTabBody extends StatelessWidget {
+  const CmTabBody({
+    super.key,
+    required this.tab,
+    required this.access,
+    required this.chat,
+    required this.files,
+  });
+
+  final CmTab tab;
+  final List<CmPermission> access;
+  final WidgetBuilder chat;
+  final WidgetBuilder files;
+
+  @override
+  Widget build(BuildContext context) => switch (tab) {
+        // The list scrolls at full width, so its scrollbar runs along the
+        // window's edge and not over the switches.
+        CmTab.access => SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: CmPermissionList(items: access),
+          ),
+        CmTab.chat => chat(context),
+        CmTab.files => files(context),
+      };
 }
 
 /// "Connected for 12 minutes" or "Connected for 1 h 20 min".
