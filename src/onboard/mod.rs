@@ -1328,7 +1328,9 @@ fn single_quick_support(args: &[String]) -> Option<Option<CoreMainAction>> {
             START_HIDDEN.store(launch == keep::Launch::Background, Ordering::Relaxed);
             listen_for_handoffs();
             start_tray();
-            // Offline until a link comes: the last session stopped the service
+            // Offline until a link comes, also when the last session did not
+            // end cleanly and so left the service on
+            Config::set_option("stop-service".to_owned(), "Y".to_owned());
             std::thread::spawn(|| crate::start_server(false, false));
             Some(Some(CoreMainAction::StartUi(Vec::new())))
         }
