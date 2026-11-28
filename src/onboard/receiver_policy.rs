@@ -58,6 +58,62 @@ pub fn unencrypted_refused(secured: bool, receiver: bool, support_session: bool)
     !secured && (receiver || support_session)
 }
 
+/// What the organization's policy does to session approval on the full
+/// desktop client (not the receiver), whose own settings (password, approve
+/// mode) stay as the person set them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FullClientApproval {
+    /// No rule, or attended without the device's unattended access: the
+    /// client's own settings, as today.
+    AsToday,
+    /// `ask_always`: every session needs the person's Allow; no password
+    /// lets anyone in and nobody is let in as vouched.
+    AskAlways,
+    /// `unattended`, or attended with the device's unattended access on: a
+    /// caller the server vouches for gets in without Allow when the rule
+    /// allows it; everyone else as today.
+    Vouched,
+}
+
+/// The full client's approval for the organization's `mode` and the
+/// device's access policy (steps 1 to 3 of the rule).
+pub fn full_client_approval(mode: Option<&str>, access: Option<&AccessPolicy>) -> FullClientApproval {
+    match unattended_offered(mode, access) {
+        Ok(()) => FullClientApproval::Vouched,
+        Err(Refusal::AskAlways) => FullClientApproval::AskAlways,
+        Err(_) => FullClientApproval::AsToday,
+    }
+}
+
+/// The value of the full client's option that says which rule the
+/// settings page shows (empty for none).
+pub fn approval_option(approval: FullClientApproval) -> &'static str {
+    match approval {
+        FullClientApproval::AsToday => "",
+        FullClientApproval::AskAlways => "ask_always",
+        FullClientApproval::Vouched => "vouched",
+    }
+}
+
+/// What a login gets from the organization's policy before the client's
+/// own approve mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PolicyLogin {
+    /// A password login under ask_always: refused, with words for the caller.
+    RefusePassword,
+    /// A login without a password under ask_always: the person's Allow.
+    AskPerson,
+}
+
+/// The policy's say about a login (None: the client's own settings).
+pub fn policy_login(approval: FullClientApproval, password_given: bool) -> Option<PolicyLogin> {
+    match (approval, password_given) {
+        (FullClientApproval::AskAlways, true) => Some(PolicyLogin::RefusePassword),
+        (FullClientApproval::AskAlways, false) => Some(PolicyLogin::AskPerson),
+        _ => None,
+    }
+}
+
 /// The days of a schedule, in the contract's words, Monday first.
 pub const DAYS: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -462,6 +518,31 @@ mod tests {
         assert!(unencrypted_refused(false, true, true));
         assert!(!unencrypted_refused(true, true, true));
         assert!(!unencrypted_refused(false, false, false), "the full client as before");
+    }
+
+    #[test]
+    fn the_full_client_follows_ask_always_and_offers_the_vouched_path_only_when_the_rule_does() {
+        use FullClientApproval::*;
+        let on = AccessPolicy { unattended_enabled: true, ..Default::default() };
+        let off = AccessPolicy::default();
+        assert_eq!(full_client_approval(Some("ask_always"), Some(&on)), AskAlways);
+        assert_eq!(full_client_approval(Some("ask_always"), None), AskAlways);
+        assert_eq!(full_client_approval(Some("unattended"), None), Vouched);
+        assert_eq!(full_client_approval(Some("attended"), Some(&on)), Vouched);
+        assert_eq!(full_client_approval(Some("attended"), Some(&off)), AsToday);
+        assert_eq!(full_client_approval(None, None), AsToday);
+        assert_eq!(full_client_approval(None, Some(&on)), Vouched);
+        // ask_always: a password lets nobody in, and the person decides
+        assert_eq!(policy_login(AskAlways, true), Some(PolicyLogin::RefusePassword));
+        assert_eq!(policy_login(AskAlways, false), Some(PolicyLogin::AskPerson));
+        // Otherwise the client's own settings decide
+        for approval in [AsToday, Vouched] {
+            assert_eq!(policy_login(approval, true), None);
+            assert_eq!(policy_login(approval, false), None);
+        }
+        assert_eq!(approval_option(AsToday), "");
+        assert_eq!(approval_option(AskAlways), "ask_always");
+        assert_eq!(approval_option(Vouched), "vouched");
     }
 
     #[test]

@@ -16,10 +16,13 @@ String cmWindowTitle(String appName, {required bool quickSupport}) =>
 bool cmPeerIsDevice(String peerId) =>
     RegExp(r'^\d+$').hasMatch(peerId.replaceAll(' ', ''));
 
-/// Whether a request gets Allow: what the approve mode says, and in quick
-/// support (password only) a caller the server vouched for (A271).
-bool cmOffersAllow(String approveMode, {required bool vouched}) =>
-    approveMode != 'password' || vouched;
+/// Whether a request gets Allow: what the approve mode says, in quick
+/// support (password only) a caller the server vouched for (A271), and
+/// always when the organization's policy asks the person for every session
+/// (ask_always), whatever the approve mode.
+bool cmOffersAllow(String approveMode,
+        {required bool vouched, bool askAlways = false}) =>
+    approveMode != 'password' || vouched || askAlways;
 
 /// Who asks to connect, as the connection manager shows it (A271).
 class CmCaller {

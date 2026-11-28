@@ -1419,6 +1419,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-qs-keep-no", ""),
         ("nd-rcv-help-lead-short", ""),
         ("nd-rcv-help-lead-short-nocompany", ""),
+        ("nd-set-org-approval", ""),
+        ("The organization of this computer requires the person at the computer to allow each session. Connect without a password and wait for them to accept.", ""),
         ("nd-rcv-unattended", ""),
         ("nd-rcv-unattended-when", ""),
         ("nd-rcv-range", ""),

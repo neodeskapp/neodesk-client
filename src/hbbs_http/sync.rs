@@ -125,7 +125,7 @@ async fn start_hbbs_sync_async() {
                     crate::hbbs_http::neodesk::sync_client_branding().await;
                     crate::hbbs_http::neodesk::sync_device_enrollment().await;
                     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-                    crate::hbbs_http::neodesk::sync_receiver_policy().await;
+                    crate::hbbs_http::neodesk::sync_device_policy().await;
                     continue;
                 }
                 if config::option2bool("stop-service", &Config::get_option("stop-service")) {
@@ -432,7 +432,7 @@ async fn start_hbbs_sync_async() {
                 crate::hbbs_http::neodesk::sync_client_branding().await;
                 crate::hbbs_http::neodesk::sync_device_enrollment().await;
                 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-                crate::hbbs_http::neodesk::sync_receiver_policy().await;
+                crate::hbbs_http::neodesk::sync_device_policy().await;
             }
         }
     }

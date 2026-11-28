@@ -700,7 +700,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
       vouchedVia: client.vouchedVia,
       quickSupport: bind.mainOnboardIsQuickSupport(),
       offersAllow: cmOffersAllow(Provider.of<ServerModel>(context).approveMode,
-          vouched: client.vouched));
+          vouched: client.vouched, askAlways: client.askAlways));
 
   /// The open tab. A file transfer has no Access tab and opens on Files.
   CmTab _tab(BuildContext context) => cmShownTab(
@@ -994,7 +994,8 @@ class _CmControlPanel extends StatelessWidget {
         client.type_() == ClientType.remote;
     // In quick support only a caller the server vouched for (A271)
     final showAccept =
-        cmOffersAllow(model.approveMode, vouched: client.vouched);
+        cmOffersAllow(model.approveMode,
+            vouched: client.vouched, askAlways: client.askAlways);
     return CmRequestActions(
       onDecline: () => checkClickTime(client.id, handleDisconnect),
       // Once allowed, the window turns into the bar at the top of the screen

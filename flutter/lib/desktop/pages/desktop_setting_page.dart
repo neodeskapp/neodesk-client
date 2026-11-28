@@ -1225,7 +1225,15 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
           final usePassword = model.approveMode != 'click';
 
           final isApproveModeFixed = isOptionFixed(kOptionApproveMode);
+          final orgLine =
+              orgApprovalLine(bind.mainGetOptionSync(key: kOptionNdOrgApproval));
           return _Card(title: 'Password', children: [
+            if (orgLine != null)
+              Text(orgLine,
+                      key: const ValueKey('nd-org-approval-line'),
+                      style: context.ndText.body
+                          .copyWith(color: context.nd.textMuted))
+                  .marginOnly(left: _kContentHMargin, bottom: 8),
             ComboBox(
               enabled: !locked && !isApproveModeFixed,
               keys: modeKeys,
@@ -3383,3 +3391,15 @@ void showPairWithCodeDialog() async {
 }
 
 //#endregion
+
+/// The client's option that names the organization's rule in force for
+/// session approval (src/onboard/receiver.rs ORG_APPROVAL_OPTION).
+const kOptionNdOrgApproval = 'nd-org-approval';
+
+/// The read-only line on the settings page when the organization's policy
+/// decides how sessions are accepted (ask_always, or unattended access for
+/// confirmed staff); null when only this computer's own settings decide.
+String? orgApprovalLine(String option) =>
+    option == 'ask_always' || option == 'vouched'
+        ? tr('nd-set-org-approval')
+        : null;

@@ -392,6 +392,11 @@ pub enum Data {
         /// start, empty when there is none. None for every other login.
         #[serde(default)]
         unattended: Option<String>,
+        /// The organization's policy asks the person for every session
+        /// (ask_always on the full client): the window offers Allow
+        /// whatever the approve mode.
+        #[serde(default)]
+        ask_always: bool,
     },
     ChatMessage {
         text: String,
