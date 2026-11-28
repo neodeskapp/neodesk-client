@@ -1050,14 +1050,16 @@ Widget cmControlPageBlock(
         required RxBool block,
         required bool remoteMaySendKeys,
         required bool systemBlocksRemoteKeys,
-        bool chatOpen = false}) =>
+        bool chatOpen = false,
+        RemoteBlockCheck check = shouldBeBlocked}) =>
     buildRemoteBlock(
         child: ExcludeFocus(
             excluding:
                 remoteMaySendKeys && !systemBlocksRemoteKeys && !chatOpen,
             child: child),
         block: block,
-        mask: false);
+        mask: false,
+        check: check);
 
 /// Whether a key a remote computer types can reach this window's controls.
 bool cmRemoteKeysReachHere(Iterable<Client> clients) =>

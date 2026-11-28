@@ -2,6 +2,7 @@
 // a keyboard user must reach Allow, Decline and the switches, and hear that
 // someone wants to connect. (findings.md F42, F34)
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
@@ -227,6 +228,60 @@ void main() {
     expect(field.hasFocus, isFalse);
     await pumpScreen(tester, page(true), size: const Size(380, 200));
     field.requestFocus();
+    await tester.pump();
+    expect(field.hasFocus, isTrue);
+  });
+
+  testWidgets(
+      'the local mouse frees the message field once the remote mouse stops',
+      (tester) async {
+    final field = FocusNode(debugLabel: 'message');
+    addTearDown(field.dispose);
+    final block = false.obs;
+    // Whether the remote mouse moved just before the check
+    var remoteMoved = true;
+    await pumpScreen(
+        tester,
+        Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 380,
+            height: 100,
+            child: cmControlPageBlock(
+                child: Material(
+                    child: Center(child: TextField(focusNode: field))),
+                block: block,
+                remoteMaySendKeys: true,
+                systemBlocksRemoteKeys: false,
+                chatOpen: true,
+                check: (b, _) async {
+                  b.value = remoteMoved;
+                }),
+          ),
+        ),
+        size: const Size(380, 200));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: const Offset(190, 180));
+    await tester.pump();
+    final at = tester.getCenter(find.byType(TextField));
+
+    // The mouse enters right after remote input: the page is blocked
+    await mouse.moveTo(at);
+    await tester.pump();
+    expect(block.value, isTrue);
+    await mouse.down(at);
+    await mouse.up();
+    await tester.pump();
+    expect(field.hasFocus, isFalse);
+
+    // The remote mouse is still; the local mouse moves on the page
+    remoteMoved = false;
+    await mouse.moveBy(const Offset(4, 0));
+    await tester.pump();
+    expect(block.value, isFalse);
+    await mouse.down(at);
+    await mouse.up();
     await tester.pump();
     expect(field.hasFocus, isTrue);
   });

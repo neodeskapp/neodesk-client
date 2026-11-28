@@ -2977,25 +2977,46 @@ Future<void> shouldBeBlocked(RxBool block, WhetherUseRemoteBlock? use) async {
   }
   var time0 = DateTime.now().millisecondsSinceEpoch;
   await bind.mainCheckMouseTime();
-  Timer(const Duration(milliseconds: 120), () async {
-    var d = time0 - await bind.mainGetMouseTime();
-    if (d < 120) {
-      block.value = true;
-    } else {
-      block.value = false;
-    }
-  });
+  await Future.delayed(const Duration(milliseconds: 120));
+  var d = time0 - await bind.mainGetMouseTime();
+  block.value = d < 120;
 }
 
 typedef WhetherUseRemoteBlock = Future<bool> Function();
+
+/// Sets [block] from whether the mouse that moved was the remote one.
+typedef RemoteBlockCheck = Future<void> Function(
+    RxBool block, WhetherUseRemoteBlock? use);
+
+/// The blocked areas whose check runs now.
+final _remoteBlockChecking = Expando<bool>('remote block check');
+
+Future<void> _runRemoteBlockCheck(
+    RemoteBlockCheck check, RxBool block, WhetherUseRemoteBlock? use) async {
+  if (_remoteBlockChecking[block] == true) return;
+  _remoteBlockChecking[block] = true;
+  try {
+    await check(block, use);
+  } finally {
+    _remoteBlockChecking[block] = null;
+  }
+}
+
+/// Blocks [child] while the remote mouse is over it: it takes no clicks and
+/// no focus. The check runs when the mouse enters, and again when the mouse
+/// moves while the area is blocked, one check at a time. So the local mouse
+/// frees the area once the remote mouse is still, also when it entered
+/// right after remote input (or the viewer runs on this computer).
 Widget buildRemoteBlock(
     {required Widget child,
     required RxBool block,
     required bool mask,
-    WhetherUseRemoteBlock? use}) {
+    WhetherUseRemoteBlock? use,
+    RemoteBlockCheck check = shouldBeBlocked}) {
   return Obx(() => MouseRegion(
-        onEnter: (_) async {
-          await shouldBeBlocked(block, use);
+        onEnter: (_) => _runRemoteBlockCheck(check, block, use),
+        onHover: (_) {
+          if (block.value) _runRemoteBlockCheck(check, block, use);
         },
         onExit: (event) => block.value = false,
         child: Stack(children: [
