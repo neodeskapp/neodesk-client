@@ -560,7 +560,11 @@ jobs:
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
           pushd ./res/msi
-          python preprocess.py --arp -d ../../rustdesk --app-name "NeoDesk Client"
+          # The generic Support Agent (the receiver's MSI) names itself
+          # "NeoDesk Support Agent": the MSI's folder, service and registry
+          # keys have to carry the name the program uses for them.
+          $appName = if ('${{ env.NEODESK_GENERIC_SUPPORT }}' -eq '1') { 'NeoDesk Support Agent' } else { 'NeoDesk Client' }
+          python preprocess.py --arp -d ../../rustdesk --app-name "$appName"
           nuget restore msi.sln
           $msiPlatform = if ('${{ matrix.job.arch }}' -eq 'aarch64') { 'ARM64' } else { 'x64' }
           msbuild msi.sln -p:Configuration=Release -p:Platform=$msiPlatform /p:TargetVersion=Windows10

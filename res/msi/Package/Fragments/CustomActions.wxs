@@ -16,5 +16,10 @@
 		<CustomAction Id="RemoveAmyuniIdd" DllEntry="RemoveAmyuniIdd" Impersonate="no" Execute="deferred" Return="ignore" BinaryRef="Custom_Actions_Dll"/>
 		<CustomAction Id="InstallPrinter" DllEntry="InstallPrinter" Impersonate="no" Execute="deferred" Return="ignore" BinaryRef="Custom_Actions_Dll"/>
 		<CustomAction Id="UninstallPrinter" DllEntry="UninstallPrinter" Impersonate="no" Execute="deferred" Return="ignore" BinaryRef="Custom_Actions_Dll"/>
+		<!-- The receiver's install-time file from SERVER, KEY, API, TOKEN and GROUP
+		     (InstallConfig.cpp). HideTarget keeps the token out of the log. -->
+		<CustomAction Id="SetInstallConfigData" DllEntry="SetInstallConfigData" Impersonate="yes" Execute="immediate" Return="check" BinaryRef="Custom_Actions_Dll"/>
+		<CustomAction Id="WriteInstallConfig" DllEntry="WriteInstallConfig" Impersonate="no" Execute="deferred" Return="check" HideTarget="yes" BinaryRef="Custom_Actions_Dll"/>
+		<CustomAction Id="RemoveInstallConfig" DllEntry="RemoveInstallConfig" Impersonate="no" Execute="deferred" Return="ignore" BinaryRef="Custom_Actions_Dll"/>
 	</Fragment>
 </Wix>

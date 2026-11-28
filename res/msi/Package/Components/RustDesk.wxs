@@ -17,6 +17,18 @@
 		<CustomAction Id="RemoveFirewallRules.SetParam" Return="check" Property="RemoveFirewallRules" Value="0[INSTALLFOLDER_INNER]$(var.Executable)" />
 		<CustomAction Id="CreateStartService.SetParam" Return="check" Property="CreateStartService" Value="$(var.Product);&quot;[INSTALLFOLDER_INNER]$(var.Executable)&quot; --service" />
 		<CustomAction Id="TryStopDeleteService.SetParam" Return="check" Property="TryStopDeleteService" Value="$(var.Product)" />
+		<CustomAction Id="RemoveInstallConfig.SetParam" Return="check" Property="RemoveInstallConfig" Value="[INSTALLFOLDER_INNER]" />
+
+		<!-- The receiver's MSI properties (lead/receiver-app/MSI-CONTRACT.md).
+		     Secure, so a property given to an install with the dialogs reaches
+		     the elevated part; TOKEN and the data that carries it stay out of
+		     the log. -->
+		<Property Id="SERVER" Secure="yes" />
+		<Property Id="KEY" Secure="yes" />
+		<Property Id="API" Secure="yes" />
+		<Property Id="TOKEN" Secure="yes" Hidden="yes" />
+		<Property Id="GROUP" Secure="yes" />
+		<Property Id="WriteInstallConfig" Hidden="yes" Value="0" />
 
 		<CustomAction Id="LaunchApp" ExeCommand="" Return="asyncNoWait" FileRef="App.exe" />
 		<!-- rustdesk:// is stock RustDesk's: the client takes it only on a computer
@@ -43,6 +55,14 @@
 			<!-- A paused client (stop-service) gets its service and tray too: the
 			     running service refuses connections while paused, so an install or
 			     update keeps the pause and the service. -->
+			<!-- The install-time file is there before the service starts, which
+			     enrolls with it (the receiver, src/onboard/receiver.rs). Without
+			     SERVER no file is written, and a file of an earlier install stays. -->
+			<Custom Action="SetInstallConfigData" After="InstallFiles" Condition="SERVER AND (NOT (Installed AND REMOVE AND NOT UPGRADINGPRODUCTCODE))" />
+			<Custom Action="WriteInstallConfig" After="SetInstallConfigData" Condition="SERVER AND (NOT (Installed AND REMOVE AND NOT UPGRADINGPRODUCTCODE))" />
+			<Custom Action="RemoveInstallConfig" Before="RemoveFiles" Condition="Installed AND REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+			<Custom Action="RemoveInstallConfig.SetParam" Before="RemoveInstallConfig" Condition="Installed AND REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+
 			<Custom Action="CreateStartService" Before="InstallFinalize" Condition="(NOT (Installed AND REMOVE AND NOT UPGRADINGPRODUCTCODE)) AND (NOT CC_CONNECTION_TYPE=&quot;outgoing&quot;)" />
 			<Custom Action="CreateStartService.SetParam" Before="CreateStartService" Condition="(NOT (Installed AND REMOVE AND NOT UPGRADINGPRODUCTCODE)) AND (NOT CC_CONNECTION_TYPE=&quot;outgoing&quot;)" />
 
