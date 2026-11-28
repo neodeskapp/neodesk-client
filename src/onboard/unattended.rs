@@ -320,15 +320,43 @@ pub fn notice_text(name: &str, company: &str) -> String {
 
 /// Shows the notification in this process's session: the connection
 /// manager runs in the signed-in person's session, and never on the login
-/// screen.
+/// screen. A helper's second connection (files next to the screen) within
+/// half a minute shows none.
 pub fn show_notice(name: &str, company: &str) {
+    static LAST: std::sync::Mutex<Option<(String, std::time::Instant)>> = std::sync::Mutex::new(None);
+    if !notice_due(&mut LAST.lock().unwrap(), name, std::time::Instant::now()) {
+        return;
+    }
     let (title, body) = (crate::get_app_name(), notice_text(name, company));
     std::thread::spawn(move || crate::nd_chat::show_notification(&title, &body, || {}));
+}
+
+/// Whether the notification for `name` is due at `now`, given the last one
+/// shown; keeps this one as the last.
+fn notice_due(last: &mut Option<(String, std::time::Instant)>, name: &str, now: std::time::Instant) -> bool {
+    let repeated = last
+        .as_ref()
+        .map_or(false, |(n, at)| n == name && now.duration_since(*at) < Duration::from_secs(30));
+    if !repeated {
+        *last = Some((name.to_owned(), now));
+    }
+    !repeated
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_second_connection_of_the_same_helper_shows_no_second_notice() {
+        let start = std::time::Instant::now();
+        let mut last = None;
+        assert!(notice_due(&mut last, "Olga", start));
+        assert!(!notice_due(&mut last, "Olga", start + Duration::from_secs(5)));
+        assert!(notice_due(&mut last, "Bert", start + Duration::from_secs(6)));
+        assert!(notice_due(&mut last, "Olga", start + Duration::from_secs(7)));
+        assert!(notice_due(&mut last, "Olga", start + Duration::from_secs(40)));
+    }
 
     #[test]
     fn time_zones_come_from_the_database_by_their_exact_name() {
