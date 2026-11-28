@@ -22,6 +22,7 @@ const _keptAssets = <String, String>{
   r'assets/auth-$svgFile.svg': 'logos of the sign-in providers',
   'assets/icon.svg': 'the app icon',
   'assets/icon.png': 'the app icon',
+  'assets/nd-app-icon.svg': 'the NeoDesk mark on Sign in with NeoDesk',
   'assets/logo': 'the logo a custom build brings',
   r'assets/${_kKBLayoutImageMap': 'pictures of the keyboard layouts',
   'assets/scam.png': 'the "SCAM" stamp picture of the mobile scam warning',
