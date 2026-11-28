@@ -250,8 +250,8 @@ jobs:
           {
             echo "### Notes"
             echo
-            echo "- Nothing is baked into these packages: the server is entered on first start."
-            echo "- Panel path: **NeoDesk Agents → Import latest release** (requires a signed \`support-v*\` release)."
+            echo "- Nothing is baked into these packages: the server is entered on first start, or given to the MSI as the properties SERVER, KEY, API, TOKEN and GROUP, which install the receiver app."
+            echo "- In the console: **Add computers › Support agents › Import latest release**. After that, **Add computers › Receiver app** downloads the MSI with this server's values."
             echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } > support-extra.md
 
