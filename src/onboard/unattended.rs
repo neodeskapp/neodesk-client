@@ -33,7 +33,7 @@ use super::{
     caller::{self, CallerCheck, Helper},
     http::{Answer, Http},
     link::Console,
-    receiver_policy::{self, AccessPolicy},
+    receiver_policy::{self, AccessPolicy, FullClientApproval},
 };
 
 /// The console's route, reached on the API address.
@@ -44,7 +44,9 @@ const USERNAME_MAX_CHARS: usize = 128;
 /// What the connection knows about a login.
 #[derive(Debug, Clone, Copy)]
 pub struct Login<'a> {
-    /// The installed receiver with a device token for its server.
+    /// The installed receiver, or the full client whose organization's
+    /// policy offers unattended access ([`may_vouch_here`]), with a device
+    /// token for its server.
     pub receiver: bool,
     /// A Get help session runs: quick support's rules apply.
     pub support_session: bool,
@@ -100,6 +102,41 @@ pub struct Unattended {
     pub username: String,
     /// "console" for the browser viewer, "desktop" for a signed-in app.
     pub via: String,
+}
+
+/// The full client's approval under `policy`: what steps 1 to 3 of the
+/// rule say for the organization's mode and the device's access policy. A
+/// policy not read yet, or an organization policy of the wrong shape,
+/// leaves the client as today; an access policy not heard of yet, or of the
+/// wrong shape, counts as none.
+pub fn full_client_approval_of(policy: &Policy) -> FullClientApproval {
+    let Some(org) = policy.org.as_ref().filter(|org| !org.malformed) else {
+        return FullClientApproval::AsToday;
+    };
+    let access = policy
+        .access
+        .as_ref()
+        .and_then(Option::as_ref)
+        .filter(|access| !access.malformed);
+    receiver_policy::full_client_approval(org.mode.as_deref(), access)
+}
+
+/// Whether this process may let a vouched caller in without Allow: the
+/// installed receiver, or the full desktop client (not the receiver, not
+/// quick support) whose organization's policy offers it.
+pub fn may_vouch_here(
+    receiver: bool,
+    receiver_installed: bool,
+    quick_support: bool,
+    approval: FullClientApproval,
+) -> bool {
+    if quick_support {
+        return false;
+    }
+    if receiver {
+        return receiver_installed;
+    }
+    approval == FullClientApproval::Vouched
 }
 
 /// Whether the connection asks the server about its caller at all: only
@@ -288,7 +325,13 @@ pub async fn ask(
 /// connection: asks the server when [`may_ask`] says so and decides with
 /// [`unattended_may_let_in`]. None keeps today's way.
 pub async fn unattended_caller(check: &CallerCheck) -> Option<Unattended> {
-    let receiver = super::is_receiver() && super::receiver::installed();
+    let policy = super::receiver::unattended_policy();
+    let receiver = may_vouch_here(
+        super::is_receiver(),
+        super::receiver::installed(),
+        super::is_quick_support(),
+        full_client_approval_of(&policy),
+    );
     let access = if receiver { crate::nd_chat::access() } else { None };
     let api = access.as_ref().and_then(|a| Console::from_base(&a.api));
     let device_id = Config::get_id();
@@ -318,7 +361,6 @@ pub async fn unattended_caller(check: &CallerCheck) -> Option<Unattended> {
         caller::WAIT,
     )
     .await;
-    let policy = super::receiver::unattended_policy();
     match unattended_may_let_in(&login, answer.as_ref(), &policy, hbb_common::get_time() / 1000) {
         Ok(caller) => {
             log::info!("Unattended access: the server vouched for a caller ({}) and the rule allows it", caller.via);
@@ -504,5 +546,45 @@ mod tests {
             json!({"schedule": null})
         );
         assert_eq!(home_line_json(&Policy { org: org("attended"), access: Some(None) }, now, 3600), Value::Null);
+    }
+}
+
+#[cfg(test)]
+mod full_client_tests {
+    use super::*;
+
+    fn policy(mode: Option<&str>, access: Option<Option<AccessPolicy>>) -> Policy {
+        Policy {
+            org: Some(OrgPolicy { mode: mode.map(str::to_owned), ..Default::default() }),
+            access,
+        }
+    }
+
+    /// The full client takes the vouched path only when the organization's
+    /// policy offers unattended access; ask_always and attended without the
+    /// device's switch keep it off, as does quick support.
+    #[test]
+    fn the_full_client_vouches_only_when_the_policy_offers_it() {
+        use FullClientApproval::*;
+        let on = AccessPolicy { unattended_enabled: true, ..Default::default() };
+        assert_eq!(full_client_approval_of(&policy(Some("unattended"), Some(None))), Vouched);
+        assert_eq!(full_client_approval_of(&policy(Some("attended"), Some(Some(on.clone())))), Vouched);
+        assert_eq!(full_client_approval_of(&policy(Some("attended"), Some(None))), AsToday);
+        assert_eq!(full_client_approval_of(&policy(Some("ask_always"), Some(Some(on.clone())))), AskAlways);
+        assert_eq!(full_client_approval_of(&policy(Some("ask_always"), None)), AskAlways);
+        assert_eq!(full_client_approval_of(&Policy::default()), AsToday, "no policy read yet");
+        let mut bad = policy(Some("unattended"), Some(None));
+        bad.org.as_mut().unwrap().malformed = true;
+        assert_eq!(full_client_approval_of(&bad), AsToday);
+        let bad_access = AccessPolicy { unattended_enabled: true, malformed: true, ..Default::default() };
+        assert_eq!(full_client_approval_of(&policy(Some("attended"), Some(Some(bad_access)))), AsToday);
+
+        // Who may let a vouched caller in
+        assert!(may_vouch_here(false, false, false, Vouched));
+        assert!(!may_vouch_here(false, false, false, AsToday));
+        assert!(!may_vouch_here(false, false, false, AskAlways));
+        assert!(!may_vouch_here(false, false, true, Vouched), "quick support has its own check");
+        assert!(may_vouch_here(true, true, false, AsToday), "the receiver as before");
+        assert!(!may_vouch_here(true, false, false, Vouched), "a receiver that isn't installed");
     }
 }

@@ -559,21 +559,30 @@ lazy_static::lazy_static! {
 /// How often the receiver reads its policy.
 const POLICY_POLL_INTERVAL: Duration = Duration::from_secs(300);
 
-/// GET `{api}/api/nd/device-policy` with the device token, for the
-/// receiver, which applies it (onboard/receiver.rs). Runs in the sync
-/// loop of the process that keeps the token, every five minutes.
+/// GET `{api}/api/nd/device-policy` with the device token, every five
+/// minutes, in the sync loop of the process that keeps the token: the
+/// receiver applies it (onboard/receiver.rs apply_policy), the full desktop
+/// client its session approval only (apply_full_client_policy), and only
+/// from an HTTPS server.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-pub async fn sync_receiver_policy() {
-    if !crate::onboard::is_receiver() || crate::onboard::is_quick_support() {
+pub async fn sync_device_policy() {
+    if crate::onboard::is_quick_support() {
         return;
     }
+    let receiver = crate::onboard::is_receiver();
     let base = api_base();
     let device_id = Config::get_id();
-    if base.is_empty() || device_id.is_empty() {
+    let stored = enrollment::StoredToken::load();
+    let token = (!base.is_empty() && !device_id.is_empty())
+        .then(|| stored.usable_for(&device_id, &base))
+        .flatten();
+    if !policy_reader(receiver, &base, token.is_some()) {
+        if !receiver {
+            crate::onboard::receiver::forget_full_client_policy();
+        }
         return;
     }
-    let stored = enrollment::StoredToken::load();
-    let Some(token) = stored.usable_for(&device_id, &base) else {
+    let Some(token) = token else {
         return;
     };
     {
@@ -601,9 +610,16 @@ pub async fn sync_receiver_policy() {
         return;
     }
     match resp.json::<Value>().await {
-        Ok(answer) => crate::onboard::receiver::apply_policy(&answer),
+        Ok(answer) if receiver => crate::onboard::receiver::apply_policy(&answer),
+        Ok(answer) => crate::onboard::receiver::apply_full_client_policy(&answer),
         Err(err) => log::debug!("receiver policy unreadable: {err}"),
     }
+}
+
+/// Whether this process reads the device policy: the receiver with a
+/// device token, the full client with a device token from an HTTPS server.
+pub(crate) fn policy_reader(receiver: bool, api: &str, has_token: bool) -> bool {
+    has_token && (receiver || api.trim().to_ascii_lowercase().starts_with("https://"))
 }
 
 /// GET `{api}/api/devices/register/status` with the key proof and the stored
@@ -1010,5 +1026,16 @@ mod tests {
         let plain = rejection_log_line(&serde_json::json!({"status": "rejected"})).unwrap();
         assert!(plain.contains("error=none"), "{plain}");
         assert_eq!(rejection_log_line(&serde_json::json!({"status": "pending"})), None);
+    }
+
+    /// The full client reads the device policy only with a device token and
+    /// from an HTTPS server; the receiver as before with its token.
+    #[test]
+    fn the_full_client_reads_the_policy_only_enrolled_over_https() {
+        assert!(policy_reader(false, "https://desk.example.com", true));
+        assert!(!policy_reader(false, "http://desk.example.com", true));
+        assert!(!policy_reader(false, "https://desk.example.com", false));
+        assert!(policy_reader(true, "http://desk.example.com", true));
+        assert!(!policy_reader(true, "https://desk.example.com", false));
     }
 }

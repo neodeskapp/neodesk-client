@@ -1279,6 +1279,27 @@ pub fn refuses_unencrypted(secured: bool) -> bool {
     receiver_policy::unencrypted_refused(secured, is_receiver(), in_support_session())
 }
 
+/// The organization's say about session approval on the full desktop
+/// client; the receiver and quick support keep their own ways.
+pub fn full_client_approval() -> receiver_policy::FullClientApproval {
+    if is_receiver() || is_quick_support() {
+        return receiver_policy::FullClientApproval::AsToday;
+    }
+    unattended::full_client_approval_of(&receiver::unattended_policy())
+}
+
+/// What the organization's policy does with a login on the full client
+/// before its own approve mode (ask_always); None leaves it to the client's
+/// settings.
+pub fn policy_login(password_given: bool) -> Option<receiver_policy::PolicyLogin> {
+    receiver_policy::policy_login(full_client_approval(), password_given)
+}
+
+pub use receiver_policy::PolicyLogin;
+
+/// What the caller hears when ask_always refuses its password.
+pub const POLICY_PASSWORD_REFUSED: &str = "The organization of this computer requires the person at the computer to allow each session. Connect without a password and wait for them to accept.";
+
 /// Whether the logon screen fallback may take a permanent password: never
 /// on the receiver, which has none (A279).
 pub fn logon_screen_password_allowed(option_on: bool, on_logon_screen: bool) -> bool {

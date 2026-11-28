@@ -850,6 +850,10 @@ class Client {
   /// receiver (A279): 'console', 'desktop' or empty.
   String vouchedVia = '';
 
+  /// The organization's policy asks the person for every session
+  /// (ask_always): Allow whatever the approve mode.
+  bool askAlways = false;
+
   RxInt unreadChatMessageCount = 0.obs;
 
   /// When input of this caller last arrived, for the bar's "is using".
@@ -885,6 +889,7 @@ class Client {
     incomingVoiceCall = json['incoming_voice_call'];
     vouched = json['vouched'] == true;
     vouchedVia = json['vouched_via'] is String ? json['vouched_via'] : '';
+    askAlways = json['ask_always'] == true;
   }
 
   Map<String, dynamic> toJson() {
@@ -912,6 +917,7 @@ class Client {
     data['incoming_voice_call'] = incomingVoiceCall;
     data['vouched'] = vouched;
     data['vouched_via'] = vouchedVia;
+    data['ask_always'] = askAlways;
     return data;
   }
 

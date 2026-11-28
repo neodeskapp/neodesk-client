@@ -360,6 +360,49 @@ impl support::SupportHost for ServiceHost {
 /// None when the answer had none), with every field of the contract.
 pub fn note_access_policy(policy: Option<&Value>) {
     POLICY.lock().unwrap().access = Some(policy.map(unattended::access_policy_of));
+    if !super::is_receiver() && !super::is_quick_support() {
+        note_full_client_approval();
+    }
+}
+
+/// The full client's option that says which rule of the organization's
+/// policy is in force, for the line on its settings page (empty for none).
+pub const ORG_APPROVAL_OPTION: &str = "nd-org-approval";
+
+/// The full desktop client (not the receiver) applies the answer of
+/// GET /api/nd/device-policy: only the organization's session approval mode
+/// and allowed operators, for the vouched path and ask_always. Its own
+/// settings stay as the person set them; no other group applies.
+pub fn apply_full_client_policy(answer: &Value) {
+    let org = unattended::OrgPolicy::of(answer);
+    let before = POLICY.lock().unwrap().org.replace(org.clone());
+    if before.as_ref() != Some(&org) {
+        log::info!(
+            "Organization policy: session approval {}, {} allowed operators",
+            org.mode.as_deref().unwrap_or("not set"),
+            org.operators.len()
+        );
+    }
+    note_full_client_approval();
+}
+
+/// The full client lost its device token or its HTTPS server: no
+/// organization policy applies any more.
+pub fn forget_full_client_policy() {
+    let had = POLICY.lock().unwrap().org.take().is_some();
+    if had {
+        log::info!("Organization policy no longer applies");
+        note_full_client_approval();
+    }
+}
+
+/// Keeps the full client's approval in its option for the settings page.
+fn note_full_client_approval() {
+    let approval = unattended::full_client_approval_of(&unattended_policy());
+    let value = receiver_policy::approval_option(approval);
+    if Config::get_option(ORG_APPROVAL_OPTION) != value {
+        Config::set_option(ORG_APPROVAL_OPTION.to_owned(), value.to_owned());
+    }
 }
 
 /// The policy the unattended access rule takes.
@@ -634,8 +677,36 @@ admission=3f9c"));
         *FILE.lock().unwrap() = None;
     }
 
+    /// The tests that change the process's policy run one at a time.
+    static POLICY_TESTS: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn the_full_client_keeps_its_own_settings_and_names_the_rule() {
+        let _one = POLICY_TESTS.lock().unwrap_or_else(|e| e.into_inner());
+        Config::set_option("approve-mode".to_owned(), "password".to_owned());
+        note_access_policy(None);
+        apply_full_client_policy(&json!({"policies": {"connection": {"mode": "ask_always"},
+            "security": {"allow_uninstall": false, "allowed_operators": ["anna"]}}}));
+        // The person's own settings stay; only the rule is noted
+        assert_eq!(Config::get_option("approve-mode"), "password");
+        assert_eq!(Config::get_option(ORG_APPROVAL_OPTION), "ask_always");
+        assert_eq!(unattended_policy().org.unwrap().operators, ["anna"]);
+        // Attended with the device's unattended access: the vouched path
+        note_access_policy(Some(&json!({"unattended_enabled": true})));
+        apply_full_client_policy(&json!({"policies": {"connection": {"mode": "attended"}}}));
+        assert_eq!(Config::get_option(ORG_APPROVAL_OPTION), "vouched");
+        assert_eq!(Config::get_option("approve-mode"), "password");
+        // No device token any more: nothing applies
+        forget_full_client_policy();
+        assert_eq!(Config::get_option(ORG_APPROVAL_OPTION), "");
+        assert_eq!(unattended_policy().org, None);
+        note_access_policy(None);
+        Config::set_option("approve-mode".to_owned(), "".to_owned());
+    }
+
     #[test]
     fn the_policy_sets_the_way_in() {
+        let _one = POLICY_TESTS.lock().unwrap_or_else(|e| e.into_inner());
         note_access_policy(None);
         apply_policy(&json!({"policies": {"connection": {"mode": "ask_always"}, "security": {"allow_uninstall": false}}}));
         assert_eq!(applied(), Some(receiver_policy::Resolved { allow_uninstall: false }));

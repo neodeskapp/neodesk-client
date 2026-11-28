@@ -2491,6 +2491,12 @@ impl Connection {
         };
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         let (vouched_via, unattended) = (String::new(), None);
+        // ask_always on the full client: Allow whatever its approve mode
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        let ask_always = crate::onboard::full_client_approval()
+            == crate::onboard::receiver_policy::FullClientApproval::AskAlways;
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        let ask_always = false;
         // The quick support window says a request waits for the person
         // (L553), by name only for a caller the server vouched for
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -2520,6 +2526,7 @@ impl Connection {
             vouched,
             vouched_via,
             unattended,
+            ask_always,
         });
     }
 
@@ -3220,6 +3227,38 @@ impl Connection {
                     self.try_start_cm(lr.my_id, lr.my_name, self.authorized);
                     return true;
                 }
+            }
+
+            // The full client under the organization's ask_always: no
+            // password lets anyone in (the permanent one, the logon screen
+            // one, a recent session's), and the person allows every session
+            // (onboard policy_login decides)
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            match crate::onboard::policy_login(!lr.password.is_empty()) {
+                Some(crate::onboard::PolicyLogin::RefusePassword) => {
+                    self.send_login_error(crate::onboard::POLICY_PASSWORD_REFUSED)
+                        .await;
+                    sleep(1.).await;
+                    return false;
+                }
+                Some(crate::onboard::PolicyLogin::AskPerson) => {
+                    if should_use_terminal_os_login_scope(self.terminal, &lr.os_login.username) {
+                        if let Some(keep_alive) =
+                            self.prepare_terminal_login_for_authorization().await
+                        {
+                            return keep_alive;
+                        }
+                    }
+                    self.try_start_cm(lr.my_id, lr.my_name, false);
+                    if hbb_common::get_version_number(&lr.version)
+                        >= hbb_common::get_version_number("1.2.0")
+                    {
+                        self.send_login_error(crate::client::LOGIN_MSG_NO_PASSWORD_ACCESS)
+                            .await;
+                    }
+                    return true;
+                }
+                None => {}
             }
 
             if (password::approve_mode() == ApproveMode::Click && !allow_logon_screen_password)
