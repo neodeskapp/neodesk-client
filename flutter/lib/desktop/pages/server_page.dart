@@ -198,6 +198,7 @@ List<String> cmBarPeople(Iterable<Client> clients,
             name: c.name,
             peerId: c.peerId,
             vouched: c.vouched,
+            vouchedVia: c.vouchedVia,
             quickSupport: quickSupport,
             offersAllow: false)
         .name);
@@ -656,6 +657,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
       name: client.name,
       peerId: client.peerId,
       vouched: client.vouched,
+      vouchedVia: client.vouchedVia,
       quickSupport: bind.mainOnboardIsQuickSupport(),
       offersAllow: cmOffersAllow(Provider.of<ServerModel>(context).approveMode,
           vouched: client.vouched));

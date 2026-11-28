@@ -150,6 +150,9 @@ pub struct Client {
     /// The server vouched for the caller (A271): the window names the
     /// helper and offers Allow in quick support.
     pub vouched: bool,
+    /// How the server vouched for an unattended caller (A279): "console",
+    /// "desktop" or empty.
+    pub vouched_via: String,
     #[serde(skip)]
     #[cfg(not(any(target_os = "ios")))]
     tx: UnboundedSender<Data>,
@@ -240,6 +243,7 @@ impl<T: InvokeUiCM> ConnectionManager<T> {
         privacy_mode: bool,
         from_switch: bool,
         vouched: bool,
+        vouched_via: String,
         #[cfg(not(any(target_os = "ios")))] tx: mpsc::UnboundedSender<Data>,
     ) {
         let client = Client {
@@ -267,6 +271,7 @@ impl<T: InvokeUiCM> ConnectionManager<T> {
             in_voice_call: false,
             incoming_voice_call: false,
             vouched,
+            vouched_via,
         };
         CLIENTS
             .write()
@@ -560,9 +565,13 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                         }
                         Ok(Some(data)) => {
                             match data {
-                                Data::Login{id, is_file_transfer, is_view_camera, is_terminal, port_forward, peer_id, name, avatar, authorized, keyboard, clipboard, audio, file, file_transfer_enabled: _file_transfer_enabled, restart, recording, block_input, privacy_mode, from_switch, vouched} => {
+                                Data::Login{id, is_file_transfer, is_view_camera, is_terminal, port_forward, peer_id, name, avatar, authorized, keyboard, clipboard, audio, file, file_transfer_enabled: _file_transfer_enabled, restart, recording, block_input, privacy_mode, from_switch, vouched, vouched_via, unattended} => {
                                     log::debug!("conn_id: {}", id);
-                                    self.cm.add_connection(id, is_file_transfer, is_view_camera, is_terminal, port_forward, peer_id, name, avatar, authorized, keyboard, clipboard, audio, file, restart, recording, block_input, privacy_mode, from_switch, vouched, self.tx.clone());
+                                    // Unattended access (A279): the person hears who connected
+                                    if let Some(company) = unattended.as_deref().filter(|_| authorized && vouched) {
+                                        crate::onboard::show_unattended_notice(&name, company);
+                                    }
+                                    self.cm.add_connection(id, is_file_transfer, is_view_camera, is_terminal, port_forward, peer_id, name, avatar, authorized, keyboard, clipboard, audio, file, restart, recording, block_input, privacy_mode, from_switch, vouched, vouched_via, self.tx.clone());
                                     self.conn_id = id;
                                     #[cfg(target_os = "windows")]
                                     {
@@ -941,6 +950,7 @@ pub async fn start_listen<T: InvokeUiCM>(
                     privacy_mode,
                     from_switch,
                     vouched,
+                    String::new(),
                     tx.clone(),
                 );
             }

@@ -48,7 +48,8 @@ class CmCaller {
 
 /// What the window says about a caller. A caller the server vouched for
 /// (A271) has the helper's name the server gave and "From the NeoDesk web
-/// console". Any other caller's ID and name are its own claim: in quick
+/// console", or "From the NeoDesk app" for a signed-in app the server
+/// vouched for on the receiver (A279, [vouchedVia] 'desktop'). Any other caller's ID and name are its own claim: in quick
 /// support, and for a caller without a NeoDesk ID, the window calls it
 /// unknown; elsewhere a desktop caller keeps its name and ID as before.
 /// Unconfirmed, the window warns before Allow, and in quick support says
@@ -58,9 +59,14 @@ CmCaller cmCaller(
     required String peerId,
     required bool vouched,
     required bool quickSupport,
-    required bool offersAllow}) {
+    required bool offersAllow,
+    String vouchedVia = ''}) {
   if (vouched && name.trim().isNotEmpty) {
-    return CmCaller(name: name, line: tr('nd-cm-from-console'));
+    return CmCaller(
+        name: name,
+        line: tr(vouchedVia == 'desktop'
+            ? 'nd-cm-from-app'
+            : 'nd-cm-from-console'));
   }
   final warning = offersAllow
       ? tr('nd-cm-unknown-warning')

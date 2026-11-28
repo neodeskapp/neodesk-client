@@ -1731,3 +1731,234 @@ fn the_offer_installs_the_receiver_with_the_sessions_admission() {
     super::AppHost.redeemed(&console, &redeemed);
     assert!(super::OFFER.lock().unwrap().is_none());
 }
+
+// ------------------------------------------------ unattended access (A279)
+
+use super::{
+    receiver_policy::AccessPolicy,
+    unattended::{self, Login, OrgPolicy, Policy},
+};
+
+const UA_ME: &str = "123456789";
+const UA_RELAY: &str = "6f1c2a9e-relay";
+/// Monday 2026-11-16 09:00 UTC, 10:00 in Berlin.
+const UA_MONDAY_MORNING: i64 = 1_794_819_600;
+
+fn ua_login() -> Login<'static> {
+    Login {
+        receiver: true,
+        support_session: false,
+        relay_session: Some(UA_RELAY),
+        password_given: false,
+        https: true,
+        device_id: UA_ME,
+    }
+}
+
+fn ua_vouched(device_id: &str, session: &str) -> http::Answer {
+    caller_answer(
+        200,
+        json!({"success": true, "vouched": true, "device_id": device_id, "session": session,
+               "helper": "Olga Operator", "helper_username": "olga", "via": "desktop"}),
+    )
+}
+
+fn ua_policy(mode: &str, access: AccessPolicy) -> Policy {
+    Policy {
+        org: Some(OrgPolicy { mode: Some(mode.to_owned()), operators: vec![] }),
+        access: Some(Some(access)),
+    }
+}
+
+fn ua_office() -> AccessPolicy {
+    AccessPolicy {
+        unattended_enabled: true,
+        schedule_enabled: true,
+        schedule_days: ["mon", "tue", "wed", "thu", "fri"].map(String::from).to_vec(),
+        schedule_start: "08:00".into(),
+        schedule_end: "18:00".into(),
+        schedule_timezone: "Europe/Berlin".into(),
+        ..Default::default()
+    }
+}
+
+/// The decision for one case, as the connection gets it.
+fn ua_decide(login: &Login, answer: Option<&http::Answer>, policy: &Policy, now: i64) -> Result<String, &'static str> {
+    unattended::unattended_may_let_in(login, answer, policy, now).map(|u| u.helper.name)
+}
+
+/// A vouched caller under the device's rule gets in without Allow, with
+/// the server's name for the helper and how it vouched.
+#[test]
+fn unattended_access_lets_in_a_vouched_caller_the_rule_allows() {
+    let policy = ua_policy("attended", ua_office());
+    let answer = ua_vouched(UA_ME, UA_RELAY);
+    let caller = unattended::unattended_may_let_in(&ua_login(), Some(&answer), &policy, UA_MONDAY_MORNING).unwrap();
+    assert_eq!(caller.helper.name, "Olga Operator");
+    assert_eq!(caller.username, "olga");
+    assert_eq!(caller.via, "desktop");
+}
+
+/// Every caller the server does not vouch for, for this device and this
+/// relay session, keeps the Allow prompt.
+#[test]
+fn unattended_access_needs_the_servers_proof_for_this_connection() {
+    let policy = ua_policy("unattended", AccessPolicy::default());
+    let now = UA_MONDAY_MORNING;
+    let refused = |reason: &str| {
+        caller_answer(409, json!({"success": false, "error": "not_vouched", "reason": reason}))
+    };
+    for (why, answer, want) in [
+        ("no answer", None, "no_answer"),
+        ("another device", Some(ua_vouched("987654321", UA_RELAY)), "not_for_this_connection"),
+        ("another relay session", Some(ua_vouched(UA_ME, "other-relay")), "not_for_this_connection"),
+        ("too late", Some(refused("too_late")), "too_late"),
+        ("already used", Some(refused("already_used")), "already_used"),
+        ("the server's rule", Some(refused("outside_schedule")), "outside_schedule"),
+        ("an old server", Some(caller_answer(404, Value::Null)), "no_vouch"),
+        ("a 401 for a banned device", Some(caller_answer(401, json!({"error": "unauthorized"}))), "no_vouch"),
+        (
+            "vouched as text",
+            Some(caller_answer(200, json!({"success": true, "vouched": "true", "device_id": UA_ME,
+                "session": UA_RELAY, "helper": "Olga Operator", "helper_username": "olga"}))),
+            "not_for_this_connection",
+        ),
+    ] {
+        assert_eq!(ua_decide(&ua_login(), answer.as_ref(), &policy, now), Err(want), "{why}");
+    }
+    assert!(ua_decide(&ua_login(), Some(&ua_vouched(UA_ME, UA_RELAY)), &policy, now).is_ok());
+}
+
+/// A vouched caller still needs the device's own rule: ask_always, the
+/// schedule, the allowed operators and a policy it has not read yet each
+/// keep the Allow prompt.
+#[test]
+fn unattended_access_needs_the_devices_own_rule_too() {
+    let answer = ua_vouched(UA_ME, UA_RELAY);
+    let decide = |policy: &Policy, now| ua_decide(&ua_login(), Some(&answer), policy, now);
+    assert_eq!(decide(&ua_policy("ask_always", ua_office()), UA_MONDAY_MORNING), Err("ask_always"));
+    assert_eq!(
+        decide(&ua_policy("attended", AccessPolicy::default()), UA_MONDAY_MORNING),
+        Err("not_enabled")
+    );
+    // Saturday, and Monday 18:30 in Berlin
+    assert_eq!(
+        decide(&ua_policy("attended", ua_office()), UA_MONDAY_MORNING + 5 * 86_400),
+        Err("outside_schedule")
+    );
+    assert_eq!(
+        decide(&ua_policy("unattended", ua_office()), UA_MONDAY_MORNING + 8 * 3600 + 1800),
+        Err("outside_schedule")
+    );
+    let mut device_list = ua_office();
+    device_list.allowed_operators = vec!["anna".into()];
+    assert_eq!(decide(&ua_policy("attended", device_list), UA_MONDAY_MORNING), Err("operator_not_allowed"));
+    let mut org_list = ua_policy("unattended", AccessPolicy::default());
+    org_list.org.as_mut().unwrap().operators = vec!["anna".into()];
+    assert_eq!(decide(&org_list, UA_MONDAY_MORNING), Err("operator_not_allowed"));
+    org_list.org.as_mut().unwrap().operators = vec!["OLGA".into()];
+    assert!(decide(&org_list, UA_MONDAY_MORNING).is_ok());
+    // Nothing read yet from the server: no unattended access
+    let unread = Policy { org: None, ..ua_policy("unattended", AccessPolicy::default()) };
+    assert_eq!(decide(&unread, UA_MONDAY_MORNING), Err("no_policy"));
+    let no_heartbeat = Policy { access: None, ..ua_policy("unattended", AccessPolicy::default()) };
+    assert_eq!(decide(&no_heartbeat, UA_MONDAY_MORNING), Err("no_access_policy"));
+}
+
+/// Only the receiver outside a Get help session asks, for a relayed login
+/// without a password, over HTTPS; anywhere else even a good proof lets
+/// nobody in without Allow.
+#[test]
+fn unattended_access_is_only_for_the_receiver_on_https() {
+    let policy = ua_policy("unattended", AccessPolicy::default());
+    let answer = ua_vouched(UA_ME, UA_RELAY);
+    assert!(unattended::may_ask(&ua_login()));
+    for (why, login) in [
+        ("plain HTTP", Login { https: false, ..ua_login() }),
+        ("not a receiver", Login { receiver: false, ..ua_login() }),
+        ("a Get help session", Login { support_session: true, ..ua_login() }),
+        ("a direct connection", Login { relay_session: None, ..ua_login() }),
+        ("an empty relay session", Login { relay_session: Some(""), ..ua_login() }),
+        ("with a password", Login { password_given: true, ..ua_login() }),
+        ("no device ID", Login { device_id: "", ..ua_login() }),
+    ] {
+        assert!(!unattended::may_ask(&login), "{why}");
+        assert_eq!(ua_decide(&login, Some(&answer), &policy, UA_MONDAY_MORNING), Err("not_asked"), "{why}");
+    }
+}
+
+/// The check goes to the API address with the device token and the device
+/// ID, and gives up after the wait.
+#[test]
+fn unattended_access_asks_with_the_device_token() {
+    let console = FakeConsole::start(move |request| {
+        if request.path == unattended::PATH
+            && request.bearer() == Some("device-tok")
+            && request.headers.get("x-device-id").map(String::as_str) == Some(UA_ME)
+            && request.body == json!({"session": UA_RELAY})
+        {
+            (200, json!({"success": true, "vouched": true, "device_id": UA_ME, "session": UA_RELAY,
+                         "helper": "Olga Operator", "helper_username": "olga", "via": "console"}))
+        } else {
+            (409, json!({"success": false, "error": "not_vouched", "reason": "session_not_open"}))
+        }
+    });
+    let wait = Duration::from_secs(5);
+    let answer = block_on(unattended::ask(&console.console(), "device-tok", UA_ME, UA_RELAY, wait)).unwrap();
+    assert_eq!(answer.status, 200);
+    let sent = console.requests_to(unattended::PATH);
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].method, "POST");
+    let other = block_on(unattended::ask(&console.console(), "other-tok", UA_ME, UA_RELAY, wait)).unwrap();
+    assert_eq!(other.status, 409);
+
+    let slow = FakeConsole::start(|_| {
+        std::thread::sleep(Duration::from_millis(1500));
+        (200, Value::Null)
+    });
+    let start = Instant::now();
+    assert!(block_on(unattended::ask(&slow.console(), "device-tok", UA_ME, UA_RELAY, Duration::from_millis(300))).is_none());
+    assert!(start.elapsed() < Duration::from_millis(1200), "{:?}", start.elapsed());
+}
+
+/// The shared test vectors of the rule
+/// (neodesk-server/policy/unattended/testdata/rule-vectors.json, copied
+/// unchanged): the receiver decides each case as the server does.
+#[test]
+fn unattended_rule_matches_the_shared_vectors() {
+    let text = include_str!("testdata/unattended-rule-vectors.json");
+    let parsed: Value = serde_json::from_str(text).unwrap();
+    let vectors = parsed
+        .as_array()
+        .or_else(|| parsed.get("vectors").and_then(Value::as_array))
+        .expect("a list of vectors");
+    assert!(vectors.len() >= 40, "{} vectors", vectors.len());
+    let mut failed = Vec::new();
+    for v in vectors {
+        let name = v["name"].as_str().unwrap_or("?");
+        let now = chrono::DateTime::parse_from_rfc3339(v["now"].as_str().unwrap())
+            .unwrap_or_else(|err| panic!("{name}: {err}"))
+            .timestamp();
+        let access = match &v["access"] {
+            Value::Null => None,
+            access => Some(unattended::access_policy_of(access)),
+        };
+        let org = unattended::names_of(v.get("org_operators"));
+        let got = super::receiver_policy::unattended_rule(
+            v["mode"].as_str(),
+            &org,
+            access.as_ref(),
+            v["caller"].as_str().unwrap_or(""),
+            now,
+            &unattended::offset_of,
+        );
+        let got = match got {
+            Ok(()) => "allow",
+            Err(refusal) => refusal.reason(),
+        };
+        if got != v["want"].as_str().unwrap_or("") {
+            failed.push(format!("{name}: got {got}, want {}", v["want"]));
+        }
+    }
+    assert!(failed.is_empty(), "{}", failed.join("\n"));
+}

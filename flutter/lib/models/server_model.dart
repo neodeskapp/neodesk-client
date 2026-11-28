@@ -845,6 +845,10 @@ class Client {
   // console, and name is the helper's name as the server gave it (A271)
   bool vouched = false;
 
+  /// How the server vouched for a caller let in without Allow on the
+  /// receiver (A279): 'console', 'desktop' or empty.
+  String vouchedVia = '';
+
   RxInt unreadChatMessageCount = 0.obs;
 
   /// When input of this caller last arrived, for the bar's "is using".
@@ -879,6 +883,7 @@ class Client {
     inVoiceCall = json['in_voice_call'];
     incomingVoiceCall = json['incoming_voice_call'];
     vouched = json['vouched'] == true;
+    vouchedVia = json['vouched_via'] is String ? json['vouched_via'] : '';
   }
 
   Map<String, dynamic> toJson() {
@@ -905,6 +910,7 @@ class Client {
     data['in_voice_call'] = inVoiceCall;
     data['incoming_voice_call'] = incomingVoiceCall;
     data['vouched'] = vouched;
+    data['vouched_via'] = vouchedVia;
     return data;
   }
 

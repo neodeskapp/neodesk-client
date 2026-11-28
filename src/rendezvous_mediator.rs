@@ -682,7 +682,7 @@ impl RendezvousMediator {
         }
         let peer_addr_v6 = hbb_common::AddrMangle::decode(&fla.socket_addr_v6);
         let relay_server = self.get_relay_server(fla.relay_server.clone());
-        let relay = use_ws() || Config::is_proxy();
+        let relay = use_ws() || Config::is_proxy() || relay_only();
         let mut socket_addr_v6 = Default::default();
         let meta = connection_meta(
             fla.control_permissions.clone().into_option(),
@@ -774,7 +774,7 @@ impl RendezvousMediator {
             return Ok(());
         }
         let peer_addr_v6 = hbb_common::AddrMangle::decode(&ph.socket_addr_v6);
-        let relay = use_ws() || Config::is_proxy() || ph.force_relay;
+        let relay = use_ws() || Config::is_proxy() || ph.force_relay || relay_only();
         let mut socket_addr_v6 = Default::default();
         let meta = connection_meta(
             ph.control_permissions.into_option(),
@@ -1014,6 +1014,21 @@ fn get_direct_port() -> i32 {
     port
 }
 
+/// Whether this computer takes every connection through the relay: the
+/// receiver does (A279), so that each caller has a relay session the server
+/// can vouch for. It answers a punch hole and a LAN request with a relay of
+/// its own and keeps no direct listener.
+fn relay_only() -> bool {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        crate::onboard::relay_only()
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        false
+    }
+}
+
 async fn direct_server(server: ServerPtr) {
     let mut listener = None;
     let mut port = 0;
@@ -1021,7 +1036,8 @@ async fn direct_server(server: ServerPtr) {
         let disabled = !option2bool(
             OPTION_DIRECT_SERVER,
             &Config::get_option(OPTION_DIRECT_SERVER),
-        ) || option2bool("stop-service", &Config::get_option("stop-service"));
+        ) || option2bool("stop-service", &Config::get_option("stop-service"))
+            || relay_only();
         if !disabled && listener.is_none() {
             port = get_direct_port();
             match hbb_common::tcp::listen_any(port as _).await {

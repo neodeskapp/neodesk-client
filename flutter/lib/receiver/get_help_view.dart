@@ -3,6 +3,10 @@
 // in a window of its own (src/onboard/mod.rs redeem_support), the same as
 // the link from the console's quick support. During the session the
 // connection window is the bar at the top of the screen (step 1).
+//
+// Under the title one line says whether the company's support may connect
+// without asking, and when (A279); there is no switch for it here, the
+// admin decides in the policy.
 
 import 'dart:async';
 
@@ -11,6 +15,34 @@ import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/onboarding/first_start_view.dart'
     show onboardingErrorText;
 import 'package:flutter_hbb/onboarding/onboarding_service.dart';
+
+const _days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+/// The days of a schedule as the home window says them: a run of three or
+/// more days as "Mon to Fri", anything else listed ("Mon, Wed").
+String unattendedDaysText(List<String> days) {
+  final picked = [
+    for (var i = 0; i < _days.length; i++)
+      if (days.contains(_days[i])) i
+  ];
+  String name(int i) => tr('nd-day-${_days[i]}');
+  if (picked.length >= 3 && picked.last - picked.first == picked.length - 1) {
+    return tr('nd-rcv-range', [name(picked.first), name(picked.last)]);
+  }
+  return picked.map(name).join(', ');
+}
+
+/// The line under Get help (A279): "Your company's support can connect to
+/// this computer without asking you, Mon to Fri 8:00 to 18:00."
+String unattendedLineText(UnattendedAccess access) {
+  final schedule = access.schedule;
+  if (schedule == null) return tr('nd-rcv-unattended');
+  final days = unattendedDaysText(schedule.days);
+  final when = schedule.allDay
+      ? days
+      : '$days ${tr('nd-rcv-range', [schedule.start, schedule.end])}';
+  return tr('nd-rcv-unattended-when', [when]);
+}
 
 class GetHelpView extends StatefulWidget {
   const GetHelpView({
@@ -36,16 +68,22 @@ class _GetHelpViewState extends State<GetHelpView> {
   String? _error;
   bool _started = false;
   Timer? _startedTimer;
+  UnattendedAccess? _unattended;
 
   @override
   void initState() {
     super.initState();
+    _unattended = widget.service.current.unattended;
     _input.addListener(() {
       if (_error != null) setState(() => _error = null);
       setState(() {});
     });
     _sub = widget.service.states.listen((s) {
-      if (!mounted || !_started) return;
+      if (!mounted) return;
+      if (s.unattended != _unattended) {
+        setState(() => _unattended = s.unattended);
+      }
+      if (!_started) return;
       final kind = s.errorKind;
       if (kind == null && (s.error ?? '').isEmpty) return;
       setState(() {
@@ -110,6 +148,12 @@ class _GetHelpViewState extends State<GetHelpView> {
                     ? tr('nd-rcv-help-lead', [company])
                     : tr('nd-rcv-help-lead-nocompany'),
                 style: lead),
+            if (_unattended != null) ...[
+              const SizedBox(height: 12),
+              Text(unattendedLineText(_unattended!),
+                  key: const ValueKey('rcv-help-unattended'),
+                  style: t.body.copyWith(color: c.textMuted)),
+            ],
             const SizedBox(height: 24),
             NdField(
               key: const ValueKey('rcv-help-code'),

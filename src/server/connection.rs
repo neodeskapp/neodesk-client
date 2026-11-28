@@ -473,6 +473,12 @@ pub struct Connection {
     nd_caller: Option<crate::onboard::Helper>,
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     nd_caller_asked: bool,
+    // Unattended access on the receiver (A279): the caller let in without
+    // Allow, and whether the server was asked
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    nd_unattended: Option<crate::onboard::Unattended>,
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    nd_unattended_asked: bool,
     // When the connection window last heard that this peer's input arrived (ms)
     nd_input_told_ms: AtomicI64,
 }
@@ -683,6 +689,10 @@ impl Connection {
             nd_caller: None,
             #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
             nd_caller_asked: false,
+            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+            nd_unattended: None,
+            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+            nd_unattended_asked: false,
             nd_input_told_ms: AtomicI64::new(0),
         };
         let addr = hbb_common::try_into_v4(addr);
@@ -2422,6 +2432,24 @@ impl Connection {
         self.nd_caller.is_some()
     }
 
+    /// Unattended access on the receiver (A279): asks the server once per
+    /// connection, for a login without a password, whether it vouches for
+    /// the caller of this connection's relay session, and lets the device's
+    /// rule decide (onboard/unattended.rs, unattended_may_let_in). True
+    /// when the caller gets in without the person's Allow.
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    async fn nd_unattended_let_in(&mut self, password_given: bool) -> bool {
+        if !password_given && !self.nd_unattended_asked {
+            self.nd_unattended_asked = true;
+            self.nd_unattended =
+                crate::onboard::unattended_caller(self.nd_relay_uuid.as_deref(), false).await;
+            if let Some(unattended) = &self.nd_unattended {
+                self.nd_caller = Some(unattended.helper.clone());
+            }
+        }
+        self.nd_unattended.is_some()
+    }
+
     fn try_start_cm(&mut self, peer_id: String, name: String, authorized: bool) {
         // The connection manager names the caller only when the server
         // vouched for it, with the server's name for the helper (A271)
@@ -2446,6 +2474,18 @@ impl Connection {
         };
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         let (vouched, avatar) = (false, self.lr.avatar.clone());
+        // Unattended access (A279): how the server vouched, and for the
+        // notification at the start the company of the server's branding
+        #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+        let (vouched_via, unattended) = match &self.nd_unattended {
+            Some(caller) => (
+                caller.via.clone(),
+                authorized.then(crate::onboard::branding_company),
+            ),
+            None => (String::new(), None),
+        };
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        let (vouched_via, unattended) = (String::new(), None);
         // The quick support window says a request waits for the person
         // (L553), by name only for a caller the server vouched for
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -2473,6 +2513,8 @@ impl Connection {
             privacy_mode: self.privacy_mode,
             from_switch: self.from_switch,
             vouched,
+            vouched_via,
+            unattended,
         });
     }
 
@@ -3137,9 +3179,35 @@ impl Connection {
             #[cfg(any(target_os = "android", target_os = "ios"))]
             let is_logon = || crate::platform::is_prelogin();
 
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             let allow_logon_screen_password =
                 crate::get_builtin_option(keys::OPTION_ALLOW_LOGON_SCREEN_PASSWORD) == "Y"
                     && is_logon();
+            // The receiver takes no permanent password, on the logon screen
+            // neither (A279)
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            let allow_logon_screen_password = {
+                let option_on =
+                    crate::get_builtin_option(keys::OPTION_ALLOW_LOGON_SCREEN_PASSWORD) == "Y";
+                crate::onboard::logon_screen_password_allowed(option_on, option_on && is_logon())
+            };
+
+            // Unattended access on the receiver (A279): a relayed caller the
+            // server vouches for gets in without Allow when the device's rule
+            // allows it now, also on the logon screen and a locked computer;
+            // every other caller is asked as before
+            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+            if !should_use_terminal_os_login_scope(self.terminal, &lr.os_login.username)
+                && self.nd_unattended_let_in(!lr.password.is_empty()).await
+            {
+                self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
+                self.require_2fa.take();
+                if !self.send_logon_response_and_keep_alive().await {
+                    return false;
+                }
+                self.try_start_cm(lr.my_id, lr.my_name, self.authorized);
+                return true;
+            }
 
             if (password::approve_mode() == ApproveMode::Click && !allow_logon_screen_password)
                 || password::approve_mode() == ApproveMode::Both && !password::has_valid_password()

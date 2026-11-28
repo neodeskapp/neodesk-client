@@ -31,7 +31,8 @@ abstract class OnboardingNative {
   /// (toThisComputer, path, name, count, size, time), inputActive,
   /// filesOpen, quickSupport, hasServer, sessionStarted and sessionEnded
   /// (ms), feedback (id, kind, label, required, long, options),
-  /// feedbackState.
+  /// feedbackState, unattended (null, or schedule: null or days, start,
+  /// end, allDay).
   String state();
 
   bool isQuickSupport();
@@ -142,6 +143,29 @@ List<FeedbackQuestion> _feedbackOf(Object? value) {
   ];
 }
 
+/// The receiver's unattended access line (A279): null for none.
+UnattendedAccess? _unattendedOf(Object? value) {
+  if (value is! Map) return null;
+  final schedule = value['schedule'];
+  if (schedule is! Map) return const UnattendedAccess();
+  const order = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  final listed = schedule['days'] is List ? schedule['days'] as List : const [];
+  final days = [
+    for (final day in order)
+      if (listed.contains(day)) day
+  ];
+  final start = schedule['start'];
+  final end = schedule['end'];
+  // A schedule that doesn't read says nothing: no line rather than a wrong one
+  if (days.isEmpty || start is! String || end is! String) return null;
+  return UnattendedAccess(
+      schedule: UnattendedSchedule(
+          days: days,
+          start: start,
+          end: end,
+          allDay: schedule['allDay'] == true));
+}
+
 FeedbackState _feedbackStateOf(Object? value) => switch (value) {
       'sending' => FeedbackState.sending,
       'sent' => FeedbackState.sent,
@@ -217,6 +241,7 @@ OnboardingState parseOnboardingState(String json) {
     feedbackState: _feedbackStateOf(map['feedbackState']),
     offerReceiver: map['offerReceiver'] == true,
     receiverInstalling: map['receiverInstalling'] == true,
+    unattended: _unattendedOf(map['unattended']),
   );
 }
 
@@ -242,6 +267,7 @@ bool _sameState(OnboardingState a, OnboardingState b) =>
     a.feedbackState == b.feedbackState &&
     a.offerReceiver == b.offerReceiver &&
     a.receiverInstalling == b.receiverInstalling &&
+    a.unattended == b.unattended &&
     listEquals(a.feedback, b.feedback) &&
     listEquals(a.files, b.files) &&
     _sameMessages(a.messages, b.messages);

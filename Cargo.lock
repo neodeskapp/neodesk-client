@@ -7271,6 +7271,7 @@ dependencies = [
  "totp-rs",
  "tray-icon",
  "ttf-parser",
+ "tzdb 0.6.1",
  "url",
  "uuid",
  "virtual_display",
