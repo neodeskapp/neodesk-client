@@ -382,6 +382,16 @@ pub enum Data {
         /// name as the server gave it.
         #[serde(default)]
         vouched: bool,
+        /// How the server vouched for an unattended caller on the receiver
+        /// (A279): "console" for the browser viewer, "desktop" for a
+        /// signed-in app; empty otherwise.
+        #[serde(default)]
+        vouched_via: String,
+        /// The caller got in without Allow (unattended access, A279): the
+        /// company of the server's branding for the notification at the
+        /// start, empty when there is none. None for every other login.
+        #[serde(default)]
+        unattended: Option<String>,
     },
     ChatMessage {
         text: String,

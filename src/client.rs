@@ -207,6 +207,11 @@ impl Client {
                 }
             }
             Ok(x) => {
+                interface
+                    .get_lch()
+                    .write()
+                    .unwrap()
+                    .note_stream_secured(x.0 .0.is_secured());
                 // Set x.2 to true only in the connect() function to indicate that direct_failures needs to be updated; everywhere else it should be set to false.
                 if x.2 {
                     let direct_failures = interface.get_lch().read().unwrap().direct_failures;
@@ -402,6 +407,8 @@ impl Client {
         let my_nat_type = crate::get_nat_type(100).await;
         let mut is_local = false;
         let mut feedback = 0;
+        // A secret of an earlier attempt is spent; only this one's counts
+        interface.get_lch().write().unwrap().nd_caller_secret.clear();
         use hbb_common::protobuf::Enum;
         let nat_type = if interface.is_force_relay() {
             NatType::SYMMETRIC
@@ -535,6 +542,7 @@ impl Client {
                             }
                         }
                         signed_id_pk = rr.pk().into();
+                        interface.get_lch().write().unwrap().note_relay_response(&rr);
                         let fut = Self::create_relay(
                             &peer,
                             rr.uuid,
@@ -711,7 +719,11 @@ impl Client {
                     conn_type,
                     &switch_code,
                 )
-                .await;
+                .await
+                .map(|(conn, rr)| {
+                    interface.get_lch().write().unwrap().note_relay_response(&rr);
+                    conn
+                });
                 if let Err(e) = conn {
                     // this direct is mainly used by on_establish_connection_error, so we update it here before bail
                     interface.update_direct(Some(false));
@@ -831,9 +843,10 @@ impl Client {
         token: &str,
         conn_type: ConnType,
         switch_code: &str,
-    ) -> ResultType<Stream> {
+    ) -> ResultType<(Stream, RelayResponse)> {
         let mut succeed = false;
         let mut uuid = "".to_owned();
+        let mut response = RelayResponse::new();
         let mut ipv4 = true;
 
         for i in 1..=3 {
@@ -875,6 +888,7 @@ impl Client {
                     if !rs.refuse_reason.is_empty() {
                         bail!(rs.refuse_reason);
                     }
+                    response = rs;
                     succeed = true;
                     break;
                 }
@@ -883,7 +897,8 @@ impl Client {
         if !succeed {
             bail!("Timeout");
         }
-        Self::create_relay(peer, uuid, relay_server, key, conn_type, ipv4).await
+        let conn = Self::create_relay(peer, uuid, relay_server, key, conn_type, ipv4).await?;
+        Ok((conn, response))
     }
 
     /// Create a relay connection to the server.
@@ -1776,6 +1791,10 @@ pub struct LoginConfigHandler {
     pub enable_trusted_devices: bool,
     pub record_state: bool,
     pub record_permission: bool,
+    /// The one-time caller secret signal sent with the relay response of
+    /// this connection (NeoDesk, A279); the login request carries it to the
+    /// controlled side, which proves with it who connected.
+    pub nd_caller_secret: String,
 }
 
 impl Deref for LoginConfigHandler {
@@ -1787,6 +1806,22 @@ impl Deref for LoginConfigHandler {
 }
 
 impl LoginConfigHandler {
+    /// Keeps the caller secret of the relay response signal sent for this
+    /// connection; a response without one clears it.
+    pub fn note_relay_response(&mut self, rr: &RelayResponse) {
+        self.nd_caller_secret = rr.nd_caller_secret.trim().to_owned();
+    }
+
+    /// The peer connection ended its handshake encrypted (`secured`) or not.
+    /// The caller secret travels only encrypted: on a connection without a
+    /// key it goes, and the login carries none.
+    pub fn note_stream_secured(&mut self, secured: bool) {
+        if !secured && !self.nd_caller_secret.is_empty() {
+            log::warn!("The connection is not encrypted: the login carries no caller secret");
+            self.nd_caller_secret.clear();
+        }
+    }
+
     /// Initialize the login config handler.
     ///
     /// # Arguments
@@ -2786,6 +2821,7 @@ impl LoginConfigHandler {
             os_login,
             hwid,
             avatar,
+            nd_caller_secret: self.nd_caller_secret.clone(),
             ..Default::default()
         };
         match self.conn_type {
@@ -4417,4 +4453,42 @@ async fn udp_nat_connect(
             anyhow!(err)
         })?;
     Ok((res.1, Some(res.0), typ))
+}
+
+#[cfg(test)]
+mod nd_caller_secret_tests {
+    use super::*;
+
+    /// The controller copies the caller secret of signal's relay response
+    /// into its login request, and a later response without one clears it
+    /// (A279).
+    #[test]
+    fn the_login_request_carries_the_relay_responses_caller_secret() {
+        let mut lc = LoginConfigHandler::default();
+        let mut rr = RelayResponse::new();
+        rr.nd_caller_secret = "q3Jx_9vT-2mYc8LwPz0aRk5NdE7uFhGsVbI4oA1eWnU".to_owned();
+        lc.note_relay_response(&rr);
+        let msg = lc.create_login_msg(String::new(), String::new(), Vec::new());
+        assert_eq!(
+            msg.login_request().nd_caller_secret,
+            "q3Jx_9vT-2mYc8LwPz0aRk5NdE7uFhGsVbI4oA1eWnU"
+        );
+        lc.note_relay_response(&RelayResponse::new());
+        let msg = lc.create_login_msg(String::new(), String::new(), Vec::new());
+        assert_eq!(msg.login_request().nd_caller_secret, "");
+    }
+
+    /// On a peer connection without encryption the secret is not sent: its
+    /// login would travel in clear (A279, second security review).
+    #[test]
+    fn an_unencrypted_connection_carries_no_caller_secret() {
+        let mut lc = LoginConfigHandler::default();
+        let mut rr = RelayResponse::new();
+        rr.nd_caller_secret = "q3Jx_9vT-2mYc8LwPz0aRk5NdE7uFhGsVbI4oA1eWnU".to_owned();
+        lc.note_relay_response(&rr);
+        lc.note_stream_secured(true);
+        assert_ne!(lc.create_login_msg(String::new(), String::new(), Vec::new()).login_request().nd_caller_secret, "");
+        lc.note_stream_secured(false);
+        assert_eq!(lc.create_login_msg(String::new(), String::new(), Vec::new()).login_request().nd_caller_secret, "");
+    }
 }

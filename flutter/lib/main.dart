@@ -425,6 +425,9 @@ showCmWindow({bool isStartup = false}) async {
     await windowManager.setSizeAlignment(
         kConnectionManagerWindowSizeClosedChat, Alignment.topRight);
     _isCmReadyToShow = true;
+    // The connection manager shapes the window (card or bar) only now
+    cmWindowShaper.forget();
+    if (!cmWindowStarted.isCompleted) cmWindowStarted.complete();
   } else if (_isCmReadyToShow) {
     if (await windowManager.getOpacity() != 1) {
       await windowManager.setOpacity(1);
@@ -433,7 +436,7 @@ showCmWindow({bool isStartup = false}) async {
       await windowManager.setSizeAlignment(
           kConnectionManagerWindowSizeClosedChat, Alignment.topRight);
       // The connection manager shapes the window again (card or bar)
-      cmWindowShape = null;
+      cmWindowShaper.forget();
       windowOnTop(null);
     }
   }
@@ -449,6 +452,7 @@ hideCmWindow({bool isStartup = false}) async {
     await windowManager.minimize();
     await windowManager.hide();
     _isCmReadyToShow = true;
+    if (!cmWindowStarted.isCompleted) cmWindowStarted.complete();
   } else if (_isCmReadyToShow) {
     if (await windowManager.getOpacity() != 0) {
       await windowManager.setOpacity(0);

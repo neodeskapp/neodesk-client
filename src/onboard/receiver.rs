@@ -12,7 +12,8 @@
 //!   ([`listen_for_handoffs`]). A link of another server still starts a
 //!   quick support app of its own.
 //! - Session approval and removing the app follow the server's policy
-//!   ([`apply_policy`], [`receiver_policy`]).
+//!   ([`apply_policy`], [`receiver_policy`]); a caller the server vouches
+//!   for gets in without Allow when the rule allows it ([`unattended`]).
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -27,16 +28,19 @@ use serde_json::{json, Value};
 
 use super::{
     caller, install_file::InstallFile, join::DeviceIdentity, link, receiver_policy, support,
-    Grants, Kind, ServerSettings, GRANTS, OPTION_CONSOLE, REQUESTS, STATE, SUPPORT,
+    unattended, Grants, Kind, ServerSettings, GRANTS, OPTION_CONSOLE, REQUESTS, STATE, SUPPORT,
 };
 
 /// The install-time file this process took, with what is left of it.
 static FILE: Mutex<Option<InstallFile>> = Mutex::new(None);
 /// Set while a support session runs in the receiver's service process.
 pub(super) static SESSION: AtomicBool = AtomicBool::new(false);
-/// The access policy of the last sealed heartbeat answer: whether the
-/// device's own unattended access is on; None without one.
-static DEVICE_UNATTENDED: Mutex<Option<bool>> = Mutex::new(None);
+/// The organization's policy and the device's access policy, as the
+/// unattended access rule takes them ([`unattended::Policy`]).
+static POLICY: Mutex<unattended::Policy> = Mutex::new(unattended::Policy {
+    org: None,
+    access: None,
+});
 /// The policy applied last.
 static APPLIED: Mutex<Option<receiver_policy::Resolved>> = Mutex::new(None);
 /// Whether the uninstall entry follows the policy already (None: not
@@ -114,6 +118,15 @@ fn apply_to(
     }
 }
 
+/// Whether the install-time file keeps its token or admission after the
+/// server's answer: only when it refused the computer because another one
+/// waits to join with the same ID (`id_taken`, A280). Once an admin clears
+/// that in Join requests, the next registration brings the token again.
+/// Every other answer used them up.
+pub(crate) fn keeps_enrollment_secrets(status: &str, error: &str) -> bool {
+    status == "rejected" && error.trim() == "id_taken"
+}
+
 /// The install-time file as this process has it.
 pub fn install_file() -> Option<InstallFile> {
     FILE.lock().unwrap().clone()
@@ -128,9 +141,10 @@ pub fn enrollment_fields() -> Vec<(&'static str, String)> {
 }
 
 /// The server answered a registration that carried the install-time file's
-/// token or admission: the file is written again without them.
-pub fn enrollment_answered(status: &str) {
-    if status.is_empty() {
+/// token or admission: the file is written again without them, unless the
+/// answer keeps them ([`keeps_enrollment_secrets`]).
+pub fn enrollment_answered(status: &str, error: &str) {
+    if status.is_empty() || keeps_enrollment_secrets(status, error) {
         return;
     }
     let mut file = FILE.lock().unwrap();
@@ -343,36 +357,39 @@ impl support::SupportHost for ServiceHost {
 }
 
 /// Keeps the access policy of a sealed heartbeat answer (`access_policy`,
-/// None when the answer had none).
+/// None when the answer had none), with every field of the contract.
 pub fn note_access_policy(policy: Option<&Value>) {
-    *DEVICE_UNATTENDED.lock().unwrap() = policy
-        .and_then(|p| p.get("unattended_enabled"))
-        .and_then(Value::as_bool);
+    POLICY.lock().unwrap().access = Some(policy.map(unattended::access_policy_of));
 }
 
-/// Applies the answer of GET /api/nd/device-policy (with the access policy
-/// of the heartbeat): session approval, and whether the app may be removed.
+/// The policy the unattended access rule takes.
+pub fn unattended_policy() -> unattended::Policy {
+    POLICY.lock().unwrap().clone()
+}
+
+/// Applies the answer of GET /api/nd/device-policy: session approval (the
+/// organization's mode and allowed operators for the unattended access
+/// rule), and whether the app may be removed.
 pub fn apply_policy(answer: &Value) {
+    let org = unattended::OrgPolicy::of(answer);
     let resolved = receiver_policy::resolve(
-        answer
-            .pointer("/policies/connection/mode")
-            .and_then(Value::as_str),
-        *DEVICE_UNATTENDED.lock().unwrap(),
         answer
             .pointer("/policies/security/allow_uninstall")
             .and_then(Value::as_bool),
     );
-    let before = APPLIED.lock().unwrap().replace(resolved);
-    if before != Some(resolved) {
+    let before = POLICY.lock().unwrap().org.replace(org.clone());
+    let applied_before = APPLIED.lock().unwrap().replace(resolved);
+    if before.as_ref() != Some(&org) || applied_before != Some(resolved) {
         log::info!(
-            "Receiver policy: unattended {}, removing allowed {}",
-            resolved.unattended,
+            "Receiver policy: session approval {}, {} allowed operators, removing allowed {}",
+            org.mode.as_deref().unwrap_or("not set"),
+            org.operators.len(),
             resolved.allow_uninstall
         );
     }
     // A session sets its own way in and puts these back when it ends
     if !SESSION.load(Ordering::Relaxed) {
-        for (key, value) in receiver_policy::connection_options(resolved.unattended) {
+        for (key, value) in receiver_policy::connection_options() {
             if Config::get_option(key) != value {
                 Config::set_option(key.to_owned(), value.to_owned());
             }
@@ -585,9 +602,14 @@ group=4
         assert_eq!(body["token"], "tok-1");
         assert_eq!(body["group"], "4");
         assert!(body.get("admission").is_none());
-        enrollment_answered("");
+        enrollment_answered("", "");
         assert_eq!(enrollment_fields().len(), 2, "no answer, no change");
-        enrollment_answered("pending");
+        // Another computer waits to join with this ID (A280): the token
+        // stays for the registration after an admin cleared that
+        enrollment_answered("rejected", "id_taken");
+        assert_eq!(enrollment_fields().len(), 2, "id_taken keeps the token");
+        assert_eq!(install_file().unwrap().token, "tok-1");
+        enrollment_answered("pending", "");
         assert!(enrollment_fields().is_empty());
         let mut body = json!({"device_id": "123456789"});
         crate::hbbs_http::neodesk::add_enrollment_fields(&mut body, &enrollment_fields());
@@ -596,6 +618,11 @@ group=4
         assert!(kept.receiver);
         assert_eq!(kept.server, "rcv-test.example.com:21116");
         assert_eq!(kept.token, "");
+        // Any other refusal uses the token up, as before
+        assert!(!keeps_enrollment_secrets("rejected", "device_banned"));
+        assert!(!keeps_enrollment_secrets("rejected", ""));
+        assert!(!keeps_enrollment_secrets("pending", "id_taken"));
+        assert!(keeps_enrollment_secrets("rejected", "id_taken"));
 
         // The offer after quick support enrolls with the admission
         *FILE.lock().unwrap() = Some(InstallFile::parse("receiver=Y
@@ -611,21 +638,28 @@ admission=3f9c"));
     fn the_policy_sets_the_way_in() {
         note_access_policy(None);
         apply_policy(&json!({"policies": {"connection": {"mode": "ask_always"}, "security": {"allow_uninstall": false}}}));
-        assert_eq!(
-            applied(),
-            Some(receiver_policy::Resolved { unattended: false, allow_uninstall: false })
-        );
+        assert_eq!(applied(), Some(receiver_policy::Resolved { allow_uninstall: false }));
         assert_eq!(Config::get_option("approve-mode"), "click");
-        // The device's own unattended access under an attended organization
-        note_access_policy(Some(&json!({"unattended_enabled": true})));
-        apply_policy(&json!({"policies": {"connection": {"mode": "attended"}, "security": {"allow_uninstall": true}}}));
-        assert_eq!(
-            applied(),
-            Some(receiver_policy::Resolved { unattended: true, allow_uninstall: true })
-        );
-        assert_eq!(Config::get_option("approve-mode"), "");
-        assert_eq!(Config::get_option("verification-method"), "use-permanent-password");
+        // Unattended for the organization: still the click, and no password;
+        // a vouched caller skips the click in the connection itself
+        note_access_policy(Some(&json!({"unattended_enabled": true, "schedule_enabled": true,
+            "schedule_days": ["mon"], "schedule_start": "08:00", "schedule_end": "18:00",
+            "schedule_timezone": "Europe/Berlin", "allowed_operators": ["anna"]})));
+        apply_policy(&json!({"policies": {"connection": {"mode": "unattended"},
+            "security": {"allow_uninstall": true, "allowed_operators": ["anna", "bert"]}}}));
+        assert_eq!(applied(), Some(receiver_policy::Resolved { allow_uninstall: true }));
+        assert_eq!(Config::get_option("approve-mode"), "click");
+        assert_eq!(Config::get_option("verification-method"), "use-temporary-password");
+        // The rule gets the whole policy
+        let policy = unattended_policy();
+        let org = policy.org.unwrap();
+        assert_eq!(org.mode.as_deref(), Some("unattended"));
+        assert_eq!(org.operators, ["anna", "bert"]);
+        let access = policy.access.unwrap().unwrap();
+        assert_eq!(access.schedule_timezone, "Europe/Berlin");
+        assert_eq!(access.allowed_operators, ["anna"]);
         note_access_policy(None);
+        assert_eq!(unattended_policy().access, Some(None));
     }
 
     #[test]

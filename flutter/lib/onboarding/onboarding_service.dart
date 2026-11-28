@@ -198,6 +198,51 @@ class OnboardingFileLine {
 }
 
 @immutable
+/// When staff of the receiver's company may connect without asking the
+/// person (A279), in the computer's own time.
+class UnattendedAccess {
+  const UnattendedAccess({this.schedule});
+
+  /// Null: at any time.
+  final UnattendedSchedule? schedule;
+
+  @override
+  bool operator ==(Object other) =>
+      other is UnattendedAccess && other.schedule == schedule;
+
+  @override
+  int get hashCode => schedule.hashCode;
+}
+
+class UnattendedSchedule {
+  const UnattendedSchedule(
+      {required this.days,
+      required this.start,
+      required this.end,
+      this.allDay = false});
+
+  /// 'mon' to 'sun', Monday first: the days the window starts on.
+  final List<String> days;
+
+  /// '8:00' and '18:00'; an end before the start runs over midnight.
+  final String start;
+  final String end;
+
+  /// The whole day on each of [days].
+  final bool allDay;
+
+  @override
+  bool operator ==(Object other) =>
+      other is UnattendedSchedule &&
+      listEquals(other.days, days) &&
+      other.start == start &&
+      other.end == end &&
+      other.allDay == allDay;
+
+  @override
+  int get hashCode => Object.hash(Object.hashAll(days), start, end, allDay);
+}
+
 class OnboardingState {
   const OnboardingState({
     required this.phase,
@@ -227,6 +272,7 @@ class OnboardingState {
     this.feedbackState = FeedbackState.none,
     this.offerReceiver = false,
     this.receiverInstalling = false,
+    this.unattended,
   });
 
   final OnboardingPhase phase;
@@ -304,6 +350,10 @@ class OnboardingState {
   /// Install on that offer runs.
   final bool receiverInstalling;
 
+  /// The installed receiver: staff may connect without asking (A279), at
+  /// any time or on [UnattendedAccess.schedule]; null when they can't.
+  final UnattendedAccess? unattended;
+
   /// How long the session took, once it ended.
   Duration? get sessionLength =>
       sessionStarted == null || sessionEnded == null
@@ -339,6 +389,7 @@ class OnboardingState {
     FeedbackState? feedbackState,
     bool? offerReceiver,
     bool? receiverInstalling,
+    UnattendedAccess? unattended,
   }) =>
       OnboardingState(
         phase: phase ?? this.phase,
@@ -368,6 +419,7 @@ class OnboardingState {
         feedbackState: feedbackState ?? this.feedbackState,
         offerReceiver: offerReceiver ?? this.offerReceiver,
         receiverInstalling: receiverInstalling ?? this.receiverInstalling,
+        unattended: unattended ?? this.unattended,
       );
 
   /// The supporter's first name for the short lines; the full name when the

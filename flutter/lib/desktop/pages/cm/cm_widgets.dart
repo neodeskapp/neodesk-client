@@ -48,7 +48,8 @@ class CmCaller {
 
 /// What the window says about a caller. A caller the server vouched for
 /// (A271) has the helper's name the server gave and "From the NeoDesk web
-/// console". Any other caller's ID and name are its own claim: in quick
+/// console", or "From the NeoDesk app" for a signed-in app the server
+/// vouched for on the receiver (A279, [vouchedVia] 'desktop'). Any other caller's ID and name are its own claim: in quick
 /// support, and for a caller without a NeoDesk ID, the window calls it
 /// unknown; elsewhere a desktop caller keeps its name and ID as before.
 /// Unconfirmed, the window warns before Allow, and in quick support says
@@ -58,9 +59,14 @@ CmCaller cmCaller(
     required String peerId,
     required bool vouched,
     required bool quickSupport,
-    required bool offersAllow}) {
+    required bool offersAllow,
+    String vouchedVia = ''}) {
   if (vouched && name.trim().isNotEmpty) {
-    return CmCaller(name: name, line: tr('nd-cm-from-console'));
+    return CmCaller(
+        name: name,
+        line: tr(vouchedVia == 'desktop'
+            ? 'nd-cm-from-app'
+            : 'nd-cm-from-console'));
   }
   final warning = offersAllow
       ? tr('nd-cm-unknown-warning')
@@ -80,6 +86,12 @@ CmCaller cmCaller(
       unknown: true,
       warning: warning);
 }
+
+/// The line that says the server confirmed who is connected (A271, A279),
+/// shown under the time once the session runs; null for a caller nobody
+/// confirmed.
+String? cmConfirmedLine(CmCaller caller, {required bool vouched}) =>
+    vouched && !caller.unknown && !caller.lineIsId ? caller.line : null;
 
 /// The window of a request or a session: the body takes the room left, the
 /// buttons stay at the foot whatever the body holds.
@@ -134,12 +146,16 @@ class CmHeader extends StatelessWidget {
     this.mono = false,
     this.avatar,
     this.kind,
+    this.note,
   });
 
   final String name;
   final String subtitle;
   final bool mono;
   final Widget? avatar;
+
+  /// A line under the subtitle, such as who confirmed the caller.
+  final String? note;
 
   /// Transfer file, Terminal, View camera, port forward.
   final String? kind;
@@ -168,6 +184,11 @@ class CmHeader extends StatelessWidget {
                 style: mono
                     ? t.mono.copyWith(fontSize: 13, color: context.nd.textMuted)
                     : t.body.copyWith(color: context.nd.textMuted)),
+            if (note != null && note!.isNotEmpty)
+              Text(note!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.small.copyWith(color: context.nd.textMuted)),
             if (kind != null && kind!.isNotEmpty)
               Text(kind!, style: t.small),
           ],

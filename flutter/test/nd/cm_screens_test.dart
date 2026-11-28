@@ -226,6 +226,34 @@ void main() {
     useLanguage('en');
   });
 
+  test('an unattended caller on the receiver is named with how the server vouched (A279)',
+      () {
+    useLanguage('en');
+    CmCaller of(String via) => cmCaller(
+        name: 'Olga Operator',
+        peerId: '828416401',
+        vouched: true,
+        vouchedVia: via,
+        quickSupport: false,
+        offersAllow: false);
+    expect(of('desktop').name, 'Olga Operator');
+    expect(of('desktop').line, 'From the NeoDesk app');
+    expect(of('desktop').warning, isNull);
+    expect(of('console').line, 'From the NeoDesk web console');
+    expect(of('').line, 'From the NeoDesk web console');
+    // Not vouched, the way it came in says nothing
+    expect(
+        cmCaller(
+                name: 'Olga Operator',
+                peerId: '828416401',
+                vouched: false,
+                vouchedVia: 'desktop',
+                quickSupport: false,
+                offersAllow: true)
+            .line,
+        '828 416 401');
+  });
+
   testWidgets('an unknown caller in quick support sees Decline only and the warning',
       (tester) async {
     useLanguage('en');

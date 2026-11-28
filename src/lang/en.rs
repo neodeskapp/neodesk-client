@@ -993,6 +993,21 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-qs-keep-lead", "The app then stays on this computer, so you can get help or write a message at any time without a new link."),
         ("nd-qs-keep-install", "Install"),
         ("nd-qs-keep-no", "No thanks"),
+        ("nd-rcv-help-lead-short", "Did someone from {} give you a code or a link? Enter it here."),
+        ("nd-rcv-help-lead-short-nocompany", "Did your support team give you a code or a link? Enter it here."),
+        ("nd-rcv-unattended", "Your company's support can connect to this computer without asking you."),
+        ("nd-rcv-unattended-when", "Your company's support can connect to this computer without asking you, {}."),
+        ("nd-rcv-range", "{} to {}"),
+        ("nd-day-mon", "Mon"),
+        ("nd-day-tue", "Tue"),
+        ("nd-day-wed", "Wed"),
+        ("nd-day-thu", "Thu"),
+        ("nd-day-fri", "Fri"),
+        ("nd-day-sat", "Sat"),
+        ("nd-day-sun", "Sun"),
+        ("nd-unattended-notice", "{} from {} connected to this computer."),
+        ("nd-unattended-notice-nocompany", "{} connected to this computer."),
+        ("nd-cm-from-app", "From the NeoDesk app"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

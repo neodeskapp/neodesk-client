@@ -30,8 +30,10 @@ mod link;
 pub mod receiver;
 pub(crate) mod receiver_policy;
 mod support;
+pub(crate) mod unattended;
 
-pub use caller::Helper;
+pub use caller::{caller_check_of, CallerCheck, Helper};
+pub use unattended::Unattended;
 
 use std::{
     sync::{
@@ -530,7 +532,29 @@ fn local_state_json() -> String {
     value["offerReceiver"] = Value::Bool(can_offer_receiver());
     value["receiverInstalling"] = Value::Bool(RECEIVER_INSTALLING.load(Ordering::Relaxed));
     value["hasServer"] = Value::Bool(has_server());
+    value["unattended"] = unattended_line();
     value.to_string()
+}
+
+/// The home window's line about unattended access (A279), in the process
+/// that holds the receiver's policy; null elsewhere.
+fn unattended_line() -> Value {
+    if !is_receiver() {
+        return Value::Null;
+    }
+    let local_offset = chrono::Local::now().offset().local_minus_utc();
+    unattended::home_line_json(
+        &receiver::unattended_policy(),
+        hbb_common::get_time() / 1000,
+        local_offset,
+    )
+}
+
+/// Whether every connection to this computer has to come through the relay:
+/// on the receiver, so that each caller has a relay session the server can
+/// vouch for (A279).
+pub fn relay_only() -> bool {
+    is_receiver()
 }
 
 /// True when this client already has an ID server.
@@ -1229,17 +1253,49 @@ pub(crate) fn quick_support_options() -> [(&'static str, &'static str); 3] {
 /// The helper behind a connection that came through the relay session
 /// `relay_session` without a password, when the server vouches for it
 /// (A271); None for every other caller, and outside quick support.
-pub async fn vouched_caller(device_id: &str, relay_session: &str) -> Option<Helper> {
+pub async fn vouched_caller(device_id: &str, check: &CallerCheck) -> Option<Helper> {
     if !in_support_session() {
         return None;
     }
-    caller::vouched_caller(device_id, relay_session).await
+    caller::vouched_caller(device_id, check).await
 }
 
 /// Whether the connection manager's Allow may let a connection in: in
 /// quick support only one the server vouched for.
 pub fn click_may_let_in(vouched: bool) -> bool {
     caller::click_may_let_in(in_support_session(), vouched)
+}
+
+/// The caller of a relayed login on the receiver that gets in without the
+/// person's Allow: the server vouched for it and the device's rule allows
+/// it now (A279, [`unattended`]). None keeps the Allow prompt.
+pub async fn unattended_caller(check: &CallerCheck) -> Option<Unattended> {
+    unattended::unattended_caller(check).await
+}
+
+/// Whether this process refuses a peer connection that ended its
+/// handshake without encryption: the receiver and a Get help session do.
+pub fn refuses_unencrypted(secured: bool) -> bool {
+    receiver_policy::unencrypted_refused(secured, is_receiver(), in_support_session())
+}
+
+/// Whether the logon screen fallback may take a permanent password: never
+/// on the receiver, which has none (A279).
+pub fn logon_screen_password_allowed(option_on: bool, on_logon_screen: bool) -> bool {
+    receiver_policy::logon_screen_password_allowed(option_on, on_logon_screen, is_receiver())
+}
+
+/// The notification at the start of an unattended session, shown by the
+/// connection manager in the signed-in person's session.
+pub fn show_unattended_notice(name: &str, company: &str) {
+    unattended::show_notice(name, company);
+}
+
+/// The branding's company name, as the process that syncs it has it.
+pub fn branding_company() -> String {
+    hbb_common::config::LocalConfig::get_option(config::keys::OPTION_BRANDING_COMPANY_NAME)
+        .trim()
+        .to_owned()
 }
 
 /// The connections of this process that wait for the person to accept in

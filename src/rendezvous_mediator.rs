@@ -646,18 +646,13 @@ impl RendezvousMediator {
         let mut socket = connect_tcp(&*self.host, CONNECT_TIMEOUT).await?;
 
         let mut msg_out = Message::new();
-        let mut rr = RelayResponse {
-            socket_addr: socket_addr.into(),
-            version: crate::VERSION.to_owned(),
+        msg_out.set_relay_response(device_relay_response(
+            socket_addr.clone(),
+            &uuid,
+            &relay_server,
+            initiate,
             socket_addr_v6,
-            ..Default::default()
-        };
-        if initiate {
-            rr.uuid = uuid.clone();
-            rr.relay_server = relay_server.clone();
-            rr.set_id(Config::get_id());
-        }
-        msg_out.set_relay_response(rr);
+        ));
         socket.send(&msg_out).await?;
         crate::create_relay_connection(
             server,
@@ -682,7 +677,7 @@ impl RendezvousMediator {
         }
         let peer_addr_v6 = hbb_common::AddrMangle::decode(&fla.socket_addr_v6);
         let relay_server = self.get_relay_server(fla.relay_server.clone());
-        let relay = use_ws() || Config::is_proxy();
+        let relay = use_ws() || Config::is_proxy() || relay_only();
         let mut socket_addr_v6 = Default::default();
         let meta = connection_meta(
             fla.control_permissions.clone().into_option(),
@@ -774,7 +769,7 @@ impl RendezvousMediator {
             return Ok(());
         }
         let peer_addr_v6 = hbb_common::AddrMangle::decode(&ph.socket_addr_v6);
-        let relay = use_ws() || Config::is_proxy() || ph.force_relay;
+        let relay = use_ws() || Config::is_proxy() || ph.force_relay || relay_only();
         let mut socket_addr_v6 = Default::default();
         let meta = connection_meta(
             ph.control_permissions.into_option(),
@@ -1014,6 +1009,46 @@ fn get_direct_port() -> i32 {
     port
 }
 
+/// The RelayResponse this computer sends to signal for a relay it joins or
+/// starts. It never carries a caller secret (NeoDesk, A279): signal mints
+/// that for the controller alone and clears any a device puts in.
+fn device_relay_response(
+    socket_addr: Vec<u8>,
+    uuid: &str,
+    relay_server: &str,
+    initiate: bool,
+    socket_addr_v6: bytes::Bytes,
+) -> RelayResponse {
+    let mut rr = RelayResponse {
+        socket_addr: socket_addr.into(),
+        version: crate::VERSION.to_owned(),
+        socket_addr_v6,
+        ..Default::default()
+    };
+    if initiate {
+        rr.uuid = uuid.to_owned();
+        rr.relay_server = relay_server.to_owned();
+        rr.set_id(Config::get_id());
+    }
+    rr.nd_caller_secret.clear();
+    rr
+}
+
+/// Whether this computer takes every connection through the relay: the
+/// receiver does (A279), so that each caller has a relay session the server
+/// can vouch for. It answers a punch hole and a LAN request with a relay of
+/// its own and keeps no direct listener.
+fn relay_only() -> bool {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        crate::onboard::relay_only()
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        false
+    }
+}
+
 async fn direct_server(server: ServerPtr) {
     let mut listener = None;
     let mut port = 0;
@@ -1021,7 +1056,8 @@ async fn direct_server(server: ServerPtr) {
         let disabled = !option2bool(
             OPTION_DIRECT_SERVER,
             &Config::get_option(OPTION_DIRECT_SERVER),
-        ) || option2bool("stop-service", &Config::get_option("stop-service"));
+        ) || option2bool("stop-service", &Config::get_option("stop-service"))
+            || relay_only();
         if !disabled && listener.is_none() {
             port = get_direct_port();
             match hbb_common::tcp::listen_any(port as _).await {
@@ -1205,6 +1241,23 @@ fn id_change(discovery: &PeerDiscovery, my_id: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    /// What this computer sends to signal for a relay never carries a caller
+    /// secret (A279): only signal hands one out, to the controller.
+    #[test]
+    fn the_device_relay_response_carries_no_caller_secret() {
+        for initiate in [false, true] {
+            let rr = super::device_relay_response(
+                vec![1, 2, 3],
+                "6f1c2a9e-relay",
+                "relay.example.com",
+                initiate,
+                Default::default(),
+            );
+            assert!(rr.nd_caller_secret.is_empty());
+            assert_eq!(rr.uuid, if initiate { "6f1c2a9e-relay" } else { "" });
+        }
+    }
+
     use super::{
         connection_meta, id_change, tokio, udp_nat_listen, Arc, IntoTargetAddr, Ordering,
         PeerDiscovery, PunchHoleSent, RendezvousMediator, RendezvousMessage, TCP_PUNCHES,

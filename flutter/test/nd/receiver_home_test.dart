@@ -640,6 +640,21 @@ void main() {
       await takeDown(tester);
     });
 
+    // The line about unattended access under Get help (A279)
+    forBothThemes('home window with unattended access', (tester, b) async {
+      final home = await pumpHome(tester, brightness: b, framed: true);
+      home.onboarding.emit(home.onboarding.current.copyWith(
+          unattended: const UnattendedAccess(
+              schedule: UnattendedSchedule(
+                  days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+                  start: '8:00',
+                  end: '18:00'))));
+      await settle(tester);
+      expect(find.textContaining('Mon to Fri 8:00 to 18:00'), findsOneWidget);
+      await shot(tester, 'receiver-home-unattended', b);
+      await takeDown(tester);
+    });
+
     forBothThemes('messages', (tester, b) async {
       final home = await pumpHome(tester,
           brightness: b, area: ReceiverArea.messages, framed: true);

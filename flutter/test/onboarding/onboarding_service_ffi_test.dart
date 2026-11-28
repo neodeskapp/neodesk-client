@@ -461,4 +461,51 @@ void main() {
     service.dismissSupport();
     expect(native.calls, ['install receiver', 'dismiss support']);
   });
+
+  test("the receiver's unattended access line comes from the core (A279)",
+      () async {
+    final none = parseOnboardingState(jsonEncode({'phase': 'notSetUp'}));
+    expect(none.unattended, isNull);
+    final always = parseOnboardingState(
+        jsonEncode({'phase': 'notSetUp', 'unattended': {'schedule': null}}));
+    expect(always.unattended, const UnattendedAccess());
+    final office = parseOnboardingState(jsonEncode({
+      'phase': 'notSetUp',
+      'unattended': {
+        'schedule': {
+          'days': ['fri', 'mon', 'tue', 'wed', 'thu', 'someday'],
+          'start': '8:00',
+          'end': '18:00',
+          'allDay': false
+        }
+      }
+    }));
+    expect(
+        office.unattended,
+        const UnattendedAccess(
+            schedule: UnattendedSchedule(
+                days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+                start: '8:00',
+                end: '18:00')));
+    // A schedule without days or times shows no line rather than a wrong one
+    final broken = parseOnboardingState(jsonEncode({
+      'phase': 'notSetUp',
+      'unattended': {
+        'schedule': {'days': [], 'start': '8:00', 'end': '18:00'}
+      }
+    }));
+    expect(broken.unattended, isNull);
+
+    // The home window hears when the policy changes
+    final native = FakeNative()..stateMap = {'phase': 'notSetUp'};
+    final service =
+        serviceOf(native, interval: const Duration(milliseconds: 5), idle: Duration.zero);
+    final seen = <UnattendedAccess?>[];
+    service.states.listen((s) => seen.add(s.unattended));
+    native.stateMap = {'phase': 'notSetUp', 'unattended': {'schedule': null}};
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    native.stateMap = {'phase': 'notSetUp', 'unattended': null};
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(seen, [const UnattendedAccess(), null]);
+  });
 }

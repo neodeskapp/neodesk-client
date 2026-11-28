@@ -8,13 +8,21 @@
 // name the people, cmBarAllowed and cmBarClient pick the shape and the
 // connection.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart' show translate;
 import 'package:flutter_hbb/common/widgets/nd/nd.dart';
 import 'package:flutter_hbb/desktop/pages/cm/cm_widgets.dart';
 import 'package:flutter_hbb/desktop/pages/server_page.dart'
-    show CmFileList, cmBarAllowed, cmBarClient, cmBarPeople;
+    show
+        CmFileList,
+        CmWindowShaper,
+        cmBarAllowed,
+        cmBarClient,
+        cmBarPeople,
+        cmTabLabel;
 import 'package:flutter_hbb/models/cm_file_model.dart';
 import 'package:flutter_hbb/models/file_model.dart' show JobState;
 import 'package:flutter_hbb/models/server_model.dart' show Client;
@@ -295,6 +303,67 @@ void main() {
         cmBarPeople([_client(4, 'Jo', '1', disconnected: true)],
             quickSupport: false),
         isEmpty);
+  });
+
+  test('a tab names the caller as the request does: unknown unless confirmed (A271)',
+      () {
+    useLanguage('en');
+    final refused = _client(3, 'admin', 'neodesk-web-k2j4h8', authorized: false);
+    expect(cmTabLabel(refused, quickSupport: false), 'Someone unknown');
+    expect(cmTabLabel(refused, quickSupport: true), 'Someone unknown');
+    final confirmed = _client(4, 'Olga Operator', 'neodesk-web-k2j4h8', vouched: true);
+    expect(cmTabLabel(confirmed, quickSupport: false), 'Olga Operator');
+    // A desktop caller outside quick support keeps its name, as on the card
+    final desktop = _client(5, 'Mara', '828416401', authorized: false);
+    expect(cmTabLabel(desktop, quickSupport: false), 'Mara');
+  });
+
+  test('once connected the header says who confirmed the caller (A279)', () {
+    useLanguage('en');
+    CmCaller of(String via, {bool vouched = true}) => cmCaller(
+        name: 'Olga Operator',
+        peerId: 'neodesk-web-k2j4h8',
+        vouched: vouched,
+        vouchedVia: via,
+        quickSupport: false,
+        offersAllow: false);
+    expect(cmConfirmedLine(of('console'), vouched: true),
+        'From the NeoDesk web console');
+    expect(cmConfirmedLine(of('desktop'), vouched: true), 'From the NeoDesk app');
+    expect(cmConfirmedLine(of('', vouched: false), vouched: false), isNull);
+  });
+
+  testWidgets('the connected header shows the confirmed line', (tester) async {
+    await pumpScreen(
+        tester,
+        const CmHeader(
+            name: 'Olga Operator',
+            subtitle: 'Connected for 1 min',
+            note: 'From the NeoDesk app'),
+        size: const Size(380, 120));
+    expect(find.text('Connected for 1 min'), findsOneWidget);
+    expect(find.text('From the NeoDesk app'), findsOneWidget);
+  });
+
+  test('the bar shapes the window only after the window\'s start sized it',
+      () async {
+    final started = Completer<void>();
+    final applied = <CmShape>[];
+    final shaper = CmWindowShaper((shape, _) async => applied.add(shape),
+        started: started.future);
+    // A session let in without Allow asks for the bar before the start
+    // sized the window as the card
+    final asked = shaper.shape(CmShape.bar);
+    await Future<void>.delayed(Duration.zero);
+    expect(applied, isEmpty);
+    started.complete();
+    await asked;
+    expect(applied, [CmShape.bar]);
+    await shaper.shape(CmShape.bar);
+    expect(applied, [CmShape.bar], reason: 'the same shape is set once');
+    shaper.forget();
+    await shaper.shape(CmShape.bar);
+    expect(applied, [CmShape.bar, CmShape.bar]);
   });
 
   test('Chat and Files belong to the selected remote session', () {

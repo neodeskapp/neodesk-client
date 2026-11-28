@@ -1417,6 +1417,21 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-qs-keep-lead", ""),
         ("nd-qs-keep-install", ""),
         ("nd-qs-keep-no", ""),
+        ("nd-rcv-help-lead-short", ""),
+        ("nd-rcv-help-lead-short-nocompany", ""),
+        ("nd-rcv-unattended", ""),
+        ("nd-rcv-unattended-when", ""),
+        ("nd-rcv-range", ""),
+        ("nd-day-mon", ""),
+        ("nd-day-tue", ""),
+        ("nd-day-wed", ""),
+        ("nd-day-thu", ""),
+        ("nd-day-fri", ""),
+        ("nd-day-sat", ""),
+        ("nd-day-sun", ""),
+        ("nd-unattended-notice", ""),
+        ("nd-unattended-notice-nocompany", ""),
+        ("nd-cm-from-app", ""),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

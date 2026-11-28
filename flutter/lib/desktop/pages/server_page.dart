@@ -116,21 +116,49 @@ Widget _cardFrame(BuildContext context, Widget child) {
           ));
 }
 
-/// The shape the connection window has now; null when something else set
-/// its size (showCmWindow), so the next build sets it again.
-CmShape? cmWindowShape;
+/// Gives the window a shape once, and again only when it changes. It waits
+/// until the window's start gave it its first size (showCmWindow or
+/// hideCmWindow at startup), so that size can't land after the bar's: a
+/// session let in without Allow starts as the bar at once, and the start's
+/// card size (380 wide) used to win and squeeze the bar's sentence.
+class CmWindowShaper {
+  CmWindowShaper(this._apply, {required Future<void> started})
+      : _started = started;
+
+  final Future<void> Function(CmShape shape, CmShape? before) _apply;
+  final Future<void> _started;
+
+  /// The shape the window has now; null when something else set its size.
+  CmShape? current;
+
+  Future<void> shape(CmShape shape) async {
+    await _started;
+    final before = current;
+    if (before == shape) return;
+    current = shape;
+    await _apply(shape, before);
+  }
+
+  /// Something else sized the window: the next build shapes it again.
+  void forget() => current = null;
+}
+
+/// Completed by the window's start once it gave the window its first size.
+final cmWindowStarted = Completer<void>();
+
+final cmWindowShaper = CmWindowShaper(_applyCmShape, started: cmWindowStarted.future);
 
 /// Whether the window has the bar's frame (none) now.
 bool _cmFramelessBar = false;
 
-/// Gives the connection window [shape]: the bar is frameless, always on
-/// top, at the top centre of the screen and not in the taskbar; the card
-/// gets its frame back at the top right. Between the bar and the bar with a
-/// panel only the height changes, so a bar the person moved stays there.
-Future<void> applyCmShape(CmShape shape) async {
-  final before = cmWindowShape;
-  if (before == shape) return;
-  cmWindowShape = shape;
+/// Gives the connection window [shape] (through [cmWindowShaper]).
+Future<void> applyCmShape(CmShape shape) => cmWindowShaper.shape(shape);
+
+/// The bar is frameless, always on top, at the top centre of the screen
+/// and not in the taskbar; the card gets its frame back at the top right.
+/// Between the bar and the bar with a panel only the height changes, so a
+/// bar the person moved stays there.
+Future<void> _applyCmShape(CmShape shape, CmShape? before) async {
   final bar = shape != CmShape.card;
   final barBefore = before != null && before != CmShape.card;
   try {
@@ -198,12 +226,25 @@ List<String> cmBarPeople(Iterable<Client> clients,
             name: c.name,
             peerId: c.peerId,
             vouched: c.vouched,
+            vouchedVia: c.vouchedVia,
             quickSupport: quickSupport,
             offersAllow: false)
         .name);
   }
   return names;
 }
+
+/// The name on a connection's tab: the window's name for the caller
+/// (cmCaller, A271), never a name nobody confirmed where the window calls
+/// the caller unknown.
+String cmTabLabel(Client c, {required bool quickSupport}) => cmCaller(
+        name: c.name,
+        peerId: c.peerId,
+        vouched: c.vouched,
+        vouchedVia: c.vouchedVia,
+        quickSupport: quickSupport,
+        offersAllow: false)
+    .name;
 
 class ConnectionManager extends StatefulWidget {
   @override
@@ -656,6 +697,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
       name: client.name,
       peerId: client.peerId,
       vouched: client.vouched,
+      vouchedVia: client.vouchedVia,
       quickSupport: bind.mainOnboardIsQuickSupport(),
       offersAllow: cmOffersAllow(Provider.of<ServerModel>(context).approveMode,
           vouched: client.vouched));
@@ -749,6 +791,7 @@ class _CmCardState extends State<_CmCard> with AutomaticKeepAliveClientMixin {
                     subtitle: client.disconnected
                         ? translate('Disconnected')
                         : cmConnectedFor(Duration(seconds: _seconds.value)),
+                    note: cmConfirmedLine(caller, vouched: client.vouched),
                     kind: _kind,
                     avatar: _avatar(name, own: own))),
                 const SizedBox(height: 16),
