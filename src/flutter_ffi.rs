@@ -2939,6 +2939,12 @@ pub fn main_set_common(_key: String, _value: String) {
         std::thread::spawn(crate::onboard::dismiss_support);
         return;
     }
+    // Install on the offer after quick support
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if _key == "nd-receiver-install" {
+        crate::onboard::install_receiver();
+        return;
+    }
     // The install page of an exe next to an installed client of another
     // version: update it (the page follows the install progress) or open it.
     #[cfg(target_os = "windows")]

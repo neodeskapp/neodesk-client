@@ -1819,6 +1819,19 @@ pub fn release_rustdesk_scheme_of_machine() -> ResultType<()> {
 }
 
 pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> ResultType<()> {
+    install_me_with(options, path, silent, debug, &[])
+}
+
+/// [`install_me`] with `files` (name and text) written into the install
+/// folder before the service starts: the receiver's install-time file of
+/// the offer after quick support.
+fn install_me_with(
+    options: &str,
+    path: String,
+    silent: bool,
+    debug: bool,
+    files: &[(&str, String)],
+) -> ResultType<()> {
     // MSI and EXE installations use different registry layouts, so MSI-to-EXE upgrades are not supported.
     let (installed_subkey, _, _, _) = get_install_info();
     if get_windows_installer_state(&installed_subkey)? == Some(true) {
@@ -1933,6 +1946,22 @@ if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} 
         "
     );
     let src_exe = cur_exe.clone();
+    // Each file goes through the protected output folder, as the shortcuts do
+    let mut extra_files = String::new();
+    for (index, (name, text)) in files.iter().enumerate() {
+        validate_install_value(name)?;
+        if name.contains(['\\', '/', ':', '*', '?']) {
+            bail!("Installer file name {name} is not a plain file name");
+        }
+        extra_files.push_str(&embedded_shortcut_commands(
+            text.as_bytes().to_vec(),
+            name,
+            &format!("install_file_{index}"),
+        ));
+        extra_files.push_str(&format!(
+            "\ncopy /Y \"{tmp_path}\\{name}\" \"{path}\\{name}\"\nif exist \"{tmp_path}\\{name}\" del /f /q \"{tmp_path}\\{name}\"\n"
+        ));
+    }
 
     // potential bug here: if run_cmd cancelled, but config file is changed.
     if let Some(lic) = get_license() {
@@ -1969,6 +1998,7 @@ copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\
 chcp 65001
 md \"{path}\"
 {copy_exe}
+{extra_files}
 reg add {subkey} /f
 reg add {subkey} /f /v DisplayIcon /t REG_SZ /d \"{display_icon}\"
 reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{app_name}\"
@@ -5168,6 +5198,44 @@ pub(super) fn get_pids_with_first_arg_by_wmic<S1: AsRef<str>, S2: AsRef<str>>(
             )
         })
         .unwrap_or_default()
+}
+
+/// Whether a NeoDesk is installed: the client `app_name` (the name before
+/// quick support renamed the app) or the receiver's Support Agent.
+pub fn neodesk_installed(app_name: &str) -> bool {
+    [app_name, "NeoDesk Support Agent"]
+        .iter()
+        .any(|name| install_exe_of(name).exists())
+}
+
+/// Where the exe install puts the program of the app `app_name`.
+pub fn install_exe_of(app_name: &str) -> PathBuf {
+    let default = get_default_install_path();
+    let folder = PathBuf::from(default)
+        .parent()
+        .map(|pf| pf.join(app_name))
+        .unwrap_or_else(|| PathBuf::from(app_name));
+    folder.join(format!("{}.exe", crate::get_exe_name()))
+}
+
+/// `--install-receiver <request>`: installs this program, run as the
+/// client, as the receiver of the offer after quick support. The request
+/// is the install-time file the quick support app wrote; it goes into the
+/// install folder with the admission and without anything else that admits
+/// a computer.
+pub fn install_receiver_from(request: &str) -> ResultType<()> {
+    let text = fs::read_to_string(request)?;
+    fs::remove_file(request).ok();
+    let Some(file) = crate::onboard::install_file::offer_request(&text) else {
+        bail!("The request is not a receiver's");
+    };
+    install_me_with(
+        get_silent_install_options(None),
+        "".to_owned(),
+        true,
+        false,
+        &[(crate::onboard::install_file::FILE_NAME, file.render())],
+    )
 }
 
 /// The receiver's install-time file in this app's folder

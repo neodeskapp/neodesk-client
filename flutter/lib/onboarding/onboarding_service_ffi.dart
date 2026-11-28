@@ -47,6 +47,9 @@ abstract class OnboardingNative {
 
   /// Leaves the installed receiver's ended session.
   void dismissSupport();
+
+  /// Install on the offer after quick support.
+  void installReceiver();
 }
 
 const _activePhases = {
@@ -212,6 +215,8 @@ OnboardingState parseOnboardingState(String json) {
     sessionEnded: _timeOf(map['sessionEnded']),
     feedback: _feedbackOf(map['feedback']),
     feedbackState: _feedbackStateOf(map['feedbackState']),
+    offerReceiver: map['offerReceiver'] == true,
+    receiverInstalling: map['receiverInstalling'] == true,
   );
 }
 
@@ -235,6 +240,8 @@ bool _sameState(OnboardingState a, OnboardingState b) =>
     a.sessionStarted == b.sessionStarted &&
     a.sessionEnded == b.sessionEnded &&
     a.feedbackState == b.feedbackState &&
+    a.offerReceiver == b.offerReceiver &&
+    a.receiverInstalling == b.receiverInstalling &&
     listEquals(a.feedback, b.feedback) &&
     listEquals(a.files, b.files) &&
     _sameMessages(a.messages, b.messages);
@@ -326,6 +333,12 @@ class FfiOnboardingService extends OnboardingService {
   @override
   void dismissSupport() {
     _native.dismissSupport();
+    _called();
+  }
+
+  @override
+  void installReceiver() {
+    _native.installReceiver();
     _called();
   }
 

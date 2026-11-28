@@ -225,6 +225,8 @@ class OnboardingState {
     this.sessionEnded,
     this.feedback = const [],
     this.feedbackState = FeedbackState.none,
+    this.offerReceiver = false,
+    this.receiverInstalling = false,
   });
 
   final OnboardingPhase phase;
@@ -295,6 +297,13 @@ class OnboardingState {
   final List<FeedbackQuestion> feedback;
   final FeedbackState feedbackState;
 
+  /// The end of quick support may offer to keep the app on this computer
+  /// (the console allowed it, A277).
+  final bool offerReceiver;
+
+  /// Install on that offer runs.
+  final bool receiverInstalling;
+
   /// How long the session took, once it ended.
   Duration? get sessionLength =>
       sessionStarted == null || sessionEnded == null
@@ -328,6 +337,8 @@ class OnboardingState {
     DateTime? sessionEnded,
     List<FeedbackQuestion>? feedback,
     FeedbackState? feedbackState,
+    bool? offerReceiver,
+    bool? receiverInstalling,
   }) =>
       OnboardingState(
         phase: phase ?? this.phase,
@@ -355,6 +366,8 @@ class OnboardingState {
         sessionEnded: sessionEnded ?? this.sessionEnded,
         feedback: feedback ?? this.feedback,
         feedbackState: feedbackState ?? this.feedbackState,
+        offerReceiver: offerReceiver ?? this.offerReceiver,
+        receiverInstalling: receiverInstalling ?? this.receiverInstalling,
       );
 
   /// The supporter's first name for the short lines; the full name when the
@@ -407,6 +420,10 @@ abstract class OnboardingService {
   /// Close on the installed receiver's end screen: the support session is
   /// left behind and the window shows its home again.
   void dismissSupport() {}
+
+  /// Install on the offer after quick support: installs the app with this
+  /// computer's support (A277).
+  void installReceiver() {}
 }
 
 /// What people paste into the invite field.
@@ -628,6 +645,12 @@ class FakeOnboardingService extends OnboardingService {
   void dismissSupport() {
     calls.add('dismissSupport');
     emit(const OnboardingState(phase: OnboardingPhase.joined));
+  }
+
+  @override
+  void installReceiver() {
+    calls.add('installReceiver');
+    emit(_state.copyWith(receiverInstalling: true));
   }
 }
 
