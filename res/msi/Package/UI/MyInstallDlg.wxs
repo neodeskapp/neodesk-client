@@ -115,6 +115,10 @@ Patch dialog sequence:
             <ProgressText Action="InstallPrinter" Message="!(loc.ProgressTextPrinterAdd)" />
             <ProgressText Action="InstallPrinter.SetParam" Message="!(loc.ProgressTextPrinterAdd)" />
             <ProgressText Action="AddRegSoftwareSASGeneration" Message="!(loc.ProgressTextSas)" />
+            <ProgressText Action="SetInstallConfigData" Message="!(loc.ProgressTextWriteRegistryValues)" />
+            <ProgressText Action="WriteInstallConfig" Message="!(loc.ProgressTextWriteRegistryValues)" />
+            <ProgressText Action="RemoveInstallConfig" Message="!(loc.ProgressTextRemoveAppFiles)" />
+            <ProgressText Action="RemoveInstallConfig.SetParam" Message="!(loc.ProgressTextRemoveAppFiles)" />
             <ProgressText Action="CreateStartService" Message="!(loc.ProgressTextStartService)" />
             <ProgressText Action="CreateStartService.SetParam" Message="!(loc.ProgressTextStartService)" />
             <ProgressText Action="CustomActionHello" Message="!(loc.ProgressTextFinish)" />
