@@ -90,9 +90,10 @@ fn entry(id: i64, status: &str, result: Value) -> Value {
 /// commands has not seen yet. Returns the result to send at once, if any:
 /// a refusal, an argument error, "running" for a fleet.run that started,
 /// or the result of a command that ran before.
-pub fn accept(id: i64, command: &str, args: &Value, incoming_only: bool) -> Option<Value> {
-    // The support agent takes no fleet work (fleet-contract.md)
-    if incoming_only {
+pub fn accept(id: i64, command: &str, args: &Value, refused: bool) -> Option<Value> {
+    // The support agent takes no fleet work (fleet-contract.md); the
+    // receiver takes it like the full client
+    if refused {
         let mut result = json!({"code": "support_agent_restricted"});
         if command == RUN {
             result["run_id"] = json!(run::run_id_of(args));

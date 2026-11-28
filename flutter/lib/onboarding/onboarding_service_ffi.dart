@@ -44,6 +44,9 @@ abstract class OnboardingNative {
 
   /// The feedback answers as a JSON object by question id.
   void sendFeedback(String answers);
+
+  /// Leaves the installed receiver's ended session.
+  void dismissSupport();
 }
 
 const _activePhases = {
@@ -317,6 +320,12 @@ class FfiOnboardingService extends OnboardingService {
   @override
   void dismissFailedJoin() {
     _native.dismissFailedJoin();
+    _called();
+  }
+
+  @override
+  void dismissSupport() {
+    _native.dismissSupport();
     _called();
   }
 

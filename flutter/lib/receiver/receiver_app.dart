@@ -22,6 +22,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'receiver_home.dart';
 import 'receiver_links.dart';
+import 'receiver_session.dart';
 import 'tickets_model.dart';
 import 'tickets_view.dart';
 
@@ -210,7 +211,18 @@ class _ReceiverWindowState extends State<ReceiverWindow> with WindowListener {
             ),
           ),
         ),
-        child: ReceiverHome(
+        child: ReceiverSession(
+          service: widget.onboarding,
+          logo: _logo(),
+          window: ReceiverWindowActions(
+            toFront: () => windowOnTop(null),
+            hide: () => windowManager.hide(),
+            show: () async {
+              await windowManager.show();
+              await windowManager.focus();
+            },
+          ),
+          home: ReceiverHome(
           router: router,
           onboarding: widget.onboarding,
           chat: _chat.model,
@@ -230,6 +242,7 @@ class _ReceiverWindowState extends State<ReceiverWindow> with WindowListener {
               final p = await takeScreenshotHidden();
               return p == null ? null : NdTicketLocalFile(p.path, p.size);
             },
+          ),
           ),
         ),
       );

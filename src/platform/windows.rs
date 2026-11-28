@@ -5170,6 +5170,147 @@ pub(super) fn get_pids_with_first_arg_by_wmic<S1: AsRef<str>, S2: AsRef<str>>(
         .unwrap_or_default()
 }
 
+/// The receiver's install-time file in this app's folder
+/// (onboard/install_file.rs), when the app may take it: the folder is
+/// below Program Files, neither the folder nor the file is a link, and
+/// only the system, administrators and TrustedInstaller can change either.
+pub fn receiver_install_file_text() -> Option<String> {
+    use crate::onboard::install_file;
+    use windows::Win32::UI::Shell::{FOLDERID_ProgramFiles, FOLDERID_ProgramFilesX86};
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?.to_path_buf();
+    let path = dir.join(install_file::FILE_NAME);
+    let meta = fs::symlink_metadata(&path).ok()?;
+    let roots: Vec<String> = [FOLDERID_ProgramFiles, FOLDERID_ProgramFilesX86]
+        .iter()
+        .filter_map(|id| installer_shell::get_known_folder(id).ok())
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+    if !install_file::in_program_files(&dir.to_string_lossy(), &roots) {
+        log::warn!(
+            "Ignored {}: the app's folder is not below Program Files",
+            path.display()
+        );
+        return None;
+    }
+    const REPARSE_POINT: u32 = 0x400;
+    use std::os::windows::fs::MetadataExt;
+    let dir_meta = fs::symlink_metadata(&dir).ok()?;
+    if !meta.file_type().is_file()
+        || meta.file_attributes() & REPARSE_POINT != 0
+        || dir_meta.file_attributes() & REPARSE_POINT != 0
+    {
+        log::warn!("Ignored {}: not a plain file", path.display());
+        return None;
+    }
+    for object in [&dir, &path] {
+        match acl::owner_and_dacl(object) {
+            Ok((owner, dacl)) if install_file::only_admins_can_write(owner.as_deref(), dacl.as_deref()) => {}
+            Ok(_) => {
+                log::warn!(
+                    "Ignored {}: someone other than the system and administrators can change {}",
+                    path.display(),
+                    object.display()
+                );
+                return None;
+            }
+            Err(err) => {
+                log::warn!("Ignored {}: {err}", path.display());
+                return None;
+            }
+        }
+    }
+    fs::read_to_string(&path).ok()
+}
+
+/// Writes the install-time file anew (the service, without the token once
+/// the server saw it): next to it first, then in its place.
+pub fn write_receiver_install_file(text: &str) -> ResultType<()> {
+    let exe = std::env::current_exe()?;
+    let dir = exe
+        .parent()
+        .ok_or_else(|| anyhow!("The app's folder is unknown"))?;
+    let path = dir.join(crate::onboard::install_file::FILE_NAME);
+    let next = dir.join(format!("{}.new", crate::onboard::install_file::FILE_NAME));
+    fs::write(&next, text)?;
+    fs::rename(&next, &path)?;
+    Ok(())
+}
+
+/// The registry key of this app's entry in Settings › Apps: the MSI's
+/// product entry, or the entry the exe install writes.
+fn receiver_uninstall_key() -> ResultType<String> {
+    let (subkey, _, _, _) = get_install_info();
+    let state = get_windows_installer_state(&subkey)?;
+    if let Some(code) = get_msi_product_code(&subkey, state)? {
+        return get_msi_uninstall_subkey(&code);
+    }
+    Ok(subkey)
+}
+
+/// The Start menu shortcut that removes the app, and where it waits while
+/// removing is blocked.
+fn receiver_uninstall_shortcut() -> Option<(PathBuf, PathBuf)> {
+    let app = crate::get_app_name();
+    let data = installer_shell::get_known_folder(&windows::Win32::UI::Shell::FOLDERID_ProgramData).ok()?;
+    let shortcut = data
+        .join(r"Microsoft\Windows\Start Menu\Programs")
+        .join(&app)
+        .join(format!("Uninstall {app}.lnk"));
+    let (_, path, _, _) = get_install_info();
+    Some((shortcut, PathBuf::from(path).join("uninstall-shortcut.lnk.blocked")))
+}
+
+/// Shows or hides the app's entry in Settings › Apps and its Start menu
+/// shortcut "Uninstall": blocked, the entry gets SystemComponent=1 and
+/// NoRemove=1 and the shortcut waits in the app's folder
+/// (onboard/receiver_policy.rs). Runs in the service's process, which may
+/// change both.
+pub fn set_receiver_uninstall_allowed(allowed: bool) -> ResultType<()> {
+    let subkey = receiver_uninstall_key()?;
+    let path = subkey.strip_prefix(HKLM_PREFIX).unwrap_or(&subkey);
+    let key = RegKey::predef(HKEY_LOCAL_MACHINE)
+        .open_subkey_with_flags(path, KEY_READ | KEY_SET_VALUE)
+        .map_err(|err| anyhow!("Failed to open {subkey}: {err}"))?;
+    for (name, value) in crate::onboard::receiver_policy::uninstall_entry_values(allowed) {
+        match value {
+            Some(value) => key.set_value(name, &value)?,
+            None => match key.delete_value(name) {
+                Ok(()) => {}
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+                Err(err) => return Err(err.into()),
+            },
+        }
+    }
+    if let Some((shortcut, parked)) = receiver_uninstall_shortcut() {
+        let (from, to) = if allowed {
+            (parked, shortcut)
+        } else {
+            (shortcut, parked)
+        };
+        if from.exists() {
+            if let Err(err) = fs::rename(&from, &to) {
+                log::warn!("Failed to move {}: {err}", from.display());
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether the receiver's policy blocks removing the app (NoRemove=1 on its
+/// uninstall entry).
+pub fn receiver_uninstall_blocked() -> bool {
+    let Ok(subkey) = receiver_uninstall_key() else {
+        return false;
+    };
+    let path = subkey.strip_prefix(HKLM_PREFIX).unwrap_or(&subkey);
+    let no_remove = RegKey::predef(HKEY_LOCAL_MACHINE)
+        .open_subkey(path)
+        .and_then(|key| key.get_value::<u32, _>("NoRemove"))
+        .ok();
+    crate::onboard::receiver_policy::uninstall_blocked(no_remove)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

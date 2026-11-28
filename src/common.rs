@@ -2591,6 +2591,14 @@ pub fn load_embedded_support_client() -> bool {
 }
 
 pub fn load_custom_client() {
+    load_signed_client_config();
+    // The receiver's install-time file next to the app, after the signed
+    // config, whose settings win (onboard/receiver.rs)
+    #[cfg(windows)]
+    crate::onboard::receiver::load_install_file();
+}
+
+fn load_signed_client_config() {
     if load_embedded_support_client() {
         return;
     }

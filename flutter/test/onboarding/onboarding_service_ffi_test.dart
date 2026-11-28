@@ -51,6 +51,9 @@ class FakeNative implements OnboardingNative {
 
   @override
   void sendFeedback(String answers) => _call('feedback $answers');
+
+  @override
+  void dismissSupport() => _call('dismiss support');
 }
 
 FfiOnboardingService serviceOf(FakeNative native,
@@ -439,4 +442,5 @@ void main() {
     final native = FakeNative()..quickSupport = true;
     expect(serviceOf(native).isQuickSupportBuild, isTrue);
   });
+
 }

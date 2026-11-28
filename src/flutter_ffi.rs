@@ -2933,6 +2933,12 @@ pub fn main_set_common(_key: String, _value: String) {
         crate::nd_chat::window::set(&_key, &_value);
         return;
     }
+    // Close on the installed receiver's end screen (onboard/receiver.rs)
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if _key == "nd-support-dismiss" {
+        std::thread::spawn(crate::onboard::dismiss_support);
+        return;
+    }
     // The install page of an exe next to an installed client of another
     // version: update it (the page follows the install progress) or open it.
     #[cfg(target_os = "windows")]
