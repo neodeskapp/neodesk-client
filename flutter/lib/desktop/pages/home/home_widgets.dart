@@ -17,13 +17,25 @@ class HomeLayout extends StatelessWidget {
   final Widget? left;
   final Widget? right;
 
+  static const double columnWidth = 392;
+  static const EdgeInsets singlePadding =
+      EdgeInsets.symmetric(vertical: 32, horizontal: 40);
+
+  /// The room the left column alone needs, padding included, for a column
+  /// of [columnHeight]. The window of an incoming-only client takes this
+  /// size; the width is fixed, so a column measured in a narrow window
+  /// never makes the next window narrower.
+  static Size singleColumnSize(double columnHeight) => Size(
+      columnWidth + singlePadding.horizontal,
+      columnHeight + singlePadding.vertical);
+
   @override
   Widget build(BuildContext context) {
     if (right == null) {
       return Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 40),
-          child: SizedBox(width: 392, child: left),
+          padding: singlePadding,
+          child: SizedBox(width: columnWidth, child: left),
         ),
       );
     }
@@ -33,7 +45,7 @@ class HomeLayout extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (left != null) ...[
-            SizedBox(width: 392, child: left),
+            SizedBox(width: columnWidth, child: left),
             const SizedBox(width: 48),
           ],
           Expanded(child: right!),
@@ -222,7 +234,10 @@ class _ThisComputerColumnState extends State<ThisComputerColumn> {
     return LayoutBuilder(
       builder: (context, box) => SingleChildScrollView(
         child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: box.maxHeight),
+          // Alone on an incoming-only Home the column sits in a scroll view
+          // and has no height to fill.
+          constraints: BoxConstraints(
+              minHeight: box.hasBoundedHeight ? box.maxHeight : 0),
           child: IntrinsicHeight(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -663,7 +663,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       return;
     }
     if (renderObject is RenderBox) {
-      final size = renderObject.size;
+      // The column sits in HomeLayout's padding: the window needs that too.
+      final size = HomeLayout.singleColumnSize(renderObject.size.height);
       if (size != imcomingOnlyHomeSize) {
         imcomingOnlyHomeSize = size;
         windowManager.setSize(getIncomingOnlyHomeSize());
