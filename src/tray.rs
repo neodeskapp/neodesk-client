@@ -27,6 +27,11 @@ pub fn start_tray() {
     #[cfg(target_os = "linux")]
     crate::server::check_zombie();
 
+    // The installed receiver takes the support links of quick support
+    // files started in this session (onboard/receiver.rs)
+    #[cfg(windows)]
+    crate::onboard::receiver::listen_for_handoffs();
+
     allow_err!(make_tray());
 }
 

@@ -462,6 +462,12 @@ pub async fn sync_device_enrollment() {
         body["public_key"] = Value::String(public_key);
     }
     merge_device_identity(&mut body);
+    // The installed receiver's token, group or admission from its
+    // install-time file (onboard/receiver.rs)
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let install_fields = crate::onboard::receiver::enrollment_fields();
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    add_enrollment_fields(&mut body, &install_fields);
 
     let url = format!("{base}/api/devices/register");
     let client = create_http_client_async_with_url(&url).await;
@@ -488,6 +494,12 @@ pub async fn sync_device_enrollment() {
 
     let value: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
     let enroll_status = enrollment::answer_status(&value).to_owned();
+    // The server saw the token or the admission: it binds them to this
+    // computer or refused them, so they leave the install-time file
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if !install_fields.is_empty() {
+        crate::onboard::receiver::enrollment_answered(&enroll_status);
+    }
     record_enrollment_answer(
         &enroll_status,
         enrollment::answer_token(&value),
@@ -499,6 +511,67 @@ pub async fn sync_device_enrollment() {
     // Poll status when pending
     if enroll_status == "pending" {
         check_enrollment_status(&client, &base, &device_id).await;
+    }
+}
+
+/// Puts `fields` (name and value) into a registration's body.
+pub fn add_enrollment_fields(body: &mut Value, fields: &[(&'static str, String)]) {
+    for (name, value) in fields {
+        body[*name] = Value::String(value.clone());
+    }
+}
+
+lazy_static::lazy_static! {
+    static ref LAST_POLICY_POLL: Mutex<Option<Instant>> = Mutex::new(None);
+}
+
+/// How often the receiver reads its policy.
+const POLICY_POLL_INTERVAL: Duration = Duration::from_secs(300);
+
+/// GET `{api}/api/nd/device-policy` with the device token, for the
+/// receiver, which applies it (onboard/receiver.rs). Runs in the sync
+/// loop of the process that keeps the token, every five minutes.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub async fn sync_receiver_policy() {
+    if !crate::onboard::is_receiver() || crate::onboard::is_quick_support() {
+        return;
+    }
+    let base = api_base();
+    let device_id = Config::get_id();
+    if base.is_empty() || device_id.is_empty() {
+        return;
+    }
+    let stored = enrollment::StoredToken::load();
+    let Some(token) = stored.usable_for(&device_id, &base) else {
+        return;
+    };
+    {
+        let mut last = LAST_POLICY_POLL.lock().unwrap();
+        if last.map_or(false, |t| t.elapsed() < POLICY_POLL_INTERVAL) {
+            return;
+        }
+        *last = Some(Instant::now());
+    }
+    let url = format!("{base}/api/nd/device-policy");
+    let client = create_http_client_async_with_url(&url).await;
+    let request = client
+        .get(&url)
+        .header(reqwest::header::AUTHORIZATION, format!("Bearer {token}"))
+        .header("X-Device-Id", device_id);
+    let resp = match request.send().await {
+        Ok(resp) => resp,
+        Err(err) => {
+            log::debug!("receiver policy skipped: {err}");
+            return;
+        }
+    };
+    if !resp.status().is_success() {
+        log::debug!("receiver policy HTTP {}", resp.status());
+        return;
+    }
+    match resp.json::<Value>().await {
+        Ok(answer) => crate::onboard::receiver::apply_policy(&answer),
+        Err(err) => log::debug!("receiver policy unreadable: {err}"),
     }
 }
 

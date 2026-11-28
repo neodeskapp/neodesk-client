@@ -349,12 +349,13 @@ jobs:
 
       # The install script's lines that name the app, the rule for
       # rustdesk:// and what a quick support session may have, which key a
-      # join or a pairing sends, and the tray menu's entries; the files need
-      # only std, so their tests run without building the client.
+      # join or a pairing sends, the tray menu's entries, and how the
+      # receiver reads its install-time file and follows its policy; the
+      # files need only std, so their tests run without building the client.
       - name: Test the install command builders
         shell: pwsh
         run: |
-          foreach ($file in 'src/platform/windows/install_commands.rs', 'src/platform/windows/link_schemes.rs', 'src/onboard/grants.rs', 'src/onboard/device_key.rs', 'src/hbbs_http/pairing_proof.rs', 'src/tray_model.rs') {
+          foreach ($file in 'src/platform/windows/install_commands.rs', 'src/platform/windows/link_schemes.rs', 'src/onboard/grants.rs', 'src/onboard/device_key.rs', 'src/hbbs_http/pairing_proof.rs', 'src/tray_model.rs', 'src/onboard/install_file.rs', 'src/onboard/receiver_policy.rs') {
             $name = [IO.Path]::GetFileNameWithoutExtension($file)
             rustc --edition 2021 --test $file -o "$env:RUNNER_TEMP\${name}_test.exe"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

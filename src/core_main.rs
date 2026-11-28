@@ -279,6 +279,13 @@ pub fn core_main() -> Option<CoreMainAction> {
         {
             use crate::platform;
             if args[0] == "--uninstall" {
+                // The receiver's policy keeps the app on this computer
+                // (onboard/receiver_policy.rs); an administrator can still
+                // run the MSI's msiexec /x
+                if crate::onboard::is_receiver() && platform::windows::receiver_uninstall_blocked() {
+                    log::warn!("Removing the app is blocked by the server's policy");
+                    return None;
+                }
                 if let Err(err) = platform::uninstall_me(true) {
                     log::error!("Failed to uninstall: {}", err);
                 }

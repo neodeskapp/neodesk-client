@@ -24,8 +24,11 @@ mod device_key;
 mod feedback;
 mod grants;
 mod http;
+pub(crate) mod install_file;
 mod join;
 mod link;
+pub mod receiver;
+pub(crate) mod receiver_policy;
 mod support;
 
 pub use caller::Helper;
@@ -250,6 +253,13 @@ pub fn is_quick_support() -> bool {
     QUICK_SUPPORT.load(Ordering::Relaxed)
 }
 
+/// True while a supporter's session follows quick support's rules: in a
+/// quick support process, and while the installed receiver's service runs
+/// a support session ([`receiver`]).
+pub fn in_support_session() -> bool {
+    is_quick_support() || receiver::SESSION.load(Ordering::Relaxed)
+}
+
 /// The key of the signed client config (custom.txt or the config compiled
 /// in) that makes this client the receiver: the app on a supported
 /// computer with one home window (Get help, Messages, My tickets) and no
@@ -345,8 +355,19 @@ pub fn init_process_mode() {
             _ => {}
         }
     }
+    // The installed receiver runs a support link of its own server with its
+    // own ID, in its service (receiver.rs)
+    let receiver_link = pending.as_ref().map_or(false, |invite| {
+        invite.kind == Some(Kind::Support)
+            && receiver::installed()
+            && invite
+                .console
+                .as_ref()
+                .map_or(false, |c| receiver::takes_link_of(&c.host_port()))
+    });
     let quick = std::env::var(QUICK_SUPPORT_ENV).map_or(false, |v| v == "1")
-        || pending.as_ref().map_or(false, |invite| invite.kind == Some(Kind::Support));
+        || (!receiver_link
+            && pending.as_ref().map_or(false, |invite| invite.kind == Some(Kind::Support)));
     if quick {
         enter_quick_support_mode();
     } else if is_receiver() {
@@ -370,6 +391,7 @@ pub fn init_process_mode() {
 }
 
 fn enter_quick_support_mode() {
+    receiver::forget_install_file();
     std::env::set_var(QUICK_SUPPORT_ENV, "1");
     *config::APP_NAME.write().unwrap() = QUICK_SUPPORT_APP_NAME.to_owned();
     let mut hard = config::HARD_SETTINGS.write().unwrap();
@@ -449,7 +471,7 @@ fn input_active() -> bool {
 /// True while a supporter has a file transfer session open on this
 /// computer in quick support.
 fn files_open() -> bool {
-    is_quick_support()
+    in_support_session()
         && crate::server::AUTHED_CONNS
             .lock()
             .unwrap()
@@ -461,23 +483,36 @@ fn files_open() -> bool {
 /// option `option`: in quick support only what the person allowed, always
 /// otherwise. The connection asks before it gives a permission.
 pub fn quick_support_allows(option: &str) -> bool {
-    !is_quick_support() || GRANTS.lock().unwrap().allow(option)
+    !in_support_session() || GRANTS.lock().unwrap().allow(option)
 }
 
 /// Keeps a file transfer the supporter started, for the session bar. Called
 /// by the connection for each one, sent (`to_this_computer`) or taken.
 pub fn note_file_transfer(to_this_computer: bool, path: &str, files: &[(String, i64)]) {
-    if is_quick_support() {
+    if in_support_session() {
         STATE.update(|s| s.add_file(FileLine::of(to_this_computer, path, files)));
     }
 }
 
-/// The state as JSON for the UI, with `inputActive` and `quickSupport`.
+/// The state as JSON for the UI, with `inputActive` and `quickSupport`. In
+/// the installed receiver's window it is the state of the session in the
+/// service.
 pub fn state_json() -> String {
+    if receiver::forwards_to_service() {
+        if let Some(state) = receiver::ask_service(json!({ "do": "state" })) {
+            return state.to_string();
+        }
+    }
+    local_state_json()
+}
+
+/// The state of this process as JSON.
+fn local_state_json() -> String {
     let mut value = serde_json::to_value(STATE.get()).unwrap_or(Value::Null);
     value["inputActive"] = Value::Bool(input_active());
     value["filesOpen"] = Value::Bool(files_open());
     value["quickSupport"] = Value::Bool(is_quick_support());
+    value["receiverSession"] = Value::Bool(receiver::SESSION.load(Ordering::Relaxed));
     value["hasServer"] = Value::Bool(has_server());
     value.to_string()
 }
@@ -797,6 +832,24 @@ pub fn redeem_support(text: String) {
     let Some(console) = invite.console.clone().or_else(known_console) else {
         return STATE.update(|s| s.fail(&OnboardError::NeedsServer));
     };
+    // The installed receiver runs a link of its own server in its service
+    if receiver::forwards_to_service() {
+        if let Some(link) = receiver::own_support_link(&text) {
+            STATE.update(|s| {
+                s.phase = Phase::SupportConnecting;
+                s.server = Some(console.host.clone());
+                s.link = Some(text.trim().to_owned());
+                s.clear_error();
+            });
+            if receiver::ask_service(json!({ "do": "start", "link": link }))
+                .and_then(|a| a.get("ok").and_then(Value::as_bool))
+                != Some(true)
+            {
+                STATE.update(|s| s.fail(&OnboardError::Unreachable));
+            }
+            return;
+        }
+    }
     if is_quick_support() {
         STATE.update(|s| s.link = Some(text.trim().to_owned()));
         return start_support(console, invite.code);
@@ -812,11 +865,24 @@ pub fn redeem_support(text: String) {
     }
 }
 
+/// What the session needs from this process: the quick support app, or
+/// the installed receiver's service.
+fn host() -> &'static dyn support::SupportHost {
+    if is_quick_support() {
+        &AppHost
+    } else {
+        &receiver::ServiceHost
+    }
+}
+
 /// Runs a quick support session on a thread of its own, unless one runs.
 fn start_support(console: Console, code: String) {
     let mut running = SUPPORT.lock().unwrap();
     if running.is_some() {
         return;
+    }
+    if !is_quick_support() {
+        receiver::SESSION.store(true, Ordering::Relaxed);
     }
     STATE.update(|s| {
         s.messages.clear();
@@ -830,14 +896,24 @@ fn start_support(console: Console, code: String) {
     let (tx, rx) = mpsc::channel();
     *running = Some(tx);
     std::thread::spawn(move || {
-        support::run(console, code, &AppHost, &STATE, &rx, support::Timing::default());
+        support::run(console, code, host(), &STATE, &rx, support::Timing::default());
         *SUPPORT.lock().unwrap() = None;
+        receiver::SESSION.store(false, Ordering::Relaxed);
     });
 }
 
 /// The person's answer on the consent screen, with what they ticked besides
 /// the screen, the mouse and the keyboard.
 pub fn consent(allow: bool, grants: Grants) {
+    if receiver::forwards_to_service() {
+        receiver::ask_service(json!({
+            "do": "consent",
+            "allow": allow,
+            "clipboard": grants.clipboard,
+            "file_transfer": grants.file_transfer,
+        }));
+        return;
+    }
     if let Some(tx) = SUPPORT.lock().unwrap().as_ref() {
         tx.send(support::Command::Consent(allow, grants)).ok();
     }
@@ -847,12 +923,16 @@ pub fn consent(allow: bool, grants: Grants) {
 /// the person allowed it, the supporter is cut off here at once, even while
 /// the session waits for an answer of the console.
 pub fn end_support() {
+    if receiver::forwards_to_service() {
+        receiver::ask_service(json!({ "do": "end" }));
+        return;
+    }
     if let Some(tx) = SUPPORT.lock().unwrap().as_ref() {
         if matches!(
             STATE.get().phase,
             Phase::SupportWaiting | Phase::SupportInSession
         ) {
-            support::stop(&AppHost, &STATE);
+            support::stop(host(), &STATE);
         }
         tx.send(support::Command::End).ok();
     }
@@ -862,6 +942,10 @@ pub fn end_support() {
 /// question id) to the console of the session that ended. The end screen
 /// follows `feedbackState`; after "failed" it may send again.
 pub fn send_feedback(answers: String) {
+    if receiver::forwards_to_service() {
+        receiver::ask_service(json!({ "do": "feedback", "answers": answers }));
+        return;
+    }
     let Some(channel) = feedback::current() else {
         return;
     };
@@ -902,10 +986,22 @@ fn send_feedback_now(channel: &feedback::Channel, body: &Value) -> &'static str 
     })
 }
 
+/// Close on the installed receiver's end screen: the window shows its home
+/// again. Nothing changes while a session runs.
+pub fn dismiss_support() {
+    if receiver::forwards_to_service() {
+        receiver::ask_service(json!({ "do": "dismiss" }));
+        return;
+    }
+    if SUPPORT.lock().unwrap().is_none() {
+        STATE.update(|s| *s = State::default());
+    }
+}
+
 /// Keeps a chat line the supporter sent, for the quick support screen.
 /// Called by the connection for each chat message of its peer.
 pub fn note_chat(text: &str) {
-    if is_quick_support() {
+    if in_support_session() {
         STATE.update(|s| s.add_chat(true, text.to_owned()));
     }
 }
@@ -914,7 +1010,7 @@ pub fn note_chat(text: &str) {
 /// quick support end screen. Called by the connection for each line the
 /// connection manager sends to its peer.
 pub fn note_chat_from_here(text: &str) {
-    if is_quick_support() && !text.trim().is_empty() {
+    if in_support_session() && !text.trim().is_empty() {
         STATE.update(|s| s.add_chat(false, text.to_owned()));
     }
 }
@@ -925,7 +1021,7 @@ pub fn note_chat_from_here(text: &str) {
 /// connection is the supporter. None outside quick support and for any
 /// other connection.
 pub fn supporter_for_password(by_password: bool) -> Option<String> {
-    if !by_password || !is_quick_support() {
+    if !by_password || !in_support_session() {
         return None;
     }
     let state = STATE.get();
@@ -991,7 +1087,7 @@ pub(crate) fn quick_support_options() -> [(&'static str, &'static str); 3] {
 /// `relay_session` without a password, when the server vouches for it
 /// (A271); None for every other caller, and outside quick support.
 pub async fn vouched_caller(device_id: &str, relay_session: &str) -> Option<Helper> {
-    if !is_quick_support() {
+    if !in_support_session() {
         return None;
     }
     caller::vouched_caller(device_id, relay_session).await
@@ -1000,7 +1096,7 @@ pub async fn vouched_caller(device_id: &str, relay_session: &str) -> Option<Help
 /// Whether the connection manager's Allow may let a connection in: in
 /// quick support only one the server vouched for.
 pub fn click_may_let_in(vouched: bool) -> bool {
-    caller::click_may_let_in(is_quick_support(), vouched)
+    caller::click_may_let_in(in_support_session(), vouched)
 }
 
 /// The connections of this process that wait for the person to accept in
@@ -1038,7 +1134,7 @@ static REQUESTS: Requests = Requests::new();
 /// The connection `conn_id` asks the person (authorized false) or was let
 /// in; the quick support window follows it.
 pub fn note_request(conn_id: i32, name: &str, authorized: bool) {
-    if is_quick_support() {
+    if in_support_session() {
         REQUESTS.note(conn_id, name, authorized);
     }
 }
@@ -1108,6 +1204,19 @@ impl support::SupportHost for AppHost {
 /// Handles `--join <link or code>` and a support link as the only argument.
 /// None lets `core_main` go on.
 pub fn core_main_hook(args: &[String]) -> Option<Option<CoreMainAction>> {
+    // A quick support file started on a computer with the installed
+    // receiver: the receiver runs the session with the computer's own ID
+    if is_quick_support() {
+        let link = PENDING
+            .lock()
+            .unwrap()
+            .as_ref()
+            .filter(|invite| invite.kind == Some(Kind::Support))
+            .and_then(Invite::deep_link);
+        if link.map_or(false, |link| receiver::hand_to_receiver(&link)) {
+            return Some(None);
+        }
+    }
     let text = invite_argument(args)?;
     let invite = match link::parse(text) {
         Ok(invite) => invite,
@@ -1115,10 +1224,27 @@ pub fn core_main_hook(args: &[String]) -> Option<Option<CoreMainAction>> {
         Err(_) => return None,
     };
     match invite.kind {
+        Some(Kind::Support) if !is_quick_support() && receiver::installed() => {
+            Some(open_in_receiver(text))
+        }
         Some(Kind::Support) => Some(start_quick_support_process(invite)),
         _ if args[0] == "--join" => Some(cli_join(invite)),
         _ => None,
     }
+}
+
+/// A support link of its own server opened in the installed receiver (a
+/// browser link): the service runs the session and the receiver's window
+/// shows it.
+fn open_in_receiver(text: &str) -> Option<CoreMainAction> {
+    if let Some(link) = receiver::own_support_link(text) {
+        receiver::ask_service(json!({ "do": "start", "link": link }));
+    }
+    if crate::check_process("", true) {
+        // The window that runs comes up for the session
+        return None;
+    }
+    Some(CoreMainAction::StartUi(Vec::new()))
 }
 
 /// Prints for the command line. On Windows, where the client has no console

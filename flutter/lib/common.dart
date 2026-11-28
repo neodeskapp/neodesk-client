@@ -2191,6 +2191,13 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     "terminal-admin",
   ];
   if (isDesktop && ndReceiverMode) {
+    // A support link runs its session in the receiver (the core decides
+    // whether the link is of its own server, receiver.rs)
+    if (uri.authority == 'support') {
+      ndReceiverOpen?.call('help');
+      onboardingService.handleLink(uri.toString());
+      return null;
+    }
     // The receiver opens its own pages and nothing else (receiver_links.dart)
     final page = ndReceiverPage(uri);
     if (page.isEmpty) return [];

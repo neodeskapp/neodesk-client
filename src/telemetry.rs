@@ -1116,6 +1116,20 @@ fn execute_command(command: &str, args: &Value) -> Value {
     }
 }
 
+/// Whether a telemetry command is refused with support_agent_restricted:
+/// an incoming-only Support Agent runs collect.metrics alone, the receiver
+/// the full client's commands (onboard/receiver_policy.rs).
+fn command_refused(command: &str) -> bool {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return crate::onboard::receiver_policy::telemetry_command_refused(
+        config::is_incoming_only(),
+        crate::onboard::is_receiver(),
+        command,
+    );
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    return config::is_incoming_only() && command != "collect.metrics";
+}
+
 pub fn process_commands(commands: &[Value]) -> Vec<Value> {
     let mut results = Vec::new();
     for command in commands {
@@ -1130,9 +1144,11 @@ pub fn process_commands(commands: &[Value]) -> Vec<Value> {
         #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
         if crate::fleet::is_fleet_command(command_name) {
             let args = command.get("args").cloned().unwrap_or_else(|| json!({}));
-            if let Some(result) =
-                crate::fleet::accept(id, command_name, &args, config::is_incoming_only())
-            {
+            let refused = crate::onboard::receiver_policy::fleet_refused(
+                config::is_incoming_only(),
+                crate::onboard::is_receiver(),
+            );
+            if let Some(result) = crate::fleet::accept(id, command_name, &args, refused) {
                 results.push(result);
             }
             continue;
@@ -1153,7 +1169,7 @@ pub fn process_commands(commands: &[Value]) -> Vec<Value> {
         }
 
         let args = command.get("args").cloned().unwrap_or_else(|| json!({}));
-        let result = if config::is_incoming_only() && command_name != "collect.metrics" {
+        let result = if command_refused(command_name) {
             json!({"status": "permission_denied", "code": "support_agent_restricted", "data": {}})
         } else {
             execute_command(command_name, &args)

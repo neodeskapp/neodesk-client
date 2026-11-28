@@ -403,6 +403,10 @@ abstract class OnboardingService {
 
   /// Set up by hand after a failed join: the failure is left behind.
   void dismissFailedJoin() {}
+
+  /// Close on the installed receiver's end screen: the support session is
+  /// left behind and the window shows its home again.
+  void dismissSupport() {}
 }
 
 /// What people paste into the invite field.
@@ -618,6 +622,12 @@ class FakeOnboardingService extends OnboardingService {
     if (_state.phase == OnboardingPhase.joinFailed) {
       emit(_state.copyWith(phase: OnboardingPhase.notSetUp, clearError: true));
     }
+  }
+
+  @override
+  void dismissSupport() {
+    calls.add('dismissSupport');
+    emit(const OnboardingState(phase: OnboardingPhase.joined));
   }
 }
 

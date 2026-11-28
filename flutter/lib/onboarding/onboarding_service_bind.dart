@@ -36,6 +36,10 @@ class BindOnboardingNative implements OnboardingNative {
   @override
   void sendFeedback(String answers) =>
       bind.mainOnboardSendFeedback(answers: answers);
+
+  @override
+  void dismissSupport() =>
+      bind.mainSetCommon(key: 'nd-support-dismiss', value: '');
 }
 
 /// The one onboarding service of the app. The link handler in common.dart

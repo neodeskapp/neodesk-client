@@ -124,6 +124,8 @@ async fn start_hbbs_sync_async() {
                     *PRO.lock().unwrap() = false;
                     crate::hbbs_http::neodesk::sync_client_branding().await;
                     crate::hbbs_http::neodesk::sync_device_enrollment().await;
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    crate::hbbs_http::neodesk::sync_receiver_policy().await;
                     continue;
                 }
                 if config::option2bool("stop-service", &Config::get_option("stop-service")) {
@@ -406,6 +408,15 @@ async fn start_hbbs_sync_async() {
                                 );
                             }
                         }
+                        // The device's own access policy, which the receiver
+                        // follows (onboard/receiver.rs); only a sealed answer
+                        // says whether it has one
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                        if secure_response {
+                            crate::onboard::receiver::note_access_policy(
+                                sealed_only.get("access_policy"),
+                            );
+                        }
                         // The receiver's badge while the chat socket is down
                         #[cfg(not(any(target_os = "android", target_os = "ios")))]
                         if let Some(count) = sealed_only.remove("tickets_unread").and_then(|v| v.as_u64()) {
@@ -420,6 +431,8 @@ async fn start_hbbs_sync_async() {
                 }
                 crate::hbbs_http::neodesk::sync_client_branding().await;
                 crate::hbbs_http::neodesk::sync_device_enrollment().await;
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                crate::hbbs_http::neodesk::sync_receiver_policy().await;
             }
         }
     }
@@ -435,6 +448,7 @@ const SEALED_ONLY: &[&str] = &[
     "strategy",
     "modified_at",
     "tickets_unread",
+    "access_policy",
 ];
 
 /// A heartbeat answer as the sync loop reads it.

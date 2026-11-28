@@ -418,6 +418,10 @@ pub enum Data {
     /// the device token (nd_chat.rs).
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     NdChat(crate::nd_chat::NdChat),
+    /// The installed receiver's window and tray ask the service's process,
+    /// which runs its support sessions, as JSON (onboard/receiver.rs).
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    NdSupport(String),
     RawMessage(Vec<u8>),
     Socks(Option<config::Socks5Server>),
     FS(FS),
@@ -1034,6 +1038,16 @@ async fn handle(data: Data, stream: &mut Connection) {
         }
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         Data::NdChat(request) => crate::nd_chat::serve(request, stream).await,
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::NdSupport(request) => {
+            // The session's requests run blocking calls of their own
+            let answer = tokio::task::spawn_blocking(move || {
+                crate::onboard::receiver::service_request(&request)
+            })
+            .await
+            .unwrap_or_default();
+            allow_err!(stream.send(&Data::NdSupport(answer)).await);
+        }
         Data::HandOverSecrets(HandOver::Secrets(secrets)) => {
             if let Some(public_key) = take_handed_over_secrets(*secrets) {
                 allow_err!(
@@ -1570,6 +1584,17 @@ where
 }
 
 #[inline]
+/// Connects to the pipe `postfix` by its plain name, also from a quick
+/// support process, whose own names are namespaced: a quick support app
+/// hands its link to the installed receiver this way (onboard/receiver.rs).
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub(crate) async fn connect_unnamespaced(
+    ms_timeout: u64,
+    postfix: &str,
+) -> ResultType<ConnectionTmpl<ConnClient>> {
+    connect_with_path(ms_timeout, &Config::ipc_path(postfix)).await
+}
+
 async fn connect_with_path(ms_timeout: u64, path: &str) -> ResultType<ConnectionTmpl<ConnClient>> {
     #[cfg(windows)]
     let client = timeout(ms_timeout, connect_pipe(path)).await??;

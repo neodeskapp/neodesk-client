@@ -507,6 +507,106 @@ fn set_path_permission_for_portable_service_shmem_impl(
     Ok(())
 }
 
+/// The owner (a SID string) and the access list of the file or folder at
+/// `path`, for the install-time file's check (onboard/install_file.rs).
+/// No access list is `None`: everyone has every right.
+pub(crate) fn owner_and_dacl(
+    path: &Path,
+) -> ResultType<(
+    Option<String>,
+    Option<Vec<crate::onboard::install_file::Ace>>,
+)> {
+    use windows::Win32::Security::{
+        AclSizeInformation, GetAce, GetAclInformation, ACCESS_ALLOWED_ACE, ACE_HEADER,
+        ACL_SIZE_INFORMATION, INHERIT_ONLY_ACE, OWNER_SECURITY_INFORMATION,
+    };
+    let mut owner = PSID::default();
+    let mut dacl: *mut ACL = std::ptr::null_mut();
+    let mut sd = PSECURITY_DESCRIPTOR::default();
+    let path_utf16: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let result = unsafe {
+        GetNamedSecurityInfoW(
+            PCWSTR::from_raw(path_utf16.as_ptr()),
+            SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+            Some(&mut owner),
+            None,
+            Some(&mut dacl),
+            None,
+            &mut sd,
+        )
+    };
+    if result.0 != 0 {
+        bail!(
+            "GetNamedSecurityInfoW failed for '{}': win32_error={}",
+            path.display(),
+            result.0
+        );
+    }
+    let _sd_guard = LocalAllocGuard(sd.0);
+    let sid_string = |sid: PSID| -> Option<String> {
+        if sid.0.is_null() {
+            return None;
+        }
+        let mut text = PWSTR::null();
+        unsafe { ConvertSidToStringSidW(sid, &mut text) }.ok()?;
+        if text.is_null() {
+            return None;
+        }
+        let _guard = LocalAllocGuard(text.0 as *mut std::ffi::c_void);
+        unsafe { text.to_string() }.ok()
+    };
+    let owner = sid_string(owner);
+    if dacl.is_null() {
+        return Ok((owner, None));
+    }
+    let mut info = ACL_SIZE_INFORMATION::default();
+    unsafe {
+        GetAclInformation(
+            dacl,
+            &mut info as *mut _ as *mut std::ffi::c_void,
+            std::mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+            AclSizeInformation,
+        )
+    }
+    .map_err(|e| anyhow!("GetAclInformation failed for '{}': {}", path.display(), e))?;
+    let mut aces = Vec::new();
+    for index in 0..info.AceCount {
+        let mut ace_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+        if unsafe { GetAce(dacl, index, &mut ace_ptr) }.is_err() || ace_ptr.is_null() {
+            bail!("GetAce failed for '{}'", path.display());
+        }
+        let header = unsafe { &*(ace_ptr as *const ACE_HEADER) };
+        // Denied (1), denied object (6), denied callback (10) and denied
+        // callback object (12) only take rights away. The other kinds are
+        // read as an allow entry with the ACCESS_ALLOWED_ACE layout; an
+        // object entry whose SID can't be read that way counts as someone
+        // else's, which refuses the file.
+        let allow = !matches!(header.AceType, 1 | 6 | 10 | 12);
+        let entry = unsafe { &*(ace_ptr as *const ACCESS_ALLOWED_ACE) };
+        let simple = matches!(header.AceType, 0 | 1 | 9 | 10);
+        let sid = if simple {
+            sid_string(PSID(
+                (&entry.SidStart as *const u32) as *mut std::ffi::c_void,
+            ))
+            .unwrap_or_default()
+        } else {
+            String::new()
+        };
+        aces.push(crate::onboard::install_file::Ace {
+            sid,
+            mask: entry.Mask,
+            allow,
+            inherit_only: header.AceFlags as u32 & INHERIT_ONLY_ACE.0 as u32 != 0,
+        });
+    }
+    Ok((owner, Some(aces)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
