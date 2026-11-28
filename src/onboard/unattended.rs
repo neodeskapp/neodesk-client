@@ -327,8 +327,14 @@ pub fn show_notice(name: &str, company: &str) {
     if !notice_due(&mut LAST.lock().unwrap(), name, std::time::Instant::now()) {
         return;
     }
-    let (title, body) = (crate::get_app_name(), notice_text(name, company));
+    let (title, body) = notice_parts(name, company);
     std::thread::spawn(move || crate::nd_chat::show_notification(&title, &body, || {}));
+}
+
+/// The notification's title and text: the sentence of A279 as the title,
+/// once, and no text under it. Windows already names the app above it.
+fn notice_parts(name: &str, company: &str) -> (String, String) {
+    (notice_text(name, company), String::new())
 }
 
 /// Whether the notification for `name` is due at `now`, given the last one
@@ -369,6 +375,15 @@ mod tests {
         assert_eq!(offset_of("Mars/Olympus", summer), None);
         assert_eq!(offset_of("", summer), None);
         assert_eq!(offset_of("europe/berlin", summer), None);
+    }
+
+    #[test]
+    fn the_notice_is_the_sentence_once_without_the_app_name() {
+        let (title, body) = notice_parts("Olga Operator", "Fernhill Dental");
+        assert_eq!(title, notice_text("Olga Operator", "Fernhill Dental"));
+        assert!(title.contains("Olga Operator") && title.contains("Fernhill Dental"), "{title}");
+        assert_eq!(body, "", "the sentence shows once");
+        assert!(!title.contains(&crate::get_app_name()), "{title}");
     }
 
     #[test]

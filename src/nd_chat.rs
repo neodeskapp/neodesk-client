@@ -856,7 +856,8 @@ pub(crate) async fn hold(
 }
 
 /// Shows an OS notification; `on_click` runs when the person clicks it
-/// (Windows). Linux shows it without a click action; macOS shows none.
+/// (Windows). An empty `body` shows the title alone. Linux shows it without
+/// a click action; macOS shows none.
 pub(crate) fn show_notification(
     title: &str,
     body: &str,
@@ -869,9 +870,11 @@ pub(crate) fn show_notification(
         if let Err(err) = crate::tray_menu::register_toast_sender(&app_id) {
             log::debug!("Failed to register {app_id} for notifications: {err}");
         }
-        Toast::new(&app_id)
-            .title(title)
-            .text1(body)
+        let mut toast = Toast::new(&app_id).title(title);
+        if !body.is_empty() {
+            toast = toast.text1(body);
+        }
+        toast
             .sound(Some(Sound::Default))
             .duration(ToastDuration::Short)
             .on_activated(move || {
