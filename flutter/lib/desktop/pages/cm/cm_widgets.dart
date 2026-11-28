@@ -87,6 +87,12 @@ CmCaller cmCaller(
       warning: warning);
 }
 
+/// The line that says the server confirmed who is connected (A271, A279),
+/// shown under the time once the session runs; null for a caller nobody
+/// confirmed.
+String? cmConfirmedLine(CmCaller caller, {required bool vouched}) =>
+    vouched && !caller.unknown && !caller.lineIsId ? caller.line : null;
+
 /// The window of a request or a session: the body takes the room left, the
 /// buttons stay at the foot whatever the body holds.
 class CmScreen extends StatelessWidget {
@@ -140,12 +146,16 @@ class CmHeader extends StatelessWidget {
     this.mono = false,
     this.avatar,
     this.kind,
+    this.note,
   });
 
   final String name;
   final String subtitle;
   final bool mono;
   final Widget? avatar;
+
+  /// A line under the subtitle, such as who confirmed the caller.
+  final String? note;
 
   /// Transfer file, Terminal, View camera, port forward.
   final String? kind;
@@ -174,6 +184,11 @@ class CmHeader extends StatelessWidget {
                 style: mono
                     ? t.mono.copyWith(fontSize: 13, color: context.nd.textMuted)
                     : t.body.copyWith(color: context.nd.textMuted)),
+            if (note != null && note!.isNotEmpty)
+              Text(note!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.small.copyWith(color: context.nd.textMuted)),
             if (kind != null && kind!.isNotEmpty)
               Text(kind!, style: t.small),
           ],

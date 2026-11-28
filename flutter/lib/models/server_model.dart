@@ -585,7 +585,8 @@ class ServerModel with ChangeNotifier {
   void _addTab(Client client) {
     tabController.add(TabInfo(
         key: client.id.toString(),
-        label: client.name,
+        label: desktop.cmTabLabel(client,
+            quickSupport: bind.mainOnboardIsQuickSupport()),
         closable: false,
         onTap: () {},
         page: desktop.buildConnectionCard(client)));
