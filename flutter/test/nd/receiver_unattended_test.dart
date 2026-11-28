@@ -45,6 +45,20 @@ void main() {
         "Your company's support can connect to this computer without asking you.");
   });
 
+  testWidgets('with the line the lead no longer says they see the screen only after Allow',
+      (tester) async {
+    await _pump(tester, _office);
+    final lead = tester.widget<Text>(find.byKey(const ValueKey('rcv-help-lead'))).data!;
+    expect(lead, 'Did someone from Fernhill Dental give you a code or a link? Enter it here.');
+    expect(lead, isNot(contains('allow')));
+  });
+
+  testWidgets('without the line the lead keeps the Allow sentence', (tester) async {
+    await _pump(tester, null);
+    final lead = tester.widget<Text>(find.byKey(const ValueKey('rcv-help-lead'))).data!;
+    expect(lead, contains('They can see your screen only after you allow it.'));
+  });
+
   testWidgets('no line when the company\'s support can\'t connect without asking',
       (tester) async {
     await _pump(tester, null);

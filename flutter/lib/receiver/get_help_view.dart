@@ -44,6 +44,21 @@ String unattendedLineText(UnattendedAccess access) {
   return tr('nd-rcv-unattended-when', [when]);
 }
 
+/// The lead under Get help. With the unattended access line under it, the
+/// lead leaves out "They can see your screen only after you allow it",
+/// which that line contradicts.
+String getHelpLeadText(String company, {required bool unattended}) {
+  final c = company.trim();
+  if (unattended) {
+    return c.isNotEmpty
+        ? tr('nd-rcv-help-lead-short', [c])
+        : tr('nd-rcv-help-lead-short-nocompany');
+  }
+  return c.isNotEmpty
+      ? tr('nd-rcv-help-lead', [c])
+      : tr('nd-rcv-help-lead-nocompany');
+}
+
 class GetHelpView extends StatefulWidget {
   const GetHelpView({
     super.key,
@@ -143,11 +158,8 @@ class _GetHelpViewState extends State<GetHelpView> {
                   style: t.titleMd.copyWith(fontSize: 26, height: 32 / 26)),
             ),
             const SizedBox(height: 12),
-            Text(
-                company.isNotEmpty
-                    ? tr('nd-rcv-help-lead', [company])
-                    : tr('nd-rcv-help-lead-nocompany'),
-                style: lead),
+            Text(getHelpLeadText(company, unattended: _unattended != null),
+                key: const ValueKey('rcv-help-lead'), style: lead),
             if (_unattended != null) ...[
               const SizedBox(height: 12),
               Text(unattendedLineText(_unattended!),

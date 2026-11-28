@@ -1423,6 +1423,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-qs-keep-lead", "Die App bleibt dann auf diesem Computer, und du kannst jederzeit Hilfe holen oder eine Nachricht schreiben, ohne neuen Link."),
         ("nd-qs-keep-install", "Installieren"),
         ("nd-qs-keep-no", "Nein, danke"),
+        ("nd-rcv-help-lead-short", "Hat dir jemand von {} einen Code oder einen Link gegeben? Gib ihn hier ein."),
+        ("nd-rcv-help-lead-short-nocompany", "Hat dir dein Support einen Code oder einen Link gegeben? Gib ihn hier ein."),
         ("nd-rcv-unattended", "Der Support deiner Firma kann sich ohne Nachfrage mit diesem Computer verbinden."),
         ("nd-rcv-unattended-when", "Der Support deiner Firma kann sich ohne Nachfrage mit diesem Computer verbinden, {}."),
         ("nd-rcv-range", "{} bis {}"),

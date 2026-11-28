@@ -1417,6 +1417,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-qs-keep-lead", ""),
         ("nd-qs-keep-install", ""),
         ("nd-qs-keep-no", ""),
+        ("nd-rcv-help-lead-short", ""),
+        ("nd-rcv-help-lead-short-nocompany", ""),
         ("nd-rcv-unattended", ""),
         ("nd-rcv-unattended-when", ""),
         ("nd-rcv-range", ""),
