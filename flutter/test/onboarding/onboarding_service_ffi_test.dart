@@ -462,7 +462,7 @@ void main() {
     expect(native.calls, ['install receiver', 'dismiss support']);
   });
 
-  test('the receiver's unattended access line comes from the core (A279)',
+  test("the receiver's unattended access line comes from the core (A279)",
       () async {
     final none = parseOnboardingState(jsonEncode({'phase': 'notSetUp'}));
     expect(none.unattended, isNull);

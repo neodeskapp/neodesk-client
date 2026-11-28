@@ -55,6 +55,7 @@ void main() {
       (tester) async {
     final service = await _pump(tester, null);
     service.emit(service.current.copyWith(unattended: _office));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
     await tester.pump();
     expect(_line(tester), contains('Mon to Fri 8:00 to 18:00'));
   });

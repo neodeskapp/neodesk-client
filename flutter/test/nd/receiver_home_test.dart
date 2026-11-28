@@ -649,7 +649,7 @@ void main() {
                   days: ['mon', 'tue', 'wed', 'thu', 'fri'],
                   start: '8:00',
                   end: '18:00'))));
-      await tester.pump();
+      await settle(tester);
       expect(find.textContaining('Mon to Fri 8:00 to 18:00'), findsOneWidget);
       await shot(tester, 'receiver-home-unattended', b);
       await takeDown(tester);
