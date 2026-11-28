@@ -32,7 +32,7 @@ pub(crate) mod receiver_policy;
 mod support;
 pub(crate) mod unattended;
 
-pub use caller::Helper;
+pub use caller::{caller_check_of, CallerCheck, Helper};
 pub use unattended::Unattended;
 
 use std::{
@@ -1253,11 +1253,11 @@ pub(crate) fn quick_support_options() -> [(&'static str, &'static str); 3] {
 /// The helper behind a connection that came through the relay session
 /// `relay_session` without a password, when the server vouches for it
 /// (A271); None for every other caller, and outside quick support.
-pub async fn vouched_caller(device_id: &str, relay_session: &str) -> Option<Helper> {
+pub async fn vouched_caller(device_id: &str, check: &CallerCheck) -> Option<Helper> {
     if !in_support_session() {
         return None;
     }
-    caller::vouched_caller(device_id, relay_session).await
+    caller::vouched_caller(device_id, check).await
 }
 
 /// Whether the connection manager's Allow may let a connection in: in
@@ -1269,8 +1269,8 @@ pub fn click_may_let_in(vouched: bool) -> bool {
 /// The caller of a relayed login on the receiver that gets in without the
 /// person's Allow: the server vouched for it and the device's rule allows
 /// it now (A279, [`unattended`]). None keeps the Allow prompt.
-pub async fn unattended_caller(relay_session: Option<&str>, password_given: bool) -> Option<Unattended> {
-    unattended::unattended_caller(relay_session, password_given).await
+pub async fn unattended_caller(check: &CallerCheck) -> Option<Unattended> {
+    unattended::unattended_caller(check).await
 }
 
 /// Whether the logon screen fallback may take a permanent password: never

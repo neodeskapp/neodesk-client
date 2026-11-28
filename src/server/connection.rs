@@ -2421,12 +2421,17 @@ impl Connection {
     /// reports whether it did. A connection that did not come through the
     /// relay has nothing the server could vouch for.
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
-    async fn nd_ask_for_caller(&mut self) -> bool {
+    async fn nd_ask_for_caller(&mut self, password: &[u8], secret: &str) -> bool {
         if !self.nd_caller_asked {
-            self.nd_caller_asked = true;
-            if let Some(relay_session) = self.nd_relay_uuid.clone() {
-                self.nd_caller =
-                    crate::onboard::vouched_caller(&Config::get_id(), &relay_session).await;
+            // Only a login with the caller secret of its relay response
+            if let Some(check) = crate::onboard::caller_check_of(
+                password,
+                secret,
+                self.nd_relay_uuid.as_deref(),
+                false,
+            ) {
+                self.nd_caller_asked = true;
+                self.nd_caller = crate::onboard::vouched_caller(&Config::get_id(), &check).await;
             }
         }
         self.nd_caller.is_some()
@@ -2438,11 +2443,10 @@ impl Connection {
     /// rule decide (onboard/unattended.rs, unattended_may_let_in). True
     /// when the caller gets in without the person's Allow.
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
-    async fn nd_unattended_let_in(&mut self, password_given: bool) -> bool {
-        if !password_given && !self.nd_unattended_asked {
+    async fn nd_unattended_let_in(&mut self, check: &crate::onboard::CallerCheck) -> bool {
+        if !self.nd_unattended_asked {
             self.nd_unattended_asked = true;
-            self.nd_unattended =
-                crate::onboard::unattended_caller(self.nd_relay_uuid.as_deref(), false).await;
+            self.nd_unattended = crate::onboard::unattended_caller(check).await;
             if let Some(unattended) = &self.nd_unattended {
                 self.nd_caller = Some(unattended.helper.clone());
             }
@@ -3196,17 +3200,24 @@ impl Connection {
             // server vouches for gets in without Allow when the device's rule
             // allows it now, also on the logon screen and a locked computer;
             // every other caller is asked as before
+            // (onboard caller_check_of decides which login is asked about: no
+            // password, through the relay, with the caller secret)
             #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
-            if !should_use_terminal_os_login_scope(self.terminal, &lr.os_login.username)
-                && self.nd_unattended_let_in(!lr.password.is_empty()).await
-            {
-                self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
-                self.require_2fa.take();
-                if !self.send_logon_response_and_keep_alive().await {
-                    return false;
+            if let Some(check) = crate::onboard::caller_check_of(
+                &lr.password,
+                &lr.nd_caller_secret,
+                self.nd_relay_uuid.as_deref(),
+                should_use_terminal_os_login_scope(self.terminal, &lr.os_login.username),
+            ) {
+                if self.nd_unattended_let_in(&check).await {
+                    self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
+                    self.require_2fa.take();
+                    if !self.send_logon_response_and_keep_alive().await {
+                        return false;
+                    }
+                    self.try_start_cm(lr.my_id, lr.my_name, self.authorized);
+                    return true;
                 }
-                self.try_start_cm(lr.my_id, lr.my_name, self.authorized);
-                return true;
             }
 
             if (password::approve_mode() == ApproveMode::Click && !allow_logon_screen_password)
@@ -3244,7 +3255,7 @@ impl Connection {
                 // caller the server vouches for (A271); the caller's own ID
                 // and name prove nothing
                 #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
-                if self.nd_ask_for_caller().await {
+                if self.nd_ask_for_caller(&lr.password, &lr.nd_caller_secret).await {
                     self.try_start_cm(lr.my_id, lr.my_name, false);
                     if hbb_common::get_version_number(&lr.version)
                         >= hbb_common::get_version_number("1.2.0")

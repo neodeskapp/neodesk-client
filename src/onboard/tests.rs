@@ -911,7 +911,11 @@ fn the_caller_check_takes_only_a_small_picture_from_the_server() {
 fn the_caller_check_asks_the_console_with_the_session_token() {
     let (me, relay) = ("123456789", "6f1c2a9e-relay");
     let good = FakeConsole::start(move |request| {
-        if request.path == caller::PATH && request.bearer() == Some("tok") && request.body["session"] == relay {
+        if request.path == caller::PATH
+            && request.bearer() == Some("tok")
+            && request.body["session"] == relay
+            && request.body["secret"] == "s3cr3t"
+        {
             (200, vouched(me, relay, "Olga Operator"))
         } else {
             (409, json!({"success": false, "error": "not_vouched", "reason": "session_not_open"}))
@@ -923,26 +927,31 @@ fn the_caller_check_asks_the_console_with_the_session_token() {
     };
     let wait = Duration::from_secs(5);
     assert_eq!(
-        block_on(caller::ask(&channel(&good, "tok"), me, relay, wait)).map(|h| h.name).as_deref(),
+        block_on(caller::ask(&channel(&good, "tok"), me, relay, "s3cr3t", wait)).map(|h| h.name).as_deref(),
         Some("Olga Operator")
     );
     let sent = good.requests_to(caller::PATH);
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0].method, "POST");
-    assert_eq!(sent[0].body, json!({"session": relay}));
+    assert_eq!(sent[0].body, json!({"session": relay, "secret": "s3cr3t"}));
     // Another token or another relay session: not vouched
-    assert_eq!(block_on(caller::ask(&channel(&good, "other"), me, relay, wait)), None);
-    assert_eq!(block_on(caller::ask(&channel(&good, "tok"), me, "forged", wait)), None);
+    assert_eq!(block_on(caller::ask(&channel(&good, "other"), me, relay, "s3cr3t", wait)), None);
+    assert_eq!(block_on(caller::ask(&channel(&good, "tok"), me, "forged", "s3cr3t", wait)), None);
+    assert_eq!(block_on(caller::ask(&channel(&good, "tok"), me, relay, "guessed", wait)), None);
+    // No secret: the console is not asked at all
+    let asked = good.requests_to(caller::PATH).len();
+    assert_eq!(block_on(caller::ask(&channel(&good, "tok"), me, relay, "", wait)), None);
+    assert_eq!(good.requests_to(caller::PATH).len(), asked);
 
     let old = FakeConsole::start(|_| (404, Value::Null));
-    assert_eq!(block_on(caller::ask(&channel(&old, "tok"), me, relay, wait)), None);
+    assert_eq!(block_on(caller::ask(&channel(&old, "tok"), me, relay, "s3cr3t", wait)), None);
 
     let slow = FakeConsole::start(move |_| {
         std::thread::sleep(Duration::from_millis(1500));
         (200, vouched(me, relay, "Olga Operator"))
     });
     let start = Instant::now();
-    assert_eq!(block_on(caller::ask(&channel(&slow, "tok"), me, relay, Duration::from_millis(300))), None);
+    assert_eq!(block_on(caller::ask(&channel(&slow, "tok"), me, relay, "s3cr3t", Duration::from_millis(300))), None);
     assert!(start.elapsed() < Duration::from_millis(1200), "{:?}", start.elapsed());
 }
 
@@ -965,7 +974,8 @@ fn the_caller_check_never_asks_a_console_on_plain_http() {
         token: "tok".to_owned(),
     }));
     caller::open(plain);
-    assert_eq!(block_on(caller::vouched_caller(me, relay)), None);
+    let check = caller::CallerCheck { session: relay.to_owned(), secret: "s3cr3t".to_owned() };
+    assert_eq!(block_on(caller::vouched_caller(me, &check)), None);
     caller::close();
     assert!(console.requests_to(caller::PATH).is_empty());
 }
@@ -1741,6 +1751,7 @@ use super::{
 
 const UA_ME: &str = "123456789";
 const UA_RELAY: &str = "6f1c2a9e-relay";
+const UA_SECRET: &str = "q3Jx_9vT-2mYc8LwPz0aRk5NdE7uFhGsVbI4oA1eWnU";
 /// Monday 2026-11-16 09:00 UTC, 10:00 in Berlin.
 const UA_MONDAY_MORNING: i64 = 1_794_819_600;
 
@@ -1749,7 +1760,7 @@ fn ua_login() -> Login<'static> {
         receiver: true,
         support_session: false,
         relay_session: Some(UA_RELAY),
-        password_given: false,
+        secret: UA_SECRET,
         https: true,
         device_id: UA_ME,
     }
@@ -1765,7 +1776,7 @@ fn ua_vouched(device_id: &str, session: &str) -> http::Answer {
 
 fn ua_policy(mode: &str, access: AccessPolicy) -> Policy {
     Policy {
-        org: Some(OrgPolicy { mode: Some(mode.to_owned()), operators: vec![] }),
+        org: Some(OrgPolicy { mode: Some(mode.to_owned()), ..Default::default() }),
         access: Some(Some(access)),
     }
 }
@@ -1857,7 +1868,15 @@ fn unattended_access_needs_the_devices_own_rule_too() {
     org_list.org.as_mut().unwrap().operators = vec!["anna".into()];
     assert_eq!(decide(&org_list, UA_MONDAY_MORNING), Err("operator_not_allowed"));
     org_list.org.as_mut().unwrap().operators = vec!["OLGA".into()];
+    assert_eq!(decide(&org_list, UA_MONDAY_MORNING), Err("operator_not_allowed"), "no case folding");
+    org_list.org.as_mut().unwrap().operators = vec![" olga ".into()];
     assert!(decide(&org_list, UA_MONDAY_MORNING).is_ok());
+    // A policy of the wrong shape lets nobody in
+    let mut bad_org = ua_policy("unattended", AccessPolicy::default());
+    bad_org.org.as_mut().unwrap().malformed = true;
+    assert_eq!(decide(&bad_org, UA_MONDAY_MORNING), Err("malformed_policy"));
+    let bad_access = ua_policy("unattended", AccessPolicy { malformed: true, ..Default::default() });
+    assert_eq!(decide(&bad_access, UA_MONDAY_MORNING), Err("malformed_policy"));
     // Nothing read yet from the server: no unattended access
     let unread = Policy { org: None, ..ua_policy("unattended", AccessPolicy::default()) };
     assert_eq!(decide(&unread, UA_MONDAY_MORNING), Err("no_policy"));
@@ -1879,7 +1898,7 @@ fn unattended_access_is_only_for_the_receiver_on_https() {
         ("a Get help session", Login { support_session: true, ..ua_login() }),
         ("a direct connection", Login { relay_session: None, ..ua_login() }),
         ("an empty relay session", Login { relay_session: Some(""), ..ua_login() }),
-        ("with a password", Login { password_given: true, ..ua_login() }),
+        ("no caller secret", Login { secret: "", ..ua_login() }),
         ("no device ID", Login { device_id: "", ..ua_login() }),
     ] {
         assert!(!unattended::may_ask(&login), "{why}");
@@ -1895,7 +1914,7 @@ fn unattended_access_asks_with_the_device_token() {
         if request.path == unattended::PATH
             && request.bearer() == Some("device-tok")
             && request.headers.get("x-device-id").map(String::as_str) == Some(UA_ME)
-            && request.body == json!({"session": UA_RELAY})
+            && request.body == json!({"session": UA_RELAY, "secret": UA_SECRET})
         {
             (200, json!({"success": true, "vouched": true, "device_id": UA_ME, "session": UA_RELAY,
                          "helper": "Olga Operator", "helper_username": "olga", "via": "console"}))
@@ -1904,20 +1923,22 @@ fn unattended_access_asks_with_the_device_token() {
         }
     });
     let wait = Duration::from_secs(5);
-    let answer = block_on(unattended::ask(&console.console(), "device-tok", UA_ME, UA_RELAY, wait)).unwrap();
+    let answer = block_on(unattended::ask(&console.console(), "device-tok", UA_ME, UA_RELAY, UA_SECRET, wait)).unwrap();
     assert_eq!(answer.status, 200);
     let sent = console.requests_to(unattended::PATH);
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0].method, "POST");
-    let other = block_on(unattended::ask(&console.console(), "other-tok", UA_ME, UA_RELAY, wait)).unwrap();
+    let other = block_on(unattended::ask(&console.console(), "other-tok", UA_ME, UA_RELAY, UA_SECRET, wait)).unwrap();
     assert_eq!(other.status, 409);
+    let guessed = block_on(unattended::ask(&console.console(), "device-tok", UA_ME, UA_RELAY, "guessed", wait)).unwrap();
+    assert_eq!(guessed.status, 409);
 
     let slow = FakeConsole::start(|_| {
         std::thread::sleep(Duration::from_millis(1500));
         (200, Value::Null)
     });
     let start = Instant::now();
-    assert!(block_on(unattended::ask(&slow.console(), "device-tok", UA_ME, UA_RELAY, Duration::from_millis(300))).is_none());
+    assert!(block_on(unattended::ask(&slow.console(), "device-tok", UA_ME, UA_RELAY, UA_SECRET, Duration::from_millis(300))).is_none());
     assert!(start.elapsed() < Duration::from_millis(1200), "{:?}", start.elapsed());
 }
 
@@ -1943,7 +1964,10 @@ fn unattended_rule_matches_the_shared_vectors() {
             Value::Null => None,
             access => Some(unattended::access_policy_of(access)),
         };
-        let org = unattended::names_of(v.get("org_operators"));
+        let Some(org) = unattended::names_of(v.get("org_operators")) else {
+            failed.push(format!("{name}: org_operators is not a list"));
+            continue;
+        };
         let got = super::receiver_policy::unattended_rule(
             v["mode"].as_str(),
             &org,
@@ -1961,4 +1985,40 @@ fn unattended_rule_matches_the_shared_vectors() {
         }
     }
     assert!(failed.is_empty(), "{}", failed.join("\n"));
+}
+
+/// Which login the connection asks the server about (both the unattended
+/// path and quick support's): only one without a password, through the
+/// relay, with the caller secret signal gave the real caller. The relay
+/// UUID alone travels in plain text, so a login without the secret, or
+/// with a password, or a direct one, is never asked about, and the person
+/// decides as before. This is the decision connection.rs takes.
+#[test]
+fn only_a_relayed_login_with_the_caller_secret_and_no_password_is_asked_about() {
+    use hbb_common::message_proto::LoginRequest;
+    let login = |password: &[u8], secret: &str| LoginRequest {
+        password: password.to_vec().into(),
+        nd_caller_secret: secret.to_owned(),
+        ..Default::default()
+    };
+    let check = |lr: &LoginRequest, relay: Option<&str>, terminal: bool| {
+        super::caller_check_of(&lr.password, &lr.nd_caller_secret, relay, terminal)
+    };
+    assert_eq!(
+        check(&login(b"", UA_SECRET), Some(UA_RELAY), false),
+        Some(super::CallerCheck { session: UA_RELAY.to_owned(), secret: UA_SECRET.to_owned() })
+    );
+    assert_eq!(check(&login(b"", &format!(" {UA_SECRET} ")), Some(UA_RELAY), false).unwrap().secret, UA_SECRET);
+    for (why, lr, relay, terminal) in [
+        ("a password", login(b"hashed-password", UA_SECRET), Some(UA_RELAY), false),
+        ("no secret", login(b"", ""), Some(UA_RELAY), false),
+        ("a blank secret", login(b"", "   "), Some(UA_RELAY), false),
+        ("a secret that isn't base64url", login(b"", "a b\"c"), Some(UA_RELAY), false),
+        ("a secret too long", login(b"", &"A".repeat(300)), Some(UA_RELAY), false),
+        ("a direct connection", login(b"", UA_SECRET), None, false),
+        ("an empty relay session", login(b"", UA_SECRET), Some(" "), false),
+        ("a terminal's OS login", login(b"", UA_SECRET), Some(UA_RELAY), true),
+    ] {
+        assert_eq!(check(&lr, relay, terminal), None, "{why}");
+    }
 }

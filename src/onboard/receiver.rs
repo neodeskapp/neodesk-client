@@ -361,12 +361,7 @@ pub fn unattended_policy() -> unattended::Policy {
 /// organization's mode and allowed operators for the unattended access
 /// rule), and whether the app may be removed.
 pub fn apply_policy(answer: &Value) {
-    let mode = answer
-        .pointer("/policies/connection/mode")
-        .and_then(Value::as_str)
-        .map(|m| m.trim().to_owned());
-    let operators = unattended::names_of(answer.pointer("/policies/security/allowed_operators"));
-    let org = unattended::OrgPolicy { mode, operators };
+    let org = unattended::OrgPolicy::of(answer);
     let resolved = receiver_policy::resolve(
         answer
             .pointer("/policies/security/allow_uninstall")

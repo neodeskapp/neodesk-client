@@ -9,7 +9,9 @@
 //!   HTTPS. Once per connection, within [`super::caller::WAIT`].
 //! - Request: `POST /api/nd/unattended/caller` on the API address with the
 //!   device token (`Authorization: Bearer`, `X-Device-Id`) and
-//!   `{"session": "<relay session UUID>"}`.
+//!   `{"session": "<relay session UUID>", "secret": "<caller secret>"}`.
+//!   The secret comes from the caller's login request; a login without one
+//!   is never asked about ([`super::caller::caller_check_of`]).
 //! - Vouched: `200 {"success": true, "vouched": true, "device_id",
 //!   "session", "helper", "helper_username", "helper_avatar"?, "via"}` for
 //!   this device and this relay session, with a helper's name. Anything
@@ -28,7 +30,7 @@ use hbb_common::{config::Config, log, tokio};
 use serde_json::{json, Value};
 
 use super::{
-    caller::{self, Helper},
+    caller::{self, CallerCheck, Helper},
     http::{Answer, Http},
     link::Console,
     receiver_policy::{self, AccessPolicy},
@@ -48,7 +50,8 @@ pub struct Login<'a> {
     pub support_session: bool,
     /// The relay session's UUID; None for a direct connection.
     pub relay_session: Option<&'a str>,
-    pub password_given: bool,
+    /// The caller secret of the login; empty when it brought none.
+    pub secret: &'a str,
     /// The API address is HTTPS.
     pub https: bool,
     pub device_id: &'a str,
@@ -69,6 +72,25 @@ pub struct Policy {
 pub struct OrgPolicy {
     pub mode: Option<String>,
     pub operators: Vec<String>,
+    /// The answer had a field of the wrong kind: nobody gets in without
+    /// Allow.
+    pub malformed: bool,
+}
+
+impl OrgPolicy {
+    /// The organization's policy in an answer of GET /api/nd/device-policy:
+    /// `policies.connection.mode` a text, `policies.security.allowed_operators`
+    /// a list of texts; either missing is fine, anything else is malformed.
+    pub fn of(answer: &Value) -> Self {
+        let mode = answer.pointer("/policies/connection/mode");
+        let operators = names_of(answer.pointer("/policies/security/allowed_operators"));
+        let mode_ok = matches!(mode, None | Some(Value::Null) | Some(Value::String(_)));
+        OrgPolicy {
+            mode: mode.and_then(Value::as_str).map(|m| m.trim().to_owned()),
+            malformed: !mode_ok || operators.is_none(),
+            operators: operators.unwrap_or_default(),
+        }
+    }
 }
 
 /// A caller let in without Allow.
@@ -81,12 +103,13 @@ pub struct Unattended {
 }
 
 /// Whether the connection asks the server about its caller at all: only
-/// the receiver outside a Get help session, for a relayed login without a
-/// password, with an HTTPS API address.
+/// the receiver outside a Get help session, for a relayed login with the
+/// caller secret (no password, [`caller::caller_check_of`]), with an HTTPS
+/// API address.
 pub fn may_ask(login: &Login) -> bool {
     login.receiver
         && !login.support_session
-        && !login.password_given
+        && !login.secret.is_empty()
         && login.https
         && !login.device_id.is_empty()
         && login.relay_session.map_or(false, |s| !s.is_empty())
@@ -117,6 +140,9 @@ pub fn unattended_may_let_in(
     };
     let org = policy.org.as_ref().ok_or("no_policy")?;
     let access = policy.access.as_ref().ok_or("no_access_policy")?;
+    if org.malformed || access.as_ref().map_or(false, |a| a.malformed) {
+        return Err("malformed_policy");
+    }
     receiver_policy::unattended_rule(
         org.mode.as_deref(),
         &org.operators,
@@ -181,47 +207,74 @@ pub fn offset_of(zone: &str, now: i64) -> Option<i32> {
 }
 
 /// Reads the access policy of a sealed heartbeat answer.
+/// Every field of the contract; one of the wrong kind (a list that isn't a
+/// list, a switch that isn't true or false) makes the policy malformed.
 pub fn access_policy_of(value: &Value) -> AccessPolicy {
-    let flag = |key: &str| value.get(key).and_then(Value::as_bool) == Some(true);
-    let text = |key: &str| value.get(key).and_then(Value::as_str).unwrap_or("").trim().to_owned();
+    let mut malformed = !value.is_object();
+    let mut flag = |key: &str| match value.get(key) {
+        None | Some(Value::Null) => false,
+        Some(Value::Bool(on)) => *on,
+        Some(_) => {
+            malformed = true;
+            false
+        }
+    };
+    let (unattended_enabled, password_set, schedule_enabled) =
+        (flag("unattended_enabled"), flag("password_set"), flag("schedule_enabled"));
+    let mut text = |key: &str| match value.get(key) {
+        None | Some(Value::Null) => String::new(),
+        Some(Value::String(text)) => text.trim().to_owned(),
+        Some(_) => {
+            malformed = true;
+            String::new()
+        }
+    };
+    let (schedule_start, schedule_end, schedule_timezone) =
+        (text("schedule_start"), text("schedule_end"), text("schedule_timezone"));
+    let days = names_of(value.get("schedule_days"));
+    let operators = names_of(value.get("allowed_operators"));
     AccessPolicy {
-        unattended_enabled: flag("unattended_enabled"),
-        password_set: flag("password_set"),
-        schedule_enabled: flag("schedule_enabled"),
-        schedule_days: names_of(value.get("schedule_days")),
-        schedule_start: text("schedule_start"),
-        schedule_end: text("schedule_end"),
-        schedule_timezone: text("schedule_timezone"),
-        allowed_operators: names_of(value.get("allowed_operators")),
+        unattended_enabled,
+        password_set,
+        schedule_enabled,
+        malformed: malformed || days.is_none() || operators.is_none(),
+        schedule_days: days.unwrap_or_default(),
+        schedule_start,
+        schedule_end,
+        schedule_timezone,
+        allowed_operators: operators.unwrap_or_default(),
     }
 }
 
-/// A list of names: a JSON list of texts, or one text with commas.
-pub fn names_of(value: Option<&Value>) -> Vec<String> {
+/// A list of names: a JSON list of texts, missing or null for none. None
+/// for anything else (one text, a number, a list with other things in it).
+pub fn names_of(value: Option<&Value>) -> Option<Vec<String>> {
     match value {
+        None | Some(Value::Null) => Some(Vec::new()),
         Some(Value::Array(items)) => items
             .iter()
-            .filter_map(Value::as_str)
-            .map(|s| s.trim().to_owned())
-            .filter(|s| !s.is_empty())
-            .collect(),
-        Some(Value::String(text)) => text
-            .split(',')
-            .map(|s| s.trim().to_owned())
-            .filter(|s| !s.is_empty())
-            .collect(),
-        _ => Vec::new(),
+            .map(|item| item.as_str().map(|s| s.trim().to_owned()))
+            .collect::<Option<Vec<_>>>()
+            .map(|names| names.into_iter().filter(|s| !s.is_empty()).collect()),
+        Some(_) => None,
     }
 }
 
 /// Asks the API address `api` about the relay session `session` with the
 /// device token; the answer when it came within `wait`.
-pub async fn ask(api: &Console, token: &str, device_id: &str, session: &str, wait: Duration) -> Option<Answer> {
+pub async fn ask(
+    api: &Console,
+    token: &str,
+    device_id: &str,
+    session: &str,
+    secret: &str,
+    wait: Duration,
+) -> Option<Answer> {
     let asked = async {
         let http = Http::new(api.clone()).await.ok()?;
         http.post_with_headers(
             PATH,
-            &json!({ "session": session }),
+            &caller::request_body(session, secret),
             Some(token),
             &[("X-Device-Id".to_owned(), device_id.to_owned())],
         )
@@ -234,7 +287,7 @@ pub async fn ask(api: &Console, token: &str, device_id: &str, session: &str, wai
 /// The caller of a login that may get in without Allow, for the
 /// connection: asks the server when [`may_ask`] says so and decides with
 /// [`unattended_may_let_in`]. None keeps today's way.
-pub async fn unattended_caller(relay_session: Option<&str>, password_given: bool) -> Option<Unattended> {
+pub async fn unattended_caller(check: &CallerCheck) -> Option<Unattended> {
     let receiver = super::is_receiver() && super::receiver::installed();
     let access = if receiver { crate::nd_chat::access() } else { None };
     let api = access.as_ref().and_then(|a| Console::from_base(&a.api));
@@ -242,8 +295,8 @@ pub async fn unattended_caller(relay_session: Option<&str>, password_given: bool
     let login = Login {
         receiver: receiver && access.is_some(),
         support_session: super::in_support_session(),
-        relay_session,
-        password_given,
+        relay_session: Some(&check.session),
+        secret: &check.secret,
         https: api.as_ref().map_or(false, |api| api.https),
         device_id: &device_id,
     };
@@ -260,7 +313,8 @@ pub async fn unattended_caller(relay_session: Option<&str>, password_given: bool
         &api,
         &access.token,
         &device_id,
-        relay_session.unwrap_or_default(),
+        &check.session,
+        &check.secret,
         caller::WAIT,
     )
     .await;
@@ -285,6 +339,9 @@ pub fn home_line_json(policy: &Policy, now: i64, local_offset: i32) -> Value {
     let (Some(org), Some(access)) = (&policy.org, &policy.access) else {
         return Value::Null;
     };
+    if org.malformed || access.as_ref().map_or(false, |a| a.malformed) {
+        return Value::Null;
+    }
     match receiver_policy::home_line(org.mode.as_deref(), access.as_ref(), now, local_offset, &offset_of) {
         None => Value::Null,
         Some(None) => json!({ "schedule": null }),
@@ -390,15 +447,34 @@ mod tests {
     fn the_access_policy_reads_lists_and_texts() {
         let policy = access_policy_of(&json!({
             "unattended_enabled": true, "password_set": false, "schedule_enabled": true,
-            "schedule_days": ["mon", " tue ", 3], "schedule_start": "08:00",
+            "schedule_days": ["mon", " tue "], "schedule_start": "08:00",
             "schedule_end": "18:00", "schedule_timezone": " Europe/Berlin ",
-            "allowed_operators": "anna, bert,,"
+            "allowed_operators": [" anna", "bert", ""]
         }));
         assert!(policy.unattended_enabled && policy.schedule_enabled && !policy.password_set);
         assert_eq!(policy.schedule_days, ["mon", "tue"]);
         assert_eq!(policy.schedule_timezone, "Europe/Berlin");
         assert_eq!(policy.allowed_operators, ["anna", "bert"]);
-        assert_eq!(access_policy_of(&json!({"unattended_enabled": "yes"})), AccessPolicy::default());
+        assert!(!policy.malformed);
+        let good = access_policy_of(&json!({"unattended_enabled": true, "allowed_operators": ["anna"]}));
+        assert!(!good.malformed);
+        // Only a list is a list
+        for bad in [
+            json!({"allowed_operators": "anna, bert"}),
+            json!({"allowed_operators": 3}),
+            json!({"schedule_days": "mon"}),
+            json!({"schedule_days": ["mon", 3]}),
+            json!({"unattended_enabled": "yes"}),
+            json!({"schedule_start": 8}),
+            json!(["unattended_enabled"]),
+        ] {
+            assert!(access_policy_of(&bad).malformed, "{bad}");
+        }
+        assert!(!OrgPolicy::of(&json!({"policies": {"connection": {"mode": "unattended"},
+            "security": {"allowed_operators": ["anna"]}}})).malformed);
+        assert!(!OrgPolicy::of(&json!({})).malformed);
+        assert!(OrgPolicy::of(&json!({"policies": {"security": {"allowed_operators": "anna"}}})).malformed);
+        assert!(OrgPolicy::of(&json!({"policies": {"connection": {"mode": 1}}})).malformed);
     }
 
     #[test]
@@ -413,7 +489,7 @@ mod tests {
             schedule_timezone: "Europe/Berlin".into(),
             ..Default::default()
         };
-        let org = |mode: &str| Some(OrgPolicy { mode: Some(mode.into()), operators: vec![] });
+        let org = |mode: &str| Some(OrgPolicy { mode: Some(mode.into()), ..Default::default() });
         let policy = Policy { org: org("attended"), access: Some(Some(office.clone())) };
         assert_eq!(
             home_line_json(&policy, now, 3600),

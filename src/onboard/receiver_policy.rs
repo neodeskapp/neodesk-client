@@ -67,6 +67,9 @@ pub struct AccessPolicy {
     pub schedule_timezone: String,
     /// Usernames; empty lets every account in.
     pub allowed_operators: Vec<String>,
+    /// The answer had a field of the wrong kind (a list that isn't one):
+    /// such a policy lets nobody in without Allow.
+    pub malformed: bool,
 }
 
 /// Why the rule refuses, with the reason names of the contract.
@@ -130,15 +133,16 @@ pub fn unattended_rule(
     Ok(())
 }
 
-/// Whether `caller` is in `list`, trimmed and in any case; an empty list
-/// (or one of blanks only) lets everyone in.
+/// Whether `caller` is in `list`: the exact username after trimming
+/// spaces, no case folding. An empty list (or one of blanks only) lets
+/// everyone in.
 fn operator_allowed(list: &[String], caller: &str) -> bool {
-    let caller = caller.trim().to_lowercase();
+    let caller = caller.trim();
     let mut names = list.iter().map(|n| n.trim()).filter(|n| !n.is_empty()).peekable();
     if names.peek().is_none() {
         return true;
     }
-    !caller.is_empty() && names.any(|n| n.to_lowercase() == caller)
+    !caller.is_empty() && names.any(|n| n == caller)
 }
 
 /// "HH:MM" (24 h, two digits each) as minutes after midnight.
@@ -400,12 +404,14 @@ mod tests {
         let rule = |org: &[String], access: &AccessPolicy, caller| {
             unattended_rule(Some("attended"), org, Some(access), caller, at(0, 9, 0), &offsets)
         };
-        assert_eq!(rule(&[], &device, " anna "), Ok(()));
+        assert_eq!(rule(&[], &device, " Anna "), Ok(()));
+        assert_eq!(rule(&[], &device, "anna"), Err(Refusal::OperatorNotAllowed), "no case folding");
         assert_eq!(rule(&[], &device, "bert"), Err(Refusal::OperatorNotAllowed));
-        assert_eq!(rule(&names(&["bert"]), &device, "anna"), Err(Refusal::OperatorNotAllowed));
-        assert_eq!(rule(&names(&["ANNA", "bert"]), &device, "anna"), Ok(()));
+        assert_eq!(rule(&names(&["bert"]), &device, "Anna"), Err(Refusal::OperatorNotAllowed));
+        assert_eq!(rule(&names(&[" Anna", "bert"]), &device, "Anna"), Ok(()));
         let open = AccessPolicy { unattended_enabled: true, ..Default::default() };
-        assert_eq!(rule(&names(&["bert"]), &open, "Bert"), Ok(()));
+        assert_eq!(rule(&names(&["bert"]), &open, "bert "), Ok(()));
+        assert_eq!(rule(&names(&["bert"]), &open, "Bert"), Err(Refusal::OperatorNotAllowed));
         assert_eq!(rule(&names(&["bert"]), &open, ""), Err(Refusal::OperatorNotAllowed));
         assert_eq!(rule(&names(&[" "]), &open, "x"), Ok(()), "blanks name nobody");
     }

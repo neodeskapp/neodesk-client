@@ -1033,7 +1033,18 @@
       "want": "operator_not_allowed"
     },
     {
-      "name": "org list compares without case and spaces",
+      "name": "org list compares after trimming spaces",
+      "mode": "unattended",
+      "org_operators": [
+        " Anna"
+      ],
+      "access": null,
+      "caller": "Anna ",
+      "now": "2026-12-01T10:00:00Z",
+      "want": "allow"
+    },
+    {
+      "name": "org list compares case",
       "mode": "unattended",
       "org_operators": [
         " Anna"
@@ -1041,7 +1052,7 @@
       "access": null,
       "caller": "ANNA ",
       "now": "2026-12-01T10:00:00Z",
-      "want": "allow"
+      "want": "operator_not_allowed"
     },
     {
       "name": "org list of blanks is everyone",
@@ -1094,7 +1105,26 @@
       "want": "operator_not_allowed"
     },
     {
-      "name": "device list compares without case and spaces",
+      "name": "device list compares after trimming spaces",
+      "mode": "attended",
+      "org_operators": [],
+      "access": {
+        "unattended_enabled": true,
+        "schedule_enabled": false,
+        "schedule_days": [],
+        "schedule_start": "",
+        "schedule_end": "",
+        "schedule_timezone": "",
+        "allowed_operators": [
+          " Ben "
+        ]
+      },
+      "caller": "Ben",
+      "now": "2026-12-01T10:00:00Z",
+      "want": "allow"
+    },
+    {
+      "name": "device list compares case",
       "mode": "attended",
       "org_operators": [],
       "access": {
@@ -1110,7 +1140,7 @@
       },
       "caller": "bEn",
       "now": "2026-12-01T10:00:00Z",
-      "want": "allow"
+      "want": "operator_not_allowed"
     },
     {
       "name": "both lists with the caller",
