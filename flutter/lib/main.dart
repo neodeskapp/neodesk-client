@@ -36,6 +36,8 @@ import 'onboarding/onboarding_demo.dart';
 import 'onboarding/onboarding_service.dart';
 import 'onboarding/onboarding_service_bind.dart';
 import 'onboarding/quick_support_app.dart';
+import 'receiver/receiver_app.dart';
+import 'receiver/receiver_links.dart';
 
 /// Basic window and launch properties.
 int? kWindowId;
@@ -122,6 +124,10 @@ Future<void> main(List<String> args) async {
     _registerOnboarding();
     if (OnboardingService.instance.isQuickSupportBuild) {
       runQuickSupportApp();
+      return;
+    }
+    if (bind.mainOnboardIsReceiver()) {
+      runReceiverApp();
       return;
     }
     windowManager.setPreventClose(true);
@@ -243,6 +249,35 @@ void runQuickSupportApp() async {
     await windowManager.setTitle(translate('nd-qs-window-title'));
     setResizable(false);
   });
+}
+
+/// The receiver: the home window with Get help, Messages and My tickets
+/// (receiver/receiver_app.dart), nothing else.
+void runReceiverApp() async {
+  await initEnv(kAppTypeMain);
+  ndReceiverMode = true;
+  await bind.mainCheckConnectStatus();
+  gFFI.serverModel.startService();
+  final company = BrandingModel.current.companyName.value.trim();
+  final title = company.isNotEmpty ? company : 'NeoDesk';
+  _runApp(
+    title,
+    ReceiverWindow(onboarding: OnboardingService.instance),
+    MyTheme.currentThemeMode(),
+  );
+  final options = getHiddenTitleBarWindowOptions(
+      size: kReceiverWindowSize, center: true);
+  windowManager.waitUntilReadyToShow(options, () async {
+    await windowManager.show();
+    await windowManager.focus();
+    await windowManager.setOpacity(1);
+    await windowManager.setTitle(title);
+    setResizable(true);
+    await windowManager.setMinimumSize(kReceiverWindowMinSize);
+    // A link from the tray or a notification that started this window
+    if (!await initUniLinks()) handleUriLink(cmdArgs: kBootArgs);
+  });
+  listenUniLinks();
 }
 
 void runMobileApp() async {

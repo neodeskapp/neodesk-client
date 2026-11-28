@@ -91,6 +91,20 @@ fn make_tray() -> hbb_common::ResultType<()> {
         let rgba = image.into_raw();
         (rgba, width, height)
     };
+    // The receiver's icon while something is new: the same with a dot
+    #[cfg(not(target_os = "macos"))]
+    let dot_icon = tray_icon::Icon::from_rgba(
+        crate::tray_model::with_dot(
+            &icon_rgba,
+            icon_width,
+            icon_height,
+            [0xd9, 0x30, 0x25, 0xff],
+            [0xff, 0xff, 0xff, 0xff],
+        ),
+        icon_width,
+        icon_height,
+    )
+    .ok();
     let icon = tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height)
         .context("Failed to open icon")?;
 
@@ -153,6 +167,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
     let mut last_click = std::time::Instant::now();
     #[cfg_attr(not(windows), allow(unused_mut))]
     let mut sessions = 0;
+    #[cfg(not(target_os = "macos"))]
+    let mut dotted = false;
     #[cfg(target_os = "macos")]
     {
         use tao::platform::macos::EventLoopExtMacOS;
@@ -221,6 +237,22 @@ fn make_tray() -> hbb_common::ResultType<()> {
                 .unwrap()
                 .as_mut()
                 .map(|t| t.set_menu(Some(Box::new(menu))));
+        }
+        #[cfg(not(target_os = "macos"))]
+        if (tray_menu.badge() > 0) != dotted {
+            dotted = !dotted;
+            let next = if dotted {
+                dot_icon.clone()
+            } else {
+                Some(icon.clone())
+            };
+            if let Some(next) = next {
+                let _ = _tray_icon
+                    .lock()
+                    .unwrap()
+                    .as_mut()
+                    .map(|t| t.set_icon(Some(next)));
+            }
         }
         if status != tray_menu.tooltip_status() || copied != tray_menu.just_copied() {
             let text = if tray_menu.just_copied() {

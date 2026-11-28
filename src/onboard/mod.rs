@@ -250,6 +250,48 @@ pub fn is_quick_support() -> bool {
     QUICK_SUPPORT.load(Ordering::Relaxed)
 }
 
+/// The key of the signed client config (custom.txt or the config compiled
+/// in) that makes this client the receiver: the app on a supported
+/// computer with one home window (Get help, Messages, My tickets) and no
+/// settings or outgoing connections. The receiver MSI writes it too
+/// (lead/receiver-app/MSI-CONTRACT.md).
+const RECEIVER_KEY: &str = "receiver";
+/// A debug build turns receiver mode on with NEODESK_RECEIVER=1, to run and
+/// test it without a signed config.
+const RECEIVER_ENV: &str = "NEODESK_RECEIVER";
+
+/// True when this client is the receiver. A quick support process started
+/// from it (Get help) is quick support, not the receiver.
+pub fn is_receiver() -> bool {
+    let hard = config::HARD_SETTINGS
+        .read()
+        .unwrap()
+        .get(RECEIVER_KEY)
+        .cloned();
+    receiver_mode(
+        hard.as_deref(),
+        std::env::var(RECEIVER_ENV).ok().as_deref(),
+        cfg!(debug_assertions),
+        is_quick_support(),
+    )
+}
+
+/// Receiver mode for the config's `receiver` value, the NEODESK_RECEIVER
+/// variable, whether this is a debug build and whether this process is
+/// quick support.
+fn receiver_mode(config: Option<&str>, env: Option<&str>, debug: bool, quick: bool) -> bool {
+    if quick {
+        return false;
+    }
+    let set = |v: Option<&str>| {
+        v.map_or(false, |v| {
+            let v = v.trim();
+            v.eq_ignore_ascii_case("y") || v == "1"
+        })
+    };
+    set(config) || (debug && set(env))
+}
+
 /// The IPC path a quick support process uses instead of `path`: the same
 /// name under `neodesk-qs` instead of `neodesk`.
 pub fn namespaced_ipc_path(path: &str) -> String {
@@ -307,6 +349,12 @@ pub fn init_process_mode() {
         || pending.as_ref().map_or(false, |invite| invite.kind == Some(Kind::Support));
     if quick {
         enter_quick_support_mode();
+    } else if is_receiver() {
+        // The receiver takes connections and never makes one
+        config::HARD_SETTINGS
+            .write()
+            .unwrap()
+            .insert("conn-type".to_owned(), "incoming".to_owned());
     }
     if let Some(invite) = &pending {
         STATE.update(|s| {

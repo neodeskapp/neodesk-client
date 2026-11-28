@@ -1658,3 +1658,25 @@ fn a_join_from_a_window_without_the_device_key_sends_no_key_of_its_own() {
         "the join changed the key pair in the profile"
     );
 }
+
+/// Receiver mode comes from the signed config's `receiver=Y`, in a debug
+/// build also from NEODESK_RECEIVER=1, and never in quick support.
+#[test]
+fn the_receiver_flag_comes_from_the_signed_config_and_debug_builds_only_take_the_variable() {
+    use super::receiver_mode;
+    assert!(receiver_mode(Some("Y"), None, false, false));
+    assert!(receiver_mode(Some("y"), None, false, false));
+    assert!(!receiver_mode(Some("N"), None, false, false));
+    assert!(!receiver_mode(Some(""), None, false, false));
+    assert!(!receiver_mode(None, None, true, false));
+    assert!(receiver_mode(None, Some("1"), true, false), "debug build with the variable");
+    assert!(
+        !receiver_mode(None, Some("1"), false, false),
+        "a release build ignores the variable"
+    );
+    assert!(!receiver_mode(None, Some("0"), true, false));
+    assert!(
+        !receiver_mode(Some("Y"), Some("1"), true, true),
+        "Get help starts quick support, which is not the receiver"
+    );
+}

@@ -56,6 +56,8 @@ pub struct Facts {
     /// The chat with support: None while this computer has none (not
     /// approved, chat off, no chat on the server), else its new messages.
     pub chat: Option<u32>,
+    /// The receiver's tickets with something unread (nd_tickets.rs).
+    pub tickets: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -160,8 +162,13 @@ pub enum Action {
     AcceptConnections,
     /// Opens Settings at About.
     About,
-    /// Opens the chat with support in the main window.
+    /// Opens the chat with support in the main window; the receiver's
+    /// Messages.
     Chat,
+    /// The receiver: opens Get help in the home window.
+    GetHelp,
+    /// The receiver: opens My tickets in the home window.
+    Tickets,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -205,6 +212,8 @@ pub struct Offers {
     pub settings: bool,
     /// Turning connections off (not with hide-stop-service).
     pub stop_service: bool,
+    /// The receiver (onboard::is_receiver): its own short menu.
+    pub receiver: bool,
 }
 
 /// The menu, top to bottom: the state line, the ID, Open, the chat with
@@ -213,6 +222,9 @@ pub struct Offers {
 /// the service isn't running; then About. The ID is left out until the
 /// service has told it.
 pub fn menu(facts: &Facts, id: &str, version: &str, offers: Offers) -> Vec<Item> {
+    if offers.receiver {
+        return receiver_menu(facts);
+    }
     let state = state_of(facts);
     let (key, names_server) = state.line();
     let mut first = vec![Item::entry(
@@ -253,6 +265,75 @@ pub fn menu(facts: &Facts, id: &str, version: &str, offers: Offers) -> Vec<Item>
         items.extend(group);
     }
     items
+}
+
+/// The receiver's menu: the home window and its three areas, Messages and
+/// My tickets with what is new. Nothing opens settings or connects to
+/// another computer.
+fn receiver_menu(facts: &Facts) -> Vec<Item> {
+    let messages = match facts.chat {
+        Some(n) if n > 0 => Item::entry(Action::Chat, "nd-rcv-tray-messages-new", &n.to_string()),
+        _ => Item::entry(Action::Chat, "nd-rcv-tray-messages", ""),
+    };
+    let tickets = match facts.tickets {
+        0 => Item::entry(Action::Tickets, "nd-rcv-tray-tickets", ""),
+        n => Item::entry(Action::Tickets, "nd-rcv-tray-tickets-new", &n.to_string()),
+    };
+    vec![
+        Item::entry(Action::Open, "nd-tray-open", ""),
+        Item::Separator,
+        Item::entry(Action::GetHelp, "nd-rcv-tray-help", ""),
+        messages,
+        tickets,
+    ]
+}
+
+/// The tray's first line, the same as the menu's state line: a translation
+/// key and the text for its {}.
+pub fn status_line(facts: &Facts) -> (&'static str, String) {
+    let (key, names_server) = state_of(facts).line();
+    (key, if names_server { facts.server.clone() } else { String::new() })
+}
+
+/// The number on the tray icon: new messages and tickets with something
+/// unread. The icon gets a dot while it isn't 0.
+pub fn badge(facts: &Facts) -> u32 {
+    facts.chat.unwrap_or(0).saturating_add(facts.tickets)
+}
+
+/// The tooltip's line about the tickets of the receiver: a translation key
+/// and its count, when some have something unread.
+pub fn tickets_tooltip(tickets: u32) -> Option<(&'static str, String)> {
+    (tickets > 0).then(|| ("nd-rcv-tray-tickets-tooltip", tickets.to_string()))
+}
+
+/// `rgba` (`width` x `height`) with a dot in the lower right corner, a
+/// third of the icon wide, in `color`, with a ring of `ring` around it.
+pub fn with_dot(rgba: &[u8], width: u32, height: u32, color: [u8; 4], ring: [u8; 4]) -> Vec<u8> {
+    let mut out = rgba.to_vec();
+    let size = width.min(height) as f32;
+    let r = size / 6.0;
+    let edge = r * 0.35;
+    let (cx, cy) = (width as f32 - r - edge, height as f32 - r - edge);
+    for y in 0..height {
+        for x in 0..width {
+            let dx = x as f32 + 0.5 - cx;
+            let dy = y as f32 + 0.5 - cy;
+            let d = (dx * dx + dy * dy).sqrt();
+            let paint = if d <= r {
+                color
+            } else if d <= r + edge {
+                ring
+            } else {
+                continue;
+            };
+            let i = ((y * width + x) * 4) as usize;
+            if i + 4 <= out.len() {
+                out[i..i + 4].copy_from_slice(&paint);
+            }
+        }
+    }
+    out
 }
 
 /// The tooltip's line about the chat: a translation key and its count, when
@@ -324,6 +405,13 @@ mod tests {
     const ON: Offers = Offers {
         settings: true,
         stop_service: true,
+        receiver: false,
+    };
+
+    const RECEIVER: Offers = Offers {
+        settings: true,
+        stop_service: true,
+        receiver: true,
     };
 
     fn facts(online: Online, reason: &str, standing: Standing) -> Facts {
@@ -335,6 +423,7 @@ mod tests {
             service_stopped: false,
             no_server: false,
             chat: None,
+            tickets: 0,
         }
     }
 
@@ -539,6 +628,7 @@ mod tests {
         let none = Offers {
             settings: false,
             stop_service: false,
+            receiver: false,
         };
         assert_eq!(
             lines(&menu(&ready(), "123456789", "1.5.0", none)),
@@ -551,6 +641,7 @@ mod tests {
         let stop_only = Offers {
             settings: false,
             stop_service: true,
+            receiver: false,
         };
         assert_eq!(
             lines(&menu(&ready(), "", "1.5.0", stop_only)),
@@ -561,6 +652,77 @@ mod tests {
                 "nd-tray-stop",
             ]
         );
+    }
+
+    /// The receiver's tray: Open, Get help, Messages, My tickets, and
+    /// nothing that opens settings or connects to another computer, in every
+    /// state, even where the build would offer settings.
+    #[test]
+    fn the_receiver_menu_has_its_home_and_three_areas_and_nothing_else() {
+        let mut f = ready();
+        assert_eq!(
+            lines(&menu(&f, "123456789", "1.5.0", RECEIVER)),
+            [
+                "nd-tray-open",
+                "-",
+                "nd-rcv-tray-help",
+                "nd-rcv-tray-messages",
+                "nd-rcv-tray-tickets",
+            ]
+        );
+        f.chat = Some(2);
+        f.tickets = 1;
+        assert_eq!(
+            lines(&menu(&f, "123456789", "1.5.0", RECEIVER))[2..],
+            [
+                "nd-rcv-tray-help",
+                "nd-rcv-tray-messages-new 2",
+                "nd-rcv-tray-tickets-new 1",
+            ]
+        );
+        let mut off = ready();
+        off.service_stopped = true;
+        let down = facts(Online::NotReady, "ipc_disconnected", Standing::default());
+        for f in [ready(), off, down] {
+            let actions: Vec<_> = menu(&f, "123456789", "1.5.0", RECEIVER)
+                .iter()
+                .filter_map(Item::action)
+                .collect();
+            assert_eq!(
+                actions,
+                [Action::Open, Action::GetHelp, Action::Chat, Action::Tickets],
+                "{f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_badge_counts_new_messages_and_unread_tickets() {
+        let mut f = ready();
+        assert_eq!(badge(&f), 0);
+        f.chat = Some(2);
+        assert_eq!(badge(&f), 2);
+        f.tickets = 3;
+        assert_eq!(badge(&f), 5);
+        f.chat = None;
+        assert_eq!(badge(&f), 3, "tickets count without chat");
+        assert_eq!(tickets_tooltip(3), Some(("nd-rcv-tray-tickets-tooltip", "3".to_owned())));
+        assert_eq!(tickets_tooltip(0), None);
+    }
+
+    #[test]
+    fn the_dot_sits_in_the_lower_right_corner_and_leaves_the_rest() {
+        let (w, h) = (32u32, 32u32);
+        let icon = vec![10u8; (w * h * 4) as usize];
+        let dotted = with_dot(&icon, w, h, [200, 0, 0, 255], [255, 255, 255, 255]);
+        let px = |x: u32, y: u32| {
+            let i = ((y * w + x) * 4) as usize;
+            dotted[i..i + 4].to_vec()
+        };
+        assert_eq!(px(26, 26), [200, 0, 0, 255], "the dot");
+        assert_eq!(px(2, 2), [10, 10, 10, 10], "the icon");
+        assert_eq!(px(26, 2), [10, 10, 10, 10]);
+        assert_eq!(px(2, 26), [10, 10, 10, 10]);
     }
 
     #[test]
@@ -606,6 +768,12 @@ mod tests {
             "nd-tray-chat",
             "nd-tray-chat-new",
             "nd-tray-chat-tooltip",
+            "nd-rcv-tray-help",
+            "nd-rcv-tray-messages",
+            "nd-rcv-tray-messages-new",
+            "nd-rcv-tray-tickets",
+            "nd-rcv-tray-tickets-new",
+            "nd-rcv-tray-tickets-tooltip",
         ];
         for state in [
             State::Off,

@@ -28,7 +28,13 @@ class NdChatPageActions {
     required this.picture,
     required this.openLink,
     this.helperPicture,
+    this.screenshot,
   });
+
+  /// The receiver: a picture of the screen, taken with the window hidden,
+  /// to send; null when none could be taken. Without it the composer has no
+  /// button for it.
+  final Future<NdChatLocalFile?> Function()? screenshot;
 
   /// The files the person chose; empty when they cancelled.
   final Future<List<NdChatLocalFile>> Function() pickFiles;
@@ -52,11 +58,16 @@ class NdChatPage extends StatefulWidget {
     required this.actions,
     required this.onClose,
     required this.windowFocused,
+    this.showClose = true,
   });
 
   final NdChatModel model;
   final NdChatPageActions actions;
   final VoidCallback onClose;
+
+  /// The header's back button; the receiver's Messages has none, its home
+  /// window lists the areas beside it.
+  final bool showClose;
 
   /// Whether the app's window has the focus: with the page shown, the chat
   /// is in front.
@@ -193,6 +204,23 @@ class _NdChatPageState extends State<NdChatPage> {
   Future<void> _attach() async {
     final picked = await widget.actions.pickFiles();
     if (!mounted || picked.isEmpty) return;
+    _add(picked);
+  }
+
+  /// A picture of the screen, as one more file of the message.
+  Future<void> _screenshot() async {
+    final take = widget.actions.screenshot;
+    if (take == null) return;
+    final picture = await take();
+    if (!mounted) return;
+    if (picture == null) {
+      _say(tr('nd-rcv-screenshot-failed'));
+      return;
+    }
+    _add([picture]);
+  }
+
+  void _add(List<NdChatLocalFile> picked) {
     final all = [..._files, ...picked];
     switch (_m.checkFiles(all)) {
       case NdChatFileProblem.tooMany:
@@ -347,12 +375,15 @@ class _NdChatPageState extends State<NdChatPage> {
     return Padding(
       padding: EdgeInsets.fromLTRB(8 + side, 10, 16 + side, 10),
       child: Row(children: [
-        _IconAction(
-          icon: NdIcons.arrowBack,
-          label: tr('nd-chat-close'),
-          onPressed: widget.onClose,
-        ),
-        const SizedBox(width: 8),
+        if (widget.showClose) ...[
+          _IconAction(
+            icon: NdIcons.arrowBack,
+            label: tr('nd-chat-close'),
+            onPressed: widget.onClose,
+          ),
+          const SizedBox(width: 8),
+        ] else
+          const SizedBox(width: 8),
         if (_m.helperName != null && !_m.helperClosed) ...[
           _HelperAvatar(
               key: const ValueKey('nd-chat-helper-avatar'),
@@ -554,6 +585,14 @@ class _NdChatPageState extends State<NdChatPage> {
                 label: tr('nd-chat-attach'),
                 onPressed: _m.connected && editing == null ? _attach : null,
               ),
+              if (widget.actions.screenshot != null)
+                _IconAction(
+                  key: const ValueKey('nd-chat-screenshot'),
+                  icon: NdIcons.desktopWindows,
+                  label: tr('nd-rcv-screenshot'),
+                  onPressed:
+                      _m.connected && editing == null ? _screenshot : null,
+                ),
               const SizedBox(width: 4),
               Expanded(child: _messageField(context)),
               const SizedBox(width: 4),
@@ -681,6 +720,7 @@ List<InlineSpan> ndChatTextSpans(
 /// An icon button with its label for screen readers and as tooltip.
 class _IconAction extends StatelessWidget {
   const _IconAction({
+    super.key,
     required this.icon,
     required this.label,
     required this.onPressed,

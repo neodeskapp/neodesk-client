@@ -45,6 +45,7 @@ import 'onboarding/onboarding_flow.dart' show confirmOnboardingLink;
 import 'onboarding/onboarding_service_bind.dart';
 import 'desktop/pages/settings_link.dart' show openSettingsLink;
 import 'models/nd_chat_bridge.dart' show openChatLink;
+import 'receiver/receiver_links.dart';
 
 import 'package:flutter_hbb/native/win32.dart'
     if (dart.library.html) 'package:flutter_hbb/web/win32.dart';
@@ -2066,6 +2067,8 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
     windowOnTop(null);
     return true;
   }
+  // The receiver makes no connections to other computers
+  if (isDesktop && ndReceiverMode) return false;
 
   UriLinkType? type;
   String? id;
@@ -2187,6 +2190,13 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     "terminal",
     "terminal-admin",
   ];
+  if (isDesktop && ndReceiverMode) {
+    // The receiver opens its own pages and nothing else (receiver_links.dart)
+    final page = ndReceiverPage(uri);
+    if (page.isEmpty) return [];
+    ndReceiverOpen?.call(page);
+    return null;
+  }
   if (uri.authority.isEmpty &&
       uri.path.split('').every((char) => char == '/')) {
     return [];
