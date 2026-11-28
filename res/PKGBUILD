@@ -42,4 +42,5 @@ package() {
   install -Dm 644 $HBB/res/neodesk-link.desktop -t "${pkgdir}/usr/share/neodesk/files"
   install -Dm 644 $HBB/res/128x128@2x.png "${pkgdir}/usr/share/icons/hicolor/256x256/apps/neodesk.png"
   install -Dm 644 $HBB/res/scalable.svg "${pkgdir}/usr/share/icons/hicolor/scalable/apps/neodesk.svg"
+  install -Dm 644 $HBB/res/marker-font/NeoDeskMarker.ttf "${pkgdir}/usr/share/fonts/truetype/neodesk/NeoDeskMarker.ttf"
 }

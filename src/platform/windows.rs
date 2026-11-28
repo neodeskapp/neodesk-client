@@ -1818,6 +1818,36 @@ pub fn release_rustdesk_scheme_of_machine() -> ResultType<()> {
     Ok(())
 }
 
+/// The lines that put the marker font into the Fonts folder, so the
+/// console's support page can tell that NeoDesk is installed.
+fn add_marker_font_commands() -> String {
+    use hbb_common::base64::{engine::general_purpose::STANDARD, Engine as _};
+    install_commands::add_marker_font(&STANDARD.encode(super::marker_font::FONT))
+}
+
+/// Adds the installed marker font to this session and tells the open
+/// programs that the fonts changed, so a browser that is open already can
+/// find it without a new sign-in.
+fn announce_marker_font() {
+    let Some(system_root) = std::env::var_os("SystemRoot") else {
+        return;
+    };
+    let font = PathBuf::from(system_root)
+        .join("Fonts")
+        .join(super::marker_font::FILE_NAME);
+    if !font.exists() {
+        log::warn!("The marker font is not in {}", font.display());
+        return;
+    }
+    let font = wide_string(&font.to_string_lossy());
+    unsafe {
+        if AddFontResourceW(font.as_ptr()) == 0 {
+            log::warn!("Failed to add the marker font to this session");
+        }
+        PostMessageW(HWND_BROADCAST, WM_FONTCHANGE, 0, 0);
+    }
+}
+
 pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> ResultType<()> {
     install_me_with(options, path, silent, debug, &[])
 }
@@ -2019,6 +2049,7 @@ reg add {subkey} /f /v WindowsInstaller /t REG_DWORD /d 0
 {shortcuts}
 copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
 {dels}
+{marker_font}
 {import_config}
 {after_install}
 {install_remote_printer}
@@ -2038,11 +2069,13 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
         sleep = if debug { "timeout 300" } else { "" },
         dels = if debug { "" } else { &dels },
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
+        marker_font = add_marker_font_commands(),
         import_config = get_import_config(&exe),
     );
     install_progress::begin(&path, size);
     run_cmds(cmds, debug, "install")?;
     install_progress::script_done();
+    announce_marker_font();
     run_after_run_cmds(silent);
     Ok(())
 }
@@ -2219,6 +2252,7 @@ fn get_uninstall(kill_self: bool, uninstall_printer: bool) -> ResultType<String>
     {uninstall_printer_cmd}
     {uninstall_cert_cmd}
     reg delete {subkey} /f
+    {remove_marker_font}
     {uninstall_amyuni_idd}
     if exist \"{path}\" rd /s /q \"{path}\"
     if exist \"{start_menu}\" rd /s /q \"{start_menu}\"
@@ -2228,6 +2262,7 @@ fn get_uninstall(kill_self: bool, uninstall_printer: bool) -> ResultType<String>
         before_uninstall=get_before_uninstall(kill_self),
         subkey = install_commands::quoted(&subkey),
         uninstall_amyuni_idd=get_uninstall_amyuni_idd(),
+        remove_marker_font = install_commands::remove_marker_font(),
         app_name = crate::get_app_name(),
     ))
 }
@@ -3965,6 +4000,7 @@ chcp 65001
 {copy_exe}
 {rename_exe}
 {remove_meta_toml}
+{marker_font}
 {restore_service_cmd}
 {uninstall_printer_cmd}
 {install_printer_cmd}
@@ -3975,6 +4011,12 @@ chcp 65001
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
         rename_exe = rename_exe_cmd(&src_exe, &path)?,
         remove_meta_toml = remove_meta_toml_cmd(is_msi.unwrap_or(true), &path),
+        // An MSI install has the font from its own package.
+        marker_font = if is_msi.unwrap_or(true) {
+            String::new()
+        } else {
+            add_marker_font_commands()
+        },
         sleep = if debug { "timeout 300" } else { "" },
     );
 

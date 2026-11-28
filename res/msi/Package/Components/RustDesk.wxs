@@ -12,6 +12,16 @@
 			</Component>
 		</DirectoryRef>
 
+		<!-- The marker font the console's support page looks for to tell that
+		     NeoDesk is installed (res/marker-font). TrueType registers it under
+		     HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts with the
+		     name in the font, "NeoDesk Marker Regular (TrueType)". -->
+		<StandardDirectory Id="FontsFolder">
+			<Component Id="App.MarkerFont" Guid="6657EBFC-1C2F-4421-B488-AF6298F60195">
+				<File Id="App.MarkerFont" Name="NeoDeskMarker.ttf" Source="Resources\NeoDeskMarker.ttf" TrueType="yes" KeyPath="yes" />
+			</Component>
+		</StandardDirectory>
+
 		<CustomAction Id="RemoveRuntimeGeneratedFiles.SetParam" Return="check" Property="RemoveRuntimeGeneratedFiles" Value="[INSTALLFOLDER_INNER]" />
 		<CustomAction Id="AddFirewallRules.SetParam" Return="check" Property="AddFirewallRules" Value="1[INSTALLFOLDER_INNER]$(var.Executable)" />
 		<CustomAction Id="RemoveFirewallRules.SetParam" Return="check" Property="RemoveFirewallRules" Value="0[INSTALLFOLDER_INNER]$(var.Executable)" />
@@ -161,6 +171,7 @@
 
 		<ComponentGroup Id="Components" Directory="INSTALLFOLDER_INNER">
 			<ComponentRef Id="App.exe" />
+			<ComponentRef Id="App.MarkerFont" />
 			<ComponentRef Id="App.Desktop.Shortcut" />
 			<!--<ComponentRef Id="App.UninstallShortcut" />-->
 			<ComponentRef Id="App.StartMenu.Shortcut" />

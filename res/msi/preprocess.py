@@ -458,16 +458,20 @@ def gen_content_between_tags(filename, tag_start, tag_end, func):
 
 
 def prepare_resources():
-    icon_src = Path(sys.argv[0]).parent.joinpath("../icon.ico")
-    icon_dst = Path(sys.argv[0]).parent.joinpath("Package/Resources/icon.ico")
-    if icon_src.exists():
-        icon_dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(icon_src, icon_dst)
-        return True
-    else:
-        # unreachable
-        print(f"Error: icon.ico not found in {icon_src}")
-        return False
+    # The marker font goes into the Fonts folder (component App.MarkerFont).
+    for name, src in (
+        ("icon.ico", "../icon.ico"),
+        ("NeoDeskMarker.ttf", "../marker-font/NeoDeskMarker.ttf"),
+    ):
+        src = Path(sys.argv[0]).parent.joinpath(src)
+        dst = Path(sys.argv[0]).parent.joinpath("Package/Resources", name)
+        if not src.exists():
+            # unreachable
+            print(f"Error: {name} not found in {src}")
+            return False
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(src, dst)
+    return True
 
 
 def init_global_vars(dist_dir, args):
