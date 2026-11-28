@@ -54,6 +54,9 @@ class FakeNative implements OnboardingNative {
 
   @override
   void dismissSupport() => _call('dismiss support');
+
+  @override
+  void installReceiver() => _call('install receiver');
 }
 
 FfiOnboardingService serviceOf(FakeNative native,
@@ -443,4 +446,19 @@ void main() {
     expect(serviceOf(native).isQuickSupportBuild, isTrue);
   });
 
+  test('the offer to keep the app and its install come from the core (A277)',
+      () {
+    final offered = parseOnboardingState(jsonEncode(
+        {'phase': 'supportEnded', 'offerReceiver': true, 'receiverInstalling': true}));
+    expect(offered.offerReceiver, isTrue);
+    expect(offered.receiverInstalling, isTrue);
+    final plain = parseOnboardingState(jsonEncode({'phase': 'supportEnded'}));
+    expect(plain.offerReceiver, isFalse);
+    expect(plain.receiverInstalling, isFalse);
+    final native = FakeNative();
+    final service = serviceOf(native);
+    service.installReceiver();
+    service.dismissSupport();
+    expect(native.calls, ['install receiver', 'dismiss support']);
+  });
 }

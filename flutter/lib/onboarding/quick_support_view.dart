@@ -19,6 +19,7 @@ class QuickSupportView extends StatefulWidget {
     required this.onClose,
     required this.onRetry,
     this.onFeedback,
+    this.onInstallReceiver,
     this.logo,
     this.waitedLong = false,
   });
@@ -38,6 +39,9 @@ class QuickSupportView extends StatefulWidget {
 
   /// Send on the end screen, with the answers by question id.
   final ValueChanged<Map<String, Object>>? onFeedback;
+
+  /// Install on the offer to keep the app after the session (A277).
+  final VoidCallback? onInstallReceiver;
   final Widget? logo;
 
   /// Shows the "hasn't connected yet" line at once (screenshots).
@@ -256,6 +260,34 @@ class _QuickSupportViewState extends State<QuickSupportView> {
               const SizedBox(height: 16),
               Text(tr('nd-qs-declined', [full]), style: lead),
             ]);
+          } else if (s.offerReceiver &&
+              widget.onInstallReceiver != null &&
+              (s.feedback.isEmpty || s.feedbackState == FeedbackState.sent)) {
+            // After the feedback: keep the app on this computer (A277)
+            final installing = s.receiverInstalling;
+            body.addAll([
+              Text(
+                  company.isNotEmpty
+                      ? tr('nd-qs-keep-title', [company])
+                      : tr('nd-qs-keep-title-nocompany'),
+                  style: title),
+              const SizedBox(height: 16),
+              Text(tr('nd-qs-keep-lead'), style: lead),
+            ]);
+            primary = NdButton.primary(
+                key: const ValueKey('qs-keep-install'),
+                label: tr('nd-qs-keep-install'),
+                size: NdButtonSize.lg,
+                block: true,
+                leading: installing ? const NdSpinner() : null,
+                onPressed: installing ? null : widget.onInstallReceiver);
+            secondary = NdButton(
+                key: const ValueKey('qs-keep-no'),
+                label: tr('nd-qs-keep-no'),
+                size: NdButtonSize.lg,
+                block: true,
+                onPressed: installing ? null : widget.onClose);
+            break;
           } else {
             final asks = s.feedback.isNotEmpty &&
                 s.feedbackState != FeedbackState.sent;

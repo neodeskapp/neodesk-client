@@ -988,6 +988,11 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-rcv-tray-tickets", "My tickets"),
         ("nd-rcv-tray-tickets-new", "My tickets ({} new)"),
         ("nd-rcv-tray-tickets-tooltip", "Tickets with news: {}"),
+        ("nd-qs-keep-title", "Keep {} support on this computer?"),
+        ("nd-qs-keep-title-nocompany", "Keep this support on this computer?"),
+        ("nd-qs-keep-lead", "The app then stays on this computer, so you can get help or write a message at any time without a new link."),
+        ("nd-qs-keep-install", "Install"),
+        ("nd-qs-keep-no", "No thanks"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

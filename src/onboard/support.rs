@@ -63,6 +63,9 @@ pub trait SupportHost {
     /// Ends local access: disconnects the supporter, changes the password and
     /// stops taking connections.
     fn shut_down(&self);
+    /// The console redeemed the code: what the app keeps of the answer
+    /// besides the state (the offer to stay after the session).
+    fn redeemed(&self, _console: &Console, _redeemed: &Redeemed) {}
 }
 
 /// How often the session is polled and commands are looked at.
@@ -89,6 +92,26 @@ pub struct Redeemed {
     pub supporter: String,
     pub company: String,
     pub server: ServerSettings,
+    /// The console of the session, where a bare code goes.
+    pub console: String,
+    /// The one-time admission of `receiver_offer` when the console lets the
+    /// app offer to stay after the session (A277); empty otherwise.
+    pub offer_admission: String,
+}
+
+/// The admission of a redeem answer's `receiver_offer`, when it is allowed.
+pub fn offer_admission(answer: &Value) -> String {
+    let offer = answer.get("receiver_offer").unwrap_or(&Value::Null);
+    if offer.get("allowed").and_then(Value::as_bool) != Some(true) {
+        return String::new();
+    }
+    offer
+        .get("admission")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|a| !a.is_empty() && a.len() <= 256 && a.chars().all(|c| c.is_ascii_alphanumeric()))
+        .unwrap_or("")
+        .to_owned()
 }
 
 pub fn redeem_result(answer: &Answer) -> Result<Redeemed, OnboardError> {
@@ -110,6 +133,8 @@ pub fn redeem_result(answer: &Answer) -> Result<Redeemed, OnboardError> {
         supporter: answer.text("supporter"),
         company: answer.text("company"),
         server: ServerSettings::from_answer(answer.body.get("server").unwrap_or(&Value::Null)),
+        console: answer.text("console"),
+        offer_admission: offer_admission(&answer.body),
     })
 }
 
@@ -297,6 +322,7 @@ pub fn run(
         Err(err) => return fail(&err),
     };
     log::info!("Quick support session {} opened", redeemed.session_id);
+    host.redeemed(&console, &redeemed);
     state.update(|s| {
         s.supporter_name = Some(redeemed.supporter.clone());
         s.company = Some(redeemed.company.clone()).filter(|c| !c.is_empty());
@@ -499,6 +525,8 @@ mod tests {
         assert_eq!(redeemed.company, "Fernhill IT");
         assert_eq!(redeemed.server.id_server, "desk.example.com");
         assert_eq!(redeemed.server.key, "a2V5");
+        assert_eq!(redeemed.console, "https://desk.example.com");
+        assert_eq!(redeemed.offer_admission, "", "no receiver_offer, no offer");
         assert_eq!(
             redeem_result(&answer(200, json!({"success": true}))),
             Err(OnboardError::Server(200))
@@ -507,6 +535,19 @@ mod tests {
             redeem_result(&answer(404, json!({"error": "invalid_or_expired"}))),
             Err(OnboardError::InvalidOrExpired)
         );
+    }
+
+    #[test]
+    fn the_offer_to_stay_needs_allowed_and_an_admission() {
+        let admission = "3f9c0d".repeat(8);
+        let offer = |v: Value| offer_admission(&json!({ "receiver_offer": v }));
+        assert_eq!(offer(json!({"allowed": true, "admission": admission, "expires_at": "x"})), admission);
+        assert_eq!(offer(json!({"allowed": false, "admission": null, "expires_at": null})), "");
+        assert_eq!(offer(json!({"allowed": false, "admission": admission})), "");
+        assert_eq!(offer(json!({"allowed": true, "admission": ""})), "");
+        assert_eq!(offer(json!({"allowed": true, "admission": "a b
+c"})), "");
+        assert_eq!(offer_admission(&json!({})), "");
     }
 
     #[test]

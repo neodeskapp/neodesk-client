@@ -1418,6 +1418,11 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("nd-rcv-tray-tickets", "Meine Tickets"),
         ("nd-rcv-tray-tickets-new", "Meine Tickets ({} neu)"),
         ("nd-rcv-tray-tickets-tooltip", "Tickets mit Neuigkeiten: {}"),
+        ("nd-qs-keep-title", "Den Support von {} auf diesem Computer behalten?"),
+        ("nd-qs-keep-title-nocompany", "Diesen Support auf diesem Computer behalten?"),
+        ("nd-qs-keep-lead", "Die App bleibt dann auf diesem Computer, und du kannst jederzeit Hilfe holen oder eine Nachricht schreiben, ohne neuen Link."),
+        ("nd-qs-keep-install", "Installieren"),
+        ("nd-qs-keep-no", "Nein, danke"),
         // End of the NeoDesk client design keys.
     ].iter().cloned().collect();
 }

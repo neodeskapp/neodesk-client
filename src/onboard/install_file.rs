@@ -199,6 +199,22 @@ impl InstallFile {
     }
 }
 
+/// The install-time file the offer after quick support asks the installer
+/// for (`--install-receiver`): the receiver of a server with its key, and
+/// at most the session's admission; a token or a group never comes this
+/// way. None for anything else.
+pub fn offer_request(text: &str) -> Option<InstallFile> {
+    let file = InstallFile::parse(text);
+    if !file.receiver || file.server.is_empty() || file.key.is_empty() {
+        return None;
+    }
+    Some(InstallFile {
+        token: String::new(),
+        group: String::new(),
+        ..file
+    })
+}
+
 fn yes(value: &str) -> bool {
     value.eq_ignore_ascii_case("y") || value.eq_ignore_ascii_case("yes") || value == "1"
 }
@@ -405,6 +421,34 @@ mod tests {
         assert!(api_only.takes_link_of("10.0.0.5"));
         api_only.console = "https://console.example.com".into();
         assert!(api_only.takes_link_of("console.example.com"));
+    }
+
+    #[test]
+    fn the_offer_installs_a_receiver_with_its_admission_only() {
+        let request = offer_request(
+            "receiver=Y
+server=desk.example.com
+key=a2V5
+api=https://desk.example.com:21121
+console=https://desk.example.com
+admission=3f9c
+token=sneaked
+group=9
+",
+        )
+        .unwrap();
+        assert_eq!(request.admission, "3f9c");
+        assert_eq!(request.console, "https://desk.example.com");
+        assert_eq!(request.token, "");
+        assert_eq!(request.group, "");
+        assert!(request.render().contains("admission=3f9c
+"));
+        assert!(offer_request("server=desk.example.com
+key=a2V5").is_none());
+        assert!(offer_request("receiver=Y
+key=a2V5").is_none());
+        assert!(offer_request("receiver=Y
+server=desk.example.com").is_none());
     }
 
     #[test]

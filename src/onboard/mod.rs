@@ -72,6 +72,12 @@ const FILE_LINES_KEPT: usize = 200;
 
 static QUICK_SUPPORT: AtomicBool = AtomicBool::new(false);
 static LAST_INPUT_MS: AtomicI64 = AtomicI64::new(0);
+/// The offer to keep the app runs its install (A277).
+static RECEIVER_INSTALLING: AtomicBool = AtomicBool::new(false);
+/// The client's own name, before quick support mode renames the app.
+static FULL_APP_NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+/// The argument the offer's install starts this program with.
+const INSTALL_RECEIVER_ARG: &str = "--install-receiver";
 
 /// Where onboarding stands, as the UI shows it. The names are the ones of
 /// the UI's `OnboardingPhase`.
@@ -246,6 +252,9 @@ lazy_static::lazy_static! {
     static ref SUPPORT: Mutex<Option<mpsc::Sender<support::Command>>> = Mutex::new(None);
     static ref JOINING: Mutex<Option<String>> = Mutex::new(None);
     static ref GRANTS: Mutex<Grants> = Mutex::new(Grants::default());
+    /// What the app installs when the person keeps it after quick support:
+    /// the receiver of the session's server with the session's admission.
+    static ref OFFER: Mutex<Option<install_file::InstallFile>> = Mutex::new(None);
 }
 
 /// True in a quick support process.
@@ -335,6 +344,10 @@ fn packed_file_name() -> Option<String> {
 /// quick support mode has its own config folder.
 pub fn init_process_mode() {
     let args: Vec<String> = std::env::args().collect();
+    // The offer's install runs as the client itself, not as quick support
+    if args.get(1).map(String::as_str) == Some(INSTALL_RECEIVER_ARG) {
+        return;
+    }
     let packed = packed_file_name();
     let started = started_file(args.first().map(String::as_str), packed.as_deref());
     let mut pending = None;
@@ -392,6 +405,7 @@ pub fn init_process_mode() {
 
 fn enter_quick_support_mode() {
     receiver::forget_install_file();
+    FULL_APP_NAME.get_or_init(crate::get_app_name);
     std::env::set_var(QUICK_SUPPORT_ENV, "1");
     *config::APP_NAME.write().unwrap() = QUICK_SUPPORT_APP_NAME.to_owned();
     let mut hard = config::HARD_SETTINGS.write().unwrap();
@@ -513,6 +527,8 @@ fn local_state_json() -> String {
     value["filesOpen"] = Value::Bool(files_open());
     value["quickSupport"] = Value::Bool(is_quick_support());
     value["receiverSession"] = Value::Bool(receiver::SESSION.load(Ordering::Relaxed));
+    value["offerReceiver"] = Value::Bool(can_offer_receiver());
+    value["receiverInstalling"] = Value::Bool(RECEIVER_INSTALLING.load(Ordering::Relaxed));
     value["hasServer"] = Value::Bool(has_server());
     value.to_string()
 }
@@ -986,6 +1002,133 @@ fn send_feedback_now(channel: &feedback::Channel, body: &Value) -> &'static str 
     })
 }
 
+/// The install-time file the offer after quick support installs: the
+/// receiver of the session's server, its key and API, the console, and the
+/// one-time admission that lets the server take the computer (A277).
+fn offer_install_file(console: &Console, redeemed: &support::Redeemed) -> install_file::InstallFile {
+    let server = &redeemed.server;
+    install_file::InstallFile {
+        receiver: true,
+        server: server.id_server.trim().to_owned(),
+        key: server.key.trim().to_owned(),
+        api: server.api_server.trim().to_owned(),
+        console: Some(redeemed.console.trim())
+            .filter(|c| !c.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| console.base()),
+        admission: redeemed.offer_admission.clone(),
+        ..Default::default()
+    }
+}
+
+/// Whether the end screen of quick support offers to keep the app: the
+/// console allowed it, on Windows, and no NeoDesk is installed here.
+fn can_offer_receiver() -> bool {
+    if !is_quick_support() || !cfg!(windows) || OFFER.lock().unwrap().is_none() {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        static INSTALLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let full = FULL_APP_NAME.get().cloned().unwrap_or_else(crate::get_app_name);
+        !*INSTALLED.get_or_init(|| crate::platform::windows::neodesk_installed(&full))
+    }
+    #[cfg(not(windows))]
+    false
+}
+
+/// Install on the offer after quick support: installs the receiver from
+/// this file with the session's server and admission, after the person
+/// allowed it in Windows' prompt. Once it is installed its window opens and
+/// this app quits; otherwise the offer stays.
+pub fn install_receiver() {
+    if !can_offer_receiver() || RECEIVER_INSTALLING.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let Some(file) = OFFER.lock().unwrap().clone() else {
+        RECEIVER_INSTALLING.store(false, Ordering::Relaxed);
+        return;
+    };
+    std::thread::spawn(move || {
+        #[cfg(windows)]
+        {
+            let full = FULL_APP_NAME.get().cloned().unwrap_or_else(crate::get_app_name);
+            match run_receiver_install(&file, &full) {
+                Ok(exe) => {
+                    log::info!("The receiver is installed at {}", exe.display());
+                    let mut open = std::process::Command::new(&exe);
+                    open.env_remove(QUICK_SUPPORT_ENV)
+                        .env_remove(crate::common::PORTABLE_APPNAME_RUNTIME_ENV_KEY);
+                    if let Err(err) = open.spawn() {
+                        log::warn!("The receiver's window did not start: {err}");
+                    }
+                    std::thread::sleep(Duration::from_secs(1));
+                    std::process::exit(0);
+                }
+                Err(err) => log::error!("The receiver was not installed: {err}"),
+            }
+        }
+        #[cfg(not(windows))]
+        let _ = file;
+        RECEIVER_INSTALLING.store(false, Ordering::Relaxed);
+    });
+}
+
+/// Runs `--install-receiver` with the install-time file of the offer: this
+/// program as the client (not quick support), which installs itself and
+/// asks Windows for administrator rights for it. The installed program.
+#[cfg(windows)]
+fn run_receiver_install(
+    file: &install_file::InstallFile,
+    app_name: &str,
+) -> hbb_common::ResultType<std::path::PathBuf> {
+    use hbb_common::rand::Rng;
+    let dir = std::env::temp_dir().join(format!(
+        "neodesk-receiver-{:016x}",
+        hbb_common::rand::thread_rng().gen::<u64>()
+    ));
+    std::fs::create_dir(&dir)?;
+    let request = dir.join("request.txt");
+    let ran = std::fs::write(&request, file.render()).and_then(|_| {
+        std::process::Command::new(std::env::current_exe()?)
+            .arg(INSTALL_RECEIVER_ARG)
+            .arg(&request)
+            .env_remove(QUICK_SUPPORT_ENV)
+            .env_remove(crate::common::PORTABLE_APPNAME_RUNTIME_ENV_KEY)
+            .status()
+    });
+    std::fs::remove_dir_all(&dir).ok();
+    let status = ran?;
+    if !status.success() {
+        hbb_common::bail!("the install ended with {status}");
+    }
+    let exe = crate::platform::windows::install_exe_of(app_name);
+    if !exe.exists() {
+        hbb_common::bail!("{} is not there", exe.display());
+    }
+    Ok(exe)
+}
+
+/// `--install-receiver <file>`: installs this program as the receiver with
+/// the offer's install-time file. Windows only.
+pub fn install_receiver_command(args: &[String]) -> Option<Option<CoreMainAction>> {
+    if args.first().map(String::as_str) != Some(INSTALL_RECEIVER_ARG) {
+        return None;
+    }
+    #[cfg(windows)]
+    {
+        let done = args
+            .get(1)
+            .ok_or_else(|| hbb_common::anyhow::anyhow!("no request"))
+            .and_then(|request| crate::platform::windows::install_receiver_from(request));
+        if let Err(err) = done {
+            log::error!("The receiver was not installed: {err}");
+            std::process::exit(1);
+        }
+    }
+    Some(None)
+}
+
 /// Close on the installed receiver's end screen: the window shows its home
 /// again. Nothing changes while a session runs.
 pub fn dismiss_support() {
@@ -1153,6 +1296,11 @@ impl support::SupportHost for AppHost {
         DeviceIdentity::of_this_device(Config::get_id())
     }
 
+    fn redeemed(&self, console: &Console, redeemed: &support::Redeemed) {
+        *OFFER.lock().unwrap() = (!redeemed.offer_admission.is_empty())
+            .then(|| offer_install_file(console, redeemed));
+    }
+
     fn apply_server(&self, server: &ServerSettings) {
         // The one-time password goes to the supporter; without it the
         // person accepts by click only a caller the server vouches for.
@@ -1204,6 +1352,9 @@ impl support::SupportHost for AppHost {
 /// Handles `--join <link or code>` and a support link as the only argument.
 /// None lets `core_main` go on.
 pub fn core_main_hook(args: &[String]) -> Option<Option<CoreMainAction>> {
+    if let Some(action) = install_receiver_command(args) {
+        return Some(action);
+    }
     // A quick support file started on a computer with the installed
     // receiver: the receiver runs the session with the computer's own ID
     if is_quick_support() {

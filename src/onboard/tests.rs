@@ -1680,3 +1680,54 @@ fn the_receiver_flag_comes_from_the_signed_config_and_debug_builds_only_take_the
         "Get help starts quick support, which is not the receiver"
     );
 }
+
+/// The offer to keep the app after quick support (A277): only when the
+/// redeem answer allowed it, and its install carries the session's server
+/// and the one-time admission.
+#[test]
+fn the_offer_installs_the_receiver_with_the_sessions_admission() {
+    let admission = "3f9c0d".repeat(8);
+    let answer = |offer: Value| http::Answer {
+        status: 200,
+        body: json!({
+            "success": true,
+            "session_token": "ab".repeat(32),
+            "session": {"id": "0123456789abcdef", "status": "opened"},
+            "supporter": "Mara Jensen",
+            "company": "Fernhill IT",
+            "server": {"id_server": "desk.example.com", "relay_server": "desk.example.com:21117",
+                       "api_server": "https://desk.example.com:21121", "key": "a2V5"},
+            "console": "https://desk.example.com",
+            "receiver_offer": offer,
+        }),
+    };
+    let console = Console::from_base("https://desk.example.com").unwrap();
+    let redeemed = support::redeem_result(&answer(
+        json!({"allowed": true, "admission": admission, "expires_at": "2026-11-28T14:05:00Z"}),
+    ))
+    .unwrap();
+    super::AppHost.redeemed(&console, &redeemed);
+    let file = super::OFFER.lock().unwrap().clone().expect("an offer");
+    assert!(file.receiver);
+    assert_eq!(file.server, "desk.example.com");
+    assert_eq!(file.key, "a2V5");
+    assert_eq!(file.api, "https://desk.example.com:21121");
+    assert_eq!(file.console, "https://desk.example.com");
+    assert_eq!(file.admission, admission);
+    assert_eq!(file.token, "");
+    // What the install gets: the same file, admission included
+    let request = super::install_file::offer_request(&file.render()).unwrap();
+    assert_eq!(request.admission, admission);
+    assert_eq!(
+        request.enrollment_fields(),
+        vec![("admission", admission.clone())]
+    );
+
+    // Not allowed: nothing is offered
+    let redeemed = support::redeem_result(&answer(
+        json!({"allowed": false, "admission": null, "expires_at": null}),
+    ))
+    .unwrap();
+    super::AppHost.redeemed(&console, &redeemed);
+    assert!(super::OFFER.lock().unwrap().is_none());
+}

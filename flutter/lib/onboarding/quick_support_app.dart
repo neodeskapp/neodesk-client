@@ -143,6 +143,7 @@ class _QuickSupportWindowState extends State<QuickSupportWindow>
         onCancel: () => widget.service.endSupport(),
         onClose: _close,
         onFeedback: widget.service.sendFeedback,
+        onInstallReceiver: widget.service.installReceiver,
         onRetry: () {
           final link = _state.link;
           if (link != null) widget.service.redeemSupport(link);
