@@ -17,4 +17,5 @@ if [ "$1" = configure ]; then
 		systemctl start neodesk >/dev/null 2>&1 || :
 	fi
 	update-desktop-database >/dev/null 2>&1 || :
+	fc-cache >/dev/null 2>&1 || :
 fi

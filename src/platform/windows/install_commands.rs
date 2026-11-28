@@ -156,6 +156,49 @@ pub fn delete_app_classes(ext: &str) -> String {
     )
 }
 
+/// The marker font's file name in the Fonts folder. The console's support
+/// page measures the font by its family name to tell that NeoDesk is
+/// installed (res/marker-font).
+pub const MARKER_FONT_FILE: &str = "NeoDeskMarker.ttf";
+/// The font's registry value: its full name and the format.
+pub const MARKER_FONT_VALUE: &str = "NeoDesk Marker Regular (TrueType)";
+const FONTS_KEY: &str = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts";
+
+/// Writes the marker font, `encoded` in base64, into the Fonts folder and
+/// registers it. Any of these lines may fail (a font file in use, no
+/// certutil) without stopping the install: none of them ends the script.
+pub fn add_marker_font(encoded: &str) -> String {
+    let staged = format!("%RUSTDESK_OUTPUT_DIR%\\{MARKER_FONT_FILE}");
+    let installed = format!("%WINDIR%\\Fonts\\{MARKER_FONT_FILE}");
+    format!(
+        "
+> \"%~f0.marker_font.b64\" echo {encoded}
+certutil -f -decode \"%~f0.marker_font.b64\" \"{staged}\" >nul 2>&1
+if exist \"{staged}\" copy /Y \"{staged}\" \"{installed}\" >nul 2>&1
+if exist \"{installed}\" reg add {key} /f /v {value} /t REG_SZ /d {file} >nul 2>&1
+if exist \"{staged}\" del /f /q \"{staged}\"
+if exist \"%~f0.marker_font.b64\" del /f /q \"%~f0.marker_font.b64\"
+",
+        key = quoted(FONTS_KEY),
+        value = quoted(MARKER_FONT_VALUE),
+        file = quoted(MARKER_FONT_FILE),
+    )
+}
+
+/// Unregisters the marker font and deletes its file. A font in use stays
+/// until the next uninstall or a reinstall overwrites it.
+pub fn remove_marker_font() -> String {
+    let installed = format!("%WINDIR%\\Fonts\\{MARKER_FONT_FILE}");
+    format!(
+        "
+reg delete {key} /f /v {value} >nul 2>&1
+if exist \"{installed}\" del /f /q \"{installed}\" >nul 2>&1
+",
+        key = quoted(FONTS_KEY),
+        value = quoted(MARKER_FONT_VALUE),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -470,5 +513,111 @@ mod tests {
             assert_eq!(delete[0][..3], ["reg", "delete", file_class.as_str()]);
             assert_eq!(delete[1][..3], ["reg", "delete", link_class.as_str()]);
         }
+    }
+
+    /// The script with the variables the elevated runner sets filled in.
+    fn expand(script: &str) -> String {
+        script
+            .replace("%~f0", r"C:\Temp\install.bat")
+            .replace("%RUSTDESK_OUTPUT_DIR%", r"C:\Temp\install.bat.dir")
+            .replace("%WINDIR%", r"C:\Windows")
+    }
+
+    /// Each command with the file its `if exist` waits for.
+    fn conditional_commands(script: &str) -> Vec<(Option<String>, Vec<String>)> {
+        script_commands(&expand(script))
+            .into_iter()
+            .map(|args| {
+                if args.len() > 3 && args[0] == "if" && args[1] == "exist" {
+                    (Some(args[2].clone()), args[3..].to_vec())
+                } else {
+                    (None, args)
+                }
+            })
+            .collect()
+    }
+
+    fn strings(args: &[&str]) -> Vec<String> {
+        args.iter().map(|arg| arg.to_string()).collect()
+    }
+
+    const INSTALLED_FONT: &str = r"C:\Windows\Fonts\NeoDeskMarker.ttf";
+    const STAGED_FONT: &str = r"C:\Temp\install.bat.dir\NeoDeskMarker.ttf";
+
+    #[test]
+    fn the_install_puts_the_marker_font_into_the_fonts_folder_and_registers_it() {
+        let encoded = "AAEAAAAKAIAAAwAgT1MvMg==";
+        let commands = conditional_commands(&add_marker_font(encoded));
+        for (_, args) in &commands {
+            assert!(
+                ["echo", "certutil", "copy", "reg", "del"].contains(&args[0].as_str()),
+                "unexpected command {args:?}, the font must not end the install"
+            );
+        }
+        let encoded_file = r"C:\Temp\install.bat.marker_font.b64";
+        assert!(
+            commands.contains(&(None, strings(&["echo", encoded]))),
+            "{commands:?}"
+        );
+        assert!(
+            commands.contains(&(
+                None,
+                strings(&["certutil", "-f", "-decode", encoded_file, STAGED_FONT])
+            )),
+            "{commands:?}"
+        );
+        assert!(
+            commands.contains(&(
+                Some(STAGED_FONT.to_owned()),
+                strings(&["copy", "/Y", STAGED_FONT, INSTALLED_FONT])
+            )),
+            "{commands:?}"
+        );
+        assert!(
+            commands.contains(&(
+                Some(INSTALLED_FONT.to_owned()),
+                strings(&[
+                    "reg",
+                    "add",
+                    r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts",
+                    "/f",
+                    "/v",
+                    "NeoDesk Marker Regular (TrueType)",
+                    "/t",
+                    "REG_SZ",
+                    "/d",
+                    "NeoDeskMarker.ttf",
+                ])
+            )),
+            "{commands:?}"
+        );
+        let copy = commands.iter().position(|(_, args)| args[0] == "copy");
+        let register = commands.iter().position(|(_, args)| args[0] == "reg");
+        assert!(copy < register, "the font is registered before it is there");
+    }
+
+    #[test]
+    fn the_uninstall_unregisters_the_marker_font_and_deletes_it() {
+        let commands = conditional_commands(&remove_marker_font());
+        assert_eq!(
+            commands,
+            vec![
+                (
+                    None,
+                    strings(&[
+                        "reg",
+                        "delete",
+                        r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts",
+                        "/f",
+                        "/v",
+                        "NeoDesk Marker Regular (TrueType)",
+                    ])
+                ),
+                (
+                    Some(INSTALLED_FONT.to_owned()),
+                    strings(&["del", "/f", "/q", INSTALLED_FONT])
+                ),
+            ]
+        );
     }
 }

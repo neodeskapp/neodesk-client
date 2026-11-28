@@ -969,6 +969,25 @@ pub fn block_input(_v: bool) -> (bool, String) {
     (true, "".to_owned())
 }
 
+/// Puts the marker font into ~/Library/Fonts once the app runs from
+/// /Applications, so the console's support page can tell that NeoDesk is
+/// installed. Never in quick support or as root (the service), and a
+/// failure only goes to the log.
+pub fn ensure_marker_font() {
+    if crate::onboard::is_quick_support() || is_root() || !is_installed() {
+        return;
+    }
+    let Some(home) = std::env::var_os("HOME").filter(|home| !home.is_empty()) else {
+        return;
+    };
+    let fonts = std::path::Path::new(&home).join("Library").join("Fonts");
+    match super::marker_font::ensure_in(&fonts) {
+        Ok(true) => log::info!("Put the marker font into {}", fonts.display()),
+        Ok(false) => {}
+        Err(err) => log::warn!("Failed to put the marker font into {}: {err}", fonts.display()),
+    }
+}
+
 pub fn is_installed() -> bool {
     if let Ok(p) = std::env::current_exe() {
         return p

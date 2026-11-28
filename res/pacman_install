@@ -12,6 +12,7 @@ post_install() {
 	systemctl enable neodesk >/dev/null 2>&1 || :
 	systemctl start neodesk >/dev/null 2>&1 || :
 	update-desktop-database >/dev/null 2>&1 || :
+	fc-cache >/dev/null 2>&1 || :
 }
 
 # arg 1:  the new package version
@@ -30,6 +31,7 @@ post_upgrade() {
 	systemctl enable neodesk >/dev/null 2>&1 || :
 	systemctl start neodesk >/dev/null 2>&1 || :
 	update-desktop-database >/dev/null 2>&1 || :
+	fc-cache >/dev/null 2>&1 || :
 }
 
 # arg 1:  the old package version
@@ -44,4 +46,5 @@ post_remove() {
 	rm /usr/share/applications/neodesk.desktop || true
 	rm /usr/share/applications/neodesk-link.desktop || true
 	update-desktop-database >/dev/null 2>&1 || :
+	fc-cache >/dev/null 2>&1 || :
 }

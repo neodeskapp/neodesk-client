@@ -35,6 +35,7 @@ install -Dm 644 $HBB/res/neodesk.desktop -t "%{buildroot}/usr/share/neodesk/file
 install -Dm 644 $HBB/res/neodesk-link.desktop -t "%{buildroot}/usr/share/neodesk/files"
 install -Dm 644 $HBB/res/128x128@2x.png "%{buildroot}/usr/share/icons/hicolor/256x256/apps/neodesk.png"
 install -Dm 644 $HBB/res/scalable.svg "%{buildroot}/usr/share/icons/hicolor/scalable/apps/neodesk.svg"
+install -Dm 644 $HBB/res/marker-font/NeoDeskMarker.ttf "%{buildroot}/usr/share/fonts/truetype/neodesk/NeoDeskMarker.ttf"
 mkdir -p "%{buildroot}/usr/lib/neodesk"
 so=$(find "${DRMTAP_PREBUILT_DIR:-${HBB}/third_party/libdrmtap/build-pkg}" -maxdepth 1 -type f -name 'libdrmtap.so.0.*' 2>/dev/null || true)
 if [ -n "$so" ]; then install -Dm 755 "$so" -t "%{buildroot}/usr/lib/neodesk"; ln -s "$(basename "$so")" "%{buildroot}/usr/lib/neodesk/libdrmtap.so.0"; install -Dm 644 "$(dirname "$so")/../LICENSE" "%{buildroot}/usr/lib/neodesk/LICENSE.libdrmtap"; fi
@@ -45,6 +46,8 @@ if [ -n "$so" ]; then install -Dm 755 "$so" -t "%{buildroot}/usr/lib/neodesk"; l
 /usr/share/neodesk/files/neodesk.service
 /usr/share/icons/hicolor/256x256/apps/neodesk.png
 /usr/share/icons/hicolor/scalable/apps/neodesk.svg
+%dir /usr/share/fonts/truetype/neodesk
+/usr/share/fonts/truetype/neodesk/NeoDeskMarker.ttf
 /usr/share/neodesk/files/neodesk.desktop
 /usr/share/neodesk/files/neodesk-link.desktop
 
@@ -72,6 +75,7 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 systemctl enable neodesk >/dev/null 2>&1 || :
 systemctl start neodesk >/dev/null 2>&1 || :
 update-desktop-database >/dev/null 2>&1 || :
+fc-cache >/dev/null 2>&1 || :
 
 %preun
 case "$1" in
@@ -95,6 +99,7 @@ case "$1" in
     rm /usr/share/applications/neodesk.desktop || true
     rm /usr/share/applications/neodesk-link.desktop || true
     update-desktop-database >/dev/null 2>&1 || :
+    fc-cache >/dev/null 2>&1 || :
   ;;
   1)
     # for upgrade

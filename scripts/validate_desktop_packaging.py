@@ -78,7 +78,8 @@ for relative in ("res/rustdesk.service", "res/rustdesk-link.desktop", "res/rustd
 # Package scripts also run where there is no systemd (containers, chroots) or
 # no desktop-file-utils (minimal installs). A command that fails there fails
 # the install: dnf5 calls the transaction failed, zypper exits 107. So every
-# systemctl and update-desktop-database call is silenced and allowed to fail.
+# systemctl, update-desktop-database and fc-cache call is silenced and
+# allowed to fail.
 PACKAGE_SCRIPTS = (
     "res/DEBIAN/postinst",
     "res/DEBIAN/postrm",
@@ -94,7 +95,7 @@ GUARDED = re.compile(r">\s*/dev/null\s+2>&1\s*\|\|\s*(:|true)$")
 for relative in PACKAGE_SCRIPTS:
     for number, line in enumerate(read(relative).splitlines(), 1):
         code = line.split("#", 1)[0].strip()
-        if re.search(r"(^|[\s;&|(])(systemctl|update-desktop-database)(\s|$)", code) and not GUARDED.search(code):
+        if re.search(r"(^|[\s;&|(])(systemctl|update-desktop-database|fc-cache)(\s|$)", code) and not GUARDED.search(code):
             failures.append(f"{relative}:{number}: add >/dev/null 2>&1 || : to {code!r}")
 
 service = read("res/neodesk.service") if exists("res/neodesk.service") else ""
@@ -353,6 +354,34 @@ for link in ("https://github.com/rustdesk/rustdesk", "https://github.com/rustdes
     if f'"v": "{link}"' in preprocess:
         failures.append(f"res/msi/preprocess.py: the MSI's support links still point at {link}")
 require("res/msi/preprocess.py", preprocess, 'g_version.split("-", 1)[0]')
+
+# Every install puts the marker font on the computer, so the console's
+# support page can tell that NeoDesk is installed: the packages ship it into
+# the system's fonts, the MSI and the exe install into the Fonts folder.
+MARKER_FONT = "res/marker-font/NeoDeskMarker.ttf"
+if not exists(MARKER_FONT):
+    failures.append(f"{MARKER_FONT}: missing")
+elif "NeoDesk Marker".encode("utf-16-be") not in (ROOT / MARKER_FONT).read_bytes():
+    failures.append(f"{MARKER_FONT}: not the NeoDesk Marker font the support page measures")
+LINUX_FONT = "/usr/share/fonts/truetype/neodesk/NeoDeskMarker.ttf"
+if build.count("cp ../res/marker-font/NeoDeskMarker.ttf tmpdeb/usr/share/fonts/truetype/neodesk/") != 2:
+    failures.append("build.py: both deb builds copy the marker font into /usr/share/fonts/truetype/neodesk")
+for relative in ("res/rpm.spec", "res/rpm-suse.spec", "res/rpm-flutter.spec", "res/rpm-flutter-suse.spec"):
+    spec_text = read(relative)
+    require(relative, spec_text, f'install -Dm 644 $HBB/{MARKER_FONT} "%{{buildroot}}{LINUX_FONT}"')
+    require(relative, spec_text, f"\n{LINUX_FONT}\n")
+    require(relative, spec_text, "fc-cache >/dev/null 2>&1 || :")
+require("res/PKGBUILD", pkgbuild, f'install -Dm 644 $HBB/{MARKER_FONT} "${{pkgdir}}{LINUX_FONT}"')
+require("res/pacman_install", read("res/pacman_install"), "fc-cache >/dev/null 2>&1 || :")
+require("res/DEBIAN/postinst", postinst, "fc-cache >/dev/null 2>&1 || :")
+require("res/msi/preprocess.py", preprocess, '"../marker-font/NeoDeskMarker.ttf"')
+font_component = re.search(r'<StandardDirectory Id="FontsFolder">.*?</StandardDirectory>', msi_components, re.S)
+if not font_component or r'Source="Resources\NeoDeskMarker.ttf" TrueType="yes"' not in font_component.group(0):
+    failures.append("res/msi/Package/Components/RustDesk.wxs: the MSI does not install the marker font into FontsFolder")
+require("res/msi/Package/Components/RustDesk.wxs", msi_components, '<ComponentRef Id="App.MarkerFont" />')
+for needle in ("marker_font = add_marker_font_commands(),", "remove_marker_font = install_commands::remove_marker_font(),"):
+    require("src/platform/windows.rs", windows_rs, needle)
+require("src/core_main.rs", read("src/core_main.rs"), "crate::platform::macos::ensure_marker_font();")
 
 if failures:
     print("\n".join(failures), file=sys.stderr)

@@ -8,6 +8,9 @@ pub use windows::*;
 #[cfg(windows)]
 pub mod windows;
 
+#[cfg(any(windows, target_os = "macos"))]
+pub mod marker_font;
+
 #[cfg(windows)]
 pub mod win_device;
 

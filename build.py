@@ -780,6 +780,7 @@ def build_flutter_deb(version, features):
     system2('mkdir -p tmpdeb/usr/share/icons/hicolor/scalable/apps/')
     system2('mkdir -p tmpdeb/usr/share/applications/')
     system2('mkdir -p tmpdeb/usr/share/polkit-1/actions')
+    system2('mkdir -p tmpdeb/usr/share/fonts/truetype/neodesk/')
     system2('rm tmpdeb/usr/bin/neodesk || true')
     system2(
         f'cp -r {flutter_build_dir}/* tmpdeb/usr/share/neodesk/')
@@ -793,6 +794,9 @@ def build_flutter_deb(version, features):
         'cp ../res/neodesk.desktop tmpdeb/usr/share/applications/neodesk.desktop')
     system2(
         'cp ../res/neodesk-link.desktop tmpdeb/usr/share/applications/neodesk-link.desktop')
+    # The marker font tells the console's support page that NeoDesk is installed.
+    system2(
+        'cp ../res/marker-font/NeoDeskMarker.ttf tmpdeb/usr/share/fonts/truetype/neodesk/')
     system2(
         "echo \"#!/bin/sh\" >> tmpdeb/usr/share/neodesk/files/polkit && chmod a+x tmpdeb/usr/share/neodesk/files/polkit")
     # Bundle libdrmtap.so only when this build actually enabled the `drm` feature (not with
@@ -874,6 +878,7 @@ def build_deb_from_folder(version, binary_folder):
     system2('mkdir -p tmpdeb/usr/share/icons/hicolor/scalable/apps/')
     system2('mkdir -p tmpdeb/usr/share/applications/')
     system2('mkdir -p tmpdeb/usr/share/polkit-1/actions')
+    system2('mkdir -p tmpdeb/usr/share/fonts/truetype/neodesk/')
     system2('rm tmpdeb/usr/bin/neodesk || true')
     system2(
         f'cp -r ../{binary_folder}/* tmpdeb/usr/share/neodesk/')
@@ -887,6 +892,9 @@ def build_deb_from_folder(version, binary_folder):
         'cp ../res/neodesk.desktop tmpdeb/usr/share/applications/neodesk.desktop')
     system2(
         'cp ../res/neodesk-link.desktop tmpdeb/usr/share/applications/neodesk-link.desktop')
+    # The marker font tells the console's support page that NeoDesk is installed.
+    system2(
+        'cp ../res/marker-font/NeoDeskMarker.ttf tmpdeb/usr/share/fonts/truetype/neodesk/')
     system2(
         "echo \"#!/bin/sh\" >> tmpdeb/usr/share/neodesk/files/polkit && chmod a+x tmpdeb/usr/share/neodesk/files/polkit")
     # Where the capture library comes from for a `--package <folder>` drm build. Two shapes are

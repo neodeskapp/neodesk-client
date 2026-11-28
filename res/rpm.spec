@@ -32,6 +32,7 @@ install $HBB/libsciter-gtk.so %{buildroot}/usr/share/neodesk/libsciter-gtk.so
 install $HBB/res/neodesk.service %{buildroot}/usr/share/neodesk/files/
 install $HBB/res/128x128@2x.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/neodesk.png
 install $HBB/res/scalable.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/neodesk.svg
+install -Dm 644 $HBB/res/marker-font/NeoDeskMarker.ttf "%{buildroot}/usr/share/fonts/truetype/neodesk/NeoDeskMarker.ttf"
 install $HBB/res/neodesk.desktop %{buildroot}/usr/share/neodesk/files/
 install $HBB/res/neodesk-link.desktop %{buildroot}/usr/share/neodesk/files/
 
@@ -41,6 +42,8 @@ install $HBB/res/neodesk-link.desktop %{buildroot}/usr/share/neodesk/files/
 /usr/share/neodesk/files/neodesk.service
 /usr/share/icons/hicolor/256x256/apps/neodesk.png
 /usr/share/icons/hicolor/scalable/apps/neodesk.svg
+%dir /usr/share/fonts/truetype/neodesk
+/usr/share/fonts/truetype/neodesk/NeoDeskMarker.ttf
 /usr/share/neodesk/files/neodesk.desktop
 /usr/share/neodesk/files/neodesk-link.desktop
 /usr/share/neodesk/files/__pycache__/*
@@ -68,6 +71,7 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 systemctl enable neodesk >/dev/null 2>&1 || :
 systemctl start neodesk >/dev/null 2>&1 || :
 update-desktop-database >/dev/null 2>&1 || :
+fc-cache >/dev/null 2>&1 || :
 
 %preun
 case "$1" in
@@ -89,6 +93,7 @@ case "$1" in
     rm /usr/share/applications/neodesk.desktop || true
     rm /usr/share/applications/neodesk-link.desktop || true
     update-desktop-database >/dev/null 2>&1 || :
+    fc-cache >/dev/null 2>&1 || :
   ;;
   1)
     # for upgrade
