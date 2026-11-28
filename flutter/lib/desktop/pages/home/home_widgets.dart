@@ -17,13 +17,25 @@ class HomeLayout extends StatelessWidget {
   final Widget? left;
   final Widget? right;
 
+  static const double columnWidth = 392;
+  static const EdgeInsets singlePadding =
+      EdgeInsets.symmetric(vertical: 32, horizontal: 40);
+
+  /// The room the left column alone needs, padding included, for a column
+  /// of [columnHeight]. The window of an incoming-only client takes this
+  /// size; the width is fixed, so a column measured in a narrow window
+  /// never makes the next window narrower.
+  static Size singleColumnSize(double columnHeight) => Size(
+      columnWidth + singlePadding.horizontal,
+      columnHeight + singlePadding.vertical);
+
   @override
   Widget build(BuildContext context) {
     if (right == null) {
       return Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 40),
-          child: SizedBox(width: 392, child: left),
+          padding: singlePadding,
+          child: SizedBox(width: columnWidth, child: left),
         ),
       );
     }
@@ -33,7 +45,7 @@ class HomeLayout extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (left != null) ...[
-            SizedBox(width: 392, child: left),
+            SizedBox(width: columnWidth, child: left),
             const SizedBox(width: 48),
           ],
           Expanded(child: right!),
@@ -219,71 +231,83 @@ class _ThisComputerColumnState extends State<ThisComputerColumn> {
     );
 
     final support = widget.support;
-    return LayoutBuilder(
-      builder: (context, box) => SingleChildScrollView(
+    List<Widget> children(Widget gap) => [
+      Text(tr('nd-home-this-computer'), style: t.title),
+      const SizedBox(height: 6),
+      statusLine,
+      const SizedBox(height: 20),
+      for (final n in widget.notices) ...[n, const SizedBox(height: 16)],
+      IgnorePointer(
+        ignoring: widget.unavailable,
+        child: Opacity(
+            opacity: widget.unavailable ? 0.4 : 1, child: panel),
+      ),
+      if (!widget.unavailable) ...[
+        const SizedBox(height: 16),
+        Text(
+          widget.onlyClick
+              ? tr('nd-home-hint-click')
+              : tr('nd-home-hint'),
+          style: t.small,
+        ),
+      ],
+      if (widget.chat != null) widget.chat!,
+      gap,
+      if (support != null && !support.isEmpty) ...[
+        const SizedBox(height: 32),
+        const NdRule(),
+        const SizedBox(height: 20),
+        Text(tr('nd-home-help-from', [support.company]),
+            style: t.heading),
+        const SizedBox(height: 10),
+        if (support.phone.isNotEmpty)
+          _ContactRow(
+              icon: NdIcons.call,
+              text: support.phone,
+              onTap: support.onPhone),
+        if (support.email.isNotEmpty)
+          _ContactRow(
+              icon: NdIcons.mail,
+              text: support.email,
+              link: true,
+              onTap: support.onEmail),
+        if (support.website.isNotEmpty)
+          _ContactRow(
+              icon: NdIcons.language,
+              text: support.website,
+              link: true,
+              onTap: support.onWebsite),
+      ],
+      if (widget.footer != null) ...[
+        const SizedBox(height: 16),
+        widget.footer!,
+      ],
+      const SizedBox(height: 20),
+        ];
+    return LayoutBuilder(builder: (context, box) {
+      // Alone on an incoming-only Home the column sits in a scroll view
+      // and has no height to fill. IntrinsicHeight would size it from
+      // its children's intrinsic heights, which notices and the QR code
+      // report too small, and the window takes the column's size.
+      if (!box.hasBoundedHeight) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: children(const SizedBox.shrink()),
+        );
+      }
+      return SingleChildScrollView(
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: box.maxHeight),
           child: IntrinsicHeight(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(tr('nd-home-this-computer'), style: t.title),
-                const SizedBox(height: 6),
-                statusLine,
-                const SizedBox(height: 20),
-                for (final n in widget.notices) ...[n, const SizedBox(height: 16)],
-                IgnorePointer(
-                  ignoring: widget.unavailable,
-                  child: Opacity(
-                      opacity: widget.unavailable ? 0.4 : 1, child: panel),
-                ),
-                if (!widget.unavailable) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    widget.onlyClick
-                        ? tr('nd-home-hint-click')
-                        : tr('nd-home-hint'),
-                    style: t.small,
-                  ),
-                ],
-                if (widget.chat != null) widget.chat!,
-                const Spacer(),
-                if (support != null && !support.isEmpty) ...[
-                  const SizedBox(height: 32),
-                  const NdRule(),
-                  const SizedBox(height: 20),
-                  Text(tr('nd-home-help-from', [support.company]),
-                      style: t.heading),
-                  const SizedBox(height: 10),
-                  if (support.phone.isNotEmpty)
-                    _ContactRow(
-                        icon: NdIcons.call,
-                        text: support.phone,
-                        onTap: support.onPhone),
-                  if (support.email.isNotEmpty)
-                    _ContactRow(
-                        icon: NdIcons.mail,
-                        text: support.email,
-                        link: true,
-                        onTap: support.onEmail),
-                  if (support.website.isNotEmpty)
-                    _ContactRow(
-                        icon: NdIcons.language,
-                        text: support.website,
-                        link: true,
-                        onTap: support.onWebsite),
-                ],
-                if (widget.footer != null) ...[
-                  const SizedBox(height: 16),
-                  widget.footer!,
-                ],
-                const SizedBox(height: 20),
-              ],
+              children: children(const Spacer()),
             ),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -187,7 +188,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                 )
               : null,
         );
-        return column;
+        if (!isIncomingOnly) return column;
+        // Notices, the pairing QR code and the chat come and go after the
+        // first frame: the window follows the column's height.
+        return NotificationListener<SizeChangedLayoutNotification>(
+          onNotification: (_) {
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => _updateWindowSize());
+            return true;
+          },
+          child: SizeChangedLayoutNotifier(child: column),
+        );
       });
     });
   }
@@ -663,11 +674,44 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       return;
     }
     if (renderObject is RenderBox) {
-      final size = renderObject.size;
+      // The column sits in HomeLayout's padding: the window needs that too.
+      final size = HomeLayout.singleColumnSize(renderObject.size.height);
       if (size != imcomingOnlyHomeSize) {
         imcomingOnlyHomeSize = size;
-        windowManager.setSize(getIncomingOnlyHomeSize());
+        _setIncomingOnlyWindowSize(getIncomingOnlyHomeSize());
       }
+    }
+  }
+
+  /// Sets the window to [size], at most as tall as the screen's work area,
+  /// and moves it up or left where it would reach past the work area.
+  /// Taller content scrolls inside the window.
+  Future<void> _setIncomingOnlyWindowSize(Size size) async {
+    window_size.Screen? screen;
+    Rect? frame;
+    try {
+      final info = await window_size.getWindowInfo();
+      screen = info.screen;
+      frame = info.frame;
+    } catch (e) {
+      debugPrint('Failed to get the window screen: $e');
+    }
+    if (screen == null || frame == null) {
+      await windowManager.setSize(size);
+      return;
+    }
+    // window_size reports physical pixels.
+    final scale = screen.scaleFactor;
+    final area = screen.visibleFrame;
+    final fitted = Size(size.width, min(size.height, area.height / scale));
+    await windowManager.setSize(fitted);
+    final w = fitted.width * scale;
+    final h = fitted.height * scale;
+    final left = max(area.left, min(frame.left, area.right - w));
+    final top = max(area.top, min(frame.top, area.bottom - h));
+    if (left != frame.left || top != frame.top) {
+      await windowManager.setPosition(Offset(left, top),
+          ignoreDevicePixelRatio: true);
     }
   }
 

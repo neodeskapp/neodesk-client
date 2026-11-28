@@ -3679,7 +3679,9 @@ Widget loadIcon(double size) {
           ));
 }
 
-var imcomingOnlyHomeSize = Size(280, 300);
+// Home of an incoming-only client: the ID column (392) in its padding
+// (HomeLayout.singleColumnSize), until the column is measured.
+var imcomingOnlyHomeSize = Size(472, 364);
 Size getIncomingOnlyHomeSize() {
   final magicWidth = isWindows ? 11.0 : 2.0;
   final magicHeight = 10.0;
