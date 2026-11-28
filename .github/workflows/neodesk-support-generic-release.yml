@@ -108,22 +108,35 @@ jobs:
           set -euo pipefail
           mkdir -p out stage
 
+          # The version in the file names: the tag without support-v, or the
+          # tag the release job makes up for a manual run.
+          if [[ "${GITHUB_REF_NAME}" == support-v* ]]; then
+            version="${GITHUB_REF_NAME#support-v}"
+          else
+            version="0.0.${GITHUB_RUN_NUMBER}"
+          fi
+          export SUPPORT_VERSION="$version"
+
+          # x86_64 -> x64, aarch64 -> arm64, as Windows and macOS say it.
+          label() { [[ "$1" == x86_64 ]] && echo x64 || echo arm64; }
+
           package_windows() {
             local arch="$1"
             local source="raw/windows-${arch}"
+            local base="NeoDesk-Support-${version}-$(label "$arch")"
             test -d "$source"
             ! find "$source" \( -iname custom.txt -o -name .custom-txt-here \) -print -quit | grep -q .
-            (cd "$source" && zip -qr "../../out/neodesk-support-generic-windows-${arch}.zip" .)
+            (cd "$source" && zip -qr "../../out/${base}.zip" .)
 
             # Prefer built EXE/MSI from SignOutput (same generic-support binary).
             local exe msi
             exe="$(find raw/windows-installers -type f -name "neodesk-*-${arch}.exe" | head -n1 || true)"
             msi="$(find raw/windows-installers -type f -name "neodesk-*-${arch}.msi" | head -n1 || true)"
             if [ -n "$exe" ]; then
-              cp "$exe" "out/neodesk-support-generic-windows-${arch}.exe"
+              cp "$exe" "out/${base}.exe"
             fi
             if [ -n "$msi" ]; then
-              cp "$msi" "out/neodesk-support-generic-windows-${arch}.msi"
+              cp "$msi" "out/${base}.msi"
             else
               echo "::warning::No MSI found for windows-${arch} — zip/portable only for this arch"
             fi
@@ -138,7 +151,7 @@ jobs:
             mkdir -p "stage/macos-${arch}"
             tar -xzf "$archive" -C "stage/macos-${arch}"
             ! find "stage/macos-${arch}" \( -iname custom.txt -o -name .custom-txt-here \) -print -quit | grep -q .
-            tar -C stage -czf "out/neodesk-support-generic-macos-${arch}.tar.gz" "macos-${arch}"
+            tar -C stage -czf "out/NeoDesk-Support-${version}-macOS-$(label "$arch").tar.gz" "macos-${arch}"
           }
 
           package_linux() {
@@ -149,7 +162,7 @@ jobs:
             mkdir -p "stage/linux-${arch}/root"
             dpkg-deb -x "$deb" "stage/linux-${arch}/root"
             ! find "stage/linux-${arch}" \( -iname custom.txt -o -name .custom-txt-here \) -print -quit | grep -q .
-            tar -C "stage/linux-${arch}" -czf "out/neodesk-support-generic-linux-${arch}.tar.gz" root
+            tar -C "stage/linux-${arch}" -czf "out/NeoDesk-Support-${version}-Linux-$(label "$arch").tar.gz" root
           }
 
           package_windows x86_64
@@ -160,27 +173,20 @@ jobs:
           package_linux aarch64
 
           python3 - <<'PY'
-          import hashlib, json, re
+          import hashlib, json, os, sys
           from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          from generate_release_download_table import classify_support
 
           assets = []
           for item in sorted(Path("out").iterdir()):
               if item.is_file():
                   name = item.name
-                  parts = name.removeprefix("neodesk-support-generic-")
-                  match = re.match(
-                      r"^(windows|linux|macos)-([a-z0-9_]+)\.(zip|tar\.gz|msi|exe)$",
-                      parts,
-                  )
-                  if not match:
+                  hit = classify_support(name)
+                  if not hit or not name.startswith(f"NeoDesk-Support-{os.environ['SUPPORT_VERSION']}-"):
                       raise SystemExit(f"unexpected generic asset name: {name}")
-                  platform, arch, ext = match.groups()
-                  fmt = {
-                      "zip": "portable",
-                      "tar.gz": "portable",
-                      "msi": "msi",
-                      "exe": "exe",
-                  }[ext]
+                  platform, arch, fmt = hit
                   assets.append({
                       "name": name,
                       "platform": platform,

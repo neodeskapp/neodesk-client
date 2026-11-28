@@ -338,8 +338,45 @@ def check_prerelease_table(tmp: Path) -> None:
     expect(notes.startswith(generated), "a missing notes file changed the notes")
 
 
+SUPPORT_PACKAGES = {
+    "NeoDesk-Support-0.0.12-x64.msi": ("windows", "x86_64", "msi"),
+    "NeoDesk-Support-0.0.12-x64.exe": ("windows", "x86_64", "exe"),
+    "NeoDesk-Support-0.0.12-arm64.zip": ("windows", "aarch64", "portable"),
+    "NeoDesk-Support-0.0.12-macOS-arm64.tar.gz": ("macos", "aarch64", "portable"),
+    "NeoDesk-Support-0.0.12-Linux-x64.tar.gz": ("linux", "x86_64", "portable"),
+    # names of older releases
+    "neodesk-support-generic-windows-aarch64.msi": ("windows", "aarch64", "msi"),
+}
+
+
+def check_support_table(tmp: Path) -> None:
+    sys.path.insert(0, str(HERE))
+    from generate_release_download_table import classify_support
+
+    for name, want in SUPPORT_PACKAGES.items():
+        expect(classify_support(name) == want, f"{name} is read as {classify_support(name)}, not {want}")
+    for name in ("NeoDesk-Support-x64.msi", "NeoDesk-Support-0.0.12-x86_64.msi", "manifest.json"):
+        expect(classify_support(name) is None, f"{name} is taken for a Support Agent package")
+    for name in SUPPORT_PACKAGES:
+        write(tmp / "assets" / name)
+    notes_path = tmp / "notes.md"
+    table = subprocess.run(
+        [sys.executable, str(HERE / "generate_release_download_table.py"), "--product", "support",
+         "--asset-dir", str(tmp / "assets"), "--repo", "neodeskapp/neodesk-client", "--tag", "support-v0.0.12",
+         "--release-name", "NeoDesk Support Agent support-v0.0.12", "-o", str(notes_path)],
+        capture_output=True, text=True,
+    )
+    expect(table.returncode == 0, f"support download table failed: {table.stderr}")
+    downloads = notes_path.read_text(encoding="utf-8").split("</table>")[0]
+    base = "https://github.com/neodeskapp/neodesk-client/releases/download/support-v0.0.12/"
+    for name in ("NeoDesk-Support-0.0.12-x64.msi", "NeoDesk-Support-0.0.12-macOS-arm64.tar.gz",
+                 "NeoDesk-Support-0.0.12-Linux-x64.tar.gz"):
+        expect(f'href="{base}{name}"' in downloads, f"support download table does not link {name}")
+
+
 def main() -> int:
-    for check in (check_full, check_partial, check_empty, check_signature, check_prerelease_table):
+    for check in (check_full, check_partial, check_empty, check_signature, check_prerelease_table,
+                  check_support_table):
         with tempfile.TemporaryDirectory(prefix="neodesk-collect-") as value:
             check(Path(value))
         print(f"{check.__name__}: OK")

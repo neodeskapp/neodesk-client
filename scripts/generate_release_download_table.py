@@ -131,8 +131,26 @@ def _classify_desktop(name: str) -> tuple[str, str, str] | None:
     return None
 
 
-def _classify_support(name: str) -> tuple[str, str, str] | None:
-    """Return (platform, arch, kind) for Support Agent assets."""
+_SUPPORT_PLATFORMS = {None: "windows", "macOS-": "macos", "Linux-": "linux"}
+_SUPPORT_ARCHES = {"x64": "x86_64", "arm64": "aarch64"}
+_SUPPORT_KINDS = {"zip": "portable", "tar.gz": "portable", "msi": "msi", "exe": "exe"}
+
+
+def classify_support(name: str) -> tuple[str, str, str] | None:
+    """Return (platform, arch, kind) for Support Agent assets.
+
+    Names are NeoDesk-Support-<version>-x64.msi on Windows and
+    NeoDesk-Support-<version>-macOS-arm64.tar.gz or -Linux-x64.tar.gz
+    elsewhere; a pre-release version may carry a suffix (0.1.0-rc.1).
+    Older releases are named
+    neodesk-support-generic-<platform>-<arch>.<ext>.
+    """
+    m = re.match(
+        rf"^NeoDesk-Support-\d+\.\d+\.\d+(?:-(?!macOS-|Linux-)[0-9A-Za-z.]+)?-(macOS-|Linux-)?(x64|arm64)\.(zip|tar\.gz|msi|exe)$",
+        name,
+    )
+    if m:
+        return _SUPPORT_PLATFORMS[m.group(1)], _SUPPORT_ARCHES[m.group(2)], _SUPPORT_KINDS[m.group(3)]
     m = re.match(
         r"^neodesk-support-generic-(windows|linux|macos)-(x86_64|aarch64)\.(zip|tar\.gz|msi|exe)$",
         name,
@@ -140,17 +158,11 @@ def _classify_support(name: str) -> tuple[str, str, str] | None:
     if not m:
         return None
     platform, arch, ext = m.groups()
-    kind = {
-        "zip": "portable",
-        "tar.gz": "portable",
-        "msi": "msi",
-        "exe": "exe",
-    }[ext]
-    return platform, arch, kind
+    return platform, arch, _SUPPORT_KINDS[ext]
 
 
 def index_assets(asset_dir: Path, product: str) -> dict[tuple[str, str, str], Path]:
-    classify = _classify_desktop if product == "desktop" else _classify_support
+    classify = _classify_desktop if product == "desktop" else classify_support
     out: dict[tuple[str, str, str], Path] = {}
     for path in sorted(asset_dir.iterdir()):
         if not path.is_file():
