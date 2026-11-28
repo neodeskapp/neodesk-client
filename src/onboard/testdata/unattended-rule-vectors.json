@@ -1033,7 +1033,7 @@
       "want": "operator_not_allowed"
     },
     {
-      "name": "org list compares after trimming spaces",
+      "name": "org list trims spaces",
       "mode": "unattended",
       "org_operators": [
         " Anna"
@@ -1044,13 +1044,24 @@
       "want": "allow"
     },
     {
-      "name": "org list compares case",
+      "name": "org list compares the case exactly",
       "mode": "unattended",
       "org_operators": [
-        " Anna"
+        "Anna"
       ],
       "access": null,
-      "caller": "ANNA ",
+      "caller": "ANNA",
+      "now": "2026-12-01T10:00:00Z",
+      "want": "operator_not_allowed"
+    },
+    {
+      "name": "org list does not fold the Kelvin sign",
+      "mode": "unattended",
+      "org_operators": [
+        "karen"
+      ],
+      "access": null,
+      "caller": "Karen",
       "now": "2026-12-01T10:00:00Z",
       "want": "operator_not_allowed"
     },
@@ -1105,7 +1116,7 @@
       "want": "operator_not_allowed"
     },
     {
-      "name": "device list compares after trimming spaces",
+      "name": "device list trims spaces",
       "mode": "attended",
       "org_operators": [],
       "access": {
@@ -1116,15 +1127,15 @@
         "schedule_end": "",
         "schedule_timezone": "",
         "allowed_operators": [
-          " Ben "
+          " ben "
         ]
       },
-      "caller": "Ben",
+      "caller": "ben",
       "now": "2026-12-01T10:00:00Z",
       "want": "allow"
     },
     {
-      "name": "device list compares case",
+      "name": "device list compares the case exactly",
       "mode": "attended",
       "org_operators": [],
       "access": {
@@ -1135,10 +1146,10 @@
         "schedule_end": "",
         "schedule_timezone": "",
         "allowed_operators": [
-          " Ben "
+          "Ben"
         ]
       },
-      "caller": "bEn",
+      "caller": "ben",
       "now": "2026-12-01T10:00:00Z",
       "want": "operator_not_allowed"
     },
