@@ -2425,6 +2425,7 @@ impl Connection {
         if !self.nd_caller_asked {
             // Only a login with the caller secret of its relay response
             if let Some(check) = crate::onboard::caller_check_of(
+                self.stream.is_secured(),
                 password,
                 secret,
                 self.nd_relay_uuid.as_deref(),
@@ -3204,6 +3205,7 @@ impl Connection {
             // password, through the relay, with the caller secret)
             #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
             if let Some(check) = crate::onboard::caller_check_of(
+                self.stream.is_secured(),
                 &lr.password,
                 &lr.nd_caller_secret,
                 self.nd_relay_uuid.as_deref(),

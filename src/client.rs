@@ -207,6 +207,11 @@ impl Client {
                 }
             }
             Ok(x) => {
+                interface
+                    .get_lch()
+                    .write()
+                    .unwrap()
+                    .note_stream_secured(x.0 .0.is_secured());
                 // Set x.2 to true only in the connect() function to indicate that direct_failures needs to be updated; everywhere else it should be set to false.
                 if x.2 {
                     let direct_failures = interface.get_lch().read().unwrap().direct_failures;
@@ -1805,6 +1810,16 @@ impl LoginConfigHandler {
     /// connection; a response without one clears it.
     pub fn note_relay_response(&mut self, rr: &RelayResponse) {
         self.nd_caller_secret = rr.nd_caller_secret.trim().to_owned();
+    }
+
+    /// The peer connection ended its handshake encrypted (`secured`) or not.
+    /// The caller secret travels only encrypted: on a connection without a
+    /// key it goes, and the login carries none.
+    pub fn note_stream_secured(&mut self, secured: bool) {
+        if !secured && !self.nd_caller_secret.is_empty() {
+            log::warn!("The connection is not encrypted: the login carries no caller secret");
+            self.nd_caller_secret.clear();
+        }
     }
 
     /// Initialize the login config handler.
@@ -4461,5 +4476,19 @@ mod nd_caller_secret_tests {
         lc.note_relay_response(&RelayResponse::new());
         let msg = lc.create_login_msg(String::new(), String::new(), Vec::new());
         assert_eq!(msg.login_request().nd_caller_secret, "");
+    }
+
+    /// On a peer connection without encryption the secret is not sent: its
+    /// login would travel in clear (A279, second security review).
+    #[test]
+    fn an_unencrypted_connection_carries_no_caller_secret() {
+        let mut lc = LoginConfigHandler::default();
+        let mut rr = RelayResponse::new();
+        rr.nd_caller_secret = "q3Jx_9vT-2mYc8LwPz0aRk5NdE7uFhGsVbI4oA1eWnU".to_owned();
+        lc.note_relay_response(&rr);
+        lc.note_stream_secured(true);
+        assert_ne!(lc.create_login_msg(String::new(), String::new(), Vec::new()).login_request().nd_caller_secret, "");
+        lc.note_stream_secured(false);
+        assert_eq!(lc.create_login_msg(String::new(), String::new(), Vec::new()).login_request().nd_caller_secret, "");
     }
 }

@@ -100,18 +100,21 @@ pub struct CallerCheck {
     pub secret: String,
 }
 
-/// The caller check of a login (A271, A279), from its password and its
-/// `nd_caller_secret`: only a login without a password, through the relay, with the caller secret of its relay
+/// The caller check of a login (A271, A279), from whether the peer
+/// connection is encrypted (`secured`), its password and its
+/// `nd_caller_secret`: only a login on an encrypted connection, without a
+/// password, through the relay, with the caller secret of its relay
 /// response (base64url, at most [`SECRET_MAX_CHARS`]), and not a
 /// terminal's OS login. None for every other login: nobody asks the
 /// server, and the person decides as before.
 pub fn caller_check_of(
+    secured: bool,
     password: &[u8],
     secret: &str,
     relay_session: Option<&str>,
     terminal_os_login: bool,
 ) -> Option<CallerCheck> {
-    if !password.is_empty() || terminal_os_login {
+    if !secured || !password.is_empty() || terminal_os_login {
         return None;
     }
     let session = relay_session.map(str::trim).filter(|s| !s.is_empty())?;

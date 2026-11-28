@@ -246,6 +246,16 @@ pub async fn create_tcp_connection(
             bail!("evicted to make room for a newer unauthenticated connection");
         }
     }
+    // The receiver and a Get help session take encrypted connections only:
+    // someone on the way could strip the encryption and read the login
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if crate::onboard::refuses_unencrypted(stream.is_secured()) {
+        log::warn!(
+            "Refused an unencrypted connection from {}: the receiver and a Get help session take encrypted connections only",
+            addr
+        );
+        bail!("unencrypted connection refused");
+    }
 
     #[cfg(target_os = "macos")]
     {

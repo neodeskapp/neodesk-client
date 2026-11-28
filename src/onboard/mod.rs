@@ -1273,6 +1273,12 @@ pub async fn unattended_caller(check: &CallerCheck) -> Option<Unattended> {
     unattended::unattended_caller(check).await
 }
 
+/// Whether this process refuses a peer connection that ended its
+/// handshake without encryption: the receiver and a Get help session do.
+pub fn refuses_unencrypted(secured: bool) -> bool {
+    receiver_policy::unencrypted_refused(secured, is_receiver(), in_support_session())
+}
+
 /// Whether the logon screen fallback may take a permanent password: never
 /// on the receiver, which has none (A279).
 pub fn logon_screen_password_allowed(option_on: bool, on_logon_screen: bool) -> bool {

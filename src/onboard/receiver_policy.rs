@@ -50,6 +50,14 @@ pub fn logon_screen_password_allowed(option_on: bool, on_logon_screen: bool, rec
     option_on && on_logon_screen && !receiver
 }
 
+/// Whether a peer connection that ended its handshake without encryption
+/// is refused: on the receiver and in a Get help session always. Someone on
+/// the way could otherwise strip the encryption and read what the caller
+/// sends, the caller secret among it.
+pub fn unencrypted_refused(secured: bool, receiver: bool, support_session: bool) -> bool {
+    !secured && (receiver || support_session)
+}
+
 /// The days of a schedule, in the contract's words, Monday first.
 pub const DAYS: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -445,6 +453,15 @@ mod tests {
         // A schedule that never matches: no line
         let broken = policy(&["mon"], "08:00", "18:00", "Mars/Olympus");
         assert_eq!(line(None, Some(&broken), 0), None);
+    }
+
+    #[test]
+    fn the_receiver_and_a_get_help_session_refuse_an_unencrypted_connection() {
+        assert!(unencrypted_refused(false, true, false));
+        assert!(unencrypted_refused(false, false, true));
+        assert!(unencrypted_refused(false, true, true));
+        assert!(!unencrypted_refused(true, true, true));
+        assert!(!unencrypted_refused(false, false, false), "the full client as before");
     }
 
     #[test]

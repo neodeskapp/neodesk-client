@@ -2002,13 +2002,16 @@ fn only_a_relayed_login_with_the_caller_secret_and_no_password_is_asked_about() 
         ..Default::default()
     };
     let check = |lr: &LoginRequest, relay: Option<&str>, terminal: bool| {
-        super::caller_check_of(&lr.password, &lr.nd_caller_secret, relay, terminal)
+        super::caller_check_of(true, &lr.password, &lr.nd_caller_secret, relay, terminal)
     };
     assert_eq!(
         check(&login(b"", UA_SECRET), Some(UA_RELAY), false),
         Some(super::CallerCheck { session: UA_RELAY.to_owned(), secret: UA_SECRET.to_owned() })
     );
     assert_eq!(check(&login(b"", &format!(" {UA_SECRET} ")), Some(UA_RELAY), false).unwrap().secret, UA_SECRET);
+    // A connection without encryption: its login could have been read on the way
+    let lr = login(b"", UA_SECRET);
+    assert_eq!(super::caller_check_of(false, &lr.password, &lr.nd_caller_secret, Some(UA_RELAY), false), None);
     for (why, lr, relay, terminal) in [
         ("a password", login(b"hashed-password", UA_SECRET), Some(UA_RELAY), false),
         ("no secret", login(b"", ""), Some(UA_RELAY), false),
