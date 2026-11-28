@@ -118,6 +118,15 @@ fn apply_to(
     }
 }
 
+/// Whether the install-time file keeps its token or admission after the
+/// server's answer: only when it refused the computer because another one
+/// waits to join with the same ID (`id_taken`, A280). Once an admin clears
+/// that in Join requests, the next registration brings the token again.
+/// Every other answer used them up.
+pub(crate) fn keeps_enrollment_secrets(status: &str, error: &str) -> bool {
+    status == "rejected" && error.trim() == "id_taken"
+}
+
 /// The install-time file as this process has it.
 pub fn install_file() -> Option<InstallFile> {
     FILE.lock().unwrap().clone()
@@ -132,9 +141,10 @@ pub fn enrollment_fields() -> Vec<(&'static str, String)> {
 }
 
 /// The server answered a registration that carried the install-time file's
-/// token or admission: the file is written again without them.
-pub fn enrollment_answered(status: &str) {
-    if status.is_empty() {
+/// token or admission: the file is written again without them, unless the
+/// answer keeps them ([`keeps_enrollment_secrets`]).
+pub fn enrollment_answered(status: &str, error: &str) {
+    if status.is_empty() || keeps_enrollment_secrets(status, error) {
         return;
     }
     let mut file = FILE.lock().unwrap();
@@ -592,9 +602,14 @@ group=4
         assert_eq!(body["token"], "tok-1");
         assert_eq!(body["group"], "4");
         assert!(body.get("admission").is_none());
-        enrollment_answered("");
+        enrollment_answered("", "");
         assert_eq!(enrollment_fields().len(), 2, "no answer, no change");
-        enrollment_answered("pending");
+        // Another computer waits to join with this ID (A280): the token
+        // stays for the registration after an admin cleared that
+        enrollment_answered("rejected", "id_taken");
+        assert_eq!(enrollment_fields().len(), 2, "id_taken keeps the token");
+        assert_eq!(install_file().unwrap().token, "tok-1");
+        enrollment_answered("pending", "");
         assert!(enrollment_fields().is_empty());
         let mut body = json!({"device_id": "123456789"});
         crate::hbbs_http::neodesk::add_enrollment_fields(&mut body, &enrollment_fields());
@@ -603,6 +618,11 @@ group=4
         assert!(kept.receiver);
         assert_eq!(kept.server, "rcv-test.example.com:21116");
         assert_eq!(kept.token, "");
+        // Any other refusal uses the token up, as before
+        assert!(!keeps_enrollment_secrets("rejected", "device_banned"));
+        assert!(!keeps_enrollment_secrets("rejected", ""));
+        assert!(!keeps_enrollment_secrets("pending", "id_taken"));
+        assert!(keeps_enrollment_secrets("rejected", "id_taken"));
 
         // The offer after quick support enrolls with the admission
         *FILE.lock().unwrap() = Some(InstallFile::parse("receiver=Y

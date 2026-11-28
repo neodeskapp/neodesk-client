@@ -386,6 +386,33 @@ pub(crate) fn note_register_pk_answer(
     store_standing(enrollment::Standing::after_register_pk(&stored, answer));
 }
 
+/// The log line of a rejected enrollment answer, with the server's error
+/// code and message (for example `id_taken`, A280); None for any other
+/// answer.
+pub(crate) fn rejection_log_line(answer: &Value) -> Option<String> {
+    if enrollment::answer_status(answer) != "rejected" {
+        return None;
+    }
+    let text = |key: &str| answer.get(key).and_then(Value::as_str).unwrap_or("").trim();
+    Some(format!(
+        "NeoDesk enrollment rejected: error={}, message={}",
+        if text("error").is_empty() { "none" } else { text("error") },
+        text("message")
+    ))
+}
+
+/// Logs a rejected enrollment once for each error and message.
+fn log_rejection(answer: &Value) {
+    static LAST: Mutex<String> = Mutex::new(String::new());
+    if let Some(line) = rejection_log_line(answer) {
+        let mut last = LAST.lock().unwrap();
+        if *last != line {
+            log::warn!("{line}");
+            *last = line;
+        }
+    }
+}
+
 /// The server's message of a rejected enrollment answer.
 fn note_rejection(answer: &Value) {
     if enrollment::answer_status(answer) == "rejected" {
@@ -498,8 +525,12 @@ pub async fn sync_device_enrollment() {
     // computer or refused them, so they leave the install-time file
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     if !install_fields.is_empty() {
-        crate::onboard::receiver::enrollment_answered(&enroll_status);
+        crate::onboard::receiver::enrollment_answered(
+            &enroll_status,
+            value.get("error").and_then(Value::as_str).unwrap_or(""),
+        );
     }
+    log_rejection(&value);
     record_enrollment_answer(
         &enroll_status,
         enrollment::answer_token(&value),
@@ -957,4 +988,27 @@ pub async fn sync_client_branding_from(base: &str) {
 #[allow(dead_code)]
 pub fn is_branding_managed_by_server() -> bool {
     is_server_managed()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A rejected enrollment names the server's error code and message in
+    /// the log, so "another computer waits with this ID" (A280) can be told
+    /// from a ban.
+    #[test]
+    fn a_rejected_enrollment_logs_the_error_and_the_message() {
+        let answer = serde_json::json!({
+            "status": "rejected",
+            "error": "id_taken",
+            "message": "Another computer is already waiting to join with this computer's ID. Ask your IT team to look at Join requests."
+        });
+        let line = rejection_log_line(&answer).unwrap();
+        assert!(line.contains("error=id_taken"), "{line}");
+        assert!(line.contains("Another computer is already waiting"), "{line}");
+        let plain = rejection_log_line(&serde_json::json!({"status": "rejected"})).unwrap();
+        assert!(plain.contains("error=none"), "{plain}");
+        assert_eq!(rejection_log_line(&serde_json::json!({"status": "pending"})), None);
+    }
 }
